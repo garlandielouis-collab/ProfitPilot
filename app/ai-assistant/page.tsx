@@ -1,0 +1,446 @@
+'use client';
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import {
+  Plus, Trash2, Send, Square, Sparkles,
+  MessageSquare, ChevronLeft, ChevronRight, Bot, User,
+  TrendingUp, AlertTriangle, Package, DollarSign,
+  PenLine,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+import { supabase }               from '../../lib/supabaseClient';
+import { useConversations }        from '../../hooks/useConversations';
+import { useMessages }             from '../../hooks/useMessages';
+import { getWeeklySummaryAction }  from '../actions/ai';
+import { cn }                      from '../../lib/utils';
+import type { Conversation }       from '../actions/conversations';
+
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m    = Math.floor(diff / 60000);
+  if (m < 1)  return 'maintenant';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}j`;
+}
+
+// ── Quick suggestions ─────────────────────────────────────────────────────────
+
+const QUICK = [
+  { icon: TrendingUp,    text: 'Analyse mes ventes cette semaine' },
+  { icon: AlertTriangle, text: 'Quelles sont mes dettes urgentes ?' },
+  { icon: Package,       text: 'Produits en rupture de stock ?' },
+  { icon: DollarSign,    text: 'Comment améliorer ma trésorerie ?' },
+];
+
+// ── Typing dots ───────────────────────────────────────────────────────────────
+
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1 px-1 py-0.5">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"
+          animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+          transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.18 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Message bubble ────────────────────────────────────────────────────────────
+
+function MessageBubble({
+  role, content, streaming,
+}: { role: 'user' | 'assistant'; content: string; streaming?: boolean }) {
+  const isUser = role === 'user';
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={cn('flex gap-3', isUser ? 'flex-row-reverse' : 'flex-row')}
+    >
+      <div className={cn(
+        'flex-shrink-0 h-8 w-8 rounded-xl flex items-center justify-center',
+        isUser
+          ? 'bg-slate-700 text-slate-300'
+          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+      )}>
+        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+      </div>
+
+      <div className={cn(
+        'max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
+        isUser
+          ? 'bg-slate-700 text-slate-100 rounded-tr-sm'
+          : 'bg-slate-800/80 text-slate-200 border border-white/[0.06] rounded-tl-sm',
+      )}>
+        {streaming && !content ? (
+          <TypingDots />
+        ) : (
+          <ReactMarkdown
+            components={{
+              p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+              strong: ({ children }) => <strong className="font-semibold text-slate-100">{children}</strong>,
+              ul:     ({ children }) => <ul className="mb-2 list-disc pl-4 space-y-1">{children}</ul>,
+              ol:     ({ children }) => <ol className="mb-2 list-decimal pl-4 space-y-1">{children}</ol>,
+              li:     ({ children }) => <li className="text-slate-300">{children}</li>,
+              h2:     ({ children }) => <h2 className="mb-2 mt-3 font-bold text-slate-100">{children}</h2>,
+              h3:     ({ children }) => <h3 className="mb-1 mt-2 font-semibold text-slate-200">{children}</h3>,
+              code:   ({ children }) => (
+                <code className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-xs text-emerald-300">
+                  {children}
+                </code>
+              ),
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+        )}
+        {streaming && content && (
+          <span className="ml-1 inline-block h-3 w-0.5 animate-pulse bg-emerald-400" />
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+
+function Sidebar({
+  userId, activeId, onSelect, collapsed, onToggle,
+}: {
+  userId: string | undefined;
+  activeId: string | null;
+  onSelect: (id: string) => void;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const { query, create, rename, remove } = useConversations(userId);
+  const conversations = query.data ?? [];
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameVal,  setRenameVal]  = useState('');
+
+  const handleCreate = () => {
+    create.mutate(undefined, {
+      onSuccess: (c: Conversation) => onSelect(c.id),
+    });
+  };
+
+  const startRename = (c: Conversation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingId(c.id);
+    setRenameVal(c.title ?? '');
+  };
+
+  const submitRename = (id: string) => {
+    if (renameVal.trim()) rename.mutate({ id, title: renameVal.trim() });
+    setRenamingId(null);
+  };
+
+  return (
+    <aside className={cn(
+      'flex flex-col border-r border-white/[0.06] bg-slate-900/80 transition-all duration-300',
+      collapsed ? 'w-14' : 'w-64',
+    )}>
+      <div className="flex items-center justify-between gap-2 p-3 border-b border-white/[0.06]">
+        {!collapsed && (
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+            Conversations
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition ml-auto"
+        >
+          {collapsed
+            ? <ChevronRight className="h-4 w-4" />
+            : <ChevronLeft  className="h-4 w-4" />}
+        </button>
+      </div>
+
+      <div className="p-2">
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={create.isPending}
+          className={cn(
+            'flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20',
+            'text-emerald-400 hover:bg-emerald-500/20 transition text-sm font-medium',
+            collapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 py-2',
+          )}
+        >
+          <Plus className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && <span>Nouvelle analyse</span>}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        {conversations.map((c) => (
+          <div
+            key={c.id}
+            onClick={() => onSelect(c.id)}
+            className={cn(
+              'group relative flex items-center gap-2 rounded-xl px-2 py-2 cursor-pointer transition',
+              activeId === c.id
+                ? 'bg-emerald-500/15 text-emerald-300'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200',
+            )}
+          >
+            <MessageSquare className="h-4 w-4 flex-shrink-0" />
+
+            {!collapsed && (
+              <>
+                {renamingId === c.id ? (
+                  <input
+                    autoFocus
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onBlur={() => submitRename(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter')  submitRename(c.id);
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 min-w-0 bg-slate-700 rounded px-1 text-xs text-slate-100 outline-none border border-emerald-500/50"
+                  />
+                ) : (
+                  <span className="flex-1 min-w-0 truncate text-xs">
+                    {c.title ?? 'Sans titre'}
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-600 flex-shrink-0">
+                  {timeAgo(c.updated_at)}
+                </span>
+                <div className="absolute right-1.5 hidden group-hover:flex items-center gap-1 bg-slate-900/90 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={(e) => startRename(c, e)}
+                    className="rounded p-1 hover:bg-slate-700 text-slate-500 hover:text-slate-300"
+                  >
+                    <PenLine className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); remove.mutate(c.id); }}
+                    className="rounded p-1 hover:bg-red-500/20 text-slate-500 hover:text-red-400"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+
+        {!query.isLoading && conversations.length === 0 && !collapsed && (
+          <p className="px-2 py-6 text-center text-xs text-slate-600">
+            Aucune conversation.<br />Créez-en une pour commencer.
+          </p>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAGE ROOT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export default function AiAssistantPage() {
+  const [userId,       setUserId]       = useState<string | undefined>();
+  const [sidebarOpen,  setSidebarOpen]  = useState(true);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [input,        setInput]        = useState('');
+  const [summary,      setSummary]      = useState<Record<string, unknown> | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
+
+  const { query: msgQuery, send, cancel } = useMessages(activeConvId);
+  const messages    = msgQuery.data ?? [];
+  const isStreaming = send.isPending;
+
+  // auth
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }: { data: { user: { id?: string } | null } }) =>
+      setUserId(data.user?.id),
+    );
+  }, []);
+
+  // weekly context
+  useEffect(() => {
+    getWeeklySummaryAction()
+      .then((s) => setSummary(s as Record<string, unknown>))
+      .catch(() => {});
+  }, []);
+
+  // auto-scroll
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text || isStreaming) return;
+    if (!activeConvId) { toast.error('Sélectionnez ou créez une conversation'); return; }
+    setInput('');
+    send.mutate({ text, weeklySummary: summary });
+  }, [input, isStreaming, activeConvId, send, summary]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const showWelcome = messages.length === 0;
+
+  return (
+    <div className="flex h-[calc(100vh-84px)] overflow-hidden bg-[#080c14]">
+
+      {/* Sidebar */}
+      <Sidebar
+        userId={userId}
+        activeId={activeConvId}
+        onSelect={setActiveConvId}
+        collapsed={!sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
+      />
+
+      {/* Main area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3 bg-slate-900/40">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
+            <Sparkles className="h-4 w-4 text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-slate-100">PilotAI</h1>
+            <p className="text-xs text-slate-500">Assistant financier intelligent</p>
+          </div>
+          <div className="ml-auto">
+            <span className={cn(
+              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium',
+              summary ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500',
+            )}>
+              <span className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                summary ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600',
+              )} />
+              {summary ? 'Données chargées' : 'Chargement…'}
+            </span>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
+          <AnimatePresence initial={false}>
+            {showWelcome ? (
+              <motion.div
+                key="welcome"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex h-full flex-col items-center justify-center text-center py-12"
+              >
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/20">
+                  <Sparkles className="h-8 w-8 text-emerald-400" />
+                </div>
+                <h2 className="mb-2 text-xl font-bold text-slate-100">Bonjour, je suis PilotAI</h2>
+                <p className="mb-8 max-w-md text-sm text-slate-400">
+                  Votre conseiller financier intelligent. Je connais vos ventes, stocks et dettes
+                  en temps réel. Posez-moi n'importe quelle question sur votre entreprise.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
+                  {QUICK.map(({ icon: Icon, text }) => (
+                    <button
+                      key={text}
+                      type="button"
+                      onClick={() => {
+                        if (!activeConvId) { toast.error('Créez d\'abord une conversation ←'); return; }
+                        setInput(text);
+                        inputRef.current?.focus();
+                      }}
+                      className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-slate-800/60 px-4 py-3 text-left hover:border-emerald-500/30 hover:bg-emerald-500/5 transition"
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0 text-slate-500" />
+                      <span className="text-xs leading-snug text-slate-300">{text}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {!activeConvId && (
+                  <p className="mt-8 text-xs text-slate-600">
+                    ← Créez une conversation dans le panneau de gauche pour commencer
+                  </p>
+                )}
+              </motion.div>
+            ) : (
+              messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  role={msg.role}
+                  content={msg.content}
+                  streaming={msg.streaming}
+                />
+              ))
+            )}
+          </AnimatePresence>
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div className="border-t border-white/[0.06] px-4 py-3 bg-slate-900/40">
+          <div className="flex items-end gap-3 rounded-2xl border border-white/[0.08] bg-slate-800/60 px-4 py-3 focus-within:border-emerald-500/40 transition">
+            <textarea
+              ref={inputRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                activeConvId
+                  ? 'Posez votre question… (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)'
+                  : 'Créez ou sélectionnez une conversation pour commencer…'
+              }
+              disabled={!activeConvId}
+              className="flex-1 resize-none bg-transparent text-sm text-slate-100 placeholder:text-slate-600 outline-none leading-relaxed max-h-40 overflow-y-auto disabled:cursor-not-allowed"
+            />
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={cancel}
+                className="flex-shrink-0 rounded-xl bg-red-500/20 p-2 text-red-400 hover:bg-red-500/30 transition"
+                title="Arrêter"
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!input.trim() || !activeConvId}
+                className="flex-shrink-0 rounded-xl bg-emerald-500 p-2 text-white hover:bg-emerald-400 transition disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <p className="mt-1.5 px-1 text-[10px] text-slate-600">
+            PilotAI peut faire des erreurs. Vérifiez toujours les informations importantes.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Next.js build output — never commit
+.next/
+out/
+
+# Environment — NEVER commit secrets
+.env
+.env.local
+.env.*.local
+
+# TypeScript cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Misc temp files
+tmp_patch.txt
+*.tmp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
