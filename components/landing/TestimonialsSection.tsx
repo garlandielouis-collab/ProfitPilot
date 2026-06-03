@@ -29,9 +29,9 @@ const TESTIMONIALS = [
 ];
 
 const glassCard: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  backdropFilter: 'blur(12px)',
+  background: '#FFFFFF',
+  border: '1px solid #E2E8F0',
+  boxShadow: '0 4px 24px rgba(0,31,63,0.06)',
 };
 
 export function TestimonialsSection() {
@@ -52,7 +52,7 @@ export function TestimonialsSection() {
     <section
       id="testimonials"
       className="px-5 py-20 md:px-10 lg:px-16"
-      style={{ background: 'rgba(255,255,255,0.015)' }}
+      style={{ background: '#FFFFFF' }}
     >
       <div className="mx-auto max-w-4xl">
         {/* Heading */}
@@ -63,10 +63,10 @@ export function TestimonialsSection() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
           className="mb-14 text-center"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-purple-400">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#50c878]">
             {t({ fr: 'Témoignages', ht: 'Temwayaj' })}
           </p>
-          <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
+          <h2 className="mt-3 text-3xl font-bold text-[#001f3f] sm:text-4xl">
             {t({ fr: 'Ils ont transformé leur business', ht: 'Yo te transfòme biznis yo' })}
           </h2>
         </motion.div>
@@ -96,7 +96,7 @@ export function TestimonialsSection() {
                   <Star key={i} size={14} fill="#f59e0b" className="text-amber-400" />
                 ))}
               </div>
-              <p className="text-base leading-8 text-slate-300 md:text-lg md:leading-9">
+              <p className="text-base leading-8 text-slate-600 md:text-lg md:leading-9">
                 {language === 'ht' ? tm.quote.ht : tm.quote.fr}
               </p>
               <div className="mt-6 flex items-center gap-4">
@@ -107,7 +107,7 @@ export function TestimonialsSection() {
                   {tm.avatar}
                 </div>
                 <div>
-                  <p className="font-semibold text-white">{tm.name}</p>
+                  <p className="font-semibold text-[#001f3f]">{tm.name}</p>
                   <p className="text-sm text-slate-500">
                     {language === 'ht' ? tm.role.ht : tm.role.fr}
                   </p>
@@ -129,7 +129,7 @@ export function TestimonialsSection() {
                 style={{
                   height: 8,
                   borderRadius: 999,
-                  background: i === idx ? '#8b5cf6' : 'rgba(255,255,255,0.15)',
+                  background: i === idx ? '#001f3f' : '#E2E8F0',
                   border: 'none',
                   padding: 0,
                   cursor: 'pointer',
@@ -146,7 +146,7 @@ export function TestimonialsSection() {
                   ? (idx - 1 + TESTIMONIALS.length) % TESTIMONIALS.length
                   : (idx + 1) % TESTIMONIALS.length
                 )}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-slate-500 transition hover:bg-slate-50 hover:text-[#001f3f]"
               >
                 <Icon size={18} />
               </button>

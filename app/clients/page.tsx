@@ -13,7 +13,7 @@ type Client = {
   name: string;
   phone: string | null;
   email: string | null;
-  total_credit: number;
+  outstanding_balance: number;
   created_at: string;
   // enriched client-side
   totalPurchases: number;
@@ -76,11 +76,11 @@ function daysSince(iso: string) {
 // ── Mock data (shown when DB is empty) ───────────────────────────────────────
 
 const MOCK_CLIENTS: Client[] = [
-  { id: 'demo-1', name: 'Marie Josette Pierre',  phone: '+509 3712-4521', email: 'marie.pierre@gmail.com', total_credit: 15000, created_at: '2026-02-10T10:00:00Z', totalPurchases: 142500, saleCount: 12, isVIP: true  },
-  { id: 'demo-2', name: 'Jean-Baptiste Duval',   phone: '+509 4822-6340', email: null,                      total_credit: 35000, created_at: '2026-03-05T10:00:00Z', totalPurchases: 87500,  saleCount: 7,  isVIP: true  },
-  { id: 'demo-3', name: 'Claudette Morisseau',   phone: '+509 3611-8820', email: 'cmorisseau@yahoo.fr',    total_credit: 0,     created_at: '2026-04-14T10:00:00Z', totalPurchases: 22000,  saleCount: 3,  isVIP: false },
-  { id: 'demo-4', name: 'Réginald Saint-Louis',  phone: '+509 3920-1145', email: null,                      total_credit: 8500,  created_at: '2026-04-28T10:00:00Z', totalPurchases: 18500,  saleCount: 2,  isVIP: false },
-  { id: 'demo-5', name: 'Nadège Compère',        phone: '+509 4710-3382', email: 'nadege@profitpilot.ht',  total_credit: 0,     created_at: '2026-05-03T10:00:00Z', totalPurchases: 9500,   saleCount: 1,  isVIP: false },
+  { id: 'demo-1', name: 'Marie Josette Pierre',  phone: '+509 3712-4521', email: 'marie.pierre@gmail.com', outstanding_balance: 15000, created_at: '2026-02-10T10:00:00Z', totalPurchases: 142500, saleCount: 12, isVIP: true  },
+  { id: 'demo-2', name: 'Jean-Baptiste Duval',   phone: '+509 4822-6340', email: null,                      outstanding_balance: 35000, created_at: '2026-03-05T10:00:00Z', totalPurchases: 87500,  saleCount: 7,  isVIP: true  },
+  { id: 'demo-3', name: 'Claudette Morisseau',   phone: '+509 3611-8820', email: 'cmorisseau@yahoo.fr',    outstanding_balance: 0,     created_at: '2026-04-14T10:00:00Z', totalPurchases: 22000,  saleCount: 3,  isVIP: false },
+  { id: 'demo-4', name: 'Réginald Saint-Louis',  phone: '+509 3920-1145', email: null,                      outstanding_balance: 8500,  created_at: '2026-04-28T10:00:00Z', totalPurchases: 18500,  saleCount: 2,  isVIP: false },
+  { id: 'demo-5', name: 'Nadège Compère',        phone: '+509 4710-3382', email: 'nadege@profitpilot.ht',  outstanding_balance: 0,     created_at: '2026-05-03T10:00:00Z', totalPurchases: 9500,   saleCount: 1,  isVIP: false },
 ];
 
 const MOCK_INVOICES: Invoice[] = [
@@ -119,41 +119,41 @@ function ClientModal({
     setSaving(false);
   }
 
-  const inp = 'w-full rounded-2xl border border-white/10 bg-[#0f1628] px-4 py-3 text-sm text-slate-100 outline-none ring-1 ring-transparent transition placeholder:text-slate-600 focus:ring-[#6b5cff]/50';
+  const inp = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-slate-600 focus:ring-[#001F3F]/30';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-[#101426] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+      <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div>
-            <p className="text-xs uppercase tracking-widest text-[#7c85b6]">{client ? 'Modifye' : 'Nouvo Kliyan'}</p>
-            <h3 className="mt-0.5 text-xl font-semibold text-white">
+            <p className="text-xs uppercase tracking-widest text-[var(--color-muted)]">{client ? 'Modifye' : 'Nouvo Kliyan'}</p>
+            <h3 className="mt-0.5 text-xl font-semibold text-[#001F3F]">
               {client ? 'Modifye Kliyan' : 'Ajoute yon Kliyan'}
             </h3>
           </div>
-          <button onClick={onClose} className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-white/10 hover:text-white">
+          <button onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-white">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
         <form onSubmit={submit} className="space-y-4 p-6">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[#8b96b8]">Non Kliyan *</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Non Kliyan *</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Marie Josette Pierre" className={inp} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[#8b96b8]">Telefòn</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Telefòn</label>
               <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+509 XXXX-XXXX" className={inp} />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[#8b96b8]">Email</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Email</label>
               <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@example.com" className={inp} />
             </div>
           </div>
           {err && <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-400">{err}</p>}
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10">Anile</button>
-            <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-[#6b5cff] py-3 text-sm font-semibold text-white shadow-lg shadow-[#6b5cff]/20 transition hover:bg-[#5840e0] disabled:opacity-50">
+            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">Anile</button>
+            <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-[#001F3F] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] disabled:opacity-50">
               {saving ? 'Anrejistreman…' : client ? 'Sove Chanjman' : 'Ajoute Kliyan'}
             </button>
           </div>
@@ -170,17 +170,17 @@ function DeleteModal({ client, onClose, onConfirm }: { client: Client; onClose: 
   const isDemo = client.id.startsWith('demo-');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-white/10 bg-[#101426] p-6 shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
           <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
         </div>
-        <h3 className="text-lg font-semibold text-white">Efase kliyan?</h3>
-        <p className="mt-2 text-sm text-slate-400">
-          <span className="font-medium text-slate-200">{client.name}</span> pral efase. Ventes li yo ap rete men san lyen.
+        <h3 className="text-lg font-semibold text-[#001F3F]">Efase kliyan?</h3>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          <span className="font-medium text-[var(--color-text)]">{client.name}</span> pral efase. Ventes li yo ap rete men san lyen.
         </p>
         {isDemo && <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-400">Sa a se done demo — li pa nan DB reyèl.</p>}
         <div className="mt-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/10">Anile</button>
+          <button onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">Anile</button>
           {!isDemo && (
             <button onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }} disabled={busy}
               className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
@@ -196,7 +196,7 @@ function DeleteModal({ client, onClose, onConfirm }: { client: Client; onClose: 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
-  'bg-[#6b5cff]/30 text-[#a39bff]',
+  'bg-[#001F3F]/30 text-[#001F3F]',
   'bg-blue-500/20 text-blue-300',
   'bg-emerald-500/20 text-emerald-300',
   'bg-orange-500/20 text-orange-300',
@@ -242,28 +242,28 @@ function ClientsCRMInner() {
   const loadClients = useCallback(async () => {
     setLoading(true);
     const [clientRes, salesRes] = await Promise.all([
-      supabase.from('clients').select('id,name,phone,email,total_credit,created_at').order('name'),
-      supabase.from('sales').select('client_id,total_amount').not('client_id', 'is', null),
+      supabase.from('customers').select('id,name,phone,email,outstanding_balance,created_at').is('deleted_at', null).order('name'),
+      supabase.from('sales').select('customer_id,total_amount').not('customer_id', 'is', null),
     ]);
 
     if (clientRes.error || !clientRes.data?.length) {
       setIsDemo(true); setLoading(false); return;
     }
 
-    // Aggregate sales per client
+    // Aggregate sales per customer
     const agg: Record<string, { total: number; count: number }> = {};
     for (const s of salesRes.data ?? []) {
-      if (!s.client_id) continue;
-      if (!agg[s.client_id]) agg[s.client_id] = { total: 0, count: 0 };
-      agg[s.client_id].total += Number(s.total_amount);
-      agg[s.client_id].count += 1;
+      if (!s.customer_id) continue;
+      if (!agg[s.customer_id]) agg[s.customer_id] = { total: 0, count: 0 };
+      agg[s.customer_id].total += Number(s.total_amount);
+      agg[s.customer_id].count += 1;
     }
 
     const enriched: Client[] = clientRes.data.map((c: any) => {
       const { total = 0, count = 0 } = agg[c.id] ?? {};
       return {
         id: c.id, name: c.name, phone: c.phone ?? null, email: c.email ?? null,
-        total_credit: Number(c.total_credit ?? 0), created_at: c.created_at,
+        outstanding_balance: Number(c.outstanding_balance ?? 0), created_at: c.created_at,
         totalPurchases: total, saleCount: count,
         isVIP: total >= VIP_THRESHOLD || count >= VIP_SALE_COUNT,
       };
@@ -285,11 +285,12 @@ function ClientsCRMInner() {
     const [salesRes, creditsRes] = await Promise.all([
       supabase.from('sales')
         .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
-        .eq('client_id', clientId)
+        .eq('customer_id', clientId)
         .order('created_at', { ascending: false }),
-      supabase.from('client_credits')
-        .select('id,invoice_number,amount,currency,payment_status,created_at')
-        .eq('client_id', clientId)
+      supabase.from('customer_transactions')
+        .select('id,reference_id,amount,currency,type,description,created_at')
+        .eq('customer_id', clientId)
+        .eq('type', 'credit')
         .order('created_at', { ascending: false }),
     ]);
 
@@ -303,8 +304,8 @@ function ClientsCRMInner() {
     }
     setInvoices(Object.values(invMap).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     setCredits((creditsRes.data ?? []).map((c: any) => ({
-      id: c.id, invoice_number: c.invoice_number ?? null, amount: Number(c.amount),
-      currency: c.currency ?? 'HTG', payment_status: c.payment_status, created_at: c.created_at,
+      id: c.id, invoice_number: c.reference_id ?? null, amount: Number(c.amount),
+      currency: c.currency ?? 'HTG', payment_status: 'À Crédit' as const, created_at: c.created_at,
     })));
     setDetailLoad(false);
   }, []);
@@ -355,7 +356,7 @@ function ClientsCRMInner() {
     let list = clients;
     if (search) list = list.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search) || c.email?.toLowerCase().includes(search.toLowerCase()));
     if (filter === 'vip')    list = list.filter(c => c.isVIP);
-    if (filter === 'debtor') list = [...list].sort((a, b) => b.total_credit - a.total_credit).filter(c => c.total_credit > 0);
+    if (filter === 'debtor') list = [...list].sort((a, b) => b.outstanding_balance - a.outstanding_balance).filter(c => c.outstanding_balance > 0);
     return list;
   }, [clients, search, filter]);
 
@@ -369,23 +370,23 @@ function ClientsCRMInner() {
   const detailVisible = !!selectedId;
 
   return (
-    <div className="flex h-[calc(100vh-90px)] overflow-hidden bg-[#0B0F19]">
+    <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
 
       {/* ════════════════════════════════════════
           LEFT PANEL — Master (client list)
           Hidden on mobile when detail is open
       ════════════════════════════════════════ */}
-      <aside className={`flex w-80 flex-col border-r border-white/10 xl:w-96 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
+      <aside className={`flex w-full flex-col border-r border-[var(--color-border)] md:w-80 lg:w-96 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Header */}
-        <div className="border-b border-white/10 px-5 py-5">
+        <div className="border-b border-[var(--color-border)] px-5 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-[#7c85b6]">CRM</p>
-              <h1 className="mt-0.5 text-xl font-semibold text-white">Kliyan yo</h1>
+              <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">CRM</p>
+              <h1 className="mt-0.5 text-xl font-semibold text-[#001F3F]">Kliyan yo</h1>
             </div>
             <button onClick={() => { setEditClient(null); setShowModal(true); }}
-              className="flex items-center gap-1.5 rounded-2xl bg-[#6b5cff] px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-[#6b5cff]/25 transition hover:bg-[#5840e0] active:scale-95">
+              className="flex items-center gap-1.5 rounded-2xl bg-[#001F3F] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#002D5B] active:scale-95">
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               Ajoute
             </button>
@@ -393,16 +394,16 @@ function ClientsCRMInner() {
 
           {/* Search */}
           <div className="relative mt-3">
-            <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Chèche kliyan…"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-4 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-[#6b5cff]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
+              className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text)] outline-none placeholder:text-slate-600 focus:border-[#001F3F]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
           </div>
 
           {/* Filter tabs */}
           <div className="mt-3 flex gap-1.5">
             {([['all', 'Tout'], ['vip', '⭐ VIP'], ['debtor', '⚠ Debitè']] as const).map(([k, label]) => (
               <button key={k} onClick={() => setFilter(k)}
-                className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filter === k ? 'bg-[#6b5cff] text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}>
+                className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filter === k ? 'bg-[#001F3F] text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100'}`}>
                 {label}
               </button>
             ))}
@@ -418,13 +419,13 @@ function ClientsCRMInner() {
           )}
           {loading ? (
             <div className="flex justify-center py-10">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-[#6b5cff]" />
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
             </div>
           ) : filteredClients.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">Okenn kliyan jwenn</p>
+            <p className="py-8 text-center text-sm text-[var(--color-muted)]">Okenn kliyan jwenn</p>
           ) : filteredClients.map(c => (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
-              className={`w-full px-4 py-3.5 text-left transition ${selectedId === c.id ? 'bg-white/10' : 'hover:bg-white/5'}`}>
+              className={`w-full px-4 py-3.5 text-left transition ${selectedId === c.id ? 'bg-[#EAF1F8]' : 'hover:bg-slate-50'}`}>
               <div className="flex items-center gap-3">
                 {/* Avatar */}
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${avatarColor(c.name)}`}>
@@ -432,14 +433,14 @@ function ClientsCRMInner() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-slate-100">{c.name}</p>
+                    <p className="truncate text-sm font-semibold text-[var(--color-text)]">{c.name}</p>
                     {c.isVIP && <span className="shrink-0 text-xs">⭐</span>}
                   </div>
-                  <p className="text-xs text-slate-500">{c.saleCount} vente{c.saleCount !== 1 ? 's' : ''} · {fmt(c.totalPurchases)}</p>
+                  <p className="text-xs text-[var(--color-muted)]">{c.saleCount} vente{c.saleCount !== 1 ? 's' : ''} · {fmt(c.totalPurchases)}</p>
                 </div>
-                {c.total_credit > 0 && (
+                {c.outstanding_balance > 0 && (
                   <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">
-                    {fmt(c.total_credit)}
+                    {fmt(c.outstanding_balance)}
                   </span>
                 )}
               </div>
@@ -448,7 +449,7 @@ function ClientsCRMInner() {
         </div>
 
         {/* List footer */}
-        <div className="border-t border-white/10 px-4 py-3 text-xs text-slate-500">
+        <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-muted)]">
           {filteredClients.length} kliyan · {filteredClients.filter(c => c.isVIP).length} VIP
         </div>
       </aside>
@@ -459,18 +460,18 @@ function ClientsCRMInner() {
       <main className={`flex flex-1 flex-col overflow-hidden ${!detailVisible ? 'hidden md:flex' : 'flex'}`}>
         {!selected ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <svg className="mb-4 h-16 w-16 text-white/10" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
+            <svg className="mb-4 h-16 w-16 text-slate-200" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
             </svg>
-            <p className="text-slate-400">Chwazi yon kliyan pou wè detay li</p>
+            <p className="text-[var(--color-muted)]">Chwazi yon kliyan pou wè detay li</p>
           </div>
         ) : (
           <div className="flex flex-1 flex-col overflow-y-auto">
 
             {/* Detail header */}
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-white/10 bg-[#0B0F19]/95 px-6 py-4 backdrop-blur-xl">
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[var(--color-border)] bg-white/95 px-6 py-4 backdrop-blur-xl">
               {/* Back on mobile */}
-              <button onClick={() => setSelectedId(null)} className="mr-1 flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/10 md:hidden">
+              <button onClick={() => setSelectedId(null)} className="mr-1 flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-medium text-[var(--color-muted)] transition hover:bg-slate-100 md:hidden">
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                 Retounen
               </button>
@@ -481,34 +482,32 @@ function ClientsCRMInner() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-white">{selected.name}</h2>
+                  <h2 className="text-lg font-semibold text-[#001F3F]">{selected.name}</h2>
                   {selected.isVIP && (
                     <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">⭐ VIP</span>
                   )}
-                  {selected.total_credit > 0 && (
+                  {selected.outstanding_balance > 0 && (
                     <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">⚠ Dèt</span>
                   )}
                 </div>
-                <p className="truncate text-xs text-slate-400">
+                <p className="truncate text-xs text-[var(--color-muted)]">
                   Kliyan depi {new Date(selected.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
                   {' · '}{daysSince(selected.created_at)} jou
                 </p>
               </div>
 
               {/* Actions */}
-              <div className="flex shrink-0 items-center gap-2">
-                <button onClick={handlePrint} title="Imprimer rapport"
-                  className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10">
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button onClick={handlePrint} title="Imprimer"
+                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                  <span className="hidden sm:inline">Imprimer</span>
                 </button>
-                <button onClick={() => { setEditClient(selected); setShowModal(true); }}
-                  className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10">
+                <button onClick={() => { setEditClient(selected); setShowModal(true); }} title="Éditer"
+                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  <span className="hidden sm:inline">Éditer</span>
                 </button>
-                <button onClick={() => setDeleteTarget(selected)}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-red-500/15 hover:text-red-400">
+                <button onClick={() => setDeleteTarget(selected)} title="Supprimer"
+                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-red-500/15 hover:text-red-400">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
               </div>
@@ -518,19 +517,19 @@ function ClientsCRMInner() {
             <div className="flex-1 space-y-6 px-6 py-6">
 
               {/* ── Profile ── */}
-              <section className="rounded-[24px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[#7c85b6]">Pwofil Kliyan</p>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 backdrop-blur-xl">
+                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Pwofil Kliyan</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     { label: 'Telefòn', value: selected.phone ?? '—', icon: '📞' },
                     { label: 'Email', value: selected.email ?? '—', icon: '✉️' },
                     { label: 'Enskripsyon', value: new Date(selected.created_at).toLocaleDateString('fr-FR'), icon: '📅' },
                     { label: 'ID Kliyan', value: selected.id.slice(0, 8) + '…', icon: '🔑' },
                   ].map(({ label, value, icon }) => (
-                    <div key={label} className="rounded-2xl bg-white/5 p-3">
+                    <div key={label} className="rounded-2xl bg-[var(--color-surface)] p-3">
                       <p className="mb-1 text-lg">{icon}</p>
-                      <p className="text-[10px] uppercase tracking-widest text-slate-500">{label}</p>
-                      <p className="mt-0.5 break-all text-sm font-medium text-slate-200">{value}</p>
+                      <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
+                      <p className="mt-0.5 break-all text-sm font-medium text-[var(--color-text)]">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -538,18 +537,18 @@ function ClientsCRMInner() {
 
               {/* ── Analytics cards ── */}
               <section>
-                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[#7c85b6]">Analitik</p>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Analitik</p>
+                <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: 'Total Acha', value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ventes`, color: 'text-[#a39bff]', bg: 'bg-[#6b5cff]/10' },
-                    { label: 'Dèt Aktif', value: fmt(selected.total_credit),   sub: totalDebtActive > 0 ? 'En cours' : 'Aucune', color: totalDebtActive > 0 ? 'text-red-400' : 'text-emerald-400', bg: totalDebtActive > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
+                    { label: 'Total Acha', value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ventes`, color: 'text-[#001F3F]', bg: 'bg-[#001F3F]/10' },
+                    { label: 'Dèt Aktif', value: fmt(selected.outstanding_balance),   sub: totalDebtActive > 0 ? 'En cours' : 'Aucune', color: totalDebtActive > 0 ? 'text-red-400' : 'text-emerald-400', bg: totalDebtActive > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
                     { label: 'Mwayèn / Vant', value: selected.saleCount ? fmt(selected.totalPurchases / selected.saleCount) : '—', sub: 'Panier moyen', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-                    { label: 'Estatistik', value: selected.isVIP ? '⭐ VIP' : 'Regilye', sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-slate-400', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-white/5' },
+                    { label: 'Estatistik', value: selected.isVIP ? '⭐ VIP' : 'Regilye', sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
                   ].map(({ label, value, sub, color, bg }) => (
-                    <div key={label} className={`rounded-[20px] border border-white/10 ${bg} p-4 backdrop-blur-xl`}>
-                      <p className="text-[10px] uppercase tracking-widest text-slate-500">{label}</p>
+                    <div key={label} className={`rounded-[20px] border border-[var(--color-border)] ${bg} p-4 backdrop-blur-xl`}>
+                      <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
                       <p className={`mt-1.5 text-xl font-bold ${color}`}>{value}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{sub}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-muted)]">{sub}</p>
                     </div>
                   ))}
                 </div>
@@ -564,10 +563,10 @@ function ClientsCRMInner() {
                   </div>
                   <div className="space-y-2">
                     {credits.filter(c => c.payment_status === 'À Crédit').map(cc => (
-                      <div key={cc.id} className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-3">
+                      <div key={cc.id} className="flex items-center justify-between rounded-2xl bg-[var(--color-surface)] px-4 py-3">
                         <div>
-                          <p className="font-mono text-xs text-slate-300">{cc.invoice_number ?? '—'}</p>
-                          <p className="text-[11px] text-slate-500">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} jou</p>
+                          <p className="font-mono text-xs text-[var(--color-muted)]">{cc.invoice_number ?? '—'}</p>
+                          <p className="text-[11px] text-[var(--color-muted)]">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} jou</p>
                         </div>
                         <div className="flex items-center gap-3">
                           <p className="font-bold text-red-400">{fmt(cc.amount, cc.currency)}</p>
@@ -583,28 +582,28 @@ function ClientsCRMInner() {
               )}
 
               {/* ── Transaction history ── */}
-              <section className="rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-xl">
-                <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-[#7c85b6]">
+              <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] backdrop-blur-xl">
+                <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">
                     Istorik Tranzaksyon ({invoices.length})
                   </p>
-                  {detailLoad && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/10 border-t-[#6b5cff]" />}
+                  {detailLoad && <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />}
                 </div>
 
                 {invoices.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-slate-500">Okenn tranzaksyon anregistre</p>
+                  <p className="py-10 text-center text-sm text-[var(--color-muted)]">Okenn tranzaksyon anregistre</p>
                 ) : (
-                  <div className="divide-y divide-white/5">
+                  <div className="divide-y divide-[var(--color-border)]">
                     {invoices.map(inv => (
-                      <div key={inv.invoice_number} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/5">
+                      <div key={inv.invoice_number} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
                         {/* Icon */}
                         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm ${inv.payment_status === 'Payé' ? 'bg-emerald-500/15' : 'bg-blue-500/15'}`}>
                           {inv.payment_status === 'Payé' ? '✅' : '📋'}
                         </div>
                         {/* Info */}
                         <div className="min-w-0 flex-1">
-                          <p className="font-mono text-xs font-semibold text-slate-200">{inv.invoice_number}</p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="font-mono text-xs font-semibold text-[var(--color-text)]">{inv.invoice_number}</p>
+                          <p className="text-[11px] text-[var(--color-muted)]">
                             {new Date(inv.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                             {' · '}{inv.payment_method}
                             {' · '}{inv.itemCount} atik
@@ -612,7 +611,7 @@ function ClientsCRMInner() {
                         </div>
                         {/* Amount + Status */}
                         <div className="text-right">
-                          <p className="font-bold text-slate-100">{fmt(inv.total, inv.currency)}</p>
+                          <p className="font-bold text-[var(--color-text)]">{fmt(inv.total, inv.currency)}</p>
                           <span className={`text-[10px] font-semibold ${inv.payment_status === 'Payé' ? 'text-emerald-400' : 'text-blue-400'}`}>
                             {inv.payment_status}
                           </span>
@@ -623,9 +622,9 @@ function ClientsCRMInner() {
                 )}
 
                 {/* History total */}
-                <div className="flex items-center justify-between border-t border-white/10 px-5 py-3">
-                  <span className="text-xs text-slate-500">{invoices.length} fakti</span>
-                  <span className="text-sm font-bold text-[#a39bff]">
+                <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
+                  <span className="text-xs text-[var(--color-muted)]">{invoices.length} fakti</span>
+                  <span className="text-sm font-bold text-[#001F3F]">
                     Total: {fmt(invoices.reduce((s, i) => s + i.total, 0))}
                   </span>
                 </div>
@@ -649,7 +648,7 @@ function ClientsCRMInner() {
             <p style={{ color: '#555', fontSize: 13, marginBottom: 24 }}>Kliyan depi {new Date(selected.created_at).toLocaleDateString('fr-FR')}</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 32 }}>
-              {[['Total Acha', fmt(selected.totalPurchases)], ['Dèt Aktif', fmt(selected.total_credit)], ['Nòm Ventes', String(selected.saleCount)]].map(([l, v]) => (
+              {[['Total Acha', fmt(selected.totalPurchases)], ['Dèt Aktif', fmt(selected.outstanding_balance)], ['Nòm Ventes', String(selected.saleCount)]].map(([l, v]) => (
                 <div key={l} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16 }}>
                   <p style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', marginBottom: 4 }}>{l}</p>
                   <p style={{ fontSize: 20, fontWeight: 700 }}>{v}</p>
@@ -708,8 +707,8 @@ export default function ClientsPage() {
   return (
     <ProtectedRoute>
       <Suspense fallback={
-        <div className="flex h-screen items-center justify-center bg-[#0B0F19]">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#6b5cff]" />
+        <div className="flex h-screen items-center justify-center bg-[var(--color-bg)]">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
         </div>
       }>
         <ClientsCRMInner />

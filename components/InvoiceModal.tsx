@@ -158,7 +158,9 @@ function InvoicePrintView({ invoice, businessName }: { invoice: InvoiceData; bus
       <div className="mt-6 flex gap-4 text-xs text-slate-500">
         <span>Metòd Peman: <strong className="text-[#212529]">{invoice.payment_method}</strong></span>
         <span>·</span>
-        <span>Estati: <strong className={invoice.payment_status === 'Payé' ? 'text-emerald-600' : 'text-amber-600'}>{invoice.payment_status}</strong></span>
+        <span>Estati: <strong className={invoice.payment_status === 'paid' || invoice.payment_status === 'Payé' ? 'text-emerald-600' : 'text-amber-600'}>
+          {invoice.payment_status === 'paid' ? 'Payé' : invoice.payment_status === 'credit' ? 'À Crédit' : invoice.payment_status}
+        </strong></span>
       </div>
 
       {/* Footer */}
@@ -182,14 +184,14 @@ export function InvoiceModal({ invoiceNumber, onClose }: InvoiceModalProps) {
   const [error,   setError]     = useState('');
   const printStyleRef           = useRef<HTMLStyleElement | null>(null);
 
-  const businessName = 'ProfitPilot';   // TODO: fetch from businesses table
-
   useEffect(() => {
     getInvoiceDetails(invoiceNumber).then(data => {
       if (data) setInvoice(data); else setError('Fakti pa jwenn.');
       setLoading(false);
     }).catch(() => { setError('Erè chajman.'); setLoading(false); });
   }, [invoiceNumber]);
+
+  const businessName = invoice?.business_name ?? 'Mon Entreprise';
 
   // Close on Escape
   useEffect(() => {

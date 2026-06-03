@@ -1,41 +1,50 @@
 'use server';
 
-import { supabaseServer } from '../../lib/supabaseServerClient';
+import { getSupabaseServer } from '../../lib/supabaseServerClient';
+import { getBusinessContext } from '../../lib/serverAuth';
+import { debugAuth } from '../../lib/authDebugLog';
 
-// ── quickCreateSupplier ───────────────────────────────────────────────────────
+// â”€â”€ quickCreateSupplier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type QuickSupplierResult = {
   id: string;
   name: string;
   phone: string | null;
   email: string | null;
+  discount_percent: number;
 };
 
 export async function quickCreateSupplier(payload: {
   name: string;
   phone?: string;
   email?: string;
-  owner_id: string;
 }): Promise<QuickSupplierResult> {
-  if (!payload.name?.trim()) throw new Error('Non founisè obligatwa.');
+  // Verify auth is working
+  const debug = await debugAuth('quickCreateSupplier()');
+  if (!debug.success) throw new Error(debug.error);
 
-  const { data, error } = await supabaseServer
+  if (!payload.name?.trim()) throw new Error('Non founisÃ¨ obligatwa.');
+
+  // Get authenticated user + business
+  const { supabase, businessId } = await getBusinessContext();
+
+  const { data, error } = await supabase
     .from('suppliers')
     .insert({
       name:             payload.name.trim(),
       phone:            payload.phone?.trim()  || null,
       email:            payload.email?.trim()  || null,
       discount_percent: 0,
-      owner_id:         payload.owner_id,
+      business_id:      businessId,
     })
-    .select('id,name,phone,email')
+    .select('id,name,phone,email,discount_percent')
     .single();
 
   if (error) throw new Error(error.message);
   return data as QuickSupplierResult;
 }
 
-// ── quickCreateProduct ────────────────────────────────────────────────────────
+// â”€â”€ quickCreateProduct â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type QuickProductResult = {
   id: string;
@@ -51,22 +60,28 @@ export async function quickCreateProduct(payload: {
   category: string;
   purchase_price: number;
   sale_price: number;
-  owner_id: string;
 }): Promise<QuickProductResult> {
+  // Verify auth is working
+  const debug = await debugAuth('quickCreateProduct()');
+  if (!debug.success) throw new Error(debug.error);
+
   if (!payload.name?.trim())     throw new Error('Non pwodui obligatwa.');
   if (!payload.category?.trim()) throw new Error('Kategori obligatwa.');
   if (payload.purchase_price < 0) throw new Error('Pri acha pa valab.');
   if (payload.sale_price < 0)     throw new Error('Pri vant pa valab.');
 
-  const { data, error } = await supabaseServer
+  // Get authenticated user + business
+  const { supabase, userId } = await getBusinessContext();
+
+  const { data, error } = await supabase
     .from('products')
     .insert({
+      user_id:        userId,
       name:           payload.name.trim(),
       category:       payload.category.trim(),
       purchase_price: payload.purchase_price,
       sale_price:     payload.sale_price,
       stock_quantity: 0,
-      owner_id:       payload.owner_id,
     })
     .select('id,name,purchase_price,sale_price,stock_quantity,category')
     .single();
@@ -74,3 +89,7 @@ export async function quickCreateProduct(payload: {
   if (error) throw new Error(error.message);
   return data as QuickProductResult;
 }
+
+
+
+

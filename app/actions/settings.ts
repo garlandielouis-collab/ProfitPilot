@@ -2,6 +2,7 @@
 
 import { revalidatePath }   from 'next/cache';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
+import { getBusinessContext } from '../../lib/serverAuth';
 import {
   businessProfileSchema,
   userPreferencesSchema,
@@ -12,7 +13,7 @@ import {
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 async function getAuthUser() {
-  const supabase = getSupabaseServer();
+  const supabase = await getSupabaseServer();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) throw new Error('Non authentifié');
   return { user, supabase };
@@ -138,6 +139,7 @@ export async function upsertUserPreferences(raw: UserPreferencesInput) {
 
 export async function exportUserData() {
   const { user, supabase } = await getAuthUser();
+  const { businessId } = await getBusinessContext();
 
   const [
     { data: business },
@@ -150,11 +152,11 @@ export async function exportUserData() {
   ] = await Promise.all([
     supabase.from('businesses').select('*').eq('owner_id', user.id).maybeSingle(),
     supabase.from('user_preferences').select('*').eq('user_id', user.id).maybeSingle(),
-    supabase.from('sales').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
-    supabase.from('expenses').select('*').eq('owner_id', user.id).order('date', { ascending: false }),
-    supabase.from('products').select('*').eq('owner_id', user.id),
-    supabase.from('purchases').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }),
-    supabase.from('clients').select('*').eq('owner_id', user.id),
+    supabase.from('sales').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
+    supabase.from('expenses').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
+    supabase.from('products').select('*').eq('user_id', user.id),
+    supabase.from('purchases').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
+    supabase.from('customers').select('*').eq('business_id', businessId).is('deleted_at', null),
   ]);
 
   return {
@@ -178,13 +180,13 @@ export async function deleteAccount() {
 
   // Cascade-delete owned data in order (foreign keys)
   const tables: Array<{ table: string; col: string }> = [
-    { table: 'sales',            col: 'owner_id' },
-    { table: 'expenses',         col: 'owner_id' },
-    { table: 'products',         col: 'owner_id' },
-    { table: 'purchases',        col: 'owner_id' },
-    { table: 'clients',          col: 'owner_id' },
-    { table: 'user_preferences', col: 'user_id'  },
-    { table: 'businesses',       col: 'owner_id' },
+    { table: 'sales',            col: 'owner_id'  },
+    { table: 'expenses',         col: 'owner_id'  },
+    { table: 'purchases',        col: 'owner_id'  },
+    { table: 'products',         col: 'user_id'   },
+    { table: 'clients',          col: 'owner_id'  },
+    { table: 'user_preferences', col: 'user_id'   },
+    { table: 'businesses',       col: 'owner_id'  },
   ];
 
   for (const { table, col } of tables) {
@@ -192,7 +194,16 @@ export async function deleteAccount() {
     if (error) console.error(`Error deleting ${table}:`, error.message);
   }
 
-  // Sign out — actual auth user deletion requires admin SDK
+  // Delete the user from Auth via Admin API (requires valid service_role key)
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceKey) {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${user.id}`,
+      { method: 'DELETE', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+    );
+    if (!res.ok) console.error(`Error deleting auth user: ${res.status} ${await res.text()}`);
+  }
+
   await supabase.auth.signOut();
 }
 

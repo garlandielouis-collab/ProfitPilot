@@ -1,50 +1,42 @@
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-export function getSupabaseServer() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+/**
+ * ✅ CORRECT PATTERN for Next.js 15/16 + Supabase SSR
+ *
+ * How it works:
+ * 1. createServerClient's cookie handler is async-safe
+ * 2. getAll/setAll are called DURING request (lazy evaluation)
+ * 3. cookies() is awaited only when actually needed
+ * 4. Session is correctly injected into every request
+ *
+ * Usage in server actions:
+ *   const supabase = await getSupabaseServer();
+ *   const { data: { user } } = await supabase.auth.getUser();
+ */
+export async function getSupabaseServer() {
+  const cookieStore = await cookies();
 
-  // If envs are present, create a real client. Otherwise return a proxy
-  // that throws only when used, avoiding build-time crashes during prerender.
-  if (supabaseUrl && supabaseKey) {
-    return createClient(supabaseUrl, supabaseKey);
-  }
-
-  const makeThrow = (msg: string) => () => {
-    throw new Error(msg);
-  };
-
-  const errMsg = 'Supabase server client not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment.';
-
-  return new Proxy({}, {
-    get() {
-      return makeThrow(errMsg);
-    },
-    apply() {
-      return makeThrow(errMsg)();
-    },
-  }) as any;
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          // ✅ This runs DURING request when cookies are available
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            // ✅ Set session cookies back on response
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Server Components cannot set cookies, which is fine
+          }
+        },
+      },
+    }
+  );
 }
-
-// Backwards-compatible lazy proxy: existing files that import `supabaseServer`
-// can continue to do so. The real client is created on first property access.
-let _lazyClient: any = null;
-function _ensureClient() {
-  if (!_lazyClient) _lazyClient = getSupabaseServer();
-  return _lazyClient;
-}
-
-export const supabaseServer: any = new Proxy(
-  {},
-  {
-    get(_, prop) {
-      const client = _ensureClient();
-      // @ts-ignore
-      return client[prop as keyof typeof client];
-    },
-    apply(_, thisArg, args) {
-      const client = _ensureClient();
-      return (client as any).apply(thisArg, args);
-    },
-  }
-);

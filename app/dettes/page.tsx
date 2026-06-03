@@ -136,7 +136,7 @@ interface RelancerButtonProps {
 function RelancerButton({ phone, message }: RelancerButtonProps) {
   const link = waLink(phone, message);
   if (!link) return (
-    <span className="text-xs text-white/20 italic">Nan gen #</span>
+    <span className="text-xs text-slate-300 italic">Nan gen #</span>
   );
   return (
     <a
@@ -161,14 +161,14 @@ function StatCard({ label, value, sub, accent, glow, icon }: {
   accent: string; glow: string; icon: React.ReactNode;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-xl p-5 flex flex-col gap-2">
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white backdrop-blur-xl p-5 flex flex-col gap-2">
       <div className={`absolute -top-5 -right-5 h-20 w-20 rounded-full blur-2xl opacity-25 ${glow}`} />
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-white/40">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">{label}</span>
         <span className={`${accent} opacity-70`}>{icon}</span>
       </div>
       <p className={`text-xl font-bold tracking-tight ${accent}`}>{value}</p>
-      {sub && <p className="text-xs text-white/30">{sub}</p>}
+      {sub && <p className="text-xs text-[var(--color-muted)]">{sub}</p>}
     </div>
   );
 }
@@ -180,8 +180,8 @@ function SectionTitle({ color, label, count }: { color: string; label: string; c
     <div className="flex items-center gap-3">
       <div className={`h-8 w-1 rounded-full ${color}`} />
       <div>
-        <h2 className="font-bold text-white text-lg">{label}</h2>
-        <p className="text-xs text-white/30">{count} antrèman</p>
+        <h2 className="font-bold text-[#001F3F] text-lg">{label}</h2>
+        <p className="text-xs text-[var(--color-muted)]">{count} antrèman</p>
       </div>
     </div>
   );
@@ -217,91 +217,95 @@ function DettesInner() {
       const today = new Date();
 
       // ── Supplier debts ──────────────────────────────────────────────────────
-      const [purchRes, suppRes, prodRes] = await Promise.all([
-        supabase.from('purchases')
-          .select('id,supplier_id,product_id,quantity,total_purchase_amount,purchase_date,payment_status')
+      // purchases has: id, supplier_id, purchase_date, total_amount, payment_status
+      // product info is in purchase_items
+      const [purchRes, suppRes] = await Promise.all([
+        supabase
+          .from('purchases')
+          .select(`
+            id, supplier_id, purchase_date, total_amount, payment_status,
+            purchase_items ( product_name, quantity )
+          `)
+          .is('deleted_at', null)
           .order('purchase_date', { ascending: false }),
-        supabase.from('suppliers').select('id,name,phone'),
-        supabase.from('products').select('id,name'),
+        supabase
+          .from('suppliers')
+          .select('id,name,phone')
+          .is('deleted_at', null),
       ]);
 
       const suppMap = new Map<string, { name: string; phone: string | null }>(
-        (suppRes.data ?? []).map((s: any) => [s.id as string, { name: s.name as string, phone: (s.phone ?? null) as string | null }])
+        (suppRes.data ?? []).map((s: any) => [
+          s.id as string,
+          { name: s.name as string, phone: (s.phone ?? null) as string | null },
+        ])
       );
-      const prodMap = new Map<string, string>((prodRes.data ?? []).map((p: any) => [p.id as string, p.name as string]));
 
       const debtsData: SupplierDebt[] = (purchRes.data ?? []).map((r: any) => {
-        const days    = Math.floor((today.getTime() - new Date(r.purchase_date).getTime()) / 86_400_000);
-        const paid    = r.payment_status === 'Payé';
-        const supp    = suppMap.get(r.supplier_id) ?? { name: '—', phone: null };
+        const days  = Math.floor((today.getTime() - new Date(r.purchase_date).getTime()) / 86_400_000);
+        // Normalize DB status → display
+        const dbStatus = r.payment_status as string;
+        const isPaid   = dbStatus === 'paid';
+        const displayStatus: 'Payé' | 'À Crédit' = isPaid ? 'Payé' : 'À Crédit';
+        const supp     = suppMap.get(r.supplier_id) ?? { name: '—', phone: null };
+        const items: any[] = r.purchase_items ?? [];
+        const productName = items.map((i: any) => i.product_name).filter(Boolean).join(', ') || '—';
+        const qty = items.reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0);
         return {
-          id: r.id,
-          supplier_id: r.supplier_id,
-          supplier_name: supp.name,
+          id:             r.id,
+          supplier_id:    r.supplier_id,
+          supplier_name:  supp.name,
           supplier_phone: supp.phone,
-          product_name: prodMap.get(r.product_id) ?? '—',
-          quantity: Number(r.quantity),
-          amount: Number(r.total_purchase_amount),
-          purchase_date: r.purchase_date,
-          due_date: addDays(r.purchase_date, 30),
-          days_overdue: days,
-          payment_status: r.payment_status,
-          etat: computeEtat(days, paid),
+          product_name:   productName,
+          quantity:       qty,
+          amount:         Number(r.total_amount),
+          purchase_date:  r.purchase_date,
+          due_date:       addDays(r.purchase_date, 30),
+          days_overdue:   days,
+          payment_status: displayStatus,
+          etat:           computeEtat(days, isPaid),
         };
       });
 
-      // ── Client credits ───────────────────────────────────────────────────────
+      // ── Client credits ─────────────────────────────────────────────────────
       const { data: ccRaw } = await supabase
-        .from('client_credits')
-        .select('id,client_id,client_name,invoice_number,amount,currency,payment_status,created_at')
+        .from('sales')
+        .select('id,customer_id,customer_name,invoice_number,total_amount,currency,payment_status,created_at')
+        .eq('payment_status', 'credit')
         .order('created_at', { ascending: false });
-
-      // Fetch client phones for those with client_id
-      const clientIds = [...new Set((ccRaw ?? []).filter((r: any) => r.client_id).map((r: any) => r.client_id))];
-      let clientPhoneMap = new Map<string, string | null>();
-      if (clientIds.length > 0) {
-        const { data: cliData } = await supabase
-          .from('clients')
-          .select('id,phone')
-          .in('id', clientIds);
-        clientPhoneMap = new Map((cliData ?? []).map((c: any) => [c.id, c.phone ?? null]));
-      }
 
       const creditsData: ClientCredit[] = (ccRaw ?? []).map((r: any) => {
         const days = Math.floor((today.getTime() - new Date(r.created_at).getTime()) / 86_400_000);
-        const paid = r.payment_status === 'Payé';
         return {
-          id: r.id,
-          client_id: r.client_id ?? null,
-          client_name: r.client_name,
-          client_phone: r.client_id ? (clientPhoneMap.get(r.client_id) ?? null) : null,
+          id:             r.id,
+          client_id:      r.customer_id ?? null,
+          client_name:    r.customer_name ?? '—',
+          client_phone:   null,
           invoice_number: r.invoice_number ?? null,
-          amount: Number(r.amount),
-          currency: r.currency ?? 'HTG',
-          payment_status: r.payment_status,
-          created_at: r.created_at,
-          due_date: addDays(r.created_at.split('T')[0], 30),
-          days_since: days,
-          etat: computeEtat(days, paid),
+          amount:         Number(r.total_amount),
+          currency:       r.currency ?? 'HTG',
+          payment_status: 'À Crédit' as const,
+          created_at:     r.created_at,
+          due_date:       addDays(r.created_at.split('T')[0], 30),
+          days_since:     days,
+          etat:           computeEtat(days, false),
         };
       });
 
-      // ── Demo fallback ────────────────────────────────────────────────────────
-      if (debtsData.length === 0 && creditsData.length === 0) {
-        setIsDemo(true);
-        setSupplierDebts(MOCK_DEBTS);
-        setClientCredits(MOCK_CREDITS);
-      } else {
-        setIsDemo(false);
-        setSupplierDebts(debtsData);
-        setClientCredits(creditsData);
-      }
-    } catch {
-      setIsDemo(true);
-      setSupplierDebts(MOCK_DEBTS);
-      setClientCredits(MOCK_CREDITS);
+      // Only show demo if both lists are truly empty after successful fetch
+      const hasReal = debtsData.length > 0 || creditsData.length > 0;
+      setIsDemo(!hasReal);
+      setSupplierDebts(hasReal ? debtsData : MOCK_DEBTS);
+      setClientCredits(hasReal ? creditsData : MOCK_CREDITS);
+    } catch (e: any) {
+      console.error('[dettes] loadAll error:', e?.message);
+      // Do NOT fall back to demo silently — show empty so user knows
+      setIsDemo(false);
+      setSupplierDebts([]);
+      setClientCredits([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -352,7 +356,7 @@ function DettesInner() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-white">
+    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8 space-y-8">
 
         {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -360,7 +364,7 @@ function DettesInner() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-400/80">ProfitPilot</p>
             <h1 className="mt-1 text-2xl font-bold md:text-3xl">Jesyon Kredi Aktif</h1>
-            <p className="text-sm text-white/40 mt-0.5">Dèt Founisè · Kreyans Kliyan</p>
+            <p className="text-sm text-[var(--color-muted)] mt-0.5">Dèt Founisè · Kreyans Kliyan</p>
           </div>
           {isDemo && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400">
@@ -395,30 +399,30 @@ function DettesInner() {
         {/* ═══════════════════════════════════════════════════════════════════
             SECTION 1 — Dèt Founisè
         ════════════════════════════════════════════════════════════════════ */}
-        <div className="rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-xl overflow-hidden">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-white backdrop-blur-xl overflow-hidden">
 
           {/* Section header */}
-          <div className="flex flex-col gap-3 border-b border-white/8 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-[var(--color-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <SectionTitle color="bg-orange-500" label="Dèt Founisè" count={filteredDebts.length} />
 
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-2">
               {/* Search */}
               <div className="relative">
-                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input
                   type="text" placeholder="Rechèch…" value={debtSearch}
                   onChange={e => setDebtSearch(e.target.value)}
-                  className="w-40 rounded-xl bg-white/5 border border-white/10 pl-8 pr-3 py-1.5 text-xs text-white placeholder-white/25 outline-none focus:border-orange-500/60 transition"
+                  className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-orange-500/60 transition"
                 />
               </div>
               {/* Status pills */}
               {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setDebtStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
-                    ${debtStatus === s ? 'bg-orange-600 text-white' : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'}`}>
+                    ${debtStatus === s ? 'bg-orange-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
                   {s === 'all' ? 'Tout' : s === 'unpaid' ? 'À Crédit' : 'Payé'}
                 </button>
               ))}
@@ -428,7 +432,7 @@ function DettesInner() {
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition
                   ${debtCritOnly
                     ? 'bg-red-500/25 text-red-300 border border-red-500/50'
-                    : 'bg-white/5 text-white/50 border border-white/10 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
+                    : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)] hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full bg-red-400 ${debtCritOnly ? 'animate-pulse' : ''}`} />
                 Critique sèlman
               </button>
@@ -439,9 +443,9 @@ function DettesInner() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[680px]">
               <thead>
-                <tr className="border-b border-white/8">
+                <tr className="border-b border-[var(--color-border)]">
                   {['Founisè', 'Pwodui', 'Dat Ref.', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-white/30 whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -450,17 +454,17 @@ function DettesInner() {
               <tbody>
                 {loading ? (
                   [...Array(4)].map((_, i) => (
-                    <tr key={i} className="border-b border-white/5">
+                    <tr key={i} className="border-b border-[var(--color-border)]">
                       {[...Array(8)].map((_, j) => (
                         <td key={j} className="px-4 py-3">
-                          <div className="h-3 rounded bg-white/8 animate-pulse" style={{ width: `${35 + Math.random() * 50}%` }} />
+                          <div className="h-3 rounded bg-[var(--color-surface)] animate-pulse" style={{ width: `${35 + Math.random() * 50}%` }} />
                         </td>
                       ))}
                     </tr>
                   ))
                 ) : filteredDebts.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-white/30 text-sm">
+                    <td colSpan={8} className="px-4 py-12 text-center text-[var(--color-muted)] text-sm">
                       Pa gen dèt pou filtè sa a.
                     </td>
                   </tr>
@@ -468,39 +472,39 @@ function DettesInner() {
                   const waMsg = `Bonjou ${debt.supplier_name}, nou ta renmen raple ou ke gen yon peman annatant depi ${debt.days_overdue} jou. Montan: ${fmtAmt(debt.amount)}. Mèsi pou kolaborasyon ou.`;
                   return (
                     <tr key={debt.id}
-                      className={`border-b border-white/5 transition-colors group
-                        ${debt.etat === 'Critique' && debt.payment_status === 'À Crédit' ? 'bg-red-500/[0.03]' : ''}
-                        ${i % 2 === 0 ? '' : 'bg-white/[0.01]'}
-                        hover:bg-white/[0.04]`}>
+                      className={`border-b border-[var(--color-border)] transition-colors group
+                        ${debt.etat === 'Critique' && debt.payment_status === 'À Crédit' ? 'bg-red-50' : ''}
+                        ${i % 2 === 0 ? '' : 'bg-[var(--color-surface)]'}
+                        hover:bg-slate-50`}>
                       {/* Founisè */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-500/15 text-xs font-bold text-orange-400">
                             {debt.supplier_name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-white/90 text-sm">{debt.supplier_name}</span>
+                          <span className="font-medium text-[var(--color-text)] text-sm">{debt.supplier_name}</span>
                         </div>
                       </td>
                       {/* Pwodui */}
-                      <td className="px-4 py-3 text-white/60 text-xs max-w-[140px] truncate" title={debt.product_name}>
-                        {debt.product_name} <span className="text-white/30">×{debt.quantity}</span>
+                      <td className="px-4 py-3 text-[var(--color-muted)] text-xs max-w-[140px] truncate" title={debt.product_name}>
+                        {debt.product_name} <span className="text-[var(--color-muted)]">×{debt.quantity}</span>
                       </td>
                       {/* Dat ref */}
-                      <td className="px-4 py-3 whitespace-nowrap text-white/50 text-xs font-mono">
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--color-muted)] text-xs font-mono">
                         {fmtDate(debt.purchase_date)}
                       </td>
                       {/* Dat échéance */}
                       <td className="px-4 py-3 whitespace-nowrap text-xs">
-                        <span className={debt.etat === 'Critique' ? 'text-red-400 font-semibold' : debt.etat === 'Atansyon' ? 'text-orange-400' : 'text-white/50'}>
+                        <span className={debt.etat === 'Critique' ? 'text-red-400 font-semibold' : debt.etat === 'Atansyon' ? 'text-orange-400' : 'text-[var(--color-muted)]'}>
                           {fmtDate(debt.due_date)}
                         </span>
                         {debt.payment_status === 'À Crédit' && (
-                          <span className="ml-1.5 text-white/30">({debt.days_overdue}j)</span>
+                          <span className="ml-1.5 text-[var(--color-muted)]">({debt.days_overdue}j)</span>
                         )}
                       </td>
                       {/* Montan */}
                       <td className={`px-4 py-3 whitespace-nowrap font-bold tabular-nums
-                        ${debt.payment_status === 'Payé' ? 'text-emerald-400' : 'text-white/90'}`}>
+                        ${debt.payment_status === 'Payé' ? 'text-emerald-400' : 'text-[var(--color-text)]'}`}>
                         {fmtAmt(debt.amount)}
                       </td>
                       {/* État */}
@@ -513,7 +517,7 @@ function DettesInner() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         {debt.payment_status === 'À Crédit'
                           ? <RelancerButton phone={debt.supplier_phone} message={waMsg} />
-                          : <span className="text-xs text-white/20">—</span>}
+                          : <span className="text-xs text-slate-300">—</span>}
                       </td>
                       {/* Aksyon */}
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -536,7 +540,7 @@ function DettesInner() {
           </div>
 
           {/* Section footer */}
-          <div className="border-t border-white/8 px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/30">
+          <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
             <span>Total annatant: <span className="text-orange-400 font-semibold">{fmtAmt(totalDebtUnpaid)}</span></span>
             <span>Critique: <span className="text-red-400 font-semibold">{critDebts}</span></span>
             <span>Atansyon: <span className="text-orange-400 font-semibold">{supplierDebts.filter(d => d.etat === 'Atansyon' && d.payment_status === 'À Crédit').length}</span></span>
@@ -546,28 +550,28 @@ function DettesInner() {
         {/* ═══════════════════════════════════════════════════════════════════
             SECTION 2 — Kreyans Kliyan
         ════════════════════════════════════════════════════════════════════ */}
-        <div className="rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-xl overflow-hidden">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-white backdrop-blur-xl overflow-hidden">
 
           {/* Section header */}
-          <div className="flex flex-col gap-3 border-b border-white/8 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-[var(--color-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <SectionTitle color="bg-blue-500" label="Kreyans Kliyan" count={filteredCredits.length} />
 
             <div className="flex flex-wrap items-center gap-2">
               {/* Search */}
               <div className="relative">
-                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input
                   type="text" placeholder="Rechèch…" value={creditSearch}
                   onChange={e => setCreditSearch(e.target.value)}
-                  className="w-40 rounded-xl bg-white/5 border border-white/10 pl-8 pr-3 py-1.5 text-xs text-white placeholder-white/25 outline-none focus:border-blue-500/60 transition"
+                  className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-blue-500/60 transition"
                 />
               </div>
               {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setCreditStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
-                    ${creditStatus === s ? 'bg-blue-600 text-white' : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'}`}>
+                    ${creditStatus === s ? 'bg-blue-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
                   {s === 'all' ? 'Tout' : s === 'unpaid' ? 'À Crédit' : 'Payé'}
                 </button>
               ))}
@@ -577,7 +581,7 @@ function DettesInner() {
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition
                   ${creditCritOnly
                     ? 'bg-red-500/25 text-red-300 border border-red-500/50'
-                    : 'bg-white/5 text-white/50 border border-white/10 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
+                    : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)] hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full bg-red-400 ${creditCritOnly ? 'animate-pulse' : ''}`} />
                 Critique sèlman
               </button>
@@ -588,9 +592,9 @@ function DettesInner() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[680px]">
               <thead>
-                <tr className="border-b border-white/8">
+                <tr className="border-b border-[var(--color-border)]">
                   {['Kliyan', 'Fakti #', 'Dat Kredi', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-white/30 whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -599,17 +603,17 @@ function DettesInner() {
               <tbody>
                 {loading ? (
                   [...Array(4)].map((_, i) => (
-                    <tr key={i} className="border-b border-white/5">
+                    <tr key={i} className="border-b border-[var(--color-border)]">
                       {[...Array(8)].map((_, j) => (
                         <td key={j} className="px-4 py-3">
-                          <div className="h-3 rounded bg-white/8 animate-pulse" style={{ width: `${35 + Math.random() * 50}%` }} />
+                          <div className="h-3 rounded bg-[var(--color-surface)] animate-pulse" style={{ width: `${35 + Math.random() * 50}%` }} />
                         </td>
                       ))}
                     </tr>
                   ))
                 ) : filteredCredits.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-white/30 text-sm">
+                    <td colSpan={8} className="px-4 py-12 text-center text-[var(--color-muted)] text-sm">
                       Pa gen kreyans pou filtè sa a.
                     </td>
                   </tr>
@@ -617,39 +621,39 @@ function DettesInner() {
                   const waMsg = `Bonjou ${cc.client_name}, nou ta renmen raple ou ke ou gen yon balans annatant${cc.invoice_number ? ` (Fakti #${cc.invoice_number})` : ''}: ${fmtAmt(cc.amount, cc.currency)}. Mèsi pou peman ou a.`;
                   return (
                     <tr key={cc.id}
-                      className={`border-b border-white/5 transition-colors group
-                        ${cc.etat === 'Critique' && cc.payment_status === 'À Crédit' ? 'bg-red-500/[0.03]' : ''}
-                        ${i % 2 === 0 ? '' : 'bg-white/[0.01]'}
-                        hover:bg-white/[0.04]`}>
+                      className={`border-b border-[var(--color-border)] transition-colors group
+                        ${cc.etat === 'Critique' && cc.payment_status === 'À Crédit' ? 'bg-red-50' : ''}
+                        ${i % 2 === 0 ? '' : 'bg-[var(--color-surface)]'}
+                        hover:bg-slate-50`}>
                       {/* Kliyan */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-xs font-bold text-blue-400">
                             {cc.client_name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-white/90 text-sm">{cc.client_name}</span>
+                          <span className="font-medium text-[var(--color-text)] text-sm">{cc.client_name}</span>
                         </div>
                       </td>
                       {/* Invoice */}
-                      <td className="px-4 py-3 font-mono text-xs text-white/40 whitespace-nowrap">
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--color-muted)] whitespace-nowrap">
                         {cc.invoice_number ? cc.invoice_number.slice(-8) : '—'}
                       </td>
                       {/* Dat kredi */}
-                      <td className="px-4 py-3 whitespace-nowrap text-white/50 text-xs font-mono">
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--color-muted)] text-xs font-mono">
                         {fmtDate(cc.created_at)}
                       </td>
                       {/* Dat échéance */}
                       <td className="px-4 py-3 whitespace-nowrap text-xs">
-                        <span className={cc.etat === 'Critique' ? 'text-red-400 font-semibold' : cc.etat === 'Atansyon' ? 'text-orange-400' : 'text-white/50'}>
+                        <span className={cc.etat === 'Critique' ? 'text-red-400 font-semibold' : cc.etat === 'Atansyon' ? 'text-orange-400' : 'text-[var(--color-muted)]'}>
                           {fmtDate(cc.due_date)}
                         </span>
                         {cc.payment_status === 'À Crédit' && (
-                          <span className="ml-1.5 text-white/30">({cc.days_since}j)</span>
+                          <span className="ml-1.5 text-[var(--color-muted)]">({cc.days_since}j)</span>
                         )}
                       </td>
                       {/* Montan */}
                       <td className={`px-4 py-3 whitespace-nowrap font-bold tabular-nums
-                        ${cc.payment_status === 'Payé' ? 'text-emerald-400' : 'text-white/90'}`}>
+                        ${cc.payment_status === 'Payé' ? 'text-emerald-400' : 'text-[var(--color-text)]'}`}>
                         {fmtAmt(cc.amount, cc.currency)}
                       </td>
                       {/* État */}
@@ -662,7 +666,7 @@ function DettesInner() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         {cc.payment_status === 'À Crédit'
                           ? <RelancerButton phone={cc.client_phone} message={waMsg} />
-                          : <span className="text-xs text-white/20">—</span>}
+                          : <span className="text-xs text-slate-300">—</span>}
                       </td>
                       {/* Aksyon */}
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -685,7 +689,7 @@ function DettesInner() {
           </div>
 
           {/* Section footer */}
-          <div className="border-t border-white/8 px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/30">
+          <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
             <span>Total annatant: <span className="text-blue-400 font-semibold">{fmtAmt(totalCreditUnpaid)}</span></span>
             <span>Critique: <span className="text-red-400 font-semibold">{critCredits}</span></span>
             <span>Atansyon: <span className="text-orange-400 font-semibold">{clientCredits.filter(c => c.etat === 'Atansyon' && c.payment_status === 'À Crédit').length}</span></span>

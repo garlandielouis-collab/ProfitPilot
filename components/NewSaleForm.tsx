@@ -44,11 +44,6 @@ const MODE_TO_DB: Record<PaymentMode, 'Cash' | 'MonCash' | 'Natcash' | 'Card'> =
   Crédit:      'Cash', // credit sales use Cash as default DB method
 };
 
-// Phone numbers for mobile money metadata
-const MODE_PHONE: Partial<Record<PaymentMode, string>> = {
-  Moncash: '50937304541',
-  Natcash: '50935951252',
-};
 
 const IMMEDIATE_METHODS: PaymentMode[] = ['Espèces', 'Moncash', 'Natcash', 'Carte Visa'];
 const ALL_MODES: PaymentMode[] = ['Espèces', 'Moncash', 'Natcash', 'Carte Visa', 'Crédit'];
@@ -61,10 +56,10 @@ const MODE_COLORS: Record<PaymentMode, string> = {
   Crédit:       'bg-amber-500 text-white',
 };
 
-const MODE_LABELS: Record<PaymentMode, React.ReactNode> = {
+const MODE_LABELS: Record<PaymentMode, string> = {
   Espèces:     '💵 Espèces',
-  Moncash:     <><span>📱 Moncash</span><br/><span className="text-[10px] opacity-75">50937304541</span></>,
-  Natcash:     <><span>📲 Natcash</span><br/><span className="text-[10px] opacity-75">50935951252</span></>,
+  Moncash:     '📱 MonCash',
+  Natcash:     '📲 NatCash',
   'Carte Visa': '💳 Carte Visa',
   Crédit:       '⏳ À Crédit',
 };
@@ -89,16 +84,18 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   // CRM
   const [clients, setClients] = useState<Client[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(true);
+  const [clientsError, setClientsError] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropdown, setClientDropdown] = useState(false);
   const [newClientName, setNewClientName] = useState('');
-  const [newClientPhone, setNewClientPhone] = useState('');
   const [showNewClient, setShowNewClient] = useState(false);
   const [savingClient, setSavingClient] = useState(false);
 
   // Submission
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState('Mon Entreprise');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
@@ -107,19 +104,28 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   useEffect(() => {
     async function init() {
-      const [{ data: user }, { data: prods }, { data: biz }] = await Promise.all([
+      const [{ data: userData }, { data: prods }, { data: biz }] = await Promise.all([
         supabase.auth.getUser(),
-        supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,barcode,image_url').order('name'),
-        supabase.from('businesses').select('exchange_rate').single(),
+        supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,image_url').order('name'),
+        supabase.from('businesses').select('name,exchange_rate').maybeSingle(),
       ]);
-      setOwnerId(user.user?.id ?? null);
+      setOwnerId(userData.user?.id ?? null);
       setProducts((prods ?? []) as ProductOption[]);
+      if (biz?.name) setBusinessName(biz.name);
       if (biz?.exchange_rate) setExchangeRate(biz.exchange_rate);
     }
 
     async function loadClients() {
-      const list = await getClients();
-      setClients(list);
+      setClientsLoading(true);
+      setClientsError('');
+      try {
+        const list = await getClients();
+        setClients(list);
+      } catch (e: any) {
+        setClientsError(e?.message ?? 'Erè chajman kliyan yo');
+      } finally {
+        setClientsLoading(false);
+      }
     }
 
     init();
@@ -137,7 +143,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   const filteredClients = useMemo(() => {
     const q = clientSearch.trim().toLowerCase();
     if (!q) return clients;
-    return clients.filter(c => c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q));
+    return clients.filter(c => c.name.toLowerCase().includes(q));
   }, [clients, clientSearch]);
 
   const subtotal = useMemo(() =>
@@ -156,7 +162,6 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   );
 
   const isCredit = paymentMode === 'Crédit';
-  const modePhone = MODE_PHONE[paymentMode] ?? null;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -213,12 +218,11 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
     if (!newClientName.trim()) return;
     setSavingClient(true);
     try {
-      const created = await upsertClient({ name: newClientName, phone: newClientPhone });
+      const created = await upsertClient({ name: newClientName });
       setClients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedClient(created);
       setShowNewClient(false);
       setNewClientName('');
-      setNewClientPhone('');
       setClientDropdown(false);
     } catch (e) {
       setError((e as Error).message);
@@ -250,10 +254,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
       const dbPaymentMethod = MODE_TO_DB[paymentMode];
 
-      // Build metadata for mobile money
-      const metadata = modePhone
-        ? { payment_phone: modePhone, payment_network: paymentMode }
-        : undefined;
+      const metadata = undefined;
 
       const result = await createSaleAction({
         items,
@@ -261,9 +262,8 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         is_credit: isCredit,
         currency,
         discount_percent: discountPercent,
-        client_id: selectedClient?.id,
-        client_name: selectedClient?.name ?? undefined,
-        owner_id: ownerId ?? undefined,
+        customer_id: selectedClient?.id,
+        customer_name: selectedClient?.name ?? undefined,
         metadata,
       });
 
@@ -419,66 +419,157 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                 <div className="space-y-1 relative">
                   <label className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
                     <User size={12} />
-                    Client {isCredit && <span className="text-red-500">*</span>}
+                    Kliyan {isCredit && <span className="text-red-500">*</span>}
                   </label>
+
+                  {/* Error state */}
+                  {clientsError && (
+                    <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
+                      ⚠️ {clientsError}
+                    </p>
+                  )}
+
                   <div className="relative">
-                    <button type="button" onClick={() => setClientDropdown(v => !v)}
-                      className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-[#212529] transition hover:bg-slate-100">
-                      <span className={selectedClient ? 'text-[#212529]' : 'text-[#212529]/40'}>
-                        {selectedClient ? selectedClient.name : 'Sélectionner un client…'}
+                    <button
+                      type="button"
+                      onClick={() => setClientDropdown(v => !v)}
+                      disabled={clientsLoading}
+                      className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-[#212529] transition hover:bg-slate-100 disabled:opacity-60"
+                    >
+                      <span className={selectedClient ? 'font-medium text-[#212529]' : 'text-[#212529]/40'}>
+                        {clientsLoading
+                          ? 'Ap chaje kliyan yo…'
+                          : selectedClient
+                            ? selectedClient.name
+                            : clients.length === 0
+                              ? 'Pa gen kliyan — kreye youn +'
+                              : 'Chwazi yon kliyan…'}
                       </span>
-                      <ChevronDown size={14} />
+                      <ChevronDown size={14} className={clientsLoading ? 'animate-spin opacity-50' : ''} />
                     </button>
-                    {clientDropdown && (
+
+                    {clientDropdown && !clientsLoading && (
                       <div className="absolute top-full left-0 z-30 mt-1 w-full rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                        <div className="p-2">
-                          <input autoFocus value={clientSearch} onChange={e => setClientSearch(e.target.value)}
-                            placeholder="Rechercher…"
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3]" />
+
+                        {/* Search */}
+                        <div className="p-2 border-b border-slate-100">
+                          <input
+                            autoFocus
+                            value={clientSearch}
+                            onChange={e => setClientSearch(e.target.value)}
+                            placeholder="Chèche kliyan…"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3] focus:bg-white"
+                          />
                         </div>
-                        <div className="max-h-40 overflow-y-auto">
-                          <button type="button" onClick={() => { setSelectedClient(null); setClientDropdown(false); }}
-                            className="w-full px-3 py-2 text-left text-xs text-[#212529]/50 hover:bg-slate-50">
-                            — Aucun client —
-                          </button>
+
+                        {/* List */}
+                        <div className="max-h-44 overflow-y-auto">
+                          {/* Deselect */}
+                          {selectedClient && (
+                            <button type="button"
+                              onClick={() => { setSelectedClient(null); setClientDropdown(false); }}
+                              className="w-full px-3 py-2 text-left text-xs text-[#212529]/50 hover:bg-slate-50">
+                              — Retire kliyan —
+                            </button>
+                          )}
+
+                          {/* Empty state */}
+                          {filteredClients.length === 0 && !showNewClient && (
+                            <div className="px-3 py-4 text-center">
+                              <p className="text-xs text-slate-400 mb-2">
+                                {clientSearch ? `Okenn kliyan ak "${clientSearch}"` : 'Pa gen kliyan ankò'}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setShowNewClient(true)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-[#0056b3] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0047a1]"
+                              >
+                                <UserPlus size={11} /> Kreye premye kliyan ou
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Client rows */}
                           {filteredClients.map(c => (
-                            <button key={c.id} type="button"
+                            <button
+                              key={c.id}
+                              type="button"
                               onClick={() => { setSelectedClient(c); setClientDropdown(false); setClientSearch(''); }}
-                              className={`w-full px-3 py-2 text-left text-xs transition hover:bg-slate-50 ${selectedClient?.id === c.id ? 'bg-blue-50 font-semibold text-[#0056b3]' : 'text-[#212529]'}`}>
-                              {c.name}{c.phone ? ` · ${c.phone}` : ''}
-                              {c.total_credit > 0 && (
-                                <span className="ml-1 text-amber-600">({formatCurrency(c.total_credit)} crédit)</span>
+                              className={`w-full px-3 py-2.5 text-left text-xs transition hover:bg-slate-50 flex items-center justify-between gap-2 ${
+                                selectedClient?.id === c.id ? 'bg-blue-50 font-semibold text-[#0056b3]' : 'text-[#212529]'
+                              }`}
+                            >
+                              <span className="font-medium truncate">{c.name}</span>
+                              {(c.outstanding_balance ?? 0) > 0 && (
+                                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                  {formatCurrency(c.outstanding_balance)}
+                                </span>
                               )}
                             </button>
                           ))}
                         </div>
+
+                        {/* Add new client */}
                         <div className="border-t border-slate-100 p-2">
-                          <button type="button" onClick={() => setShowNewClient(v => !v)}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0056b3] hover:underline">
-                            <UserPlus size={12} /> Nouveau client
-                          </button>
-                          {showNewClient && (
-                            <div className="mt-2 space-y-2">
-                              <input value={newClientName} onChange={e => setNewClientName(e.target.value)}
-                                placeholder="Nom *"
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3]" />
-                              <input value={newClientPhone} onChange={e => setNewClientPhone(e.target.value)}
-                                placeholder="Téléphone (optionnel)"
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3]" />
-                              <button type="button" onClick={handleSaveNewClient} disabled={!newClientName.trim() || savingClient}
-                                className="w-full rounded-xl bg-[#0056b3] py-1.5 text-xs font-semibold text-white disabled:opacity-50">
-                                {savingClient ? 'Enregistrement…' : 'Créer le client'}
-                              </button>
+                          {!showNewClient ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowNewClient(true)}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0056b3] hover:underline"
+                            >
+                              <UserPlus size={12} /> Nouvo kliyan
+                            </button>
+                          ) : (
+                            <div className="space-y-2">
+                              <input
+                                autoFocus
+                                value={newClientName}
+                                onChange={e => setNewClientName(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveNewClient(); } }}
+                                placeholder="Non kliyan *"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3] focus:bg-white"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={handleSaveNewClient}
+                                  disabled={!newClientName.trim() || savingClient}
+                                  className="flex-1 rounded-xl bg-[#0056b3] py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-[#0047a1]"
+                                >
+                                  {savingClient ? 'Ap kreye…' : 'Kreye'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowNewClient(false); setNewClientName(''); }}
+                                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+                                >
+                                  Anile
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
                     )}
                   </div>
+
+                  {/* Selected client info */}
                   {selectedClient && (
-                    <p className="text-[10px] text-[#212529]/50">
-                      Crédit en cours: {formatCurrency(selectedClient.total_credit)}
-                    </p>
+                    <div className="flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2">
+                      <span className="text-xs font-semibold text-[#0056b3]">✓ {selectedClient.name}</span>
+                      {(selectedClient.outstanding_balance ?? 0) > 0 && (
+                        <span className="text-[10px] text-amber-600 font-medium">
+                          Kredi: {formatCurrency(selectedClient.outstanding_balance)}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedClient(null)}
+                        className="text-[10px] text-slate-400 hover:text-red-500 ml-2"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -495,12 +586,6 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                       </button>
                     ))}
                   </div>
-                  {/* Mobile money phone info */}
-                  {modePhone && (
-                    <p className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                      📱 Nimewo <span className="font-bold">{modePhone}</span> ap anrejistre nan metadata tranzaksyon an.
-                    </p>
-                  )}
                 </div>
 
                 {/* Totals */}
@@ -561,7 +646,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
               </button>
             </div>
           </div>
-          <SaleInvoiceModal data={invoiceData} onClose={() => setInvoiceData(null)} />
+          <SaleInvoiceModal data={invoiceData} onClose={() => setInvoiceData(null)} businessName={businessName} />
         </div>
       )}
     </>

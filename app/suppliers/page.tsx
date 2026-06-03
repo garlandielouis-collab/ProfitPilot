@@ -14,11 +14,12 @@ import {
 
 type Purchase = {
   id: string;
+  po_number: string;
   product_name: string;
   quantity: number;
-  purchase_price_per_unit: number;
-  total_purchase_amount: number;
-  payment_status: 'Payé' | 'À Crédit';
+  unit_cost: number;
+  total_amount: number;
+  payment_status: string;
   purchase_date: string;
 };
 
@@ -28,10 +29,10 @@ type Supplier = {
   email?: string;
   phone?: string;
   discount_percent: number;
+  outstanding_balance: number;
+  total_purchased: number;
   created_at: string;
   purchases: Purchase[];
-  totalDebt: number;
-  totalPaid: number;
 };
 
 // ── Edit Modal ────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ function EditModal({
             <input
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#0056b3]"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -98,7 +99,7 @@ function EditModal({
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 type="email"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#0056b3]"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
               />
             </div>
             <div>
@@ -106,7 +107,7 @@ function EditModal({
               <input
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#0056b3]"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
               />
             </div>
           </div>
@@ -119,7 +120,7 @@ function EditModal({
               min={0}
               max={100}
               step={0.1}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#0056b3]"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
             />
           </div>
         </div>
@@ -136,7 +137,7 @@ function EditModal({
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="flex-1 rounded-xl bg-[#0056b3] py-2.5 text-sm font-medium text-white hover:bg-[#004494] disabled:opacity-50"
+            className="flex-1 rounded-xl bg-[#001F3F] py-2.5 text-sm font-medium text-white hover:bg-[#002D5B] disabled:opacity-50"
           >
             {saving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
@@ -237,55 +238,61 @@ export default function SuppliersPage() {
 
   async function loadAll() {
     setLoading(true);
-    const [suppRes, purchRes] = await Promise.all([
-      supabase
+    try {
+      // 1. Fetch suppliers with their running totals
+      const { data: suppData } = await supabase
         .from('suppliers')
-        .select('id,name,email,phone,discount_percent,created_at')
-        .order('name'),
-      supabase
+        .select('id,name,email,phone,discount_percent,outstanding_balance,total_purchased,created_at')
+        .is('deleted_at', null)
+        .order('name');
+
+      // 2. Fetch purchases with their items in one query
+      const { data: purchData } = await supabase
         .from('purchases')
-        .select(
-          'id,supplier_id,quantity,purchase_price_per_unit,total_purchase_amount,payment_status,purchase_date,products(name)'
-        )
-        .order('purchase_date', { ascending: false }),
-    ]);
+        .select(`
+          id, supplier_id, po_number, purchase_date,
+          total_amount, payment_status,
+          purchase_items ( product_name, quantity, unit_cost )
+        `)
+        .is('deleted_at', null)
+        .order('purchase_date', { ascending: false });
 
-    // Map: supplier_id → purchases
-    const purchMap: Record<string, Purchase[]> = {};
-    for (const p of purchRes.data ?? []) {
-      if (!purchMap[p.supplier_id]) purchMap[p.supplier_id] = [];
-      purchMap[p.supplier_id].push({
-        id: p.id,
-        product_name: (p as any).products?.name ?? '—',
-        quantity: Number(p.quantity),
-        purchase_price_per_unit: Number(p.purchase_price_per_unit),
-        total_purchase_amount: Number(p.total_purchase_amount),
-        payment_status: p.payment_status as 'Payé' | 'À Crédit',
-        purchase_date: p.purchase_date,
-      });
+      // 3. Build supplier_id → purchases map
+      const purchMap: Record<string, Purchase[]> = {};
+      for (const p of purchData ?? []) {
+        const items: any[] = (p as any).purchase_items ?? [];
+        const firstItem = items[0];
+        if (!purchMap[p.supplier_id]) purchMap[p.supplier_id] = [];
+        purchMap[p.supplier_id].push({
+          id:           p.id,
+          po_number:    p.po_number ?? p.id,
+          product_name: items.map((i: any) => i.product_name).join(', ') || '—',
+          quantity:     items.reduce((s: number, i: any) => s + Number(i.quantity), 0),
+          unit_cost:    Number(firstItem?.unit_cost ?? 0),
+          total_amount: Number(p.total_amount),
+          payment_status: p.payment_status,
+          purchase_date: p.purchase_date,
+        });
+      }
+
+      setSuppliers(
+        (suppData ?? []).map((s: any) => ({
+          id:                  s.id,
+          name:                s.name,
+          email:               s.email ?? undefined,
+          phone:               s.phone ?? undefined,
+          discount_percent:    Number(s.discount_percent ?? 0),
+          outstanding_balance: Number(s.outstanding_balance ?? 0),
+          total_purchased:     Number(s.total_purchased ?? 0),
+          created_at:          s.created_at,
+          purchases:           purchMap[s.id] ?? [],
+        }))
+      );
+    } catch (e: any) {
+      console.error('[loadAll suppliers]', e?.message);
+    } finally {
+      setLoading(false);
     }
-
-    setSuppliers(
-      (suppRes.data ?? []).map((s: any) => {
-        const purchases = purchMap[s.id] ?? [];
-        return {
-          id: s.id,
-          name: s.name,
-          email: s.email ?? undefined,
-          phone: s.phone ?? undefined,
-          discount_percent: Number(s.discount_percent ?? 0),
-          created_at: s.created_at,
-          purchases,
-          totalDebt: purchases
-            .filter(p => p.payment_status === 'À Crédit')
-            .reduce((acc, p) => acc + p.total_purchase_amount, 0),
-          totalPaid: purchases
-            .filter(p => p.payment_status === 'Payé')
-            .reduce((acc, p) => acc + p.total_purchase_amount, 0),
-        };
-      })
-    );
-    setLoading(false);
   }
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -301,7 +308,6 @@ export default function SuppliersPage() {
         email: form.email || undefined,
         phone: form.phone || undefined,
         discount_percent: parseFloat(form.discount) || 0,
-        owner_id: ownerId,
       });
       setForm({ name: '', email: '', phone: '', discount: '' });
       await loadAll();
@@ -336,7 +342,7 @@ export default function SuppliersPage() {
   // ── Derived stats ───────────────────────────────────────────────────────────
 
   const totalDebt = useMemo(
-    () => suppliers.reduce((s, sup) => s + sup.totalDebt, 0),
+    () => suppliers.reduce((s, sup) => s + sup.outstanding_balance, 0),
     [suppliers]
   );
 
@@ -344,12 +350,12 @@ export default function SuppliersPage() {
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen bg-[#f8fbff] px-4 py-6 md:px-6 lg:px-8">
+      <main className="min-h-screen bg-[var(--color-bg)] px-4 py-6 md:px-6 lg:px-8">
         <div className="mx-auto w-full max-w-7xl space-y-6">
 
           {/* ── Page header ── */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#0056b3]/90">Fournisseurs</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-[#001F3F]/90">Fournisseurs</p>
             <h1 className="mt-1 text-2xl font-semibold text-[#212529] md:text-3xl">
               Gestion des Fournisseurs
             </h1>
@@ -375,7 +381,7 @@ export default function SuppliersPage() {
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="Founisè S.A."
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#0056b3] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
                 />
               </div>
               {/* Email */}
@@ -386,7 +392,7 @@ export default function SuppliersPage() {
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="contact@founisè.com"
                   type="email"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#0056b3] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
                 />
               </div>
               {/* Téléphone */}
@@ -396,7 +402,7 @@ export default function SuppliersPage() {
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   placeholder="+509 XXXX-XXXX"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#0056b3] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
                 />
               </div>
               {/* Escompte */}
@@ -410,14 +416,14 @@ export default function SuppliersPage() {
                   min={0}
                   max={100}
                   step={0.1}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#0056b3] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
                 />
               </div>
               {/* Submit */}
               <button
                 type="submit"
                 disabled={formSaving || !form.name.trim()}
-                className="flex shrink-0 items-center gap-2 rounded-xl bg-[#0056b3] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#004494] disabled:opacity-50"
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-50"
               >
                 {formSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -434,7 +440,7 @@ export default function SuppliersPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100">
-                <Users className="h-6 w-6 text-[#0056b3]" />
+                <Users className="h-6 w-6 text-[#001F3F]" />
               </div>
               <div>
                 <p className="text-xs uppercase tracking-widest text-[#212529]/50">Total Founisè</p>
@@ -478,7 +484,7 @@ export default function SuppliersPage() {
               <div className="divide-y divide-slate-100">
                 {suppliers.map(sup => {
                   const isExpanded = expandedId === sup.id;
-                  const hasDebt = sup.totalDebt > 0;
+                  const hasDebt = sup.outstanding_balance > 0;
 
                   return (
                     <div key={sup.id}>
@@ -497,7 +503,7 @@ export default function SuppliersPage() {
                         </div>
 
                         {/* Avatar */}
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0056b3]/10 text-sm font-bold text-[#0056b3]">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#001F3F]/10 text-sm font-bold text-[#001F3F]">
                           {sup.name.charAt(0).toUpperCase()}
                         </div>
 
@@ -529,7 +535,7 @@ export default function SuppliersPage() {
                         {/* Dette + badge */}
                         <div className="w-36 text-right">
                           <p className={`text-sm font-bold ${hasDebt ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {formatCurrency(sup.totalDebt)}
+                            {formatCurrency(sup.outstanding_balance)}
                           </p>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -549,7 +555,7 @@ export default function SuppliersPage() {
                         >
                           <button
                             onClick={() => setEditSupplier(sup)}
-                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-[#0056b3]"
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-[#001F3F]"
                             title="Modifier"
                             aria-label="Modifier"
                           >
@@ -605,10 +611,10 @@ export default function SuppliersPage() {
                                           {p.quantity}
                                         </td>
                                         <td className="py-2.5 px-2 text-right text-slate-600">
-                                          {formatCurrency(p.purchase_price_per_unit)}
+                                          {formatCurrency(p.unit_cost)}
                                         </td>
                                         <td className="py-2.5 px-2 text-right font-semibold text-[#212529]">
-                                          {formatCurrency(p.total_purchase_amount)}
+                                          {formatCurrency(p.total_amount)}
                                         </td>
                                         <td className="py-2.5 px-2 text-center text-xs text-slate-500">
                                           {new Date(p.purchase_date).toLocaleDateString('fr-FR')}
@@ -616,16 +622,16 @@ export default function SuppliersPage() {
                                         <td className="py-2.5 px-2 text-center">
                                           <span
                                             className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                              p.payment_status === 'Payé'
+                                              p.payment_status === 'paid'
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : 'bg-red-100 text-red-700'
                                             }`}
                                           >
-                                            {p.payment_status === 'Payé' ? '✓ Payé' : '⏳ Crédit'}
+                                            {p.payment_status === 'paid' ? '✓ Peye' : '⏳ Kredi'}
                                           </span>
                                         </td>
                                         <td className="py-2.5 pl-2">
-                                          {p.payment_status === 'À Crédit' && (
+                                          {p.payment_status === 'credit' && (
                                             <button
                                               onClick={() => handlePurchasePaid(p.id)}
                                               disabled={busyPurchases.has(p.id)}
@@ -647,15 +653,15 @@ export default function SuppliersPage() {
                               {/* Summary row */}
                               <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2.5">
                                 <span className="text-xs text-slate-500">
-                                  Total payé :{' '}
-                                  <span className="font-semibold text-emerald-600">
-                                    {formatCurrency(sup.totalPaid)}
+                                  Total acha :{' '}
+                                  <span className="font-semibold text-[#212529]">
+                                    {formatCurrency(sup.total_purchased)}
                                   </span>
                                 </span>
                                 <span className="text-xs text-slate-500">
-                                  Restant dû :{' '}
-                                  <span className={`font-semibold ${sup.totalDebt > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                    {formatCurrency(sup.totalDebt)}
+                                  Rès dwe :{' '}
+                                  <span className={`font-semibold ${sup.outstanding_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                    {formatCurrency(sup.outstanding_balance)}
                                   </span>
                                 </span>
                               </div>

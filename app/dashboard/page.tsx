@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { motion } from 'framer-motion';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import { CockpitWelcome } from '../../components/CockpitWelcome';
+
 import {
   Area, AreaChart, Bar, BarChart,
   CartesianGrid, Cell, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { ProtectedRoute } from '../../components/ProtectedRoute';
 import {
   getDashboardV2Action,
   type CashflowPoint,
@@ -55,9 +59,9 @@ const C = {
   purple:  '#8B5CF6',
   cyan:    '#06B6D4',
   pink:    '#EC4899',
-  grid:    'rgba(255,255,255,0.04)',
-  axis:    'rgba(255,255,255,0.15)',
-  tick:    'rgba(255,255,255,0.35)',
+  grid:    'rgba(0,0,0,0.06)',
+  axis:    'rgba(0,0,0,0.15)',
+  tick:    'rgba(0,0,0,0.45)',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,18 +179,18 @@ function HealthGauge({ score }: { score: number }) {
   return (
     <svg viewBox="0 0 200 200" className="h-48 w-48 drop-shadow-2xl">
       {/* Track */}
-      <path d={arc(135, 405)} fill="none" stroke="rgba(255,255,255,0.07)"
+      <path d={arc(135, 405)} fill="none" stroke="rgba(0,0,0,0.08)"
         strokeWidth={sw} strokeLinecap="round" />
       {/* Progress */}
       <path d={arc(135, Math.min(endAngle, 404.5))} fill="none" stroke={col}
         strokeWidth={sw} strokeLinecap="round"
         style={{ filter: `drop-shadow(0 0 10px ${col}60)` }} />
       {/* Score text */}
-      <text x="100" y="100" textAnchor="middle" fill="white"
+      <text x="100" y="100" textAnchor="middle" fill="#001F3F"
         fontSize="34" fontWeight="800" style={{ fontFamily: 'Inter, sans-serif' }}>
         {score}
       </text>
-      <text x="100" y="122" textAnchor="middle" fill="rgba(255,255,255,0.38)"
+      <text x="100" y="122" textAnchor="middle" fill="#64748B"
         fontSize="12" fontWeight="500">/ 100</text>
       <text x="100" y="142" textAnchor="middle" fill={col}
         fontSize="10" fontWeight="700" letterSpacing="2">
@@ -241,9 +245,9 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: index * 0.07, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
-      className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-slate-900/55
-                 p-5 backdrop-blur-2xl flex flex-col gap-3 group
-                 hover:border-white/15 hover:bg-slate-900/70 transition-all duration-300"
+      className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]
+                 p-5 flex flex-col gap-3 group
+                 hover:border-slate-300 hover:bg-slate-50 transition-all duration-300"
     >
       {/* Ambient glow */}
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-35"
@@ -251,7 +255,7 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
 
       {/* Top row */}
       <div className="flex items-start justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.15em] text-white/40">
+        <span className="text-[10.5px] font-semibold uppercase tracking-[0.15em] text-[var(--color-muted)]">
           {label}
         </span>
         <span className="flex h-8 w-8 items-center justify-center rounded-xl opacity-80"
@@ -262,9 +266,9 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
 
       {/* Value */}
       {loading ? (
-        <div className="h-8 w-32 animate-pulse rounded-xl bg-white/8" />
+        <div className="h-8 w-32 animate-pulse rounded-xl bg-slate-100" />
       ) : (
-        <p className="text-[1.55rem] font-extrabold tracking-tight text-white leading-none">
+        <p className="text-[1.55rem] font-extrabold tracking-tight text-[#001F3F] leading-none">
           {value}
         </p>
       )}
@@ -279,7 +283,7 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
             </span>
           )}
           {!loading && (
-            <span className="text-[10px] text-white/28">{sub}</span>
+            <span className="text-[10px] text-[var(--color-muted)]">{sub}</span>
           )}
         </div>
         {/* Sparkline */}
@@ -298,16 +302,16 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
 function GlassTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="min-w-[170px] space-y-2 rounded-2xl border border-white/10 bg-[#0d1117]/95
-                    p-3.5 text-xs shadow-2xl backdrop-blur-xl">
-      <p className="mb-1.5 font-semibold uppercase tracking-wider text-white/35">{label}</p>
+    <div className="min-w-[170px] space-y-2 rounded-2xl border border-[var(--color-border)] bg-white
+                    p-3.5 text-xs shadow-2xl">
+      <p className="mb-1.5 font-semibold uppercase tracking-wider text-[var(--color-muted)]">{label}</p>
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center justify-between gap-5">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: p.color ?? p.fill }} />
-            <span className="text-white/55">{p.name}</span>
+            <span className="text-[var(--color-muted)]">{p.name}</span>
           </div>
-          <span className="font-bold tabular-nums text-white">{fmt(p.value)}</span>
+          <span className="font-bold tabular-nums text-[var(--color-text)]">{fmt(p.value)}</span>
         </div>
       ))}
     </div>
@@ -320,7 +324,7 @@ function GlassTooltip({ active, payload, label }: any) {
 
 function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-white/[0.08] bg-slate-900/55 backdrop-blur-2xl ${className}`}>
+    <div className={`rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] ${className}`}>
       {children}
     </div>
   );
@@ -332,9 +336,9 @@ function GlassCard({ children, className = '' }: { children: React.ReactNode; cl
 
 function TypeBadge({ type }: { type: LedgerRow['type'] }) {
   const cfg: Record<string, string> = {
-    Vann: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    Acha: 'bg-red-500/15  text-red-400  border-red-500/25',
-    Dèt:  'bg-amber-500/15 text-amber-400 border-amber-500/25',
+    Vann: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    Acha: 'bg-red-100    text-red-600    border-red-200',
+    Dèt:  'bg-amber-100  text-amber-700  border-amber-200',
   };
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wide ${cfg[type] ?? ''}`}>
@@ -349,16 +353,16 @@ function TypeBadge({ type }: { type: LedgerRow['type'] }) {
 
 function MethodBadge({ method }: { method: string }) {
   const cfg: Record<string, string> = {
-    Cash:      'bg-blue-500/10 text-blue-400',
-    MonCash:   'bg-purple-500/10 text-purple-400',
-    Natcash:   'bg-cyan-500/10 text-cyan-400',
-    Card:      'bg-pink-500/10 text-pink-400',
-    Espèces:   'bg-blue-500/10 text-blue-400',
-    'À Crédit':'bg-amber-500/10 text-amber-400',
+    Cash:      'bg-blue-100 text-blue-700',
+    MonCash:   'bg-purple-100 text-purple-700',
+    Natcash:   'bg-cyan-100 text-cyan-700',
+    Card:      'bg-pink-100 text-pink-700',
+    Espèces:   'bg-blue-100 text-blue-700',
+    'À Crédit':'bg-amber-100 text-amber-700',
   };
   return (
     <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-semibold
-                      ${cfg[method] ?? 'bg-white/5 text-white/40'}`}>
+                      ${cfg[method] ?? 'bg-slate-100 text-slate-500'}`}>
       {method}
     </span>
   );
@@ -370,7 +374,7 @@ function MethodBadge({ method }: { method: string }) {
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[11px] text-white/40">
+    <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]">
       <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
       {label}
     </div>
@@ -385,7 +389,7 @@ function ChartSkel({ h = 'h-64' }: { h?: string }) {
   return (
     <div className={`${h} flex items-end gap-1.5 px-4 pb-4 pt-8`}>
       {Array.from({ length: 14 }).map((_, i) => (
-        <div key={i} className="flex-1 animate-pulse rounded-t-lg bg-white/[0.06]"
+        <div key={i} className="flex-1 animate-pulse rounded-t-lg bg-slate-100"
           style={{ height: `${20 + ((i * 41 + 13) % 68)}%` }} />
       ))}
     </div>
@@ -400,10 +404,10 @@ interface Insight { type: 'success'|'warning'|'info'|'danger'; icon: string; tex
 
 function AIInsightCard({ insight, idx }: { insight: Insight; idx: number }) {
   const cfg = {
-    success: { bg: 'bg-emerald-500/8', border: 'border-emerald-500/20', dot: 'bg-emerald-400', text: 'text-emerald-300' },
-    info:    { bg: 'bg-blue-500/8',    border: 'border-blue-500/20',    dot: 'bg-blue-400',    text: 'text-blue-300'    },
-    warning: { bg: 'bg-amber-500/8',   border: 'border-amber-500/20',   dot: 'bg-amber-400',   text: 'text-amber-300'   },
-    danger:  { bg: 'bg-red-500/8',     border: 'border-red-500/20',     dot: 'bg-red-400',     text: 'text-red-300'     },
+    success: { bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500', text: 'text-emerald-700' },
+    info:    { bg: 'bg-blue-50',    border: 'border-blue-200',    dot: 'bg-blue-500',    text: 'text-blue-700'    },
+    warning: { bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-500',   text: 'text-amber-700'   },
+    danger:  { bg: 'bg-red-50',     border: 'border-red-200',     dot: 'bg-red-500',     text: 'text-red-600'     },
   }[insight.type];
 
   return (
@@ -415,7 +419,7 @@ function AIInsightCard({ insight, idx }: { insight: Insight; idx: number }) {
     >
       <span className="text-lg leading-none flex-shrink-0 mt-0.5">{insight.icon}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] text-white/75 leading-relaxed">{insight.text}</p>
+        <p className="text-[12.5px] text-[var(--color-text)] leading-relaxed">{insight.text}</p>
         {insight.action && (
           <span className={`mt-1 inline-block text-[10.5px] font-semibold ${cfg.text}`}>
             {insight.action} →
@@ -436,7 +440,7 @@ function StockBar({ qty, reorder }: { qty: number; reorder: number }) {
   const col = qty === 0 ? C.red : qty <= reorder ? C.amber : C.emerald;
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/8">
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: col }} />
       </div>
       <span className="text-[11px] tabular-nums font-semibold" style={{ color: col }}>
@@ -456,16 +460,16 @@ function QAButton({ href, icon, label, color }: { href: string; icon: React.Reac
       <motion.div
         whileHover={{ scale: 1.04, y: -2 }}
         whileTap={{ scale: 0.97 }}
-        className="flex flex-col items-center gap-2 rounded-2xl border border-white/8
-                   bg-slate-900/60 p-4 text-center cursor-pointer group
-                   hover:border-white/15 hover:bg-slate-900/80 transition-colors"
+        className="flex flex-col items-center gap-2 rounded-2xl border border-[var(--color-border)]
+                   bg-[var(--color-surface)] p-4 text-center cursor-pointer group
+                   hover:border-slate-300 hover:bg-slate-100 transition-colors"
       >
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-200
                          group-hover:scale-110"
           style={{ background: `${color}20`, color }}>
           {icon}
         </span>
-        <span className="text-[11px] font-semibold text-white/60 group-hover:text-white/90 transition-colors leading-tight">
+        <span className="text-[11px] font-semibold text-[var(--color-muted)] group-hover:text-[var(--color-text)] transition-colors leading-tight">
           {label}
         </span>
       </motion.div>
@@ -484,19 +488,19 @@ function ReportCard({ title, subtitle, icon, color, href }: {
     <Link href={href}>
       <motion.div
         whileHover={{ y: -3 }}
-        className="flex items-center gap-4 rounded-2xl border border-white/8 bg-slate-900/55
-                   p-4 cursor-pointer hover:border-white/15 hover:bg-slate-900/70
-                   transition-all group backdrop-blur-xl"
+        className="flex items-center gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]
+                   p-4 cursor-pointer hover:border-slate-300 hover:bg-slate-50
+                   transition-all group"
       >
         <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105"
           style={{ background: `${color}18`, color }}>
           {icon}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white/85 group-hover:text-white transition-colors">{title}</p>
-          <p className="text-[11px] text-white/35 mt-0.5">{subtitle}</p>
+          <p className="text-sm font-semibold text-[var(--color-text)] group-hover:text-[#001F3F] transition-colors">{title}</p>
+          <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{subtitle}</p>
         </div>
-        <svg className="h-4 w-4 flex-shrink-0 text-white/20 group-hover:text-white/50 group-hover:translate-x-0.5 transition-all"
+        <svg className="h-4 w-4 flex-shrink-0 text-slate-300 group-hover:text-[var(--color-muted)] group-hover:translate-x-0.5 transition-all"
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
@@ -513,7 +517,7 @@ function SectionLabel({ children, color = C.emerald }: { children: React.ReactNo
   return (
     <div className="flex items-center gap-3 mb-5">
       <div className="h-5 w-1 rounded-full flex-shrink-0" style={{ background: color }} />
-      <h2 className="text-base font-bold text-white">{children}</h2>
+      <h2 className="text-base font-bold text-[#001F3F]">{children}</h2>
     </div>
   );
 }
@@ -542,6 +546,13 @@ function DashboardInner() {
   const currentMonth = now.getMonth();
   const hour         = now.getHours();
   const greeting     = hour < 12 ? 'Bonjou' : hour < 18 ? 'Bonswa' : 'Bonswa';
+  const searchParams  = useSearchParams();
+  const showWelcome   = searchParams.get('welcome') === '1';
+  const [companyName, setCompanyName] = useState('votre entreprise');
+  useEffect(() => {
+    const stored = localStorage.getItem('pp_company');
+    if (stored) setCompanyName(stored);
+  }, []);
 
   // ── Period state ─────────────────────────────────────────────────────────────
   const [periodMode,       setPeriodMode]       = useState<PeriodMode>('mois');
@@ -610,16 +621,27 @@ function DashboardInner() {
 
   // ── Load user + products ─────────────────────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }: any) => {
-      const meta = data?.user?.user_metadata;
-      setUserName(meta?.full_name ?? meta?.name ?? data?.user?.email?.split('@')[0] ?? 'Entrepreneur');
+    // Batch both calls in parallel
+    supabase.auth.getUser().then(({ data: userData }: any) => {
+      const meta = userData?.user?.user_metadata;
+      setUserName(meta?.full_name ?? meta?.name ?? userData?.user?.email?.split('@')[0] ?? 'Entrepreneur');
+      const uid = userData?.user?.id;
+      if (!uid) return;
+      supabase
+        .from('products')
+        .select('id,name,stock_quantity,sale_price,purchase_price,category')
+        .eq('user_id', uid)
+        .then(({ data: prodData, error: prodErr }: any) => {
+          if (prodErr) console.error('[dashboard] products error:', prodErr.message);
+          if (prodData && prodData.length > 0) {
+            setProducts(prodData.map((p: any) => ({
+              ...p,
+              selling_price: p.sale_price,
+              reorder_point: 5,
+            })));
+          }
+        });
     });
-
-    supabase.from('products')
-      .select('id, name, stock_quantity, reorder_point, selling_price, category')
-      .then(({ data }: any) => {
-        if (data && data.length > 0) setProducts(data);
-      });
   }, []);
 
   useEffect(() => {
@@ -678,7 +700,8 @@ function DashboardInner() {
 
   const lowStockCount  = products.filter(p => p.stock_quantity <= (p.reorder_point ?? 0)).length;
   const outOfStockCount = products.filter(p => p.stock_quantity === 0).length;
-  const totalStockValue = products.reduce((s, p) => s + (p.stock_quantity * (p.selling_price ?? 0)), 0);
+  // Use purchase_price (cost price) for stock value — more accurate than sale_price
+  const totalStockValue = products.reduce((s, p) => s + (p.stock_quantity * ((p as any).purchase_price ?? p.selling_price ?? 0)), 0);
 
   // AI Insights (computed from real data)
   const aiInsights: Insight[] = useMemo(() => {
@@ -744,15 +767,17 @@ function DashboardInner() {
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#080c14] text-white">
+    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+      {/* ── Cinematic welcome overlay (first-run after onboarding) ── */}
+      {showWelcome && <CockpitWelcome companyName={companyName} />}
       {/* ──────────────────────────────────────────────────────────────── */}
       {/* 1. HEADER                                                        */}
       {/* ──────────────────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden">
         {/* Ambient gradient behind header */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-950/40 via-transparent to-blue-950/20" />
-        <div className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-emerald-500/5 blur-3xl" />
-        <div className="pointer-events-none absolute -top-16 right-0 h-80 w-80 rounded-full bg-blue-500/5 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-50/40 via-transparent to-blue-50/20" />
+        <div className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-emerald-100/50 blur-3xl" />
+        <div className="pointer-events-none absolute -top-16 right-0 h-80 w-80 rounded-full bg-blue-100/50 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-6 pt-7 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -768,11 +793,11 @@ function DashboardInner() {
                 </p>
                 <h1 className="mt-2 text-2xl font-extrabold tracking-tight md:text-3xl lg:text-4xl">
                   {greeting},{' '}
-                  <span className="bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-[#001F3F] to-[#001F3F]/60 bg-clip-text text-transparent">
                     {userName || 'Entrepreneur'} 👋
                   </span>
                 </h1>
-                <p className="mt-1.5 text-sm text-white/40">
+                <p className="mt-1.5 text-sm text-[var(--color-muted)]">
                   Voici les performances de votre business — {periodLabel}
                 </p>
               </motion.div>
@@ -799,8 +824,8 @@ function DashboardInner() {
                 Pilot AI
               </Link>
               <Link href="/settings"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10
-                           bg-white/5 text-white/40 transition hover:bg-white/10 hover:text-white">
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)]
+                           bg-[var(--color-surface)] text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-[var(--color-text)]">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -819,27 +844,27 @@ function DashboardInner() {
         {/* 2. PERIOD SELECTOR                                               */}
         {/* ──────────────────────────────────────────────────────────────── */}
         <div className="space-y-3">
-          <div className="inline-flex rounded-2xl border border-white/8 bg-white/[0.04] p-1 gap-1">
+          <div className="inline-flex rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 gap-1">
             {(['mois','trimestre','semestre'] as PeriodMode[]).map(m => (
               <button key={m} onClick={() => setPeriodMode(m)}
                 className={`rounded-xl px-4 py-2 text-[12px] font-semibold capitalize transition-all duration-200 ${
                   periodMode === m
                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
-                    : 'text-white/45 hover:bg-white/8 hover:text-white'
+                    : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                 }`}>
                 {m === 'mois' ? '📅 Mwa' : m === 'trimestre' ? '📊 Trimès' : '📈 Semès'}
               </button>
             ))}
           </div>
 
-          <div className="flex gap-1 overflow-x-auto rounded-2xl border border-white/[0.06]
-                          bg-white/[0.02] p-1.5 backdrop-blur-sm scrollbar-none">
+          <div className="flex gap-1 overflow-x-auto rounded-2xl border border-[var(--color-border)]
+                          bg-[var(--color-surface)] p-1.5 scrollbar-none">
             {periodMode === 'mois' && MONTHS_HT.map((m, i) => (
               <button key={i} onClick={() => setSelectedMonth(i)}
                 className={`flex-shrink-0 rounded-xl px-3.5 py-2 text-[11.5px] font-semibold transition-all ${
                   selectedMonth === i
                     ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
-                    : 'text-white/45 hover:bg-white/8 hover:text-white'
+                    : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                 }`}>
                 {m.slice(0, 3)}
               </button>
@@ -849,7 +874,7 @@ function DashboardInner() {
                 className={`flex-shrink-0 rounded-xl px-5 py-2 text-[11.5px] font-semibold transition-all ${
                   selectedQuarter === i
                     ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                    : 'text-white/45 hover:bg-white/8 hover:text-white'
+                    : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                 }`}>
                 {q.label} <span className="opacity-55">({q.name})</span>
               </button>
@@ -859,7 +884,7 @@ function DashboardInner() {
                 className={`flex-shrink-0 rounded-xl px-8 py-2 text-[11.5px] font-semibold transition-all ${
                   selectedSemester === i
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                    : 'text-white/45 hover:bg-white/8 hover:text-white'
+                    : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                 }`}>
                 {s.label} <span className="opacity-55">({s.name})</span>
               </button>
@@ -949,8 +974,8 @@ function DashboardInner() {
             <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-400/70">Cashflow</p>
-                <h3 className="mt-0.5 font-bold text-white text-lg">Évolution du flux de trésorerie</h3>
-                <p className="text-[11px] text-white/35 mt-0.5">Entrées vs sorties · {periodLabel}</p>
+                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">Évolution du flux de trésorerie</h3>
+                <p className="text-[11px] text-[var(--color-muted)] mt-0.5">Entrées vs sorties · {periodLabel}</p>
               </div>
               <div className="flex items-center gap-4">
                 <LegendDot color={C.blue}    label="Cash In" />
@@ -984,7 +1009,7 @@ function DashboardInner() {
                     <YAxis stroke={C.axis} tick={{ fill: C.tick, fontSize: 10 }}
                       tickLine={false} axisLine={false} width={50} tickFormatter={fmtK} />
                     <Tooltip content={<GlassTooltip />}
-                      cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }} />
+                      cursor={{ stroke: 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />
                     <Area type="monotone" dataKey="cashIn"  name="Cash In"
                       stroke={C.blue}    strokeWidth={2}   fill="url(#gIn)"
                       dot={false} activeDot={{ r: 5, fill: C.blue,    stroke:'#fff', strokeWidth:2 }} />
@@ -1014,12 +1039,12 @@ function DashboardInner() {
             <GlassCard className="p-5 h-full">
               <div className="mb-5">
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-purple-400/70">Performance</p>
-                <h3 className="mt-0.5 font-bold text-white text-lg">Revenus vs Dépenses par mois</h3>
-                <p className="text-[11px] text-white/35 mt-0.5">{periodLabel}</p>
+                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">Revenus vs Dépenses par mois</h3>
+                <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{periodLabel}</p>
               </div>
 
               {loading ? <ChartSkel h="h-56 md:h-64" /> : bilanRows.length === 0 ? (
-                <div className="flex h-56 items-center justify-center text-sm text-white/25">
+                <div className="flex h-56 items-center justify-center text-sm text-[var(--color-muted)]">
                   Aucune donnée pour cette période.
                 </div>
               ) : (
@@ -1033,8 +1058,8 @@ function DashboardInner() {
                       <YAxis stroke={C.axis} tick={{ fill: C.tick, fontSize: 10 }}
                         tickLine={false} axisLine={false} width={50} tickFormatter={fmtK} />
                       <Tooltip content={<GlassTooltip />}
-                        cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                      <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" />
+                        cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
+                      <ReferenceLine y={0} stroke="rgba(0,0,0,0.1)" />
                       <Bar dataKey="revenue"  name="Revenu"  fill={C.blue}   radius={[5,5,0,0]} maxBarSize={42} />
                       <Bar dataKey="expenses" name="Dépenses" fill={C.red}   radius={[5,5,0,0]} maxBarSize={42} />
                       <Bar dataKey="profit"   name="Profit"   radius={[5,5,0,0]} maxBarSize={42}>
@@ -1061,15 +1086,15 @@ function DashboardInner() {
           <div className="flex flex-col gap-3">
             {/* Margin */}
             <GlassCard className="p-4 flex flex-col gap-3">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-white/35">Marge Profit</p>
-              {loading ? <div className="h-8 w-20 animate-pulse rounded-xl bg-white/8" /> : (
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-muted)]">Marge Profit</p>
+              {loading ? <div className="h-8 w-20 animate-pulse rounded-xl bg-slate-100" /> : (
                 <>
                   <p className={`text-3xl font-extrabold tracking-tight ${
                     marginPct >= 20 ? 'text-emerald-400' : marginPct >= 5 ? 'text-amber-400' : 'text-red-400'
                   }`}>
                     {marginPct.toFixed(1)}<span className="text-lg font-medium opacity-60">%</span>
                   </p>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                     <motion.div className="h-full rounded-full"
                       initial={{ width: 0 }}
                       animate={{ width: `${Math.min(100, Math.abs(marginPct))}%` }}
@@ -1077,21 +1102,21 @@ function DashboardInner() {
                       style={{ background: marginPct >= 20 ? C.emerald : marginPct >= 5 ? C.amber : C.red }}
                     />
                   </div>
-                  <p className="text-[10px] text-white/28">Profit ÷ Revenu total</p>
+                  <p className="text-[10px] text-[var(--color-muted)]">Profit ÷ Revenu total</p>
                 </>
               )}
             </GlassCard>
 
             {/* Cashflow balance */}
             <GlassCard className="p-4 flex flex-col gap-2">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-white/35">Solde Net</p>
-              {loading ? <div className="h-8 w-24 animate-pulse rounded-xl bg-white/8" /> : (
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-muted)]">Solde Net</p>
+              {loading ? <div className="h-8 w-24 animate-pulse rounded-xl bg-slate-100" /> : (
                 <>
                   <p className={`text-2xl font-extrabold tracking-tight ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {totals.profit >= 0 ? '+' : ''}{fmtK(totals.profit)}
-                    <span className="text-xs font-medium text-white/30 ml-1">HTG</span>
+                    <span className="text-xs font-medium text-[var(--color-muted)] ml-1">HTG</span>
                   </p>
-                  <p className="text-[10px] text-white/28">Cash In − Cash Out</p>
+                  <p className="text-[10px] text-[var(--color-muted)]">Cash In − Cash Out</p>
                 </>
               )}
             </GlassCard>
@@ -1104,10 +1129,10 @@ function DashboardInner() {
                 transition={{ delay: 0.6 }}
                 className={`rounded-2xl border p-4 text-[12px] leading-relaxed ${
                   marginPct >= 20
-                    ? 'border-emerald-500/20 bg-emerald-500/8 text-emerald-300'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                     : marginPct >= 5
-                    ? 'border-amber-500/20 bg-amber-500/8 text-amber-300'
-                    : 'border-red-500/20 bg-red-500/8 text-red-300'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-red-200 bg-red-50 text-red-600'
                 }`}>
                 <span className="font-bold">
                   {marginPct >= 20 ? '✅ Excellent' : marginPct >= 5 ? '⚠️ Moyen' : '🔴 Alerte'}
@@ -1139,14 +1164,14 @@ function DashboardInner() {
               <div className="mb-5 flex items-center gap-3">
                 <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center
                                 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-blue-500/30
-                                border border-white/10">
+                                border border-[var(--color-border)]">
                   <span className="text-xl">🤖</span>
                   <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-emerald-400
-                                   border-2 border-[#080c14] animate-pulse" />
+                                   border-2 border-white animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">Pilot AI</h3>
-                  <p className="text-[11px] text-white/35">Analyse automatique de votre business</p>
+                  <h3 className="font-bold text-[#001F3F]">Pilot AI</h3>
+                  <p className="text-[11px] text-[var(--color-muted)]">Analyse automatique de votre business</p>
                 </div>
                 <span className="ml-auto inline-flex items-center gap-1.5 rounded-full
                                  border border-emerald-500/20 bg-emerald-500/10
@@ -1160,7 +1185,7 @@ function DashboardInner() {
               <div className="space-y-3">
                 {loading
                   ? Array.from({length:3}).map((_,i) => (
-                      <div key={i} className="h-16 animate-pulse rounded-xl bg-white/5" />
+                      <div key={i} className="h-16 animate-pulse rounded-xl bg-[var(--color-surface)]" />
                     ))
                   : aiInsights.map((ins, i) => <AIInsightCard key={i} insight={ins} idx={i} />)
                 }
@@ -1170,7 +1195,7 @@ function DashboardInner() {
               <Link href="/ai-assistant"
                 className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/20
                            bg-emerald-500/8 py-3 text-[12px] font-semibold text-emerald-400
-                           transition hover:bg-emerald-500/15 hover:border-emerald-500/35">
+                           transition hover:bg-emerald-100 hover:border-emerald-300">
                 <span>💬</span> Ouvrir Pilot AI — posez vos questions
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1188,13 +1213,13 @@ function DashboardInner() {
             <GlassCard className="p-5 h-full">
               <div className="mb-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-400/70">Santé Business</p>
-                <h3 className="mt-0.5 font-bold text-white text-lg">Score Financier</h3>
+                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">Score Financier</h3>
               </div>
 
               {/* Gauge */}
               <div className="flex justify-center my-2">
                 {loading
-                  ? <div className="h-48 w-48 animate-pulse rounded-full bg-white/5" />
+                  ? <div className="h-48 w-48 animate-pulse rounded-full bg-[var(--color-surface)]" />
                   : <HealthGauge score={healthScore} />
                 }
               </div>
@@ -1203,8 +1228,8 @@ function DashboardInner() {
               <div className="mt-4 space-y-3">
                 {healthFactors.map((f, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="w-32 text-[11px] text-white/50 flex-shrink-0">{f.label}</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                    <span className="w-32 text-[11px] text-[var(--color-muted)] flex-shrink-0">{f.label}</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                       <motion.div
                         className="h-full rounded-full"
                         initial={{ width: 0 }}
@@ -1221,7 +1246,7 @@ function DashboardInner() {
                 ))}
               </div>
 
-              <p className="mt-4 text-[10.5px] text-white/25 leading-relaxed">
+              <p className="mt-4 text-[10.5px] text-[var(--color-muted)] leading-relaxed">
                 Score calculé à partir de votre marge, contrôle des dépenses, revenus et gestion des dettes.
               </p>
             </GlassCard>
@@ -1279,10 +1304,10 @@ function DashboardInner() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-orange-400/70">Inventaire</p>
-                  <h3 className="mt-0.5 font-bold text-white text-base">Santé du Stock</h3>
+                  <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">Santé du Stock</h3>
                 </div>
                 <Link href="/inventory"
-                  className="text-[11px] font-semibold text-white/35 hover:text-white/70 transition">
+                  className="text-[11px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition">
                   Tout voir →
                 </Link>
               </div>
@@ -1290,17 +1315,17 @@ function DashboardInner() {
               {/* Summary chips */}
               <div className="mb-4 flex gap-2 flex-wrap">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold
-                                  ${outOfStockCount > 0 ? 'bg-red-500/15 text-red-400 border border-red-500/25'
-                                                       : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'}`}>
+                                  ${outOfStockCount > 0 ? 'bg-red-100 text-red-600 border border-red-200'
+                                                       : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${outOfStockCount > 0 ? 'bg-red-400 animate-pulse' : 'bg-emerald-400'}`}/>
                   {outOfStockCount} épuisé{outOfStockCount > 1 ? 's' : ''}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25
-                                 bg-amber-500/15 px-3 py-1 text-[11px] font-bold text-amber-400">
+                                 bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-700">
                   ⚠ {lowStockCount} stock bas
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/20
-                                 bg-blue-500/10 px-3 py-1 text-[11px] font-bold text-blue-400">
+                                 bg-blue-100 px-3 py-1 text-[11px] font-bold text-blue-700">
                   📦 {products.length} produits
                 </span>
               </div>
@@ -1313,16 +1338,16 @@ function DashboardInner() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5 + i * 0.08 }}
-                    className="flex items-center gap-3 rounded-xl border border-white/[0.06]
-                               bg-white/[0.025] px-3.5 py-2.5 hover:bg-white/[0.04] transition-colors"
+                    className="flex items-center gap-3 rounded-xl border border-[var(--color-border)]
+                               bg-[var(--color-surface)] px-3.5 py-2.5 hover:bg-slate-50 transition-colors"
                   >
                     <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm
-                                     ${p.stock_quantity === 0 ? 'bg-red-500/15' : p.stock_quantity <= (p.reorder_point ?? 0) ? 'bg-amber-500/15' : 'bg-emerald-500/12'}`}>
+                                     ${p.stock_quantity === 0 ? 'bg-red-100' : p.stock_quantity <= (p.reorder_point ?? 0) ? 'bg-amber-100' : 'bg-emerald-100'}`}>
                       {p.stock_quantity === 0 ? '🚫' : p.stock_quantity <= (p.reorder_point ?? 0) ? '⚠️' : '✅'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12.5px] font-semibold text-white/85 truncate">{p.name}</p>
-                      <p className="text-[10px] text-white/35">{p.category ?? 'Produit'}</p>
+                      <p className="text-[12.5px] font-semibold text-[var(--color-text)] truncate">{p.name}</p>
+                      <p className="text-[10px] text-[var(--color-muted)]">{p.category ?? 'Produit'}</p>
                     </div>
                     <StockBar qty={p.stock_quantity} reorder={p.reorder_point ?? 0} />
                   </motion.div>
@@ -1330,10 +1355,10 @@ function DashboardInner() {
               </div>
 
               {/* Stock value footer */}
-              <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3
+              <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3
                               flex items-center justify-between">
-                <p className="text-[11px] text-white/40">Valeur totale stock</p>
-                <p className="text-sm font-bold text-white">{fmt(totalStockValue)}</p>
+                <p className="text-[11px] text-[var(--color-muted)]">Valeur totale stock</p>
+                <p className="text-sm font-bold text-[#001F3F]">{fmt(totalStockValue)}</p>
               </div>
             </GlassCard>
           </motion.div>
@@ -1348,10 +1373,10 @@ function DashboardInner() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-400/70">Activité</p>
-                  <h3 className="mt-0.5 font-bold text-white text-base">Transactions Récentes</h3>
+                  <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">Transactions Récentes</h3>
                 </div>
                 <button onClick={() => setShowFullLedger(v => !v)}
-                  className="text-[11px] font-semibold text-white/35 hover:text-white/70 transition">
+                  className="text-[11px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition">
                   {showFullLedger ? 'Réduire' : 'Tout voir'} →
                 </button>
               </div>
@@ -1359,7 +1384,7 @@ function DashboardInner() {
               <div className="space-y-2">
                 {loading
                   ? Array.from({length:5}).map((_,i) => (
-                      <div key={i} className="h-14 animate-pulse rounded-xl bg-white/5" />
+                      <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--color-surface)]" />
                     ))
                   : recentLedger.slice(0, showFullLedger ? 10 : 6).map((row, i) => (
                       <motion.div
@@ -1367,22 +1392,22 @@ function DashboardInner() {
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.5 + i * 0.07 }}
-                        className="flex items-center gap-3 rounded-xl border border-white/[0.06]
-                                   bg-white/[0.025] px-3.5 py-2.5 hover:bg-white/[0.04] transition-colors"
+                        className="flex items-center gap-3 rounded-xl border border-[var(--color-border)]
+                                   bg-[var(--color-surface)] px-3.5 py-2.5 hover:bg-slate-50 transition-colors"
                       >
                         {/* Icon */}
                         <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm
-                                         ${row.type === 'Vann' ? 'bg-emerald-500/15' : row.type === 'Dèt' ? 'bg-amber-500/15' : 'bg-red-500/15'}`}>
+                                         ${row.type === 'Vann' ? 'bg-emerald-100' : row.type === 'Dèt' ? 'bg-amber-100' : 'bg-red-100'}`}>
                           {row.type === 'Vann' ? '💰' : row.type === 'Dèt' ? '📝' : '💸'}
                         </div>
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[12.5px] font-semibold text-white/85 truncate">
+                          <p className="text-[12.5px] font-semibold text-[var(--color-text)] truncate">
                             {row.description}
                           </p>
                           <div className="mt-0.5 flex items-center gap-1.5">
-                            <span className="text-[10px] text-white/30">{fmtDate(row.date)}</span>
-                            <span className="text-white/15">·</span>
+                            <span className="text-[10px] text-[var(--color-muted)]">{fmtDate(row.date)}</span>
+                            <span className="text-slate-200">·</span>
                             <MethodBadge method={row.payment_method} />
                           </div>
                         </div>
@@ -1398,7 +1423,7 @@ function DashboardInner() {
 
               {/* Summary */}
               {!loading && (
-                <div className="mt-4 flex justify-between text-[11px] text-white/30 border-t border-white/[0.06] pt-3">
+                <div className="mt-4 flex justify-between text-[11px] text-[var(--color-muted)] border-t border-[var(--color-border)] pt-3">
                   <span>Total entrées:
                     <span className="ml-1 font-semibold text-emerald-400">{fmt(salesRows.reduce((s,r) => s+r.amount, 0))}</span>
                   </span>
@@ -1458,13 +1483,13 @@ function DashboardInner() {
         >
           <GlassCard>
             {/* Header */}
-            <div className="flex flex-col gap-3 border-b border-white/[0.06] px-5 py-4
+            <div className="flex flex-col gap-3 border-b border-[var(--color-border)] px-5 py-4
                             sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-6 w-0.5 rounded-full bg-white/20" />
+                <div className="h-6 w-0.5 rounded-full bg-[#001F3F]/20" />
                 <div>
-                  <h3 className="font-bold text-white">Livre de Transactions</h3>
-                  <p className="mt-0.5 text-[11px] text-white/30">
+                  <h3 className="font-bold text-[#001F3F]">Livre de Transactions</h3>
+                  <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
                     {loading ? '…' : `${filteredLedger.length} entrées · ${periodLabel}`}
                   </p>
                 </div>
@@ -1472,29 +1497,29 @@ function DashboardInner() {
               <div className="flex flex-wrap gap-2">
                 {/* Search */}
                 <div className="relative">
-                  <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/25"
+                  <svg className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-muted)]"
                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   <input type="text" placeholder="Rechercher…" value={ledgerSearch}
                     onChange={e => { setLedgerSearch(e.target.value); setLedgerPage(1); }}
-                    className="w-36 rounded-xl border border-white/8 bg-white/[0.04] py-2 pl-8 pr-3
-                               text-[12px] text-white outline-none placeholder-white/20
-                               transition focus:border-emerald-500/50 focus:bg-white/[0.06]"
+                    className="w-36 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-8 pr-3
+                               text-[12px] text-[var(--color-text)] outline-none placeholder-slate-400
+                               transition focus:border-emerald-500/50 focus:bg-slate-100"
                   />
                 </div>
                 <select value={ledgerType} onChange={e => { setLedgerType(e.target.value); setLedgerPage(1); }}
-                  className="rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2
-                             text-[12px] text-white outline-none transition
+                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2
+                             text-[12px] text-[var(--color-text)] outline-none transition
                              focus:border-emerald-500/50">
                   <option value="">Tout type</option>
                   {['Vann','Acha','Dèt'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
                 {(ledgerSearch || ledgerType) && (
                   <button onClick={() => { setLedgerSearch(''); setLedgerType(''); setLedgerPage(1); }}
-                    className="rounded-xl border border-white/8 bg-white/[0.04] px-3 py-2
-                               text-[12px] text-white/40 transition hover:text-white">
+                    className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2
+                               text-[12px] text-[var(--color-muted)] transition hover:text-[var(--color-text)]">
                     ✕
                   </button>
                 )}
@@ -1504,9 +1529,9 @@ function DashboardInner() {
                     filteredLedger.map(r => [r.date, r.description, r.category, r.type, r.payment_method, r.amount, r.currency]),
                     `transactions-${periodLabel.replace(/\s/g,'-')}.csv`
                   )}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/8
-                             bg-white/[0.04] px-3 py-2 text-[12px] font-semibold text-white/40
-                             transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-border)]
+                             bg-[var(--color-surface)] px-3 py-2 text-[12px] font-semibold text-[var(--color-muted)]
+                             transition hover:bg-slate-100 hover:text-[var(--color-text)]"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -1521,10 +1546,10 @@ function DashboardInner() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[580px] text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.05]">
+                  <tr className="border-b border-[var(--color-border)]">
                     {['Date','Description','Type','Méthode','Montant'].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-[10px] font-bold uppercase
-                                             tracking-[0.12em] text-white/25 whitespace-nowrap">
+                                             tracking-[0.12em] text-[var(--color-muted)] whitespace-nowrap">
                         {h}
                       </th>
                     ))}
@@ -1533,27 +1558,27 @@ function DashboardInner() {
                 <tbody>
                   {loading
                     ? Array.from({length:5}).map((_,i) => (
-                        <tr key={i} className="border-b border-white/[0.04]">
+                        <tr key={i} className="border-b border-[var(--color-border)]">
                           {Array.from({length:5}).map((_,j) => (
                             <td key={j} className="px-5 py-3.5">
-                              <div className="h-3 animate-pulse rounded-full bg-white/[0.06]"
+                              <div className="h-3 animate-pulse rounded-full bg-slate-100"
                                 style={{ width: `${40 + ((i*37+j*19) % 45)}%` }} />
                             </td>
                           ))}
                         </tr>
                       ))
                     : paginatedLedger.length === 0
-                    ? <tr><td colSpan={5} className="px-5 py-12 text-center text-sm text-white/20">
+                    ? <tr><td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-300">
                         Aucune transaction pour cette période.
                       </td></tr>
                     : paginatedLedger.map((row, i) => (
                         <tr key={row.id}
-                          className={`border-b border-white/[0.04] transition-colors
-                                      hover:bg-white/[0.03] ${i % 2 === 0 ? '' : 'bg-white/[0.01]'}`}>
-                          <td className="px-5 py-3.5 font-mono text-[11px] text-white/35 whitespace-nowrap">
+                          className={`border-b border-[var(--color-border)] transition-colors
+                                      hover:bg-slate-50 ${i % 2 === 0 ? '' : 'bg-[var(--color-surface)]'}`}>
+                          <td className="px-5 py-3.5 font-mono text-[11px] text-[var(--color-muted)] whitespace-nowrap">
                             {fmtDate(row.date)}
                           </td>
-                          <td className="px-5 py-3.5 max-w-[200px] truncate text-[13px] text-white/75"
+                          <td className="px-5 py-3.5 max-w-[200px] truncate text-[13px] text-[var(--color-text)]"
                             title={row.description}>
                             {row.description}
                           </td>
@@ -1572,14 +1597,14 @@ function DashboardInner() {
 
             {/* Pagination */}
             {ledgerPageCount > 1 && (
-              <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-3">
-                <span className="text-[11px] text-white/25">
+              <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
+                <span className="text-[11px] text-[var(--color-muted)]">
                   {(ledgerPage-1)*PAGE_SIZE+1}–{Math.min(ledgerPage*PAGE_SIZE, filteredLedger.length)} / {filteredLedger.length}
                 </span>
                 <div className="flex gap-1">
                   <button onClick={() => setLedgerPage(p => Math.max(1, p-1))} disabled={ledgerPage === 1}
-                    className="rounded-lg px-3 py-1.5 text-[11px] text-white/40 transition
-                               hover:bg-white/8 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed">
+                    className="rounded-lg px-3 py-1.5 text-[11px] text-[var(--color-muted)] transition
+                               hover:bg-slate-100 hover:text-[var(--color-text)] disabled:opacity-20 disabled:cursor-not-allowed">
                     ← Précédent
                   </button>
                   {Array.from({length: Math.min(ledgerPageCount, 5)}, (_,i) => i+1).map(pg => (
@@ -1587,14 +1612,14 @@ function DashboardInner() {
                       className={`rounded-lg px-3 py-1.5 text-[11px] transition ${
                         ledgerPage === pg
                           ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
-                          : 'text-white/40 hover:bg-white/8 hover:text-white'
+                          : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                       }`}>
                       {pg}
                     </button>
                   ))}
                   <button onClick={() => setLedgerPage(p => Math.min(ledgerPageCount, p+1))} disabled={ledgerPage === ledgerPageCount}
-                    className="rounded-lg px-3 py-1.5 text-[11px] text-white/40 transition
-                               hover:bg-white/8 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed">
+                    className="rounded-lg px-3 py-1.5 text-[11px] text-[var(--color-muted)] transition
+                               hover:bg-slate-100 hover:text-[var(--color-text)] disabled:opacity-20 disabled:cursor-not-allowed">
                     Suivant →
                   </button>
                 </div>
@@ -1602,7 +1627,7 @@ function DashboardInner() {
             )}
 
             {/* Footer totals */}
-            <div className="border-t border-white/[0.06] px-5 py-3 flex flex-wrap gap-x-8 gap-y-1 text-[11px] text-white/30">
+            <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-8 gap-y-1 text-[11px] text-[var(--color-muted)]">
               <span>Cash In: <span className="font-bold text-blue-400">{fmt(totals.cashIn)}</span></span>
               <span>Cash Out: <span className="font-bold text-red-400">{fmt(totals.cashOut)}</span></span>
               <span>Solde: <span className={`font-bold ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(totals.profit)}</span></span>
@@ -1625,7 +1650,13 @@ function DashboardInner() {
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
-      <DashboardInner />
+      <Suspense fallback={
+        <div className="flex h-screen items-center justify-center bg-[var(--color-bg)]">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
+        </div>
+      }>
+        <DashboardInner />
+      </Suspense>
     </ProtectedRoute>
   );
 }

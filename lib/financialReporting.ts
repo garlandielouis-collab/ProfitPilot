@@ -4,7 +4,7 @@
  * Avec memoization et support multi-currency
  */
 
-import { getSupabaseServer, supabaseServer } from './supabaseServerClient';
+import { getSupabaseServer } from './supabaseServerClient';
 import { getTransactionPosting, getAccountByCode } from './chartOfAccounts';
 
 // ===== TYPES =====
@@ -160,7 +160,7 @@ function invalidateCache(businessId?: string): void {
  */
 async function getExchangeRate(businessId: string): Promise<number> {
   try {
-    const supabaseServer = getSupabaseServer();
+    const supabaseServer = await getSupabaseServer();
     const { data } = await supabaseServer
       .from('businesses')
       .select('exchange_rate')
@@ -200,7 +200,7 @@ async function getTransactionsForPeriod(
 ): Promise<TransactionRecord[]> {
   const transactions: TransactionRecord[] = [];
 
-  const supabaseServer = getSupabaseServer();
+  const supabaseServer = await getSupabaseServer();
 
   // Récupère les ventes
   const { data: sales } = await supabaseServer
@@ -378,17 +378,18 @@ export async function generateBalanceSheet(
   asOfDate: string,
   currency: 'HTG' | 'USD' = 'HTG'
 ): Promise<BalanceSheetReport> {
+  const supabaseServer = await getSupabaseServer();
+
   const cacheKey = generateCacheKey('BalanceSheet', businessId, { asOfDate, currency });
   const cached = getFromCache<BalanceSheetReport>(cacheKey);
   if (cached) return cached;
 
   const exchangeRate = await getExchangeRate(businessId);
 
-  // Récupère l'inventaire actuel (assumé comme actif courant)
+  // Récupère l'inventaire actuel (RLS filtre par user_id = auth.uid())
   const { data: products } = await supabaseServer
     .from('products')
-    .select('stock_quantity, purchase_price, currency')
-    .eq('business_id', businessId);
+    .select('stock_quantity, purchase_price');
 
   let inventoryValue = 0;
   if (products) {

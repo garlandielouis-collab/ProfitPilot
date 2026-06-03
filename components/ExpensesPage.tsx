@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from './ProtectedRoute';
 import { supabase } from '../lib/supabaseClient';
-import { upsertExpense, deleteExpense } from '../app/actions/expenses';
+import { upsertExpense, deleteExpense, getExpenses } from '../app/actions/expenses';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,17 +29,17 @@ type Supplier = { id: string; name: string };
 // ── Config ───────────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
-  { value: 'Salaire',        label: 'Salè',              badge: 'bg-blue-500/15 text-blue-300',   dot: '#60A5FA' },
-  { value: 'Loyer',          label: 'Lwaye',             badge: 'bg-violet-500/15 text-violet-300', dot: '#A78BFA' },
-  { value: 'Stock',          label: 'Achte Stock',       badge: 'bg-cyan-500/15 text-cyan-300',   dot: '#22D3EE' },
-  { value: 'Remboursements', label: 'Rembòsman Dèt',     badge: 'bg-orange-500/15 text-orange-300', dot: '#FB923C' },
-  { value: 'Autre',          label: 'Lòt',               badge: 'bg-slate-500/15 text-slate-400', dot: '#94A3B8' },
+  { value: 'Salaire',        label: 'Salè',              badge: 'bg-blue-100 text-blue-700',   dot: '#60A5FA' },
+  { value: 'Loyer',          label: 'Lwaye',             badge: 'bg-violet-100 text-violet-700', dot: '#A78BFA' },
+  { value: 'Stock',          label: 'Achte Stock',       badge: 'bg-cyan-100 text-cyan-700',   dot: '#22D3EE' },
+  { value: 'Remboursements', label: 'Rembòsman Dèt',     badge: 'bg-orange-100 text-orange-700', dot: '#FB923C' },
+  { value: 'Autre',          label: 'Lòt',               badge: 'bg-slate-100 text-slate-400', dot: '#94A3B8' },
 ] as const;
 
 const STATUS_CFG: Record<PayStatus, { label: string; cls: string }> = {
-  'Payé':       { label: '✓ Payé',        cls: 'bg-emerald-500/15 text-emerald-300' },
-  'En attente': { label: '⏳ En attente',  cls: 'bg-amber-500/15 text-amber-300'    },
-  'Dette':      { label: '⚠ Dette',       cls: 'bg-red-500/15 text-red-400'        },
+  'Payé':       { label: '✓ Payé',        cls: 'bg-emerald-100 text-emerald-700' },
+  'En attente': { label: '⏳ En attente',  cls: 'bg-amber-100 text-amber-700'    },
+  'Dette':      { label: '⚠ Dette',       cls: 'bg-red-100 text-red-600'        },
 };
 
 const catOf = (v: string) => CATEGORIES.find(c => c.value === v) ?? CATEGORIES[4];
@@ -152,7 +152,6 @@ function ExpenseModal({
     try {
       await upsertExpense({
         id:             record?.id,
-        owner_id:       ownerId,
         description:    form.description.trim(),
         category:       form.category,
         amount:         amt,
@@ -169,32 +168,32 @@ function ExpenseModal({
 
   const field = (label: string, children: React.ReactNode, span = '') => (
     <div className={span}>
-      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[#8b96b8]">
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">
         {label}
       </label>
       {children}
     </div>
   );
 
-  const input = 'w-full rounded-2xl border border-white/10 bg-[#0f1628] px-4 py-3 text-sm text-slate-100 outline-none ring-1 ring-transparent transition placeholder:text-slate-600 focus:ring-[#6b5cff]/50';
+  const input = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-[var(--color-muted)] focus:ring-[#001F3F]/30';
   const sel   = `${input} appearance-none pr-10`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-white/10 bg-[#101426] shadow-2xl">
+      <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-[#7c85b6]">
+            <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">
               {record ? 'Modifye' : 'Nouvo dépense'}
             </p>
-            <h3 className="mt-0.5 text-xl font-semibold text-white">
+            <h3 className="mt-0.5 text-xl font-semibold text-[#001F3F]">
               {record ? 'Modifye dépense' : 'Ajoute yon dépense'}
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+            className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-[var(--color-text)]"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -216,7 +215,7 @@ function ExpenseModal({
               <select value={form.category} onChange={e => set('category', e.target.value)} className={sel}>
                 {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
-              <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </div>
@@ -236,7 +235,7 @@ function ExpenseModal({
                   <option value="">— Choisir yon founisè —</option>
                   {realSuppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
@@ -246,12 +245,12 @@ function ExpenseModal({
           {/* Amount + Currency */}
           {field('Montan *',
             <div className="flex gap-2">
-              <div className="flex overflow-hidden rounded-2xl border border-white/10 text-sm shrink-0">
+              <div className="flex overflow-hidden rounded-2xl border border-[var(--color-border)] text-sm shrink-0">
                 {(['HTG', 'USD'] as Currency[]).map(c => (
                   <button key={c} type="button" onClick={() => set('currency', c)}
                     className={`px-4 py-3 font-bold transition ${form.currency === c
-                      ? 'bg-[#6b5cff] text-white'
-                      : 'bg-[#0f1628] text-slate-400 hover:bg-white/5'}`}>
+                      ? 'bg-[#001F3F] text-white'
+                      : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-50'}`}>
                     {c}
                   </button>
                 ))}
@@ -271,7 +270,7 @@ function ExpenseModal({
                   <option value="En attente">⏳ En attente</option>
                   <option value="Dette">⚠ Dette</option>
                 </select>
-                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
@@ -283,7 +282,7 @@ function ExpenseModal({
                   <option value="Carte">💳 Carte</option>
                   <option value="Mobile">📱 Mobile</option>
                 </select>
-                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
@@ -299,11 +298,11 @@ function ExpenseModal({
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10">
+              className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">
               Anile
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 rounded-2xl bg-[#6b5cff] py-3 text-sm font-semibold text-white shadow-lg shadow-[#6b5cff]/25 transition hover:bg-[#5840e0] disabled:opacity-50">
+              className="flex-1 rounded-2xl bg-[#001F3F] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] disabled:opacity-50">
               {saving ? 'Anrejistreman…' : record ? 'Sove Chanjman' : 'Ajoute Dépense'}
             </button>
           </div>
@@ -327,15 +326,15 @@ function DeleteModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-white/10 bg-[#101426] p-6 shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
           <svg className="h-6 w-6 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-white">Efase dépense?</h3>
-        <p className="mt-2 text-sm text-slate-400">
-          <span className="font-medium text-slate-200">{record.description}</span>
+        <h3 className="text-lg font-semibold text-[#001F3F]">Efase dépense?</h3>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          <span className="font-medium text-[var(--color-text)]">{record.description}</span>
           {' '}—{' '}
           <span className="font-semibold text-red-400">{fmtAmt(record.amount, record.currency)}</span>
           {' '}pral efase pou toujou.
@@ -347,7 +346,7 @@ function DeleteModal({
         )}
         <div className="mt-5 flex gap-3">
           <button onClick={onClose}
-            className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/10">
+            className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">
             Anile
           </button>
           {!isDemo && (
@@ -397,42 +396,44 @@ export function ExpensesPage() {
 
   async function loadAll() {
     setLoading(true);
-    const [expRes, supRes] = await Promise.all([
-      supabase
-        .from('expenses')
-        .select('id,description,category,amount,currency,payment_status,payment_method,date,supplier_id')
-        .order('date', { ascending: false }),
-      supabase.from('suppliers').select('id,name').order('name'),
-    ]);
+    try {
+      const [expenses, supRes] = await Promise.all([
+        getExpenses(),
+        supabase.from('suppliers').select('id,name').order('name'),
+      ]);
 
-    const supMap: Record<string, string> = {};
-    for (const s of supRes.data ?? []) supMap[s.id] = s.name;
+      if (supRes.data?.length) {
+        setSuppliers(supRes.data as Supplier[]);
+      }
 
-    if (supRes.data && supRes.data.length > 0) {
-      setSuppliers(supRes.data as Supplier[]);
+      const supMap: Record<string, string> = {};
+      for (const s of supRes.data ?? []) supMap[s.id] = s.name;
+
+      if (expenses.length > 0) {
+        setExpenses(
+          expenses.map((e: any) => ({
+            id:             e.id,
+            description:    e.description,
+            category:       e.category       ?? 'Autre',
+            amount:         Number(e.amount),
+            currency:       (e.currency      ?? 'HTG') as Currency,
+            payment_status: (e.payment_status ?? 'Payé') as PayStatus,
+            payment_method: (e.payment_method ?? 'Espèces') as PayMethod,
+            date:           e.date,
+            supplier_id:    e.supplier_id ?? null,
+            supplier_name:  e.supplier_id ? supMap[e.supplier_id] : undefined,
+          }))
+        );
+        setIsDemo(false);
+      } else {
+        setIsDemo(true);
+      }
+    } catch (e: any) {
+      console.error('[ExpensesPage] loadAll:', e?.message);
+      setIsDemo(true);
+    } finally {
+      setLoading(false);
     }
-
-    if (expRes.data && expRes.data.length > 0) {
-      setExpenses(
-        expRes.data.map((e: any) => ({
-          id:             e.id,
-          description:    e.description,
-          category:       e.category       ?? 'Autre',
-          amount:         Number(e.amount),
-          currency:       (e.currency      ?? 'HTG') as Currency,
-          payment_status: (e.payment_status ?? 'Payé') as PayStatus,
-          payment_method: (e.payment_method ?? 'Espèces') as PayMethod,
-          date:           e.date,
-          supplier_id:    e.supplier_id ?? null,
-          supplier_name:  e.supplier_id ? supMap[e.supplier_id] : undefined,
-        }))
-      );
-      setIsDemo(false);
-    } else {
-      setIsDemo(true); // show mock data
-    }
-
-    setLoading(false);
   }
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -492,15 +493,15 @@ export function ExpensesPage() {
     icon: React.ReactNode; accent: string;
   }) {
     return (
-      <div className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_70px_-40px_rgba(255,255,255,0.1)] backdrop-blur-xl`}>
+      <div className={`relative overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm`}>
         <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-10 blur-2xl ${accent}`} />
         <div className="relative">
           <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-opacity-20`}>
             {icon}
           </div>
-          <p className="text-xs uppercase tracking-[0.28em] text-[#8b96b8]">{label}</p>
-          <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-          <p className="mt-1 text-xs text-slate-400">{sub}</p>
+          <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">{label}</p>
+          <p className="mt-2 text-3xl font-semibold text-[#001F3F]">{value}</p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">{sub}</p>
         </div>
       </div>
     );
@@ -510,17 +511,17 @@ export function ExpensesPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#0B0F19] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[var(--color-bg)] px-4 py-6 text-[var(--color-text)] sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-8">
 
           {/* ── Page header ── */}
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.32em] text-[#7C82A1]">Depans</p>
-              <h1 className="mt-2 text-3xl font-semibold text-white md:text-4xl">
+              <p className="text-xs uppercase tracking-[0.32em] text-[var(--color-muted)]">Depans</p>
+              <h1 className="mt-2 text-3xl font-semibold text-[#001F3F] md:text-4xl">
                 Suivi des sorties de trésorerie
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300/80">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-muted)]">
                 Contrôlez tous vos cash outflows en temps réel — salaires, loyers, stocks et remboursements.
               </p>
             </div>
@@ -532,7 +533,7 @@ export function ExpensesPage() {
               )}
               <button
                 onClick={openAdd}
-                className="flex items-center gap-2 rounded-2xl bg-[#6b5cff] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#6b5cff]/30 transition hover:bg-[#5840e0] active:scale-95"
+                className="flex items-center gap-2 rounded-2xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] active:scale-95"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -548,8 +549,8 @@ export function ExpensesPage() {
               label="Total mwa sa a"
               value={fmtAmt(stats.totalMonth, 'HTG')}
               sub="Dépenses mois courant"
-              accent="bg-[#6b5cff]"
-              icon={<svg className="h-5 w-5 text-[#a39bff]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
+              accent="bg-[#001F3F]"
+              icon={<svg className="h-5 w-5 text-[#001F3F]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
             />
             <StatCard
               label="Total Salè"
@@ -575,7 +576,7 @@ export function ExpensesPage() {
           </div>
 
           {/* ── Filters ── */}
-          <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+          <div className="rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
             {/* Quick filters */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {([
@@ -587,8 +588,8 @@ export function ExpensesPage() {
                 <button key={k} type="button" onClick={() => setQuickFilter(k)}
                   className={`rounded-2xl px-4 py-2 text-xs font-semibold transition ${
                     quickFilter === k
-                      ? 'bg-[#6b5cff] text-white shadow-md shadow-[#6b5cff]/30'
-                      : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                      ? 'bg-[#001F3F] text-white shadow-sm'
+                      : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                   }`}>
                   {label}
                 </button>
@@ -596,7 +597,7 @@ export function ExpensesPage() {
               {(filterCat || filterStatus || filterMonth || filterMethod || search || quickFilter !== 'tout') && (
                 <button type="button"
                   onClick={() => { setFilterCat(''); setFilterStatus(''); setFilterMonth(''); setFilterMethod(''); setSearch(''); setQuickFilter('tout'); }}
-                  className="ml-auto flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/10 hover:text-slate-200">
+                  className="ml-auto flex items-center gap-1.5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-medium text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-[var(--color-text)]">
                   <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -609,60 +610,60 @@ export function ExpensesPage() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               {/* Search */}
               <div className="col-span-2 lg:col-span-2">
-                <label className="mb-1.5 block text-xs font-medium text-slate-500">Rechèch</label>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Rechèch</label>
                 <input value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Chèche pa deskripsyon…"
-                  className="w-full rounded-2xl border border-white/10 bg-[#0f1628] px-4 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-[#6b5cff]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
+                  className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-muted)] focus:border-[#001F3F]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
               </div>
               {/* Category */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-500">Kategori</label>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Kategori</label>
                 <div className="relative">
                   <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-[#0f1628] px-4 py-2.5 pr-9 text-sm text-slate-200 outline-none focus:border-[#6b5cff]/50">
+                    className="w-full appearance-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 pr-9 text-sm text-[var(--color-text)] outline-none focus:border-[#001F3F]/50">
                     <option value="">Tout</option>
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
-                  <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </div>
               </div>
               {/* Status */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-500">Estati</label>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Estati</label>
                 <div className="relative">
                   <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-[#0f1628] px-4 py-2.5 pr-9 text-sm text-slate-200 outline-none focus:border-[#6b5cff]/50">
+                    className="w-full appearance-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 pr-9 text-sm text-[var(--color-text)] outline-none focus:border-[#001F3F]/50">
                     <option value="">Tout</option>
                     <option value="Payé">✓ Payé</option>
                     <option value="En attente">⏳ En attente</option>
                     <option value="Dette">⚠ Dette</option>
                   </select>
-                  <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </div>
               </div>
               {/* Month */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-500">Mwa</label>
+                <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Mwa</label>
                 <input value={filterMonth} onChange={e => setFilterMonth(e.target.value)} type="month"
-                  className="w-full rounded-2xl border border-white/10 bg-[#0f1628] px-4 py-2.5 text-sm text-slate-200 outline-none focus:border-[#6b5cff]/50" />
+                  className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-[#001F3F]/50" />
               </div>
             </div>
           </div>
 
           {/* ── Transactions table ── */}
-          <div className="rounded-[32px] border border-white/10 bg-white/5 shadow-[0_28px_90px_-40px_rgba(255,255,255,0.08)] backdrop-blur-xl">
+          <div className="rounded-[32px] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
             {/* Table header */}
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
               <div>
-                <h2 className="text-xl font-semibold text-white">Istorik Tranzaksyon yo</h2>
-                <p className="mt-0.5 text-sm text-slate-400">
+                <h2 className="text-xl font-semibold text-[#001F3F]">Istorik Tranzaksyon yo</h2>
+                <p className="mt-0.5 text-sm text-[var(--color-muted)]">
                   {filtered.length} rezilta
                   {filtered.length !== expenses.length
                     ? ` (sou ${expenses.length} total)`
                     : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+              <div className="flex items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)]">
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M3 8h18M3 12h12M3 16h8" />
                 </svg>
@@ -672,15 +673,15 @@ export function ExpensesPage() {
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-[#6b5cff]" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#6b5cff]" />
               </div>
             ) : filtered.length === 0 ? (
               <div className="py-16 text-center">
-                <svg className="mx-auto mb-4 h-12 w-12 text-white/10" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <svg className="mx-auto mb-4 h-12 w-12 text-slate-200" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
                 </svg>
-                <p className="text-sm font-medium text-slate-500">Okenn rezilta koresponn ak filtè yo</p>
-                <p className="mt-1 text-xs text-slate-600">Ajiste filtè yo oswa ajoute yon nouvo dépense</p>
+                <p className="text-sm font-medium text-[var(--color-muted)]">Okenn rezilta koresponn ak filtè yo</p>
+                <p className="mt-1 text-xs text-slate-400">Ajiste filtè yo oswa ajoute yon nouvo dépense</p>
               </div>
             ) : (
               <>
@@ -688,9 +689,9 @@ export function ExpensesPage() {
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                     <thead>
-                      <tr className="border-b border-white/10">
+                      <tr className="border-b border-[var(--color-border)]">
                         {['Dat', 'Deskripsyon', 'Kategori', 'Montan', 'Metòd', 'Estati', ''].map(h => (
-                          <th key={h} className="whitespace-nowrap px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                          <th key={h} className="whitespace-nowrap px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-muted)]">
                             {h}
                           </th>
                         ))}
@@ -702,20 +703,20 @@ export function ExpensesPage() {
                         const sts = STATUS_CFG[exp.payment_status] ?? STATUS_CFG['Payé'];
                         return (
                           <tr key={exp.id}
-                            className={`group border-b border-white/5 transition-colors hover:bg-white/5 ${i === filtered.length - 1 ? 'border-b-0' : ''}`}>
+                            className={`group border-b border-white/5 transition-colors hover:bg-slate-50 ${i === filtered.length - 1 ? 'border-b-0' : ''}`}>
                             {/* Date */}
-                            <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-400">
+                            <td className="whitespace-nowrap px-5 py-4 text-xs text-[var(--color-muted)]">
                               {new Date(exp.date).toLocaleDateString('fr-FR', {
                                 day: '2-digit', month: 'short', year: 'numeric',
                               })}
                             </td>
                             {/* Description */}
                             <td className="px-5 py-4">
-                              <p className="max-w-[220px] truncate font-medium text-slate-200">
+                              <p className="max-w-[220px] truncate font-medium text-[var(--color-text)]">
                                 {exp.description}
                               </p>
                               {exp.supplier_name && (
-                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
                                   🏢 {exp.supplier_name}
                                 </p>
                               )}
@@ -729,10 +730,10 @@ export function ExpensesPage() {
                             </td>
                             {/* Amount */}
                             <td className="whitespace-nowrap px-5 py-4">
-                              <p className="font-bold text-slate-100">{fmtAmt(exp.amount, exp.currency)}</p>
+                              <p className="font-bold text-[var(--color-text)]">{fmtAmt(exp.amount, exp.currency)}</p>
                             </td>
                             {/* Method */}
-                            <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-400">
+                            <td className="whitespace-nowrap px-5 py-4 text-xs text-[var(--color-muted)]">
                               {exp.payment_method === 'Espèces' ? '💵' : exp.payment_method === 'Carte' ? '💳' : '📱'}
                               {' '}{exp.payment_method}
                             </td>
@@ -748,7 +749,7 @@ export function ExpensesPage() {
                                 <button
                                   onClick={() => openEdit(exp)}
                                   title="Modifye"
-                                  className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-[#6b5cff]/20 hover:text-[#a39bff]">
+                                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-[#EAF1F8] hover:text-[#001F3F]">
                                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
@@ -756,7 +757,7 @@ export function ExpensesPage() {
                                 <button
                                   onClick={() => setDeleteTarget(exp)}
                                   title="Efase"
-                                  className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-400 transition hover:bg-red-500/20 hover:text-red-400">
+                                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-red-500/20 hover:text-red-400">
                                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
@@ -771,13 +772,13 @@ export function ExpensesPage() {
                 </div>
 
                 {/* Footer total */}
-                <div className="flex items-center justify-between border-t border-white/10 px-6 py-3">
-                  <span className="text-xs text-slate-500">
+                <div className="flex items-center justify-between border-t border-[var(--color-border)] px-6 py-3">
+                  <span className="text-xs text-[var(--color-muted)]">
                     {filtered.length} dépense{filtered.length > 1 ? 's' : ''}
                   </span>
-                  <span className="text-sm font-bold text-white">
+                  <span className="text-sm font-bold text-[#001F3F]">
                     Total :{' '}
-                    <span className="text-[#a39bff]">
+                    <span className="text-[#001F3F]">
                       {fmtAmt(filtered.reduce((s, e) => s + e.amount, 0), 'HTG')}
                     </span>
                   </span>

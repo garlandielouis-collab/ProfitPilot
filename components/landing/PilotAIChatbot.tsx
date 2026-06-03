@@ -1,8 +1,10 @@
-'use client';
+ 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
 
 type Msg = { role: 'bot' | 'user'; text: string };
 
@@ -32,6 +34,15 @@ export function PilotAIChatbot() {
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'bot', text: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a?' },
   ]);
+  const [flow, setFlow] = useState<null | 'demo' | 'buyer'>(null);
+  const [buyerStep, setBuyerStep] = useState(0);
+  const [guideStep, setGuideStep] = useState<null | number>(null);
+  const [buyerAnswers, setBuyerAnswers] = useState<{ name?: string; sector?: string; challenge?: string }>({});
+  const [showSignupForm, setShowSignupForm] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupStatus, setSignupStatus] = useState<string | null>(null);
+  const [signupLoading, setSignupLoading] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -40,16 +51,149 @@ export function PilotAIChatbot() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typing]);
 
+  async function trackEvent(event: string, payload: Record<string, unknown> = {}) {
+    try {
+      await fetch('/api/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, payload }),
+      });
+    } catch {
+      // silent
+    }
+  }
+
+  async function submitSignup() {
+    if (!signupEmail.trim() || !signupPassword.trim()) {
+      setSignupStatus('Veuillez renseigner un email et un mot de passe.');
+      return;
+    }
+    setSignupLoading(true);
+    setSignupStatus(null);
+
+    const { data, error } = await supabase.auth.signUp({
+      email: signupEmail.trim(),
+      password: signupPassword,
+      options: { data: { full_name: buyerAnswers.name ?? '' } },
+    });
+
+    setSignupLoading(false);
+    if (error) {
+      setSignupStatus(error.message);
+      await trackEvent('pilotai_signup_failed', { error: error.message });
+      return;
+    }
+
+    setSignupStatus('Inscription envoyée ! Vérifiez votre email pour confirmer.');
+    await trackEvent('pilotai_signup_submitted', { email: signupEmail.trim() });
+  }
+
+  function handlePageNavigation(path: string, label: string) {
+    setMessages(m => [...m, { role: 'bot', text: `Je vous emmène vers ${label}...` }]);
+    trackEvent('pilotai_page_navigation', { page: label, path });
+    window.location.href = path;
+  }
+
   function send() {
     const text = input.trim();
     if (!text) return;
     setMessages(m => [...m, { role: 'user', text }]);
     setInput('');
+
+    // If in buyer onboarding flow, capture answers and drive next question
+    if (flow === 'buyer') {
+      if (buyerStep === 0) {
+        setBuyerAnswers(a => ({ ...a, name: text }));
+        setBuyerStep(1);
+        setTyping(true);
+        setTimeout(() => {
+          setTyping(false);
+          setMessages(m => [...m, { role: 'bot', text: `Quel est votre secteur ?` }]);
+        }, 700);
+        return;
+      }
+      if (buyerStep === 1) {
+        setBuyerAnswers(a => ({ ...a, sector: text }));
+        setBuyerStep(2);
+        setTyping(true);
+        setTimeout(() => {
+          setTyping(false);
+          setMessages(m => [...m, { role: 'bot', text: `Quel est votre défi prioritaire ?` }]);
+        }, 700);
+        return;
+      }
+      if (buyerStep === 2) {
+        setBuyerAnswers(a => ({ ...a, challenge: text }));
+        setBuyerStep(3);
+        setGuideStep(0);
+        setTyping(true);
+        setTimeout(() => {
+          setTyping(false);
+          setMessages(m => [
+            ...m,
+            { role: 'bot', text: `Je configure votre espace de travail...` },
+            { role: 'bot', text: `Bienvenue ${buyerAnswers.name ?? text ?? 'Pilot'} ! Votre espace est prêt. Cliquez sur Continuer pour découvrir votre Dashboard.` },
+          ]);
+        }, 900);
+        trackEvent('pilotai_onboarding_completed', { name: buyerAnswers.name ?? text, sector: buyerAnswers.sector, challenge: text });
+        return;
+      }
+    }
+
+    // Default behaviour: canned replies
     setTyping(true);
     setTimeout(() => {
       setTyping(false);
       setMessages(m => [...m, { role: 'bot', text: getReply(text) }]);
     }, 850 + Math.random() * 600);
+  }
+
+  function startDemo() {
+    setFlow('demo');
+    setGuideStep(null);
+    setMessages(m => [...m, { role: 'bot', text: "Excellent choix. Je charge des données fictives pour vous montrer comment je travaille." }]);
+    setTyping(true);
+    setTimeout(() => {
+      setTyping(false);
+      setMessages(m => [...m, { role: 'bot', text: "C'est votre cockpit. J'ai détecté une hausse de marge de 15% sur vos produits phares." }]);
+    }, 900);
+    trackEvent('pilotai_flow_started', { flow: 'demo' });
+  }
+
+  function startBuyer() {
+    setFlow('buyer');
+    setBuyerStep(0);
+    setGuideStep(null);
+    setBuyerAnswers({});
+    setMessages(m => [...m, { role: 'bot', text: 'Parfait — commençons. Quel est le nom de votre entreprise ?' }]);
+    trackEvent('pilotai_flow_started', { flow: 'buyer' });
+  }
+
+  const guideMessages = [
+    "Dashboard : Voici votre cockpit. J'ai déjà préparé vos alertes de priorité pour vous éviter les pertes de marge.",
+    "Inventaire : Je transforme vos produits en actifs rentables. Ajoutez un produit pour voir ma magie opérer.",
+    "Analyse : Je prédis vos tendances. Votre rapport de marge pour le mois prochain est déjà prêt.",
+    "Paramètres : C'est ici que vous définissez vos seuils d'alerte et gardez le contrôle."
+  ];
+
+  function advanceGuide() {
+    if (guideStep === null || guideStep >= guideMessages.length) return;
+    const next = guideMessages[guideStep];
+    const nextStep = guideStep + 1;
+    setGuideStep(nextStep);
+    setMessages((m): Msg[] => {
+      const nextMessage: Msg = { role: 'bot', text: next };
+      const messages: Msg[] = [...m, nextMessage];
+      if (nextStep === guideMessages.length) {
+        const finalMessage: Msg = {
+          role: 'bot',
+          text: 'La visite est terminée ! Pour débloquer la puissance totale de mes analyses en temps réel, activez votre essai gratuit.',
+        };
+        return [...messages, finalMessage];
+      }
+      return messages;
+    });
+    trackEvent('pilotai_guide_step', { step: guideStep + 1, label: next });
   }
 
   return (
@@ -129,6 +273,25 @@ export function PilotAIChatbot() {
 
             {/* Messages */}
             <div className="flex h-60 flex-col gap-3 overflow-y-auto px-4 py-3">
+              {/* Buyer progress bar */}
+              {flow === 'buyer' && (
+                <div className="mb-2 w-full">
+                  <div className="h-2 w-full rounded-full bg-white/8">
+                    <div
+                      className="h-2 rounded-full bg-emerald-400"
+                      style={{ width: `${Math.min(100, Math.round((buyerStep / 3) * 100))}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[11px] text-white/80">Progression: {Math.min(100, Math.round((buyerStep / 3) * 100))}%</div>
+                </div>
+              )}
+              {/* Quick choice buttons shown when no flow selected */}
+              {flow == null && (
+                <div className="flex gap-2">
+                  <button onClick={startDemo} className="rounded-full bg-blue-500 px-3 py-1 text-xs text-white">Explorer la démo</button>
+                  <button onClick={startBuyer} className="rounded-full bg-emerald-500 px-3 py-1 text-xs text-white">Démarrer mon business</button>
+                </div>
+              )}
               {messages.map((msg, i) => (
                 <motion.div
                   key={i}
@@ -175,6 +338,92 @@ export function PilotAIChatbot() {
                 </div>
               )}
               <div ref={bottomRef} />
+
+              {flow === 'buyer' && buyerStep >= 3 && guideStep !== null && guideStep < guideMessages.length && (
+                <div className="mt-2 flex w-full justify-center">
+                  <button
+                    onClick={advanceGuide}
+                    className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white"
+                  >
+                    Continuer
+                  </button>
+                </div>
+              )}
+
+              {flow === 'buyer' && buyerStep >= 3 && guideStep === guideMessages.length && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex w-full justify-center gap-2">
+                    <button
+                      onClick={() => handlePageNavigation('/dashboard', 'Dashboard')}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      onClick={() => handlePageNavigation('/inventory', 'Inventaire')}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                    >
+                      Inventaire
+                    </button>
+                  </div>
+                  <div className="flex w-full justify-center gap-2">
+                    <button
+                      onClick={() => handlePageNavigation('/rapports', 'Analyse')}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                    >
+                      Analyse
+                    </button>
+                    <button
+                      onClick={() => handlePageNavigation('/settings', 'Paramètres')}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                    >
+                      Paramètres
+                    </button>
+                  </div>
+                  <div className="flex w-full justify-center gap-2">
+                    <Link href="/auth/register" className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#001f3f]">
+                      Créer un compte
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setShowSignupForm(true);
+                        trackEvent('pilotai_signup_inline_opened');
+                      }}
+                      className="rounded-full border border-white/20 bg-transparent px-3 py-1 text-xs font-semibold text-white"
+                    >
+                      Inscription inline
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showSignupForm && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-white">
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.3em] text-slate-300">Inscription rapide</p>
+                  <input
+                    type="email"
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    placeholder="Email"
+                    className="mb-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white outline-none"
+                  />
+                  <input
+                    type="password"
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                    placeholder="Mot de passe"
+                    className="mb-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white outline-none"
+                  />
+                  <button
+                    onClick={submitSignup}
+                    disabled={signupLoading}
+                    className="mb-2 w-full rounded-full bg-emerald-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                  >
+                    {signupLoading ? 'En cours...' : 'S’inscrire'}
+                  </button>
+                  {signupStatus && <p className="text-[11px] text-slate-300">{signupStatus}</p>}
+                </div>
+              )}
             </div>
 
             {/* Input */}

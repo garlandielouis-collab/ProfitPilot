@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 
@@ -18,7 +18,7 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
   reference: string;
   status: PaymentStatus;
 }> {
-  const supabase = getSupabaseServer();
+  const supabase = await getSupabaseServer();
 
   const { data, error } = await supabase
     .from('payments')
@@ -38,7 +38,7 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
 }
 
 export async function getActiveSubscription(userId: string) {
-  const supabase = getSupabaseServer();
+  const supabase = await getSupabaseServer();
 
   const { data, error } = await supabase
     .from('subscriptions')
@@ -52,3 +52,4 @@ export async function getActiveSubscription(userId: string) {
   if (error) throw new Error(error.message);
   return data;
 }
+

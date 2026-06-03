@@ -103,24 +103,25 @@ export default function ReportActions({
   }
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Download PDF — opens browser Save as PDF dialog */}
+    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+      {/* Download PDF */}
       <button
         type="button"
         onClick={handleDownloadPDF}
         disabled={downloading}
         className="
-          flex items-center gap-2 px-4 py-2.5 rounded-xl
-          bg-[#0F172A] text-white text-[13px] font-semibold
+          flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
+          bg-[#0F172A] text-white text-[12px] sm:text-[13px] font-semibold
           hover:bg-[#1E293B] active:scale-[0.98]
           transition-all duration-150
           disabled:opacity-60 disabled:cursor-not-allowed
           shadow-sm no-print
         "
-        title="Ouvre la boîte de dialogue Imprimer → sélectionnez 'Enregistrer en PDF'"
+        title="Enregistrer en PDF"
       >
         {downloading ? <Spinner /> : <DownloadIcon />}
-        {downloading ? 'Génération...' : 'Télécharger PDF'}
+        <span className="hidden sm:inline">{downloading ? 'Génération...' : 'Télécharger PDF'}</span>
+        <span className="sm:hidden">{downloading ? '...' : 'PDF'}</span>
       </button>
 
       {/* Print */}
@@ -128,15 +129,15 @@ export default function ReportActions({
         type="button"
         onClick={handlePrint}
         className="
-          flex items-center gap-2 px-4 py-2.5 rounded-xl
-          bg-white border border-[#E2E8F0] text-[#0F172A] text-[13px] font-semibold
+          flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
+          bg-white border border-[#E2E8F0] text-[#0F172A] text-[12px] sm:text-[13px] font-semibold
           hover:bg-[#F8FAFC] hover:border-[#CBD5E1] active:scale-[0.98]
           transition-all duration-150
           shadow-sm no-print
         "
       >
         <PrintIcon />
-        Imprimer
+        <span className="hidden sm:inline">Imprimer</span>
       </button>
 
       {/* Share / Copy link */}
@@ -144,15 +145,15 @@ export default function ReportActions({
         type="button"
         onClick={handleCopyLink}
         className="
-          flex items-center gap-2 px-4 py-2.5 rounded-xl
-          bg-white border border-[#E2E8F0] text-[#64748B] text-[13px] font-medium
+          flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
+          bg-white border border-[#E2E8F0] text-[#64748B] text-[12px] sm:text-[13px] font-medium
           hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-[0.98]
           transition-all duration-150
           shadow-sm no-print
         "
       >
         <ShareIcon />
-        {copied ? 'Lien copié ✓' : 'Partager'}
+        <span className="hidden sm:inline">{copied ? 'Lien copié ✓' : 'Partager'}</span>
       </button>
     </div>
   );

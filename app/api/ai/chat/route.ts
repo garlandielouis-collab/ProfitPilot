@@ -72,7 +72,7 @@ function buildContextBlock(ws: WeeklySummary): string {
 
 async function getRecentMessages(conversationId: string) {
   try {
-    const supabase = getSupabaseServer();
+    const supabase = await getSupabaseServer();
     const { data } = await supabase
       .from('ai_messages')
       .select('role, content')
@@ -92,6 +92,13 @@ async function getRecentMessages(conversationId: string) {
 // ── POST handler ──────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  try {
+    const sup = await getSupabaseServer();
+    const userCheck = await sup.auth.getUser();
+    console.log('API /ai/chat auth.getUser', { user: userCheck.data?.user ?? null, error: userCheck.error?.message ?? null });
+  } catch (e) {
+    console.error('API /ai/chat auth check failed', e);
+  }
   if (!API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }

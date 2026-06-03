@@ -39,9 +39,9 @@ const FEATURES = [
 ];
 
 const glassCard: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  backdropFilter: 'blur(12px)',
+  background: '#FFFFFF',
+  border: '1px solid #E2E8F0',
+  boxShadow: '0 2px 12px rgba(0,31,63,0.05)',
 };
 
 // ── Desktop staggered grid ────────────────────────────────────────────────────
@@ -69,8 +69,8 @@ function FeatureGrid() {
           >
             <f.Icon size={22} style={{ color: f.color }} />
           </div>
-          <h3 className="text-base font-semibold text-white">{t(f.title)}</h3>
-          <p className="mt-2 text-sm leading-7 text-slate-400">{t(f.desc)}</p>
+          <h3 className="text-base font-semibold text-[#001f3f]">{t(f.title)}</h3>
+          <p className="mt-2 text-sm leading-7 text-slate-500">{t(f.desc)}</p>
         </motion.div>
       ))}
     </div>
@@ -118,8 +118,8 @@ function FeatureCarousel() {
             >
               <f.Icon size={26} style={{ color: f.color }} />
             </div>
-            <h3 className="text-xl font-semibold text-white">{t(f.title)}</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-400">{t(f.desc)}</p>
+            <h3 className="text-xl font-semibold text-[#001f3f]">{t(f.title)}</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-500">{t(f.desc)}</p>
           </motion.div>
         </AnimatePresence>
       </div>
@@ -135,7 +135,7 @@ function FeatureCarousel() {
               style={{
                 height: 8,
                 borderRadius: 999,
-                background: i === idx ? '#3b82f6' : 'rgba(255,255,255,0.15)',
+                background: i === idx ? '#001f3f' : '#E2E8F0',
                 border: 'none',
                 padding: 0,
                 cursor: 'pointer',
@@ -152,7 +152,7 @@ function FeatureCarousel() {
                 ? (idx - 1 + FEATURES.length) % FEATURES.length
                 : (idx + 1) % FEATURES.length
               )}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-slate-500 transition hover:bg-slate-50 hover:text-[#001f3f]"
             >
               <Icon size={18} />
             </button>
@@ -172,7 +172,7 @@ export function FeaturesSection() {
   const headInView = useInView(headRef, { once: true, margin: '-80px' });
 
   return (
-    <section id="features" className="px-5 py-20 md:px-10 lg:px-16">
+    <section id="features" className="bg-[#F8FAFC] px-5 py-20 md:px-10 lg:px-16">
       <div className="mx-auto max-w-7xl">
         <motion.div
           ref={headRef}
@@ -181,13 +181,13 @@ export function FeaturesSection() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
           className="mb-14 text-center"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-blue-400">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#50c878]">
             {t({ fr: 'Fonctionnalités', ht: 'Fonksyon yo' })}
           </p>
-          <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
+          <h2 className="mt-3 text-3xl font-bold text-[#001f3f] sm:text-4xl">
             {t({ fr: 'Des outils qui changent tout', ht: 'Zouti ki chanje tout bagay' })}
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base text-slate-400">
+          <p className="mx-auto mt-4 max-w-xl text-base text-slate-500">
             {t({
               fr: 'Chaque fonctionnalité est pensée pour la réalité du commerce haïtien.',
               ht: 'Chak fonksyon se panse pou reyalite komès ayisyen an.',

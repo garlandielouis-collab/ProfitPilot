@@ -11,8 +11,8 @@ import {
 import { NewSaleForm }         from '../../components/NewSaleForm';
 import { SalesHistoryTable }   from '../../components/SalesHistoryTable';
 import { ProtectedRoute }      from '../../components/ProtectedRoute';
-import { supabase }            from '../../lib/supabaseClient';
 import { cn }                  from '../../lib/utils';
+import { getSalesMetrics, getSalesCRMData, type ClientSummary } from '../actions/sales';
 
 // ── types ──────────────────────────────────────────────────────────────────────
 
@@ -21,26 +21,6 @@ type Metrics = {
   allTimeTotal:  number;
   monthlyCount:  number;
   topClient:     string | null;
-};
-
-type ClientSummary = {
-  name:        string;
-  total:       number;
-  count:       number;
-  lastDate:    string;
-  methods:     string[];
-};
-
-type SaleRow = {
-  id:             string;
-  invoice_number: string;
-  product_name:   string;
-  client_name:    string | null;
-  quantity:       number;
-  total_amount:   number | string;
-  payment_method: string;
-  currency:       string;
-  created_at:     string;
 };
 
 // ── helpers ────────────────────────────────────────────────────────────────────
@@ -91,7 +71,7 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0056b3] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#001F3F] border-t-transparent" />
       </div>
     );
   }
@@ -106,7 +86,7 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
           placeholder="Rechercher un client…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#0056b3]/50 focus:ring-2 focus:ring-[#0056b3]/10"
+          className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#001F3F]/50 focus:ring-2 focus:ring-[#001F3F]/10"
         />
       </div>
 
@@ -217,68 +197,19 @@ export default function SalesPage() {
 
   // ── Load metrics ────────────────────────────────────────────────────────────
   const loadMetrics = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const now        = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-    const [{ data: monthly }, { data: allTime }] = await Promise.all([
-      supabase.from('sales').select('total_amount, client_name')
-        .eq('owner_id', user.id).gte('created_at', monthStart),
-      supabase.from('sales').select('total_amount, client_name')
-        .eq('owner_id', user.id),
-    ]);
-
-    const sum = (rows: any[] | null) =>
-      (rows ?? []).reduce((s: number, r: any) => s + parseFloat(r.total_amount ?? 0), 0);
-
-    // Top client this month
-    const clientTotals: Record<string, number> = {};
-    for (const r of monthly ?? []) {
-      if (r.client_name) clientTotals[r.client_name] = (clientTotals[r.client_name] ?? 0) + parseFloat(r.total_amount ?? 0);
-    }
-    const topClient = Object.entries(clientTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-
-    setMetrics({
-      monthlyTotal:  sum(monthly),
-      allTimeTotal:  sum(allTime),
-      monthlyCount:  (monthly ?? []).length,
-      topClient,
-    });
+    try {
+      const data = await getSalesMetrics();
+      setMetrics(data);
+    } catch { /* silent */ }
   }, []);
 
   // ── Load CRM data ────────────────────────────────────────────────────────────
   const loadCRM = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
     setCrmLoading(true);
-    const { data } = await supabase
-      .from('sales')
-      .select('client_name, total_amount, payment_method, created_at')
-      .eq('owner_id', user.id)
-      .not('client_name', 'is', null)
-      .order('created_at', { ascending: false });
-
-    const map = new Map<string, ClientSummary>();
-    for (const row of (data ?? []) as SaleRow[]) {
-      const name = row.client_name ?? 'Anonyme';
-      const amt  = parseFloat(String(row.total_amount ?? 0));
-      if (!map.has(name)) {
-        map.set(name, { name, total: 0, count: 0, lastDate: row.created_at, methods: [] });
-      }
-      const c = map.get(name)!;
-      c.total   += amt;
-      c.count   += 1;
-      if (row.created_at > c.lastDate) c.lastDate = row.created_at;
-      if (row.payment_method && !c.methods.includes(row.payment_method))
-        c.methods.push(row.payment_method);
-    }
-
-    setClients(
-      [...map.values()].sort((a, b) => b.total - a.total),
-    );
+    try {
+      const data = await getSalesCRMData();
+      setClients(data);
+    } catch { /* silent */ }
     setCrmLoading(false);
   }, []);
 
@@ -291,12 +222,12 @@ export default function SalesPage() {
 
   return (
     <ProtectedRoute>
-      <main className="min-h-screen bg-[#f8fbff] px-4 py-6 md:px-6 lg:px-8">
+      <main className="min-h-screen bg-[var(--color-bg)] px-4 py-6 md:px-6 lg:px-8">
         <div className="mx-auto w-full max-w-7xl space-y-6">
 
           {/* ── Header ───────────────────────────────────────────────────────── */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#0056b3]/90">Module</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#001F3F]/90">Module</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-800 md:text-3xl">
               Ventes &amp; CRM
             </h1>
@@ -312,7 +243,7 @@ export default function SalesPage() {
               label="Ventes ce mois"
               value={fmt(metrics.monthlyTotal)}
               sub={now}
-              accent="bg-blue-100 text-[#0056b3]"
+              accent="bg-blue-100 text-[#001F3F]"
             />
             <KPI
               icon={ShoppingCart}
@@ -349,7 +280,7 @@ export default function SalesPage() {
                   className={cn(
                     'flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                     active
-                      ? 'bg-[#0056b3] text-white shadow-sm'
+                      ? 'bg-[#001F3F] text-white shadow-sm'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50',
                   )}
                 >

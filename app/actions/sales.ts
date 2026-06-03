@@ -1,8 +1,8 @@
 'use server';
 
-import { supabaseServer } from '../../lib/supabaseServerClient';
+import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
-import { recordCustomerTransaction } from './invoice';
+import { recordSaleEntry } from './accounting';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,9 +19,8 @@ export type CreateSalePayload = {
   is_credit: boolean;
   currency: 'HTG' | 'USD';
   discount_percent?: number;
-  client_id?: string;
-  client_name?: string;
-  owner_id?: string;
+  customer_id?: string;
+  customer_name?: string;
   metadata?: Record<string, string>;
 };
 
@@ -49,165 +48,279 @@ export async function createSaleAction(payload: CreateSalePayload): Promise<Sale
     is_credit,
     currency,
     discount_percent = 0,
-    client_id,
-    client_name,
-    owner_id,
+    customer_id,
+    customer_name,
     metadata,
   } = payload;
 
   if (!items?.length) throw new Error('Le panier est vide.');
   if (!['Cash', 'MonCash', 'Natcash', 'Card'].includes(payment_method)) throw new Error('Mode de paiement invalide.');
   if (discount_percent < 0 || discount_percent > 100) throw new Error('Remise invalide (0–100%).');
-  if (is_credit && !client_name?.trim()) throw new Error('Un client est requis pour une vente à crédit.');
+  if (is_credit && !customer_name?.trim()) throw new Error('Un client est requis pour une vente à crédit.');
 
-  let uid = owner_id;
-  if (!uid) {
-    const { data: { user } } = await supabaseServer.auth.getUser();
-    uid = user?.id;
-  }
-  if (!uid) throw new Error('Non authentifié.');
+  const { supabase: sb, businessId, userId } = await getBusinessContext();
 
   const invoiceNumber = generateInvoiceNumber();
   const multiplier = 1 - discount_percent / 100;
-  const payment_status = is_credit ? 'À Crédit' : 'Payé';
+  const payment_status = is_credit ? 'credit' : 'paid';
 
-  let subtotal = 0;
-  const firstSaleIds: string[] = [];
-
+  // ── 1. Validate stock for all items ───────────────────────────────────────
   for (const item of items) {
     if (!item.product_id || item.quantity < 1 || item.unit_price <= 0) {
       throw new Error(`Données invalides pour "${item.product_name}".`);
     }
-
-    // Validate stock
-    const { data: product, error: pErr } = await supabaseServer
+    const { data: product, error: pErr } = await sb
       .from('products')
       .select('stock_quantity')
       .eq('id', item.product_id)
-      .eq('owner_id', uid)
       .single();
 
     if (pErr || !product) throw new Error(`Produit introuvable: ${item.product_name}`);
     if (product.stock_quantity < item.quantity) {
       throw new Error(`Stock insuffisant pour "${item.product_name}" (disponible: ${product.stock_quantity}).`);
     }
-
-    const lineTotal = parseFloat((item.unit_price * item.quantity * multiplier).toFixed(2));
-    subtotal += item.unit_price * item.quantity;
-
-    const { data: saleRow, error: sErr } = await supabaseServer
-      .from('sales')
-      .insert({
-        owner_id: uid,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        total_amount: lineTotal,
-        currency,
-        payment_method,
-        payment_status,
-        discount_percent,
-        client_id: client_id ?? null,
-        client_name: client_name ?? null,
-        invoice_number: invoiceNumber,
-        metadata: metadata ?? null,
-      })
-      .select('id')
-      .single();
-
-    if (sErr) throw new Error(sErr.message);
-    if (saleRow?.id) firstSaleIds.push(saleRow.id);
-    // Stock is decremented automatically by the sales_decrement_stock_trigger (BEFORE INSERT on sales).
   }
 
-  subtotal = parseFloat(subtotal.toFixed(2));
+  // ── 2. Compute totals ──────────────────────────────────────────────────────
+  const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
   const discountAmount = parseFloat((subtotal * (discount_percent / 100)).toFixed(2));
   const totalAmount = parseFloat((subtotal - discountAmount).toFixed(2));
 
-  // Credit sale: create client_credits entry + update client total
-  if (is_credit) {
-    const { error: ccErr } = await supabaseServer
-      .from('client_credits')
-      .insert({
-        owner_id: uid,
-        sale_id: firstSaleIds[0] ?? null,
-        client_id: client_id ?? null,
-        client_name: client_name!,
-        invoice_number: invoiceNumber,
-        amount: totalAmount,
+  // ── 3. Insert the sale header ──────────────────────────────────────────────
+  const { data: saleRow, error: sErr } = await sb
+    .from('sales')
+    .insert({
+      business_id:      businessId,
+      invoice_number:   invoiceNumber,
+      customer_id:      customer_id ?? null,
+      customer_name:    customer_name ?? null,
+      currency,
+      payment_method,
+      payment_status,
+      discount_percent,
+      subtotal_amount:  parseFloat(subtotal.toFixed(2)),
+      discount_amount:  discountAmount,
+      total_amount:     totalAmount,
+      paid_amount:      is_credit ? 0 : totalAmount,
+      sale_date:        new Date().toISOString().split('T')[0],
+      metadata:         metadata ?? null,
+      created_by:       userId,
+    })
+    .select('id')
+    .single();
+
+  if (sErr) throw new Error(sErr.message);
+  const saleId = saleRow.id;
+
+  // ── 4. Insert sale_items ───────────────────────────────────────────────────
+  const saleItems = items.map((item) => ({
+    sale_id:       saleId,
+    business_id:   businessId,
+    product_id:    item.product_id,
+    product_name:  item.product_name,
+    quantity:      item.quantity,
+    unit_price:    item.unit_price,
+    discount_percent,
+    line_total:    parseFloat((item.unit_price * item.quantity * multiplier).toFixed(2)),
+    currency,
+  }));
+
+  const { error: siErr } = await sb.from('sale_items').insert(saleItems);
+  if (siErr) throw new Error(siErr.message);
+
+  // ── 5. Decrement stock + record inventory_movements ───────────────────────
+  for (const item of items) {
+    const { data: product } = await sb
+      .from('products')
+      .select('stock_quantity')
+      .eq('id', item.product_id)
+      .single();
+    if (product) {
+      const newQty = Math.max(0, product.stock_quantity - item.quantity);
+      await sb
+        .from('products')
+        .update({ stock_quantity: newQty })
+        .eq('id', item.product_id);
+
+      await sb.from('inventory_movements').insert({
+        business_id:    businessId,
+        product_id:     item.product_id,
+        movement_type:  'sale_out',
+        quantity:       item.quantity,
+        unit_cost:      item.unit_price,
+        total_cost:     parseFloat((item.unit_price * item.quantity * multiplier).toFixed(2)),
         currency,
-        payment_status: 'À Crédit',
+        reference_type: 'sale',
+        reference_id:   saleId,
+        notes:          `Vant — ${invoiceNumber}`,
+        created_by:     userId,
       });
-
-    if (ccErr) throw new Error(ccErr.message);
-
-    if (client_id) {
-      const { data: cl } = await supabaseServer
-        .from('clients')
-        .select('total_credit')
-        .eq('id', client_id)
-        .single();
-
-      if (cl) {
-        await supabaseServer
-          .from('clients')
-          .update({ total_credit: parseFloat(((cl.total_credit ?? 0) + totalAmount).toFixed(2)) })
-          .eq('id', client_id);
-      }
     }
   }
 
-  // ── Record customer transaction (non-blocking) ────────────────────────────
-  if (client_name?.trim()) {
-    recordCustomerTransaction({
-      owner_id:       uid,
-      client_id:      client_id ?? undefined,
-      client_name:    client_name,
-      sale_id:        firstSaleIds[0] ?? undefined,
-      invoice_number: invoiceNumber,
-      type:           'sale',
-      amount:         totalAmount,
+  // ── 6. Credit sale: record customer_transaction + update outstanding_balance
+  if (is_credit && customer_id) {
+    const { data: cust } = await sb
+      .from('customers')
+      .select('outstanding_balance')
+      .eq('id', customer_id)
+      .single();
+
+    const balanceBefore = cust?.outstanding_balance ?? 0;
+    const balanceAfter  = parseFloat((balanceBefore + totalAmount).toFixed(2));
+
+    await sb.from('customer_transactions').insert({
+      business_id:      businessId,
+      customer_id,
+      transaction_date: new Date().toISOString(),
+      type:             'credit',
+      amount:           totalAmount,
       currency,
-      payment_method: is_credit ? 'À Crédit' : payment_method,
-    }).catch(() => { /* non-critical */ });
+      description:      `Vente credit — ${invoiceNumber}`,
+      reference_type:   'sale',
+      reference_id:     saleId,
+      balance_before:   balanceBefore,
+      balance_after:    balanceAfter,
+      created_by:       userId,
+    });
+
+    await sb
+      .from('customers')
+      .update({ outstanding_balance: balanceAfter })
+      .eq('id', customer_id);
+  }
+
+  try {
+    await recordSaleEntry({
+      saleId,
+      invoiceNumber,
+      amount: totalAmount,
+      isCredit: is_credit,
+      date: new Date().toISOString().split('T')[0],
+      currency,
+      paymentMethod: payment_method,
+    });
+  } catch (error) {
+    console.error('[accounting] recordSaleEntry failed:', (error as Error).message);
   }
 
   revalidatePath('/sales');
+  revalidatePath('/clients');
   revalidatePath('/dettes');
 
-  return { invoiceNumber, subtotal, discountAmount, totalAmount };
+  return {
+    invoiceNumber,
+    subtotal:       parseFloat(subtotal.toFixed(2)),
+    discountAmount,
+    totalAmount,
+  };
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 export type SalesMetrics = {
-  monthlyTotal: number;
-  allTimeTotal: number;
+  monthlyTotal:  number;
+  allTimeTotal:  number;
+  monthlyCount:  number;
+  topClient:     string | null;
 };
 
 export async function getSalesMetrics(): Promise<SalesMetrics> {
-  const { data: { user } } = await supabaseServer.auth.getUser();
-  if (!user) return { monthlyTotal: 0, allTimeTotal: 0 };
+  let supabase: any, businessId: string;
+  try {
+    const ctx = await getBusinessContext();
+    supabase = ctx.supabase; businessId = ctx.businessId;
+  } catch { return { monthlyTotal: 0, allTimeTotal: 0, monthlyCount: 0, topClient: null }; }
 
-  const now = new Date();
+  const now        = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
   const [monthly, allTime] = await Promise.all([
-    supabaseServer
-      .from('sales')
-      .select('total_amount')
-      .eq('owner_id', user.id)
-      .gte('created_at', monthStart),
-    supabaseServer
-      .from('sales')
-      .select('total_amount')
-      .eq('owner_id', user.id),
+    supabase.from('sales').select('total_amount, customer_name')
+      .eq('business_id', businessId).gte('created_at', monthStart),
+    supabase.from('sales').select('total_amount')
+      .eq('business_id', businessId),
   ]);
 
   const sum = (rows: any[] | null) =>
     (rows ?? []).reduce((s: number, r: any) => s + parseFloat(r.total_amount ?? 0), 0);
 
+  // Top client this month
+  const clientTotals: Record<string, number> = {};
+  for (const r of monthly.data ?? []) {
+    if (r.customer_name) {
+      clientTotals[r.customer_name] = (clientTotals[r.customer_name] ?? 0) + parseFloat(r.total_amount ?? 0);
+    }
+  }
+  const topClient = Object.entries(clientTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
   return {
     monthlyTotal: parseFloat(sum(monthly.data).toFixed(2)),
     allTimeTotal: parseFloat(sum(allTime.data).toFixed(2)),
+    monthlyCount: (monthly.data ?? []).length,
+    topClient,
   };
+}
+
+// ── CRM data ──────────────────────────────────────────────────────────────────
+
+export type ClientSummary = {
+  name:     string;
+  total:    number;
+  count:    number;
+  lastDate: string;
+  methods:  string[];
+};
+
+export async function getSalesCRMData(): Promise<ClientSummary[]> {
+  let supabase: any, businessId: string;
+  try {
+    const ctx = await getBusinessContext();
+    supabase = ctx.supabase; businessId = ctx.businessId;
+  } catch { return []; }
+
+  const { data } = await supabase
+    .from('sales')
+    .select('customer_name, total_amount, payment_method, created_at')
+    .eq('business_id', businessId)
+    .not('customer_name', 'is', null)
+    .order('created_at', { ascending: false });
+
+  const map = new Map<string, ClientSummary>();
+  for (const row of (data ?? [])) {
+    const name = row.customer_name ?? 'Anonim';
+    const amt  = parseFloat(String(row.total_amount ?? 0));
+    if (!map.has(name)) {
+      map.set(name, { name, total: 0, count: 0, lastDate: row.created_at, methods: [] });
+    }
+    const c = map.get(name)!;
+    c.total += amt;
+    c.count += 1;
+    if (row.created_at > c.lastDate) c.lastDate = row.created_at;
+    if (row.payment_method && !c.methods.includes(row.payment_method))
+      c.methods.push(row.payment_method);
+  }
+
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+// ── Get sales list ────────────────────────────────────────────────────────────
+
+export async function getSalesAction(limit = 50) {
+  const { supabase, businessId } = await getBusinessContext();
+
+  const { data, error } = await supabase
+    .from('sales')
+    .select(`
+      id, invoice_number, customer_id, customer_name,
+      total_amount, currency, payment_method, payment_status,
+      discount_percent, sale_date, created_at,
+      customers ( id, name, phone )
+    `)
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }

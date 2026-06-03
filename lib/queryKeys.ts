@@ -23,7 +23,6 @@ export const QK = {
   clientHistory:   (clientId: string)  => ['client-history', clientId]         as const,
   clients:         (uid: string)       => ['clients', uid]                     as const,
 
-  // ── Products / Inventory ──────────────────────────────────────────────────
+  // ── Products ───────────────────────────────────────────────────────────────
   products:        (uid: string)       => ['products', uid]                    as const,
-  lowStock:        (uid: string)       => ['low-stock', uid]                   as const,
 } as const;

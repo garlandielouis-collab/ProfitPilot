@@ -6,8 +6,9 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
-import { getReportsDataAction } from '../actions/reports';
+import { getReportsDataAction, type ReportPeriod } from '../actions/reports';
 
 import IncomeStatement,   { type IncomeStatementData }  from '../../components/reports/IncomeStatement';
 import BalanceSheet,      { type BalanceSheetData }      from '../../components/reports/BalanceSheet';
@@ -255,52 +256,94 @@ function KpiCard({
 // Helpers
 // ─────────────────────────────────────────────────────────────────
 
-function htg(v: number) {
+function htg(v: number, currency: 'HTG' | 'USD' = 'HTG') {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
-    currency: 'HTG',
+    currency,
     maximumFractionDigits: 0,
   }).format(v);
+}
+
+function getCurrencyName(currency: 'HTG' | 'USD'): string {
+  return currency === 'USD' ? 'Dollars Américains (USD)' : 'Gourdes Haïtiennes (HTG)';
 }
 
 // ─────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────
 
-export default function RapportsPage() {
+function RapportsPage() {
   const { t } = useLanguage();
-  const [reportType, setReportType] = useState<ReportType>('income');
-  const [period, setPeriod] = useState<PeriodType>('FY');
-  const [companyName, setCompanyName] = useState('Entreprise ABC SARL');
-  const [loading, setLoading] = useState(true);
+  const currentYear = new Date().getFullYear();
 
-  // Load business name from API
+  const [reportType, setReportType] = useState<ReportType>('income');
+  const [period,     setPeriod]     = useState<PeriodType>('FY');
+  const [year,       setYear]       = useState(currentYear);
+  const [loading,    setLoading]    = useState(true);
+
+  // ── Real data state ─────────────────────────────────────────────────────────
+  const [companyName,  setCompanyName]  = useState('Mon Entreprise');
+  const [periodLabel,  setPeriodLabel]  = useState(`Annuel ${currentYear}`);
+  const [currency,     setCurrency]     = useState<'HTG' | 'USD'>('HTG');
+  const [isDemo,       setIsDemo]       = useState(false);
+  const [incomeData,   setIncomeData]   = useState<IncomeStatementData>(DEMO_INCOME);
+  const [balanceData,  setBalanceData]  = useState<BalanceSheetData>(DEMO_BALANCE);
+  const [cashflowData, setCashflowData] = useState<CashFlowData>(DEMO_CASHFLOW);
+  const [equityData,   setEquityData]   = useState<EquityStatementData>(DEMO_EQUITY);
+  const [kpi, setKpi] = useState({
+    caNet:     DEMO_INCOME.ventesMarchandises + DEMO_INCOME.prestationsServices + DEMO_INCOME.autresRevenus - DEMO_INCOME.retoursRabais,
+    cogs:      DEMO_INCOME.achatsMarchandises + (DEMO_INCOME.variationStock ?? 0) + DEMO_INCOME.transportAchat,
+    netProfit: DEMO_EQUITY.resultatNet,
+    cashTotal: DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash,
+  });
+
+  // ── Re-fetch every time period or year changes ──────────────────────────────
   useEffect(() => {
-    getReportsDataAction()
-      .then((d) => { if (d?.businessName) setCompanyName(d.businessName); })
-      .catch(() => {})
+    setLoading(true);
+    getReportsDataAction(period as ReportPeriod, year)
+      .then((d) => {
+        if (!d) return;
+        setCompanyName(d.businessName || 'Mon Entreprise');
+        setPeriodLabel(d.periodLabel);
+        setCurrency(d.currency);
+
+        if (d.hasRealData) {
+          setIsDemo(false);
+          setIncomeData(d.income);
+          setBalanceData(d.balance);
+          setCashflowData(d.cashflow);
+          setEquityData(d.equity);
+          setKpi(d.kpi);
+        } else {
+          setIsDemo(true);
+          // Reset to DEMO when no data exists for this period
+          setIncomeData(DEMO_INCOME);
+          setBalanceData(DEMO_BALANCE);
+          setCashflowData(DEMO_CASHFLOW);
+          setEquityData(DEMO_EQUITY);
+        }
+      })
+      .catch(() => setIsDemo(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [period, year]); // ← refetch whenever period or year changes
+
+  const marge = kpi.caNet > 0
+    ? (((kpi.caNet - kpi.cogs) / kpi.caNet) * 100).toFixed(1)
+    : '0.0';
 
   const meta = useMemo(() => ({
     companyName,
-    reportTitle: '',        // overridden per-report
-    reportSubtitle: `Exercice clos le 31 décembre 2025`,
-    currency: 'HTG',
-  }), [companyName]);
-
-  // Derived KPIs from demo data (replace with live fn calls)
-  const caNet = DEMO_INCOME.ventesMarchandises + DEMO_INCOME.prestationsServices + DEMO_INCOME.autresRevenus - DEMO_INCOME.retoursRabais;
-  const cogs  = DEMO_INCOME.achatsMarchandises + (DEMO_INCOME.variationStock ?? 0) + DEMO_INCOME.transportAchat;
-  const marge = ((caNet - cogs) / caNet * 100).toFixed(1);
-  const cashTotal = DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash;
+    reportTitle: '',
+    reportSubtitle: periodLabel,
+    currency,
+  }), [companyName, periodLabel, currency]);
 
   if (loading) {
     return (
       <main className="min-h-screen bg-[#F8FAFC] px-4 py-6">
         <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
           <div className="h-28 bg-white rounded-3xl border border-[#E2E8F0]" />
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-[#E2E8F0]" />)}
           </div>
           <div className="h-[600px] bg-white rounded-3xl border border-[#E2E8F0]" />
@@ -311,74 +354,103 @@ export default function RapportsPage() {
 
   return (
     <>
-      {/* ── No inline style needed: globals.css handles all print logic ── */}
-
-      {/* ═══════════════════════════════════════════════════
-          SCREEN VIEW — reports hub
-          The .no-print class ensures this is hidden
-          when the print portal is rendering.
-      ═══════════════════════════════════════════════════ */}
       <main className="min-h-screen bg-[#F1F5F9] no-print">
         <div className="max-w-[1160px] mx-auto px-4 py-6 space-y-6">
 
           {/* ── Page header ── */}
           <header className="bg-white rounded-3xl border border-[#E2E8F0] p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#12B981] mb-1">
-                Rapports Financiers
-              </p>
+              <div className="flex items-center gap-3 mb-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#12B981]">
+                  Rapports Financiers
+                </p>
+                {isDemo && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-500">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                    Données démo
+                  </span>
+                )}
+              </div>
               <h1 className="text-[26px] font-bold text-[#0F172A] leading-tight">{companyName}</h1>
               <p className="text-[13px] text-[#64748B] mt-1">
-                Exercice 2025 · Exprimé en Gourdes Haïtiennes (HTG)
+                Exercice {new Date().getFullYear()} · Exprimé en {getCurrencyName(currency)}
               </p>
             </div>
-            <ReportActions
-              reportTitle={reportType}
-              companyName={companyName}
-            />
+            <ReportActions reportTitle={reportType} companyName={companyName} />
           </header>
 
           {/* ── KPI strip ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard label="Chiffre d'affaires"   value={htg(caNet)}             sub="Exercice 2025"   trend="+14.6% vs 2024"  color="navy"  />
-            <KpiCard label="Marge brute"           value={`${marge}%`}            sub={htg(caNet-cogs)} trend="+1.8pp vs 2024" color="green" />
-            <KpiCard label="Résultat net"          value={htg(DEMO_EQUITY.resultatNet)} sub="Exercice 2025" trend="+20.8% vs 2024" color="green" />
-            <KpiCard label="Trésorerie totale"     value={htg(cashTotal)}         sub="Au 31 déc. 2025" color="blue"  />
+            <KpiCard label="Chiffre d'affaires" value={htg(kpi.caNet, currency)}     sub={`Exercice ${new Date().getFullYear()}`} color="navy"  />
+            <KpiCard label="Marge brute"        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
+            <KpiCard label="Résultat net"        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
+            <KpiCard label="Trésorerie totale"  value={htg(kpi.cashTotal, currency)} sub="Disponible"                             color="blue"  />
           </div>
 
           {/* ── Period selector ── */}
           <div className="bg-white rounded-2xl border border-[#E2E8F0] px-5 py-4 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Période d'analyse</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">
+                  Période d'analyse
+                </p>
+                <div className="flex items-center gap-2">
+                  {loading && (
+                    <svg className="h-4 w-4 animate-spin text-[#12B981]" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  )}
+                  {/* Year selector */}
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                    className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0F172A] outline-none focus:border-[#12B981] focus:ring-1 focus:ring-[#12B981]"
+                  >
+                    {[currentYear, currentYear - 1, currentYear - 2].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <PeriodPicker active={period} onChange={setPeriod} />
+              {/* Active period label */}
+              <p className="text-[11px] text-[#94A3B8]">
+                📅 {periodLabel}
+              </p>
             </div>
           </div>
 
           {/* ── Report type tabs ── */}
           <ReportTypeSelector active={reportType} onChange={setReportType} />
 
-          {/* ── Report preview (A4 on screen) ── */}
-          <div className="flex justify-center">
-            <div
-              className="w-full overflow-hidden rounded-2xl shadow-xl"
-              style={{ maxWidth: '210mm' }}
-            >
-              {reportType === 'income'   && <IncomeStatement   meta={meta} data={DEMO_INCOME}   showPrevious />}
-              {reportType === 'balance'  && <BalanceSheet       meta={meta} data={DEMO_BALANCE}  showPrevious />}
-              {reportType === 'cashflow' && <CashFlowStatement  meta={meta} data={DEMO_CASHFLOW} showPrevious />}
-              {reportType === 'equity'   && <EquityStatement    meta={meta} data={DEMO_EQUITY}   />}
+          {/* ── Report preview (A4) ── */}
+          <div className="relative flex justify-center w-full">
+            {/* Overlay spinner on period change */}
+            {loading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                <div className="flex flex-col items-center gap-3">
+                  <svg className="h-8 w-8 animate-spin text-[#12B981]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <p className="text-[12px] font-medium text-[#64748B]">Chargement des données…</p>
+                </div>
+              </div>
+            )}
+            <div className="w-full overflow-hidden rounded-2xl shadow-xl" style={{ maxWidth: '210mm' }}>
+              {reportType === 'income'   && <IncomeStatement   meta={meta} data={incomeData}   showPrevious />}
+              {reportType === 'balance'  && <BalanceSheet       meta={meta} data={balanceData}  showPrevious />}
+              {reportType === 'cashflow' && <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />}
+              {reportType === 'equity'   && <EquityStatement    meta={meta} data={equityData}   />}
             </div>
           </div>
 
           {/* ── Bottom action bar ── */}
           <div className="bg-white rounded-3xl border border-[#E2E8F0] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
             <div>
-              <p className="text-[13px] font-semibold text-[#0F172A]">
-                Télécharger tous les états financiers
-              </p>
-              <p className="text-[11px] text-[#94A3B8] mt-[2px]">
-                PDF A4 · Prêt à l'impression · Qualité comptable
-              </p>
+              <p className="text-[13px] font-semibold text-[#0F172A]">Télécharger tous les états financiers</p>
+              <p className="text-[11px] text-[#94A3B8] mt-[2px]">PDF A4 · Prêt à l'impression · Qualité comptable</p>
             </div>
             <ReportActions reportTitle="Pack complet" companyName={companyName} />
           </div>
@@ -386,15 +458,21 @@ export default function RapportsPage() {
         </div>
       </main>
 
-      {/* ═══════════════════════════════════════════════════
-          PRINT PORTAL — renders all 4 reports for PDF
-      ═══════════════════════════════════════════════════ */}
+      {/* ── Print portal ── */}
       <div className="print-portal">
-        <IncomeStatement   meta={meta} data={DEMO_INCOME}   showPrevious />
-        <BalanceSheet       meta={meta} data={DEMO_BALANCE}  showPrevious />
-        <CashFlowStatement  meta={meta} data={DEMO_CASHFLOW} showPrevious />
-        <EquityStatement    meta={meta} data={DEMO_EQUITY}   />
+        <IncomeStatement   meta={meta} data={incomeData}   showPrevious />
+        <BalanceSheet       meta={meta} data={balanceData}  showPrevious />
+        <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />
+        <EquityStatement    meta={meta} data={equityData}   />
       </div>
     </>
+  );
+}
+
+export default function RapportsPageWrapper() {
+  return (
+    <ProtectedRoute>
+      <RapportsPage />
+    </ProtectedRoute>
   );
 }

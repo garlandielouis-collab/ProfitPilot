@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseServer } from '../../lib/supabaseServerClient';
+import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 
 export type Client = {
@@ -8,17 +8,17 @@ export type Client = {
   name: string;
   phone?: string | null;
   email?: string | null;
-  total_credit: number;
+  outstanding_balance: number;
 };
 
 export async function getClients(): Promise<Client[]> {
-  const { data: { user } } = await supabaseServer.auth.getUser();
-  if (!user) return [];
+  const { supabase, businessId } = await getBusinessContext();
 
-  const { data, error } = await supabaseServer
-    .from('clients')
-    .select('id,name,phone,email,total_credit')
-    .eq('owner_id', user.id)
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id,name,phone,email,outstanding_balance')
+    .eq('business_id', businessId)
+    .is('deleted_at', null)
     .order('name', { ascending: true });
 
   if (error) { console.error('[getClients]', error.message); return []; }
@@ -31,84 +31,97 @@ export async function upsertClient(payload: {
   phone?: string;
   email?: string;
 }): Promise<Client> {
-  const { data: { user } } = await supabaseServer.auth.getUser();
-  if (!user) throw new Error('Non authentifié.');
+  const { supabase, businessId, userId } = await getBusinessContext();
 
   const record = {
-    name: payload.name.trim(),
-    phone: payload.phone?.trim() || null,
-    email: payload.email?.trim() || null,
-    owner_id: user.id,
+    name:        payload.name.trim(),
+    phone:       payload.phone?.trim() || null,
+    email:       payload.email?.trim() || null,
+    business_id: businessId,
+    created_by:  userId,
   };
 
   if (payload.id) {
-    const { data, error } = await supabaseServer
-      .from('clients')
-      .update(record)
+    const { data, error } = await supabase
+      .from('customers')
+      .update({ name: record.name, phone: record.phone, email: record.email })
       .eq('id', payload.id)
-      .select('id,name,phone,email,total_credit')
+      .eq('business_id', businessId)
+      .select('id,name,phone,email,outstanding_balance')
       .single();
     if (error) throw new Error(error.message);
     return data as Client;
   }
 
-  const { data, error } = await supabaseServer
-    .from('clients')
-    .insert({ ...record, total_credit: 0 })
-    .select('id,name,phone,email,total_credit')
+  const { data, error } = await supabase
+    .from('customers')
+    .insert({ ...record, outstanding_balance: 0 })
+    .select('id,name,phone,email,outstanding_balance')
     .single();
   if (error) throw new Error(error.message);
   return data as Client;
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
-  const { data: { user } } = await supabaseServer.auth.getUser();
-  if (!user) throw new Error('Non authentifié.');
+  const { supabase, businessId } = await getBusinessContext();
 
-  const { error } = await supabaseServer
-    .from('clients')
-    .delete()
+  // Soft delete
+  const { error } = await supabase
+    .from('customers')
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', clientId)
-    .eq('owner_id', user.id);
+    .eq('business_id', businessId);
 
   if (error) throw new Error(error.message);
   revalidatePath('/clients');
 }
 
-export async function markClientCreditPaid(creditId: string): Promise<void> {
-  const { data: { user } } = await supabaseServer.auth.getUser();
-  if (!user) throw new Error('Non authentifié.');
+export async function markClientCreditPaid(transactionId: string): Promise<void> {
+  const { supabase, businessId } = await getBusinessContext();
 
-  const { data: credit, error: fetchErr } = await supabaseServer
-    .from('client_credits')
-    .select('client_id,amount')
-    .eq('id', creditId)
-    .eq('owner_id', user.id)
+  // Get the transaction
+  const { data: tx, error: fetchErr } = await supabase
+    .from('customer_transactions')
+    .select('customer_id,amount,balance_after')
+    .eq('id', transactionId)
+    .eq('business_id', businessId)
     .single();
 
-  if (fetchErr || !credit) throw new Error('Créance introuvable.');
+  if (fetchErr || !tx) throw new Error('Transaction introuvable.');
 
-  const { error: updateErr } = await supabaseServer
-    .from('client_credits')
-    .update({ payment_status: 'Payé' })
-    .eq('id', creditId);
+  // Record a payment transaction (reduces outstanding_balance)
+  const { error: insertErr } = await supabase
+    .from('customer_transactions')
+    .insert({
+      business_id:      businessId,
+      customer_id:      tx.customer_id,
+      transaction_date: new Date().toISOString(),
+      type:             'payment',
+      amount:           tx.amount,
+      currency:         'HTG',
+      description:      'Peman kredi',
+      reference_type:   'credit_payment',
+      reference_id:     transactionId,
+    });
 
-  if (updateErr) throw new Error(updateErr.message);
+  if (insertErr) throw new Error(insertErr.message);
 
-  // Reduce client total_credit
-  if (credit.client_id) {
-    const { data: client } = await supabaseServer
-      .from('clients')
-      .select('total_credit')
-      .eq('id', credit.client_id)
+  // Update customer outstanding_balance
+  if (tx.customer_id) {
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('outstanding_balance')
+      .eq('id', tx.customer_id)
       .single();
 
-    if (client) {
-      const newCredit = Math.max(0, (client.total_credit ?? 0) - credit.amount);
-      await supabaseServer
-        .from('clients')
-        .update({ total_credit: newCredit })
-        .eq('id', credit.client_id);
+    if (cust) {
+      const newBalance = Math.max(0, (cust.outstanding_balance ?? 0) - tx.amount);
+      await supabase
+        .from('customers')
+        .update({ outstanding_balance: newBalance })
+        .eq('id', tx.customer_id);
     }
   }
+
+  revalidatePath('/clients');
 }

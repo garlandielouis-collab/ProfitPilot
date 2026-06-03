@@ -1,0 +1,5 @@
+table,id,original_amount,original_currency,converted_amount,report_currency,date
+expenses,1e38bc5b-34a9-4cd8-b3f2-09fbd92a70e7,45,USD,5850,HTG,2026-06-03
+expenses,ac990903-eeda-4f6e-a679-22b49efbf16d,34,USD,4420,HTG,2026-06-03
+expenses,1ebad1b8-3e17-4a4f-8759-2eb15a4f9331,4000,HTG,4000,HTG,2026-06-02
+expenses,116370f6-2ad2-453f-9bdc-56569706d617,4568,HTG,4568,HTG,2026-06-01

@@ -15,6 +15,7 @@ type SupplierOption = {
   name: string;
   phone: string | null;
   email: string | null;
+  discount_percent: number;
 };
 
 type ProductOption = {
@@ -237,8 +238,8 @@ function QuickCreateSupplierModal({ ownerId, onCreated, onClose }: QuickCreateSu
     if (!name.trim()) { setErr('Non obligatwa.'); return; }
     setSaving(true);
     try {
-      const created: QuickSupplierResult = await quickCreateSupplier({ name, phone, email, owner_id: ownerId });
-      onCreated({ id: created.id, name: created.name, phone: created.phone, email: created.email });
+      const created: QuickSupplierResult = await quickCreateSupplier({ name, phone, email });
+      onCreated({ id: created.id, name: created.name, phone: created.phone, email: created.email, discount_percent: created.discount_percent ?? 0 });
       onClose();
     } catch (e) {
       setErr((e as Error).message);
@@ -310,7 +311,6 @@ function QuickCreateProductModal({ ownerId, onCreated, onClose }: QuickCreatePro
         name, category,
         purchase_price: pp,
         sale_price: sp,
-        owner_id: ownerId,
       });
       onCreated({
         id: created.id,
@@ -429,7 +429,7 @@ export function NewPurchaseForm() {
   useEffect(() => {
     async function load() {
       const [suppRes, prodRes, userRes] = await Promise.all([
-        supabase.from('suppliers').select('id,name,phone,email').order('name'),
+        supabase.from('suppliers').select('id,name,phone,email,discount_percent').order('name'),
         supabase.from('products').select('id,name,purchase_price,stock_quantity,category').order('name'),
         supabase.auth.getUser(),
       ]);
@@ -444,6 +444,12 @@ export function NewPurchaseForm() {
   useEffect(() => {
     if (product) setUnitPrice(product.purchase_price);
   }, [product]);
+
+  // Auto-fill discount from supplier profile
+  useEffect(() => {
+    if (supplier) setDiscountPct(supplier.discount_percent ?? 0);
+    else setDiscountPct(0);
+  }, [supplier]);
 
   // ── Derived totals ─────────────────────────────────────────────────────────
 
@@ -494,16 +500,15 @@ export function NewPurchaseForm() {
 
     try {
       await savePurchase({
-        supplier_id:            supplier!.id,
-        product_id:             product!.id,
+        supplier_id:             supplier!.id,
+        product_id:              product!.id,
+        product_name:            product!.name,
         quantity,
         purchase_price_per_unit: unitPrice,
-        total_purchase_amount:  total,
-        discount_percent:       discountPct,
-        payment_status:         payStatus,
-        payment_method:         payStatus === 'Payé' ? payMethod : undefined,
-        metadata,
-        owner_id:               ownerId,
+        total_purchase_amount:   total,
+        discount_percent:        discountPct,
+        payment_status:          payStatus,
+        payment_method:          payStatus === 'Payé' ? payMethod : undefined,
       });
 
       setSuccess('✓ Acha anrejistre avèk siksè!');

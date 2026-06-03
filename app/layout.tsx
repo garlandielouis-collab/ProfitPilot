@@ -9,6 +9,8 @@ const inter = Inter({
   subsets:  ['latin'],
   variable: '--font-inter',
   display:  'swap',
+  preload:  false,
+  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
 });
 
 const jakarta = Plus_Jakarta_Sans({
@@ -16,6 +18,8 @@ const jakarta = Plus_Jakarta_Sans({
   variable: '--font-jakarta',
   weight:   ['400', '500', '600', '700'],
   display:  'swap',
+  preload:  false,
+  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
 });
 
 export const metadata: Metadata = {
@@ -44,7 +48,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${inter.variable} ${jakarta.variable}`} suppressHydrationWarning>
+    <html lang="fr" className={`${inter.variable} ${jakarta.variable}`} suppressHydrationWarning data-scroll-behavior="smooth">
       <body>
         <Providers>
           <LanguageWrapper>

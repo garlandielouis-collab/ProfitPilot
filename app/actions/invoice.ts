@@ -1,6 +1,6 @@
 'use server';
 
-import { supabaseServer } from '../../lib/supabaseServerClient';
+import { getBusinessContext } from '../../lib/serverAuth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -8,8 +8,8 @@ export type InvoiceLineItem = {
   id: string;
   product_name: string;
   quantity: number;
-  unit_price: number;      // computed: total_amount / qty / (1 – discount/100)
-  line_total: number;      // total_amount (after discount per line)
+  unit_price: number;
+  line_total: number;
   discount_percent: number;
 };
 
@@ -17,84 +17,103 @@ export type InvoiceData = {
   invoice_number: string;
   client_name: string | null;
   client_id: string | null;
+  business_name: string;
   payment_method: string;
   payment_status: string;
   currency: string;
-  date: string;            // ISO
+  date: string;
   items: InvoiceLineItem[];
-  subtotal: number;        // sum of (unit_price × qty) before discount
+  subtotal: number;
   discount_amount: number;
-  total: number;           // sum of line_totals
+  total: number;
 };
 
 // ── getInvoiceDetails ─────────────────────────────────────────────────────────
 
 export async function getInvoiceDetails(invoiceNumber: string): Promise<InvoiceData | null> {
-  const { data: { user } } = await supabaseServer.auth.getUser();
-  if (!user) return null;
+  const { supabase, businessId } = await getBusinessContext();
 
-  const { data, error } = await supabaseServer
+  // 1. Fetch sale header
+  const { data: sale, error: sErr } = await supabase
     .from('sales')
     .select(`
       id,
       invoice_number,
-      quantity,
+      customer_id,
+      customer_name,
       total_amount,
+      subtotal_amount,
+      discount_amount,
       discount_percent,
       payment_method,
       payment_status,
-      client_name,
-      client_id,
       currency,
-      created_at,
-      products(name)
+      sale_date,
+      created_at
     `)
     .eq('invoice_number', invoiceNumber)
-    .eq('owner_id', user.id)
+    .eq('business_id', businessId)
+    .single();
+
+  if (sErr || !sale) return null;
+
+  // 2. Fetch sale_items
+  const { data: rawItems } = await supabase
+    .from('sale_items')
+    .select('id, product_name, quantity, unit_price, line_total, discount_percent')
+    .eq('sale_id', sale.id)
     .order('created_at', { ascending: true });
 
-  if (error || !data || data.length === 0) return null;
+  const items: InvoiceLineItem[] = (rawItems ?? []).map((r: any) => ({
+    id:               r.id,
+    product_name:     r.product_name ?? '—',
+    quantity:         Number(r.quantity),
+    unit_price:       Number(r.unit_price),
+    line_total:       Number(r.line_total),
+    discount_percent: Number(r.discount_percent ?? 0),
+  }));
 
-  const first = data[0] as any;
-  const items: InvoiceLineItem[] = data.map((r: any) => {
-    const disc  = Number(r.discount_percent ?? 0);
-    const qty   = Number(r.quantity);
-    const total = Number(r.total_amount);
-    // Reverse-compute unit price: total = unit * qty * (1 – disc/100)
-    const unit  = disc < 100 ? parseFloat((total / qty / (1 - disc / 100)).toFixed(2)) : 0;
-    return {
-      id:              r.id,
-      product_name:    r.products?.name ?? '—',
-      quantity:        qty,
-      unit_price:      unit,
-      line_total:      total,
-      discount_percent: disc,
-    };
-  });
+  // 3. Fetch business name
+  const { data: biz } = await supabase
+    .from('businesses')
+    .select('name')
+    .eq('id', businessId)
+    .single();
 
-  const subtotal        = parseFloat(items.reduce((s, i) => s + i.unit_price * i.quantity, 0).toFixed(2));
-  const total           = parseFloat(items.reduce((s, i) => s + i.line_total, 0).toFixed(2));
-  const discount_amount = parseFloat((subtotal - total).toFixed(2));
+  const subtotal       = Number(sale.subtotal_amount ?? 0) || items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const discount_amount = Number(sale.discount_amount ?? 0);
+  const total          = Number(sale.total_amount ?? 0);
+
+  // Resolve customer name — prefer stored customer_name, fallback to customers table
+  let clientName = sale.customer_name ?? null;
+  if (!clientName && sale.customer_id) {
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('name')
+      .eq('id', sale.customer_id)
+      .single();
+    clientName = cust?.name ?? null;
+  }
 
   return {
-    invoice_number: String(first.invoice_number ?? `#${first.id.slice(0, 8)}`),
-    client_name:    first.client_name ?? null,
-    client_id:      first.client_id   ?? null,
-    payment_method: first.payment_method ?? '—',
-    payment_status: first.payment_status ?? 'Payé',
-    currency:       first.currency ?? 'HTG',
-    date:           (first.created_at as string).split('T')[0],
+    invoice_number: sale.invoice_number ?? `#${sale.id.slice(0, 8)}`,
+    client_name:    clientName,
+    client_id:      sale.customer_id ?? null,
+    business_name:  biz?.name ?? 'Mon Entreprise',
+    payment_method: sale.payment_method ?? '—',
+    payment_status: sale.payment_status ?? 'paid',
+    currency:       sale.currency ?? 'HTG',
+    date:           sale.sale_date ?? (sale.created_at as string).split('T')[0],
     items,
-    subtotal,
-    discount_amount,
-    total,
+    subtotal:       parseFloat(subtotal.toFixed(2)),
+    discount_amount: parseFloat(discount_amount.toFixed(2)),
+    total:          parseFloat(total.toFixed(2)),
   };
 }
 
-// ── recordCustomerTransaction ─────────────────────────────────────────────────
+// ── recordCustomerTransaction (kept for compatibility) ────────────────────────
 
 export async function recordCustomerTransaction(payload: {
-  owner_id: string;
   client_id?: string;
   client_name: string;
   sale_id?: string;
@@ -104,16 +123,19 @@ export async function recordCustomerTransaction(payload: {
   currency?: string;
   payment_method?: string;
 }): Promise<void> {
-  const { error } = await supabaseServer.from('customer_transactions').insert({
-    owner_id:       payload.owner_id,
-    client_id:      payload.client_id      ?? null,
-    client_name:    payload.client_name,
-    sale_id:        payload.sale_id        ?? null,
-    invoice_number: payload.invoice_number ?? null,
-    type:           payload.type           ?? 'sale',
-    amount:         payload.amount,
-    currency:       payload.currency       ?? 'HTG',
-    payment_method: payload.payment_method ?? null,
+  const { supabase, businessId, userId } = await getBusinessContext();
+
+  const { error } = await supabase.from('customer_transactions').insert({
+    business_id:      businessId,
+    customer_id:      payload.client_id      ?? null,
+    transaction_date: new Date().toISOString(),
+    type:             payload.type           ?? 'sale',
+    amount:           payload.amount,
+    currency:         payload.currency       ?? 'HTG',
+    description:      `Vente — ${payload.invoice_number ?? ''}`,
+    reference_type:   'sale',
+    reference_id:     payload.sale_id        ?? null,
+    created_by:       userId,
   });
   if (error) console.error('[recordCustomerTransaction]', error.message);
 }

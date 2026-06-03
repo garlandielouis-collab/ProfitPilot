@@ -1,33 +1,27 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr';
 
-function _createClientIfPossible() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '';
+const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const isBrowser    = typeof window !== 'undefined';
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // Don't throw here — allow import-time without valid envs.
-    console.warn('Supabase client not created: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY missing');
-    return null;
-  }
-
-  return createClient(supabaseUrl, supabaseAnonKey);
-}
-
-let _client: any = null;
-export const supabase: any = new Proxy({}, {
-  get(_, prop) {
-    if (!_client) _client = _createClientIfPossible();
-    if (!_client) {
-      return () => {
-        throw new Error('Supabase client not available. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.');
+/**
+ * Client-side Supabase client.
+ * Uses createBrowserClient from @supabase/ssr so the session is stored in
+ * cookies (not localStorage), making it readable by server actions that use
+ * createServerClient from the same package.
+ */
+export const supabase = isBrowser && supabaseUrl && supabaseKey
+  ? createBrowserClient(supabaseUrl, supabaseKey)
+  : (() => {
+      const warn = () => {
+        console.warn('Supabase client not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+        return Promise.resolve({ data: { user: null, session: null }, error: null });
       };
-    }
-    // @ts-ignore
-    return _client[prop as keyof typeof _client];
-  },
-  apply(_, thisArg, args) {
-    if (!_client) _client = _createClientIfPossible();
-    if (!_client) throw new Error('Supabase client not available. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.');
-    return (_client as any).apply(thisArg, args);
-  }
-});
+      // Minimal proxy so the app doesn't crash at render time
+      return new Proxy({} as any, {
+        get: (_t, prop) => {
+          if (prop === 'auth') return new Proxy({} as any, { get: () => warn });
+          return warn;
+        },
+      });
+    })();

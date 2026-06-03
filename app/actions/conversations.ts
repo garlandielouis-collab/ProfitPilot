@@ -1,26 +1,18 @@
 'use server';
 
-import { revalidatePath }  from 'next/cache';
+import { revalidatePath }    from 'next/cache';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 
-// ── helpers ────────────────────────────────────────────────────────────────────
+// â”€â”€ Auth helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function getAuthContext() {
-  const supabase = getSupabaseServer();
+  const supabase = await getSupabaseServer();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) throw new Error('Non authentifié');
-
-  // Resolve business_id for the user (required FK on ai_conversations)
-  const { data: biz } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('owner_id', user.id)
-    .maybeSingle();
-
-  return { user, supabase, businessId: biz?.id as string | undefined };
+  if (error || !user) throw new Error('Non authentifiÃ©');
+  return { user, supabase };
 }
 
-// ── Types (returned to client) ─────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type Conversation = {
   id:         string;
@@ -39,7 +31,7 @@ export type Message = {
   created_at:      string;
 };
 
-// ── CONVERSATIONS CRUD ────────────────────────────────────────────────────────
+// â”€â”€ Conversations CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listConversations(): Promise<Conversation[]> {
   const { user, supabase } = await getAuthContext();
@@ -57,90 +49,78 @@ export async function listConversations(): Promise<Conversation[]> {
 }
 
 export async function createConversation(title = 'Nouvelle analyse'): Promise<Conversation> {
-  const { user, supabase, businessId } = await getAuthContext();
+  try {
+    console.log('[createConversation] starting, title =', title);
+    const supabase = await getSupabaseServer();
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    console.log('[createConversation] auth result:', { userId: user?.id, authErr: authErr?.message });
 
-  if (!businessId) {
-    // Create a stub business row so the FK constraint is satisfied
-    const { data: newBiz, error: bizErr } = await supabase
-      .from('businesses')
-      .insert({ owner_id: user.id, name: 'Mon entreprise', exchange_rate: 130, default_currency: 'HTG' })
-      .select('id')
-      .single();
-    if (bizErr) throw new Error(bizErr.message);
+    if (authErr || !user) throw new Error(authErr?.message ?? 'Non authentifié');
 
     const { data, error } = await supabase
       .from('ai_conversations')
-      .insert({ user_id: user.id, business_id: newBiz.id, title })
+      .insert({ user_id: user.id, title })
       .select('id, title, created_at, updated_at')
       .single();
+
+    console.log('[createConversation] insert result:', { data, error: error?.message });
+
     if (error) throw new Error(error.message);
 
     revalidatePath('/ai-assistant');
     return data as Conversation;
+  } catch (e: any) {
+    console.error('[createConversation] ERROR:', e.message, e.stack);
+    if (e.code === '42501' || e.message?.includes('permission denied') || e.message?.includes('violates row-level security')) {
+      throw new Error(`RLS: ${e.message}`);
+    }
+    throw e;
   }
-
-  const { data, error } = await supabase
-    .from('ai_conversations')
-    .insert({ user_id: user.id, business_id: businessId, title })
-    .select('id, title, created_at, updated_at')
-    .single();
-
-  if (error) throw new Error(error.message);
-  revalidatePath('/ai-assistant');
-  return data as Conversation;
 }
 
 export async function renameConversation(id: string, title: string): Promise<void> {
   const { user, supabase } = await getAuthContext();
-
   const { error } = await supabase
     .from('ai_conversations')
     .update({ title, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id);
-
   if (error) throw new Error(error.message);
   revalidatePath('/ai-assistant');
 }
 
 export async function deleteConversation(id: string): Promise<void> {
   const { user, supabase } = await getAuthContext();
-
-  // Soft-delete
   const { error } = await supabase
     .from('ai_conversations')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id);
-
   if (error) throw new Error(error.message);
   revalidatePath('/ai-assistant');
 }
 
-// ── MESSAGES ──────────────────────────────────────────────────────────────────
+// â”€â”€ Messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listMessages(conversationId: string): Promise<Message[]> {
   const { supabase } = await getAuthContext();
-
   const { data, error } = await supabase
     .from('ai_messages')
     .select('id, conversation_id, role, content, tokens_used, model, created_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
-
   if (error) throw new Error(error.message);
   return (data ?? []) as Message[];
 }
 
 export async function saveMessage(
   conversationId: string,
-  role: 'user' | 'assistant',
-  content: string,
-  meta?: { tokens_used?: number; model?: string },
+  role:           'user' | 'assistant',
+  content:        string,
+  meta?:          { tokens_used?: number; model?: string },
 ): Promise<Message> {
   const { supabase } = await getAuthContext();
 
-  // Bump conversation updated_at so it floats to top of list
   await supabase
     .from('ai_conversations')
     .update({ updated_at: new Date().toISOString() })
@@ -161,3 +141,4 @@ export async function saveMessage(
   if (error) throw new Error(error.message);
   return data as Message;
 }
+

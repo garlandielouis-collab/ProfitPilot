@@ -28,6 +28,7 @@ export type InvoiceData = {
 type Props = {
   data: InvoiceData;
   onClose: () => void;
+  businessName?: string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ function fmt(n: number, currency: 'HTG' | 'USD') {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SaleInvoiceModal({ data, onClose }: Props) {
+export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise' }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
@@ -94,6 +95,7 @@ export function SaleInvoiceModal({ data, onClose }: Props) {
   };
 
   const { invoiceNumber, date, clientName, items, discountPercent, subtotal, discountAmount, totalAmount, paymentMethod, isCredit, currency } = data;
+  const bizName = businessName;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -143,8 +145,8 @@ export function SaleInvoiceModal({ data, onClose }: Props) {
           <div className="grid grid-cols-2 gap-8 mb-8">
             <div>
               <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400 mb-2">Émetteur</p>
-              <p className="text-base font-bold text-[#1a1a2e]">ProfitPilot Business</p>
-              <p className="text-sm text-slate-500">support@profitpilot.app</p>
+              <p className="text-base font-bold text-[#1a1a2e]">{bizName}</p>
+              <p className="text-sm text-slate-500">via ProfitPilot</p>
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400 mb-2">Facturé à</p>
@@ -207,7 +209,7 @@ export function SaleInvoiceModal({ data, onClose }: Props) {
 
           {/* Footer */}
           <div className="mt-10 border-t border-slate-100 pt-4 text-center text-[11px] text-slate-400">
-            Merci de votre confiance — ProfitPilot © {new Date().getFullYear()}
+            Mèsi pou konfyans ou — {bizName} © {new Date().getFullYear()} · via ProfitPilot
           </div>
         </div>
       </div>

@@ -39,20 +39,16 @@ create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- Products maintained by each merchant (updated with currency and barcode)
+-- Products (minimal: directly owned by auth.users, no business/owner indirection)
 create table if not exists products (
-  id uuid primary key default uuid_generate_v4(),
-  owner_id uuid not null references auth.users(id) on delete cascade,
-  business_id uuid references businesses(id) on delete set null,
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
   category text,
-  purchase_price numeric not null default 0,
-  sale_price numeric not null default 0,
-  currency text not null default 'HTG' check (currency in ('HTG', 'USD')),
-  barcode text unique,
-  stock_quantity integer not null default 0 check (stock_quantity >= 0),
-  image_url text,
-  created_at timestamp with time zone default now()
+  purchase_price numeric default 0,
+  sale_price numeric default 0,
+  stock_quantity integer default 0,
+  created_at timestamptz default now()
 );
 
 -- Sales records that decrement stock automatically
@@ -140,18 +136,18 @@ create policy profiles_update_own on profiles
 create policy profiles_delete_own on profiles
   for delete using (owner_id = auth.uid());
 
--- Products policies
-create policy products_select_own on products
-  for select using (owner_id = auth.uid());
+-- Products policies (minimal: user_id = auth.uid() only)
+create policy products_select on products
+  for select using (user_id = auth.uid());
 
-create policy products_insert_own on products
-  for insert with check (owner_id = auth.uid());
+create policy products_insert on products
+  for insert with check (user_id = auth.uid());
 
-create policy products_update_own on products
-  for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+create policy products_update on products
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
-create policy products_delete_own on products
-  for delete using (owner_id = auth.uid());
+create policy products_delete on products
+  for delete using (user_id = auth.uid());
 
 -- Sales policies
 create policy sales_select_own on sales
@@ -345,48 +341,7 @@ create policy employees_delete_admin on employees
     )
   );
 
--- Enhanced products policies (sellers can only see products, not financial data)
-create policy products_select_team on products
-  for select using (
-    owner_id = auth.uid() OR
-    business_id IN (
-      SELECT business_id FROM employees
-      WHERE user_id = auth.uid()
-    )
-  );
 
-create policy products_insert_admin on products
-  for insert with check (
-    owner_id = auth.uid() OR
-    business_id IN (
-      SELECT business_id FROM employees
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
-create policy products_update_admin on products
-  for update using (
-    owner_id = auth.uid() OR
-    business_id IN (
-      SELECT business_id FROM employees
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  ) with check (
-    owner_id = auth.uid() OR
-    business_id IN (
-      SELECT business_id FROM employees
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
-
-create policy products_delete_admin on products
-  for delete using (
-    owner_id = auth.uid() OR
-    business_id IN (
-      SELECT business_id FROM employees
-      WHERE user_id = auth.uid() AND role = 'admin'
-    )
-  );
 
 -- Enhanced sales policies (sellers can create and view sales, but not financial aggregates)
 create policy sales_select_team on sales
@@ -593,25 +548,56 @@ create policy purchases_delete_admin on purchases
     )
   );
 
--- View: Stock value in HTG (automatic currency conversion)
+-- ── AI Module ──────────────────────────────────────────────────────────────────
+
+create table if not exists ai_conversations (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id  uuid REFERENCES businesses(id) ON DELETE CASCADE,
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title        text,
+  context      jsonb,
+  is_active    boolean NOT NULL DEFAULT true,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  deleted_at   timestamptz
+);
+
+create index if not exists idx_ai_conv_user on ai_conversations(user_id);
+
+create table if not exists ai_messages (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id  uuid NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+  role             text NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content          text NOT NULL,
+  tokens_used      integer,
+  model            text,
+  metadata         jsonb,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+alter table ai_conversations enable row level security;
+alter table ai_messages enable row level security;
+
+create policy "ai_conversations: own" on ai_conversations
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy "ai_messages: own" on ai_messages
+  for all
+  using (exists (
+    select 1 from ai_conversations where id = conversation_id and user_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from ai_conversations where id = conversation_id and user_id = auth.uid()
+  ));
+
+-- View: Stock value in HTG (simplified)
 create or replace view stock_value_htg as
 select
-  p.id,
-  p.name,
-  p.category,
-  p.stock_quantity,
-  p.purchase_price,
-  p.currency,
-  p.business_id,
-  b.exchange_rate,
-  case
-    when p.currency = 'USD' then p.purchase_price * b.exchange_rate
-    else p.purchase_price
-  end as purchase_price_htg,
-  case
-    when p.currency = 'USD' then p.purchase_price * b.exchange_rate * p.stock_quantity
-    else p.purchase_price * p.stock_quantity
-  end as total_stock_value_htg
-from products p
-left join businesses b on p.business_id = b.id
-where p.stock_quantity > 0;
+  id,
+  name,
+  category,
+  stock_quantity,
+  purchase_price,
+  stock_quantity * purchase_price as total_stock_value_htg
+from products
+where stock_quantity > 0;

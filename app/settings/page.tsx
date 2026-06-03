@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ import {
 import { supabase }             from '../../lib/supabaseClient';
 import { useSettings }          from '../../hooks/useSettings';
 import { useTheme }             from '../../components/providers/ThemeProvider';
+import { useLanguage }          from '../../components/LanguageWrapper';
 import { exportUserData, deleteAccount } from '../../app/actions/settings';
 import { cn } from '../../lib/utils';
 import type { BusinessProfileInput, UserPreferencesInput } from '../../lib/validations';
@@ -23,7 +25,7 @@ import type { BusinessProfileInput, UserPreferencesInput } from '../../lib/valid
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn(
-      'rounded-2xl border border-white/[0.08] bg-slate-900/60 backdrop-blur-xl p-6',
+      'rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6',
       className,
     )}>
       {children}
@@ -32,7 +34,7 @@ function GlassCard({ children, className }: { children: React.ReactNode; classNa
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <label className="mb-1.5 block text-xs font-medium uppercase tracking-widest text-slate-400">{children}</label>;
+  return <label className="mb-1.5 block text-xs font-medium uppercase tracking-widest text-[var(--color-muted)]">{children}</label>;
 }
 
 function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -40,8 +42,8 @@ function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputEleme
     <input
       {...props}
       className={cn(
-        'w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-slate-100',
-        'placeholder:text-slate-500 outline-none transition',
+        'w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)]',
+        'placeholder:text-[var(--color-muted)] outline-none transition',
         'focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20',
         className,
       )}
@@ -52,13 +54,13 @@ function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputEleme
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-slate-300">{label}</span>
+      <span className="text-sm text-[var(--color-text)]">{label}</span>
       <button
         type="button"
         onClick={() => onChange(!checked)}
         className={cn(
           'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200',
-          checked ? 'bg-emerald-500' : 'bg-slate-700',
+          checked ? 'bg-emerald-500' : 'bg-slate-200',
         )}
       >
         <span
@@ -82,7 +84,7 @@ function CopyBtn({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 transition"
+      className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition"
     >
       {copied ? <Check className="h-3 w-3 inline" /> : <Copy className="h-3 w-3 inline" />}
       <span className="ml-1">{copied ? 'Copié' : 'Copier'}</span>
@@ -105,46 +107,42 @@ type TabId = typeof TABS[number]['id'];
 const PAYMENT_METHODS = [
   {
     key: 'moncash',
-    label: 'Moncash',
+    label: 'MonCash',
     description: 'Peman mobil via Digicel Haiti',
-    phone: '50937304541',
     icon: Smartphone,
-    gradient: 'from-pink-500/20 to-rose-500/10',
-    accent: 'text-pink-400',
-    border: 'border-pink-500/20',
+    gradient: 'from-pink-50 to-rose-50',
+    accent: 'text-pink-600',
+    border: 'border-pink-200',
     apiLink: 'https://moncashbutton.digicelhaiti.com/Moncash-business/Login',
   },
   {
     key: 'natcash',
-    label: 'Natcash',
+    label: 'NatCash',
     description: 'Peman mobil via Natcom Haiti',
-    phone: '50935951252',
     icon: Smartphone,
-    gradient: 'from-purple-500/20 to-violet-500/10',
-    accent: 'text-purple-400',
-    border: 'border-purple-500/20',
+    gradient: 'from-purple-50 to-violet-50',
+    accent: 'text-purple-600',
+    border: 'border-purple-200',
     apiLink: null,
   },
   {
     key: 'visa',
     label: 'Carte Visa / Mastercard',
     description: 'Peman pa kat kredi ou debi',
-    phone: null,
     icon: Wallet,
-    gradient: 'from-blue-500/20 to-sky-500/10',
-    accent: 'text-blue-400',
-    border: 'border-blue-500/20',
+    gradient: 'from-blue-50 to-sky-50',
+    accent: 'text-blue-600',
+    border: 'border-blue-200',
     apiLink: null,
   },
   {
     key: 'cash',
     label: 'Espèces (Kach)',
-    description: 'Peman an lajan kach — pa bezwen nimewo',
-    phone: null,
+    description: 'Peman an lajan kach dirèkteman',
     icon: Banknote,
-    gradient: 'from-emerald-500/20 to-teal-500/10',
-    accent: 'text-emerald-400',
-    border: 'border-emerald-500/20',
+    gradient: 'from-emerald-50 to-teal-50',
+    accent: 'text-emerald-600',
+    border: 'border-emerald-200',
     apiLink: null,
   },
 ] as const;
@@ -192,14 +190,27 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
   const fetchLiveRate = async () => {
     setRateLoading(true);
     try {
-      const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=HTG');
+      // Primary: open.er-api.com (free, no key)
+      const res = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
+      if (!res.ok) throw new Error('API error');
       const json = await res.json();
       const rate = Number(json?.rates?.HTG ?? 0);
-      if (!rate) throw new Error();
-      setForm(prev => ({ ...prev, exchange_rate: rate }));
-      toast.success(`Taux live: 1 USD = ${rate.toFixed(2)} HTG`);
+      if (!rate || isNaN(rate)) throw new Error('Rate not found');
+      setForm(prev => ({ ...prev, exchange_rate: parseFloat(rate.toFixed(2)) }));
+      toast.success(`✓ Taux actualisé : 1 USD = ${rate.toFixed(2)} HTG`);
     } catch {
-      toast.error('Impossible de récupérer le taux en direct');
+      // Fallback to Frankfurter API
+      try {
+        const res2 = await fetch('https://api.frankfurter.app/latest?from=USD&to=HTG', { cache: 'no-store' });
+        const json2 = await res2.json();
+        const rate2 = Number(json2?.rates?.HTG ?? 0);
+        if (rate2 && !isNaN(rate2)) {
+          setForm(prev => ({ ...prev, exchange_rate: parseFloat(rate2.toFixed(2)) }));
+          toast.success(`✓ Taux actualisé : 1 USD = ${rate2.toFixed(2)} HTG`);
+          return;
+        }
+      } catch { /* ignore */ }
+      toast.error('Impossible de récupérer le taux. Vérifiez votre connexion.');
     } finally {
       setRateLoading(false);
     }
@@ -225,7 +236,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
   return (
     <div className="space-y-6">
       <GlassCard>
-        <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Building2 className="h-4 w-4 text-emerald-400" />
           Profil de l'entreprise
         </h2>
@@ -235,7 +246,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
             <div key={key}>
               <Label>{label}</Label>
               <div className="relative">
-                <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" />
                 <Input
                   type={type ?? 'text'}
                   placeholder={placeholder}
@@ -250,7 +261,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <DollarSign className="h-4 w-4 text-emerald-400" />
           Devise &amp; Taux de change
         </h2>
@@ -261,7 +272,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
             <select
               value={form.default_currency}
               onChange={set('default_currency')}
-              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
             >
               <option value="HTG">HTG — Gourde haïtienne</option>
               <option value="USD">USD — Dollar américain</option>
@@ -281,7 +292,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
                 type="button"
                 onClick={fetchLiveRate}
                 disabled={rateLoading}
-                className="flex-shrink-0 rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-slate-300 hover:text-emerald-400 transition disabled:opacity-50"
+                className="flex-shrink-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-muted)] hover:text-emerald-400 transition disabled:opacity-50"
                 title="Taux en direct"
               >
                 <RefreshCw className={cn('h-4 w-4', rateLoading && 'animate-spin')} />
@@ -314,11 +325,11 @@ function PaymentsTab() {
   return (
     <div className="space-y-4">
       <GlassCard>
-        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <CreditCard className="h-4 w-4 text-emerald-400" />
           Méthodes de paiement configurées
         </h2>
-        <p className="mb-5 text-xs text-slate-400">
+        <p className="mb-5 text-xs text-[var(--color-muted)]">
           Numéros et intégrations actifs pour recevoir les paiements de vos clients.
         </p>
 
@@ -335,32 +346,22 @@ function PaymentsTab() {
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className={cn('rounded-lg bg-slate-800/80 p-1.5', pm.accent)}>
+                    <div className={cn('rounded-lg bg-slate-100 p-1.5', pm.accent)}>
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-100">{pm.label}</p>
-                      <p className="text-xs text-slate-400">{pm.description}</p>
+                      <p className="text-sm font-semibold text-[var(--color-text)]">{pm.label}</p>
+                      <p className="text-xs text-[var(--color-muted)]">{pm.description}</p>
                     </div>
                   </div>
-                  <span className={cn(
-                    'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                    pm.phone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400',
-                  )}>
-                    {pm.phone ? 'Actif' : 'Manuel'}
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    Aktif
                   </span>
                 </div>
 
-                {pm.phone ? (
-                  <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-900/60 px-3 py-2">
-                    <span className="font-mono text-sm font-semibold text-slate-200">{pm.phone}</span>
-                    <CopyBtn text={pm.phone} />
-                  </div>
-                ) : (
-                  <p className="mt-3 rounded-lg bg-slate-900/40 px-3 py-2 text-xs text-slate-500">
-                    Aucun numéro requis — paiement en personne.
-                  </p>
-                )}
+                <p className="mt-3 rounded-lg bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)]">
+                  {pm.key === 'cash' ? 'Peman fizik — pa bezwen konfigirasyon.' : 'Peman mobil — aksepte dirèkteman.'}
+                </p>
 
                 {pm.key === 'moncash' && pm.apiLink && (
                   <a
@@ -382,18 +383,6 @@ function PaymentsTab() {
         </div>
       </GlassCard>
 
-      <GlassCard className="border-amber-500/20 bg-amber-500/5">
-        <p className="text-xs font-semibold text-amber-400">ℹ️ Note développeur</p>
-        <p className="mt-1 text-xs text-slate-400">
-          Les numéros Moncash/Natcash sont codés dans{' '}
-          <code className="rounded bg-slate-800 px-1 font-mono text-amber-300">NewSaleForm.tsx</code>{' '}
-          et{' '}
-          <code className="rounded bg-slate-800 px-1 font-mono text-amber-300">NewPurchaseForm.tsx</code>.
-          Pour les rendre dynamiques, liez ces champs à la table{' '}
-          <code className="rounded bg-slate-800 px-1 font-mono text-amber-300">businesses</code> (colonne{' '}
-          <code className="rounded bg-slate-800 px-1 font-mono text-amber-300">payment_config JSONB</code>).
-        </p>
-      </GlassCard>
     </div>
   );
 }
@@ -405,6 +394,7 @@ function PaymentsTab() {
 function PreferencesTab({ userId }: { userId: string | undefined }) {
   const { prefs } = useSettings();
   const { isDark, setTheme } = useTheme();
+  const { language: currentLang, setLanguage } = useLanguage();
   const raw = prefs.query.data;
 
   const [form, setForm] = useState<UserPreferencesInput>({
@@ -416,9 +406,13 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
   });
 
   useEffect(() => {
-    if (raw) setForm({ ...form, ...raw });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (raw) setForm(prev => ({ ...prev, ...raw }));
   }, [raw]);
+
+  // Sync current app language into form on first load
+  useEffect(() => {
+    setForm(prev => ({ ...prev, language: currentLang as 'fr' | 'ht' }));
+  }, [currentLang]);
 
   // Keep form in sync with actual theme state
   useEffect(() => {
@@ -430,12 +424,18 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
     setForm(prev => ({ ...prev, dark_mode: v }));
   };
 
-  const handleSave = () => prefs.mutation.mutate(form);
+  const handleSave = () => {
+    // Apply language change immediately in the UI
+    if (form.language !== currentLang) {
+      setLanguage(form.language as 'fr' | 'ht');
+    }
+    prefs.mutation.mutate(form);
+  };
 
   return (
     <div className="space-y-6">
       <GlassCard>
-        <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Languages className="h-4 w-4 text-emerald-400" />
           Langue &amp; Devise
         </h2>
@@ -446,7 +446,7 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
             <select
               value={form.language}
               onChange={(e) => setForm(prev => ({ ...prev, language: e.target.value as 'fr' | 'ht' }))}
-              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
             >
               <option value="fr">🇫🇷 Français</option>
               <option value="ht">🇭🇹 Kreyòl ayisyen</option>
@@ -457,7 +457,7 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
             <select
               value={form.currency}
               onChange={(e) => setForm(prev => ({ ...prev, currency: e.target.value as 'HTG' | 'USD' }))}
-              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
             >
               <option value="HTG">HTG — Gourde haïtienne</option>
               <option value="USD">USD — Dollar américain</option>
@@ -467,11 +467,11 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Bell className="h-4 w-4 text-emerald-400" />
           Interface &amp; Notifications
         </h2>
-        <div className="divide-y divide-white/[0.06]">
+        <div className="divide-y divide-[var(--color-border)]">
           <Toggle
             label="Mode sombre"
             checked={isDark}
@@ -567,6 +567,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
     setDeleteBusy(true);
     try {
       await deleteAccount();
+      await supabase.auth.signOut();
       router.replace('/auth/login');
     } catch (e: any) {
       toast.error(e.message ?? 'Suppression échouée');
@@ -579,18 +580,18 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
     <div className="space-y-6">
       {/* Account info */}
       <GlassCard>
-        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <CircleUser className="h-4 w-4 text-emerald-400" />
           Compte connecté
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-slate-800/60 px-4 py-3">
-            <p className="text-xs text-slate-400">Email</p>
-            <p className="mt-1 font-mono text-sm text-slate-100">{userEmail ?? '—'}</p>
+          <div className="rounded-xl bg-[var(--color-surface)] px-4 py-3">
+            <p className="text-xs text-[var(--color-muted)]">Email</p>
+            <p className="mt-1 font-mono text-sm text-[var(--color-text)]">{userEmail ?? '—'}</p>
           </div>
-          <div className="rounded-xl bg-slate-800/60 px-4 py-3">
-            <p className="text-xs text-slate-400">ID utilisateur</p>
-            <p className="mt-1 truncate font-mono text-xs text-slate-300">{userId ?? '—'}</p>
+          <div className="rounded-xl bg-[var(--color-surface)] px-4 py-3">
+            <p className="text-xs text-[var(--color-muted)]">ID utilisateur</p>
+            <p className="mt-1 truncate font-mono text-xs text-[var(--color-muted)]">{userId ?? '—'}</p>
           </div>
         </div>
         <div className="mt-4 flex justify-end">
@@ -607,7 +608,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
 
       {/* Change password */}
       <GlassCard>
-        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Key className="h-4 w-4 text-emerald-400" />
           Changer de mot de passe
         </h2>
@@ -636,7 +637,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
             type="button"
             onClick={handleChangePassword}
             disabled={pwBusy || !pw || pw !== pw2}
-            className="flex items-center gap-2 rounded-xl bg-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-600 transition disabled:opacity-40"
+            className="flex items-center gap-2 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-[var(--color-text)] hover:bg-slate-200 transition disabled:opacity-40"
           >
             <Save className="h-4 w-4" />
             {pwBusy ? 'Mise à jour…' : 'Mettre à jour'}
@@ -644,13 +645,14 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
         </div>
       </GlassCard>
 
+      {/* Demo data generator */}
       {/* Data export */}
       <GlassCard>
-        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-100">
+        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Download className="h-4 w-4 text-emerald-400" />
           Exporter vos données
         </h2>
-        <p className="mb-4 text-xs text-slate-400">
+        <p className="mb-4 text-xs text-[var(--color-muted)]">
           Téléchargez toutes vos données (ventes, dépenses, produits, clients…) au format JSON.
         </p>
         <button
@@ -665,12 +667,12 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       </GlassCard>
 
       {/* Danger zone */}
-      <GlassCard className="border-red-500/20 bg-red-500/5">
+      <GlassCard className="border-red-500/20 bg-red-50">
         <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-red-400">
           <Trash2 className="h-4 w-4" />
           Zone dangereuse — Supprimer le compte
         </h2>
-        <p className="mb-4 text-xs text-slate-400">
+        <p className="mb-4 text-xs text-[var(--color-muted)]">
           Cette action supprime définitivement toutes vos données. Tapez{' '}
           <strong className="text-red-400 font-mono">SUPPRIMER</strong> pour confirmer.
         </p>
@@ -700,7 +702,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
 // PAGE ROOT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function SettingsPage() {
+function SettingsPage() {
   const { userId, userEmail, loading } = useSettings();
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
@@ -720,7 +722,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080c14] px-4 py-8 md:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--color-bg)] px-4 py-8 md:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
 
         {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -733,16 +735,16 @@ export default function SettingsPage() {
           <p className="mb-1 text-xs font-medium uppercase tracking-widest text-emerald-500">
             Paramètres
           </p>
-          <h1 className="text-2xl font-bold text-slate-100 md:text-3xl">
+          <h1 className="text-2xl font-bold text-[#001F3F] md:text-3xl">
             Compte &amp; Préférences
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
             Gérez votre profil d'entreprise, vos paiements et vos préférences de l'application.
           </p>
         </motion.div>
 
         {/* ── Tab bar ──────────────────────────────────────────────────────── */}
-        <div className="mb-6 flex gap-1 rounded-2xl border border-white/[0.06] bg-slate-900/60 p-1 backdrop-blur-xl">
+        <div className="mb-6 flex gap-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
           {TABS.map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
             return (
@@ -753,8 +755,8 @@ export default function SettingsPage() {
                 className={cn(
                   'flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                   active
-                    ? 'bg-emerald-500/20 text-emerald-400 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200',
+                    ? 'bg-[#EAF1F8] text-[#001F3F] shadow-sm'
+                    : 'text-[var(--color-muted)] hover:text-[var(--color-text)]',
                 )}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
@@ -778,5 +780,13 @@ export default function SettingsPage() {
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPageWrapper() {
+  return (
+    <ProtectedRoute>
+      <SettingsPage />
+    </ProtectedRoute>
   );
 }

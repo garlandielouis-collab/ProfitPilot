@@ -12,10 +12,9 @@ import {
 } from '../app/actions/conversations';
 
 export function useConversations(userId: string | undefined) {
-  const qc = useQueryClient();
+  const qc  = useQueryClient();
   const key = QK.conversations(userId ?? '');
 
-  // ── List ──────────────────────────────────────────────────────────────────
   const query = useQuery({
     queryKey:  key,
     queryFn:   listConversations,
@@ -23,19 +22,19 @@ export function useConversations(userId: string | undefined) {
     staleTime: 1000 * 30,
   });
 
-  // ── Create ────────────────────────────────────────────────────────────────
   const create = useMutation({
     mutationFn: (title?: string) => createConversation(title),
-    onSuccess:  (newConv) => {
+    onSuccess: (newConv) => {
       qc.setQueryData<Conversation[]>(key, (old = []) => [newConv, ...old]);
     },
-    onError: () => toast.error('Impossible de créer la conversation'),
+    onError: (err: Error) => {
+      console.error('[createConversation]', err.message);
+      toast.error('Impossible de créer la conversation');
+    },
   });
 
-  // ── Rename ────────────────────────────────────────────────────────────────
   const rename = useMutation({
-    mutationFn: ({ id, title }: { id: string; title: string }) =>
-      renameConversation(id, title),
+    mutationFn: ({ id, title }: { id: string; title: string }) => renameConversation(id, title),
     onMutate: async ({ id, title }) => {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<Conversation[]>(key);
@@ -51,15 +50,12 @@ export function useConversations(userId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
   });
 
-  // ── Delete ────────────────────────────────────────────────────────────────
   const remove = useMutation({
     mutationFn: (id: string) => deleteConversation(id),
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<Conversation[]>(key);
-      qc.setQueryData<Conversation[]>(key, (old = []) =>
-        old.filter((c) => c.id !== id),
-      );
+      qc.setQueryData<Conversation[]>(key, (old = []) => old.filter((c) => c.id !== id));
       return { prev };
     },
     onError: (_e, _v, ctx) => {

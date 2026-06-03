@@ -15,11 +15,22 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [businessId, setBusinessId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUser() {
       const { data } = await supabase.auth.getUser();
-      setOwnerId(data.user?.id ?? null);
+      const uid = data.user?.id ?? null;
+      setOwnerId(uid);
+
+      if (uid) {
+        const { data: biz } = await supabase
+          .from('businesses')
+          .select('id')
+          .eq('owner_id', uid)
+          .maybeSingle();
+        if (biz) setBusinessId(biz.id);
+      }
     }
 
     loadUser();
@@ -36,6 +47,7 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
 
     const { error } = await supabase.from('suppliers').insert({
       owner_id: ownerId || undefined,
+      business_id: businessId || undefined,
       name: name.trim(),
       phone: phone.trim() || null,
       email: email.trim() || null,

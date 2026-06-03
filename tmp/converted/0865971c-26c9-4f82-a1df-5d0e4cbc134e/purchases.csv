@@ -1,0 +1,6 @@
+table,id,original_amount,original_currency,converted_amount,report_currency,date
+purchases,a10cafe2-2501-4a6d-8a73-ffd01a2d54a8,560,HTG,560,HTG,2026-06-01
+purchases,fdd5ee2d-d616-40f2-8ead-a6acadcf376a,980,HTG,980,HTG,2026-06-01
+purchases,29b00374-b63b-4814-9133-1225c42b7e06,784,HTG,784,HTG,2026-06-01
+purchases,65d334aa-9740-4b63-a911-ed82c6aa1b88,980,HTG,980,HTG,2026-06-01
+purchases,0a93a5f1-415b-47db-b8ca-9a0ab5f74fad,957.6,HTG,957.6,HTG,2026-06-01
