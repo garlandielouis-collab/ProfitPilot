@@ -4,20 +4,19 @@ import type { ReactNode } from 'react';
 import { QueryProvider }  from './QueryProvider';
 import { ThemeProvider }  from './ThemeProvider';
 import { ToastProvider }  from './ToastProvider';
+import { useAutoExchangeRateRefresh } from '../../hooks/useExchangeRate';
 
-/**
- * Top-level client provider tree.
- * Wrap the entire app once in layout.tsx.
- *
- *   QueryProvider  ─ TanStack Query client
- *   ThemeProvider  ─ dark / light mode (localStorage "pp-theme")
- *   ToastProvider  ─ Sonner toast renderer (depends on ThemeProvider)
- */
+function AutoRateRefresher() {
+  useAutoExchangeRateRefresh(true);
+  return null;
+}
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryProvider>
       <ThemeProvider>
         <ToastProvider />
+        <AutoRateRefresher />
         {children}
       </ThemeProvider>
     </QueryProvider>

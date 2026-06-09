@@ -17,6 +17,7 @@ import { useSettings }          from '../../hooks/useSettings';
 import { useTheme }             from '../../components/providers/ThemeProvider';
 import { useLanguage }          from '../../components/LanguageWrapper';
 import { exportUserData, deleteAccount } from '../../app/actions/settings';
+import { forceRefreshAndRecalculate } from '../../app/actions/exchangeRate';
 import { cn } from '../../lib/utils';
 import type { BusinessProfileInput, UserPreferencesInput } from '../../lib/validations';
 
@@ -176,6 +177,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
     default_currency: 'HTG',
   });
   const [rateLoading, setRateLoading] = useState(false);
+  const [recalcLoading, setRecalcLoading] = useState(false);
 
   // Sync form when DB data arrives
   useEffect(() => {
@@ -312,6 +314,46 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
             </div>
           </div>
         </div>
+      </GlassCard>
+
+      {/* Recalculate USD transactions */}
+      <GlassCard className="border-blue-500/20 bg-blue-50/30">
+        <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
+          <RefreshCw className="h-4 w-4 text-blue-500" />
+          {t({ fr: 'Recalcul des transactions USD', ht: 'Rekalkil tranzaksyon USD' })}
+        </h2>
+        <p className="mb-4 text-xs text-[var(--color-muted)]">
+          {t({
+            fr: 'Récupère le taux de change en direct et recalcule toutes les transactions enregistrées en dollars USD avec le vrai taux.',
+            ht: 'Pran to chanj an dirèk epi rekalkile tout tranzaksyon USD yo avèk vrè to a.',
+          })}
+        </p>
+        <button
+          type="button"
+          disabled={recalcLoading}
+          onClick={async () => {
+            setRecalcLoading(true);
+            try {
+              const result = await forceRefreshAndRecalculate();
+              toast.success(
+                t({
+                  fr: `Taux mis à jour: 1 USD = ${result.newRate} HTG · ${result.expensesUpdated} dépenses + ${result.salesUpdated} ventes recalculées`,
+                  ht: `To mete ajou: 1 USD = ${result.newRate} HTG · ${result.expensesUpdated} depans + ${result.salesUpdated} vant rekalkile`,
+                })
+              );
+            } catch (e: any) {
+              toast.error(e.message ?? t({ fr: 'Erreur lors du recalcul', ht: 'Erè pandan rekalkil la' }));
+            } finally {
+              setRecalcLoading(false);
+            }
+          }}
+          className="flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/10 px-5 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-500/20 transition disabled:opacity-50"
+        >
+          <RefreshCw className={cn('h-4 w-4', recalcLoading && 'animate-spin')} />
+          {recalcLoading
+            ? t({ fr: 'Recalcul en cours…', ht: 'Rekalkil an kou…' })
+            : t({ fr: 'Recalculer avec le taux actuel', ht: 'Rekalkile ak to aktyèl la' })}
+        </button>
       </GlassCard>
 
       <div className="flex justify-end">

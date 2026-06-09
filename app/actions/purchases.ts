@@ -1,6 +1,6 @@
 'use server';
 
-import { getBusinessContext, getBusinessExchangeRate } from '../../lib/serverAuth';
+import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { recordPurchaseEntry } from './accounting';
 
@@ -28,8 +28,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
   if (payload.quantity <= 0) throw new Error('Kantite pa valab.');
   if (payload.purchase_price_per_unit < 0) throw new Error('Pri inite pa valab.');
 
-  const { supabase, businessId, userId } = await getBusinessContext();
-  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
+  const { supabase, businessId, userId, exchangeRate } = await getBusinessContext();
 
   const discountPct   = payload.discount_percent ?? 0;
   const currency      = payload.currency ?? 'HTG';

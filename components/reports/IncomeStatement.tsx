@@ -123,7 +123,7 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
       <div className="text-[13px]">
 
         {/* ── Column headers ── */}
-        <ColumnHeaders showPrevious={!!prev} />
+        <ColumnHeaders showPrevious={!!prev} currency={meta.currency ?? 'HTG'} currentYear={meta.currentYear} previousYear={meta.previousYear} />
 
         {/* ════════════════════════════════════
             I. REVENUS D'EXPLOITATION

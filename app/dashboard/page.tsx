@@ -243,9 +243,9 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
   const { t } = useLanguage();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay: index * 0.07, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+      transition={{ duration: 0.2, delay: index * 0.04, ease: 'easeOut' }}
       className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]
                  p-5 flex flex-col gap-3 group
                  hover:border-slate-300 hover:bg-slate-50 transition-all duration-300"
@@ -413,9 +413,9 @@ function AIInsightCard({ insight, idx }: { insight: Insight; idx: number }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: idx * 0.12 + 0.3, duration: 0.4 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: idx * 0.03, duration: 0.15 }}
       className={`flex gap-3 rounded-xl border ${cfg.border} ${cfg.bg} p-3.5`}
     >
       <span className="text-lg leading-none flex-shrink-0 mt-0.5">{insight.icon}</span>
@@ -593,9 +593,30 @@ function DashboardInner() {
     return `${SEMESTERS[selectedSemester].label} ${currentYear} — ${SEMESTERS[selectedSemester].name}`;
   }, [periodMode, selectedMonth, selectedQuarter, selectedSemester, currentYear]);
 
-  // ── Load data ────────────────────────────────────────────────────────────────
+  // ── Load data — with sessionStorage instant cache ────────────────────────────
   const load = useCallback(async (mode: PeriodMode, mFrom: number, mTo: number) => {
-    setLoading(true);
+    const cacheKey = `pp_dash_${currentYear}_${mode}_${mFrom}_${mTo}`;
+
+    // ① Show cached data instantly (zero network delay)
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached.ledger.length > 0 || cached.totals.cashIn > 0) {
+          setIsDemo(false);
+          setCashflow(safeCF(cached.cashflow));
+          setLedger(cached.ledger);
+          setTotals(cached.totals);
+          if (cached.products?.length) {
+            setProducts(cached.products.map((p: any) => ({ ...p, selling_price: p.sale_price, reorder_point: 5 })));
+          }
+          setLoading(false);
+          setLedgerPage(1);
+        }
+      }
+    } catch { /* sessionStorage unavailable */ }
+
+    // ② Fetch fresh data in background (or foreground on first load)
     try {
       const apiMode = mode === 'mois' ? 'month' : 'range';
       const data = await getDashboardV2Action(apiMode, currentYear, mFrom, mTo);
@@ -610,6 +631,14 @@ function DashboardInner() {
         setCashflow(safeCF(data.cashflow));
         setLedger(data.ledger);
         setTotals(data.totals);
+        // Merge products from server action (no separate client fetch needed)
+        if (data.products?.length) {
+          setProducts(data.products.map((p: any) => ({ ...p, selling_price: p.sale_price, reorder_point: 5 })));
+        }
+        // Persist to cache (5-min TTL)
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ ...data, _ts: Date.now() }));
+        } catch { /* storage full */ }
       }
     } catch {
       setIsDemo(true);
@@ -621,28 +650,11 @@ function DashboardInner() {
     setLedgerPage(1);
   }, [currentYear]);
 
-  // ── Load user + products ─────────────────────────────────────────────────────
+  // ── Load user name from supabase session (already in memory — fast) ──────────
   useEffect(() => {
-    // Batch both calls in parallel
-    supabase.auth.getUser().then(({ data: userData }: any) => {
-      const meta = userData?.user?.user_metadata;
-      setUserName(meta?.full_name ?? meta?.name ?? userData?.user?.email?.split('@')[0] ?? 'Entrepreneur');
-      const uid = userData?.user?.id;
-      if (!uid) return;
-      supabase
-        .from('products')
-        .select('id,name,stock_quantity,sale_price,purchase_price,category')
-        .eq('user_id', uid)
-        .then(({ data: prodData, error: prodErr }: any) => {
-          if (prodErr) console.error('[dashboard] products error:', prodErr.message);
-          if (prodData && prodData.length > 0) {
-            setProducts(prodData.map((p: any) => ({
-              ...p,
-              selling_price: p.sale_price,
-              reorder_point: 5,
-            })));
-          }
-        });
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
+      const meta = session?.user?.user_metadata;
+      setUserName(meta?.full_name ?? meta?.name ?? session?.user?.email?.split('@')[0] ?? 'Entrepreneur');
     });
   }, []);
 
@@ -788,9 +800,9 @@ function DashboardInner() {
             <div>
               {/* Greeting */}
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
               >
                 <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-emerald-400/70">
                   {t({ fr: 'ProfitPilot · Tableau de bord', ht: 'ProfitPilot · Tablo debò' })}

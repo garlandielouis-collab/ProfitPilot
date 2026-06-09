@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { verifyBusinessAccess, getBusinessExchangeRate, getBusinessContext } from '../../lib/serverAuth';
+import { verifyBusinessAccess, getBusinessContext } from '../../lib/serverAuth';
 import { createSaleSchema, type CreateSaleInput } from '../../lib/validations';
 import { recordSaleEntry } from './accounting';
 
@@ -56,8 +56,8 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   const data = parsed.data;
   const today = data.sale_date ?? new Date().toISOString().split('T')[0];
 
-  // ── 3. Exchange rate ─────────────────────────────────────────────────────
-  const exchangeRate = await getBusinessExchangeRate(sb, businessId);
+  // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
+  const exchangeRate = ctx.exchangeRate;
 
   // ── 4. Check stock via warehouse_stock ───────────────────────────────────
   type StockRow = { product_id: string; variant_id: string | null; quantity: number };
@@ -287,15 +287,14 @@ export type SalesMetrics = {
 };
 
 export async function getSalesMetrics(): Promise<SalesMetrics> {
-  let supabase: any, businessId: string;
+  let supabase: any, businessId: string, exchangeRate: number;
   try {
     const ctx = await getBusinessContext();
-    supabase = ctx.supabase; businessId = ctx.businessId;
+    supabase = ctx.supabase; businessId = ctx.businessId; exchangeRate = ctx.exchangeRate;
   } catch { return { monthlyTotal: 0, allTimeTotal: 0, monthlyCount: 0, topClient: null }; }
 
   const now        = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
 
   const toHtg = (amt: number, currency: string) =>
     (currency ?? 'HTG').toUpperCase() === 'USD' ? amt * exchangeRate : amt;
@@ -338,13 +337,11 @@ export type ClientSummary = {
 };
 
 export async function getSalesCRMData(): Promise<ClientSummary[]> {
-  let supabase: any, businessId: string;
+  let supabase: any, businessId: string, exchangeRate: number;
   try {
     const ctx = await getBusinessContext();
-    supabase = ctx.supabase; businessId = ctx.businessId;
+    supabase = ctx.supabase; businessId = ctx.businessId; exchangeRate = ctx.exchangeRate;
   } catch { return []; }
-
-  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
 
   const { data } = await supabase
     .from('sales')

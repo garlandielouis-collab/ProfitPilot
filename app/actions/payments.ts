@@ -1,6 +1,7 @@
 ﻿'use server';
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
+import { sendPaymentNotification } from '../../lib/sendEmail';
 
 export type PaymentMethod = 'moncash' | 'natcash' | 'visa';
 export type PaymentStatus = 'pending' | 'approved' | 'rejected';
@@ -34,6 +35,30 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
     .single();
 
   if (error) throw new Error(error.message);
+
+  // ── Send email notification (non-blocking, never fails the payment) ──
+  try {
+    const { getSupabaseService } = await import('../../lib/supabaseServiceClient');
+    const adminClient = getSupabaseService();
+    const { data: { user } } = await adminClient.auth.admin.getUserById(input.userId);
+
+    const userEmail = user?.email ?? input.userId;
+    const userName  = user?.user_metadata?.full_name
+                   ?? user?.user_metadata?.name
+                   ?? userEmail.split('@')[0];
+
+    await sendPaymentNotification({
+      userEmail,
+      userName,
+      planKey:   input.planKey,
+      reference: input.reference,
+      method:    input.method,
+      amountHtg: input.amountHtg,
+    });
+  } catch (emailErr) {
+    console.error('[ProfitPilot] Failed to send payment notification (non-fatal):', emailErr);
+  }
+
   return data as { id: string; reference: string; status: PaymentStatus };
 }
 

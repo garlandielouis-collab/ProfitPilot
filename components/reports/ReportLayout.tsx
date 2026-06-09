@@ -14,9 +14,15 @@ export interface ReportMeta {
   reportTitle: string;
   reportSubtitle: string;  // e.g. "Exercice clos le 31 décembre 2025"
   currency?: string;       // default "HTG"
+  phone?: string;
+  address?: string;
+  sector?: string;
+  taxId?: string;
   preparedBy?: string;
   approvedBy?: string;
   reportDate?: string;
+  currentYear?: number;
+  previousYear?: number;
 }
 
 interface ReportLayoutProps {
@@ -112,12 +118,7 @@ export function AccountingRow({
 
   return (
     <div
-      className={`
-        flex items-center gap-2 px-4 py-[7px]
-        ${bgClass}
-        ${topBorder ? 'border-t border-[#CBD5E1]' : ''}
-        ${doubleBorder ? 'border-t-2 border-double border-[#0F172A]' : ''}
-      `}
+      className={`accounting-row flex items-center gap-2 px-4 py-[6px] ${bgClass} ${topBorder ? 'border-t border-[#CBD5E1]' : ''} ${doubleBorder ? 'border-t-2 border-double border-[#0F172A]' : ''}`}
     >
       {/* Label */}
       <div className={`flex-1 flex items-baseline gap-2 ${indentPx}`}>
@@ -147,21 +148,27 @@ export function AccountingRow({
 export function SectionHeader({
   title,
   showPrevious = false,
+  currentYear,
+  previousYear,
 }: {
   title: string;
   showPrevious?: boolean;
+  currentYear?: number;
+  previousYear?: number;
 }) {
+  const cy = currentYear  ?? new Date().getFullYear();
+  const py = previousYear ?? cy - 1;
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-[#0F172A] mt-4 first:mt-0">
       <span className="flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#94A3B8]">
         {title}
       </span>
       <span className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-white">
-        2025
+        {cy}
       </span>
       {showPrevious && (
         <span className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-          2024
+          {py}
         </span>
       )}
     </div>
@@ -172,18 +179,30 @@ export function SectionHeader({
 // Column Headers (for the data table)
 // ─────────────────────────────────────────────────────────────────
 
-export function ColumnHeaders({ showPrevious = true }: { showPrevious?: boolean }) {
+export function ColumnHeaders({
+  showPrevious = true,
+  currency = 'HTG',
+  currentYear,
+  previousYear,
+}: {
+  showPrevious?: boolean;
+  currency?: string;
+  currentYear?: number;
+  previousYear?: number;
+}) {
+  const cy = currentYear  ?? new Date().getFullYear();
+  const py = previousYear ?? cy - 1;
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b-2 border-[#0F172A] bg-white">
       <div className="flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">
         Libellé
       </div>
       <div className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0F172A]">
-        2025 (HTG)
+        {cy} ({currency})
       </div>
       {showPrevious && (
         <div className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#94A3B8]">
-          2024 (HTG)
+          {py} ({currency})
         </div>
       )}
     </div>
@@ -207,28 +226,24 @@ export default function ReportLayout({
     <div
       className="report-page bg-white"
       style={{
-        /* Screen: show an A4-proportioned card.
-           Print: @page margins take over — width/padding are
-           overridden by globals.css @media print rules.        */
+        /* Screen only — in print the CSS overrides everything */
         width: '210mm',
-        minHeight: '267mm',      /* 297mm - 2×15mm top/bottom screen padding */
-        padding: '14mm 16mm 14mm 16mm',
+        minHeight: '267mm',
+        padding: '12mm 14mm',
         fontFamily: '"Inter", "SF Pro Display", system-ui, sans-serif',
-        fontSize: '13px',
+        fontSize: '12px',
         color: '#0F172A',
-        position: 'relative',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
-        pageBreakAfter: 'always',
       }}
     >
       {/* ── HEADER ── */}
-      <header className="flex items-start justify-between pb-5 border-b-2 border-[#0F172A] mb-6">
+      <header className="flex items-start justify-between pb-3 border-b-2 border-[#0F172A] mb-4">
         {/* Left: branding + company */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-0.5">
           {/* ProfitPilot badge */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <PPLogo />
             <div>
               <div
@@ -250,11 +265,21 @@ export default function ReportLayout({
             {meta.companyName}
           </div>
 
+          {/* Company details */}
+          {(meta.sector || meta.address || meta.phone) && (
+            <div className="flex flex-col gap-0.5 mt-1">
+              {meta.sector  && <span className="text-[11px] text-[#64748B]">{meta.sector}</span>}
+              {meta.address && <span className="text-[11px] text-[#64748B]">{meta.address}</span>}
+              {meta.phone   && <span className="text-[11px] text-[#64748B]">{meta.phone}</span>}
+              {meta.taxId   && <span className="text-[11px] text-[#64748B]">NIF: {meta.taxId}</span>}
+            </div>
+          )}
+
           {/* Currency note */}
           <div className="text-[11px] text-[#64748B] mt-1">
             Exprimé en{' '}
             <span className="font-medium text-[#0F172A]">
-              Gourdes Haïtiennes ({currency})
+              {currency === 'USD' ? 'Dollars Américains (USD)' : `Gourdes Haïtiennes (${currency})`}
             </span>
           </div>
         </div>
@@ -281,41 +306,33 @@ export default function ReportLayout({
       <main className="flex-1">{children}</main>
 
       {/* ── FOOTER ── */}
-      <footer className="mt-8 pt-4 border-t border-[#E2E8F0]">
+      <footer className="mt-4 pt-3 border-t border-[#E2E8F0]">
         {/* Signature row */}
-        <div className="grid grid-cols-2 gap-8 mb-5">
+        <div className="grid grid-cols-2 gap-6 mb-3">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.12em] text-[#94A3B8] mb-1">
-              Préparé par
-            </div>
-            <div className="h-8 border-b border-[#CBD5E1]" />
-            <div className="mt-1 text-[11px] text-[#0F172A] font-medium">
+            <div className="text-[9px] uppercase tracking-[0.12em] text-[#94A3B8] mb-1">Préparé par</div>
+            <div className="h-6 border-b border-[#CBD5E1]" />
+            <div className="mt-1 text-[10px] text-[#0F172A] font-medium">
               {meta.preparedBy || '________________________________'}
             </div>
-            <div className="text-[10px] text-[#94A3B8]">Signature · Date</div>
+            <div className="text-[9px] text-[#94A3B8]">Signature · Date</div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.12em] text-[#94A3B8] mb-1">
-              Approuvé par
-            </div>
-            <div className="h-8 border-b border-[#CBD5E1]" />
-            <div className="mt-1 text-[11px] text-[#0F172A] font-medium">
+            <div className="text-[9px] uppercase tracking-[0.12em] text-[#94A3B8] mb-1">Approuvé par</div>
+            <div className="h-6 border-b border-[#CBD5E1]" />
+            <div className="mt-1 text-[10px] text-[#0F172A] font-medium">
               {meta.approvedBy || '________________________________'}
             </div>
-            <div className="text-[10px] text-[#94A3B8]">Signature · Date</div>
+            <div className="text-[9px] text-[#94A3B8]">Signature · Date</div>
           </div>
         </div>
-
         {/* Meta row */}
-        <div className="flex items-center justify-between text-[10px] text-[#94A3B8]">
+        <div className="flex items-center justify-between text-[9px] text-[#94A3B8]">
           <div className="flex items-center gap-1">
-            <PPLogo />
-            <span className="ml-1 font-medium text-[#64748B]">ProfitPilot</span>
+            <span className="font-medium text-[#64748B]">ProfitPilot</span>
             <span>· Rapport généré le {generatedOn}</span>
           </div>
-          <div>
-            Page {pageNumber} / {totalPages}
-          </div>
+          <div>Page {pageNumber} / {totalPages}</div>
         </div>
       </footer>
     </div>

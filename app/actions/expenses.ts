@@ -1,6 +1,6 @@
 'use server';
 
-import { getBusinessContext, getBusinessExchangeRate } from '../../lib/serverAuth';
+import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { recordExpenseEntry } from './accounting';
 import { mapCategoryToAccountCode } from '../../lib/accountingEngine';
@@ -71,69 +71,19 @@ async function findOrCreateCategory(
   return created.id;
 }
 
-// ── Balance check ─────────────────────────────────────────────────────────────
-
-async function checkCashBalance(
-  supabase: any,
-  businessId: string,
-  amountHtg: number,
-  paymentMethod: string | null,
-  paymentStatus: string,
-): Promise<string> {
-  // Only check for cash/bank payments, not for credit
-  if (paymentStatus === 'credit' || paymentStatus === 'pending') return paymentStatus;
-
-  // Determine which account to check
-  const isCash = !paymentMethod || paymentMethod === 'Cash';
-  const accountCode = isCash ? '1110' : '1120';
-
-  const { data: acctData } = await supabase
-    .from('chart_of_accounts')
-    .select('id')
-    .eq('business_id', businessId)
-    .eq('code', accountCode)
-    .single();
-
-  if (!acctData?.id) return paymentStatus; // Account not found, skip check
-
-  const { data: lines } = await supabase
-    .from('journal_entry_lines')
-    .select('base_debit, base_credit')
-    .eq('account_id', acctData.id);
-
-  const accountBalance = (lines ?? []).reduce(
-    (sum: number, l: any) => sum + Number(l.base_debit ?? 0) - Number(l.base_credit ?? 0),
-    0,
-  );
-
-  // Skip check if no transactions recorded yet (first transaction)
-  if (lines && lines.length > 0 && accountBalance < amountHtg) {
-    if (isCash) {
-      throw new Error(`Solde insufisan nan kès! Disponib: ${accountBalance.toFixed(2)} HTG, bezwen: ${amountHtg.toFixed(2)} HTG. Chwazi yon lòt metòd peman oswa diminye montan an.`);
-    }
-    // For bank/electronic methods, auto-switch to credit
-    return 'credit';
-  }
-
-  return paymentStatus;
-}
-
 // ── upsertExpense ─────────────────────────────────────────────────────────────
 
 export async function upsertExpense(payload: ExpensePayload): Promise<void> {
   if (!payload.description?.trim()) throw new Error('Deskripsyon obligatwa.');
   if (!payload.amount || payload.amount <= 0) throw new Error('Montan pa valab.');
 
-  const { supabase, businessId, userId } = await getBusinessContext();
-  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
+  const { supabase, businessId, userId, exchangeRate } = await getBusinessContext();
 
-  // Check account balance before proceeding
-  const amountInHtg = payload.currency === 'USD' ? payload.amount * exchangeRate : payload.amount;
   const dbStatus = STATUS_MAP[payload.payment_status] ?? 'paid';
   const dbMethod = payload.payment_method
     ? (METHOD_MAP[payload.payment_method] ?? null)
     : null;
-  const finalStatus = await checkCashBalance(supabase, businessId, amountInHtg, dbMethod, dbStatus);
+  const finalStatus = dbStatus;
 
   const categoryId = await findOrCreateCategory(supabase, businessId, userId, payload.category);
 

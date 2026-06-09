@@ -428,26 +428,46 @@ export function ExpensesPage() {
   useEffect(() => {
     supabase.auth.getUser().then((r: any) => setOwnerId(r.data?.user?.id ?? null));
     loadAll();
-    cleanupDeletedExpenses().catch(() => {});
+    // cleanupDeletedExpenses is no longer needed on every load — deleteExpense handles it inline
   }, []);
 
   // ── Load data ────────────────────────────────────────────────────────────────
 
   async function loadAll() {
+    // ── Show cached data immediately ──────────────────────────────────────────
+    try {
+      const cached = sessionStorage.getItem('pp_expenses_list');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.expenses?.length) { setExpenses(parsed.expenses); setIsDemo(false); setLoading(false); }
+        if (parsed.suppliers?.length) setSuppliers(parsed.suppliers);
+      }
+    } catch { /* ignore */ }
+
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const uid = user?.id ?? ownerId;
+      // Use getSession() — reads from localStorage cache, much faster than getUser()
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id ?? ownerId;
       let bizId: string | null = null;
       if (uid) {
-        const { data: biz } = await supabase
-          .from('businesses')
-          .select('id, exchange_rate')
-          .eq('owner_id', uid)
-          .maybeSingle();
-        if (biz) {
-          bizId = biz.id;
-          setExchangeRate(Number(biz.exchange_rate ?? 130));
+        // Cache business ID to avoid re-querying on every load
+        const cachedBizId = sessionStorage.getItem('pp_biz_id');
+        const cachedRate  = sessionStorage.getItem('pp_biz_rate');
+        if (cachedBizId) {
+          bizId = cachedBizId;
+          if (cachedRate) setExchangeRate(Number(cachedRate));
+        } else {
+          const { data: biz } = await supabase
+            .from('businesses')
+            .select('id, exchange_rate')
+            .eq('owner_id', uid)
+            .maybeSingle();
+          if (biz) {
+            bizId = biz.id;
+            setExchangeRate(Number(biz.exchange_rate ?? 130));
+            try { sessionStorage.setItem('pp_biz_id', bizId!); sessionStorage.setItem('pp_biz_rate', String(biz.exchange_rate ?? 130)); } catch { /* full */ }
+          }
         }
       }
 
@@ -479,6 +499,16 @@ export function ExpensesPage() {
           }))
         );
         setIsDemo(false);
+        // Persist to sessionStorage for instant re-load
+        try {
+          const supList = supRes.data ?? [];
+          sessionStorage.setItem('pp_expenses_list', JSON.stringify({ expenses: expenses.map((e: any) => ({
+            id: e.id, description: e.description, category: e.category ?? 'Autre',
+            amount: Number(e.amount), currency: e.currency ?? 'HTG',
+            payment_status: e.payment_status ?? 'Payé', payment_method: e.payment_method ?? 'Espèces',
+            date: e.date, supplier_id: e.supplier_id ?? null,
+          })), suppliers: supList }));
+        } catch { /* storage full */ }
       } else {
         setIsDemo(true);
       }

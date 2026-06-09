@@ -202,11 +202,17 @@ export default function SalesPage() {
   const [clients,     setClients]     = useState<ClientSummary[]>([]);
   const [crmLoading,  setCrmLoading]  = useState(false);
 
-  // ── Load metrics ────────────────────────────────────────────────────────────
+  // ── Load metrics — with sessionStorage instant cache ──────────────────────
   const loadMetrics = useCallback(async () => {
+    const CACHE = 'pp_sales_metrics';
+    try {
+      const raw = sessionStorage.getItem(CACHE);
+      if (raw) setMetrics(JSON.parse(raw)); // show instantly from cache
+    } catch { /* ignore */ }
     try {
       const data = await getSalesMetrics();
       setMetrics(data);
+      try { sessionStorage.setItem(CACHE, JSON.stringify(data)); } catch { /* full */ }
     } catch { /* silent */ }
   }, []);
 

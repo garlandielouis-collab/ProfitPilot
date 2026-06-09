@@ -6,7 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal } from 'react-dom';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { getReportsDataAction, type ReportPeriod } from '../actions/reports';
@@ -284,6 +284,10 @@ function RapportsPage() {
 
   // ── Real data state ─────────────────────────────────────────────────────────
   const [companyName,  setCompanyName]  = useState('Mon Entreprise');
+  const [companyPhone,  setCompanyPhone]  = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companySector, setCompanySector] = useState('');
+  const [companyTaxId, setCompanyTaxId] = useState('');
   const [periodLabel,  setPeriodLabel]  = useState(`Annuel ${currentYear}`);
   const [currency,     setCurrency]     = useState<'HTG' | 'USD'>('HTG');
   const [isDemo,       setIsDemo]       = useState(false);
@@ -298,18 +302,14 @@ function RapportsPage() {
     cashTotal: DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash,
   });
 
-  // ── Lazy print portal — only render ALL 4 reports when user clicks Print ────
-  const [showPrintPortal, setShowPrintPortal] = useState(false);
-  const handleBeforePrint = useCallback(() => {
-    flushSync(() => setShowPrintPortal(true));
-  }, []);
-
-  useEffect(() => {
-    if (!showPrintPortal) return;
-    const onAfterPrint = () => setShowPrintPortal(false);
-    window.addEventListener('afterprint', onAfterPrint);
-    return () => window.removeEventListener('afterprint', onAfterPrint);
-  }, [showPrintPortal]);
+  // ── Print portal always mounted — no race condition ────────────────────────
+  // Portal is a direct <body> child (#pp-print-root) so the CSS rule
+  // body > *:not(#pp-print-root) { display:none } works reliably in print.
+  // No state change needed on print click — window.print() fires immediately.
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const handleBeforePrint = useCallback(() => {}, []);
 
   // ── Re-fetch every time period or year changes ──────────────────────────────
   useEffect(() => {
@@ -320,6 +320,12 @@ function RapportsPage() {
         setCompanyName(d.businessName || 'Mon Entreprise');
         setPeriodLabel(d.periodLabel);
         setCurrency(d.currency);
+
+        // Always set company info from the business profile
+        setCompanyPhone(  d.businessPhone   ?? '');
+        setCompanyAddress(d.businessAddress ?? '');
+        setCompanySector( d.businessSector  ?? '');
+        setCompanyTaxId(  d.businessTaxId   ?? '');
 
         if (d.hasRealData) {
           setIsDemo(false);
@@ -335,6 +341,12 @@ function RapportsPage() {
           setBalanceData(DEMO_BALANCE);
           setCashflowData(DEMO_CASHFLOW);
           setEquityData(DEMO_EQUITY);
+          setKpi({
+            caNet:     DEMO_INCOME.ventesMarchandises + DEMO_INCOME.prestationsServices + DEMO_INCOME.autresRevenus - DEMO_INCOME.retoursRabais,
+            cogs:      DEMO_INCOME.achatsMarchandises + (DEMO_INCOME.variationStock ?? 0) + DEMO_INCOME.transportAchat,
+            netProfit: DEMO_EQUITY.resultatNet,
+            cashTotal: DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash,
+          });
         }
       })
       .catch(() => setIsDemo(true))
@@ -350,7 +362,13 @@ function RapportsPage() {
     reportTitle: '',
     reportSubtitle: periodLabel,
     currency,
-  }), [companyName, periodLabel, currency]);
+    phone:   companyPhone   || undefined,
+    address: companyAddress || undefined,
+    sector:  companySector  || undefined,
+    taxId:   companyTaxId   || undefined,
+    currentYear: year,
+    previousYear: year - 1,
+  }), [companyName, periodLabel, currency, companyPhone, companyAddress, companySector, companyTaxId, year]);
 
   if (loading) {
     return (
@@ -472,14 +490,17 @@ function RapportsPage() {
         </div>
       </main>
 
-      {/* ── Print portal (lazy — only rendered when user clicks Print/PDF) ── */}
-      {showPrintPortal && (
-        <div className="print-portal">
+      {/* ── Print portal — always rendered, mounted as direct <body> child ── */}
+      {/* CSS: #pp-print-root { display:none } on screen                    */}
+      {/* CSS: body > *:not(#pp-print-root) { display:none } on print       */}
+      {isMounted && createPortal(
+        <div id="pp-print-root">
           <IncomeStatement   meta={meta} data={incomeData}   showPrevious />
           <BalanceSheet       meta={meta} data={balanceData}  showPrevious />
           <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />
           <EquityStatement    meta={meta} data={equityData}   />
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

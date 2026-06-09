@@ -217,7 +217,7 @@ function EquityStatement({ meta, data }: Props) {
       <div>
         {/* Description */}
         <p className="text-[11px] text-[#64748B] mb-4 leading-relaxed">
-          {t({ fr: 'Cet état présente les variations survenues dans les capitaux propres au cours de l\'exercice clos le 31 décembre 2025, incluant le résultat net, les apports, les affectations et les prélèvements du propriétaire.', ht: 'Eta sa a prezante varyasyon ki te fèt nan kapital pwòp yo pandan egzèsis la ki fèmen 31 desanm 2025, ki gen ladan rezilta nèt, apò yo, afektasyon yo ak prelevman pwopriyetè a.' })}
+          {t({ fr: `Cet état présente les variations survenues dans les capitaux propres au cours de l'exercice clos le 31 décembre ${meta.currentYear ?? new Date().getFullYear()}, incluant le résultat net, les apports, les affectations et les prélèvements du propriétaire.`, ht: `Eta sa a prezante varyasyon ki te fèt nan kapital pwòp yo pandan egzèsis la ki fèmen 31 desanm ${meta.currentYear ?? new Date().getFullYear()}, ki gen ladan rezilta nèt, apò yo, afektasyon yo ak prelevman pwopriyetè a.` })}
         </p>
 
         {/* Matrix table — scrollable on small screens */}
@@ -241,7 +241,7 @@ function EquityStatement({ meta, data }: Props) {
 
           <div className="min-w-max">
             {/* Opening */}
-            <MatrixRow label={t({ fr: "Solde d'ouverture au 1er janvier 2025", ht: 'Sòl ouvèti 1e janvye 2025' })} data={opening} highlight="gray" bold />
+            <MatrixRow label={t({ fr: `Solde d'ouverture au 1er janvier ${meta.currentYear ?? new Date().getFullYear()}`, ht: `Sòl ouvèti 1e janvye ${meta.currentYear ?? new Date().getFullYear()}` })} data={opening} highlight="gray" bold />
 
             {/* Apports */}
             {data.apportsNouveaux !== 0 && (
@@ -249,7 +249,7 @@ function EquityStatement({ meta, data }: Props) {
             )}
 
             {/* Résultat */}
-            <MatrixRow label={t({ fr: '  + Résultat net de l\'exercice 2025', ht: '  + Rezilta nèt egzèsis 2025' })} data={delta(afterApports, afterResult)} isDelta italic />
+            <MatrixRow label={t({ fr: `  + Résultat net de l'exercice ${meta.currentYear ?? new Date().getFullYear()}`, ht: `  + Rezilta nèt egzèsis ${meta.currentYear ?? new Date().getFullYear()}` })} data={delta(afterApports, afterResult)} isDelta italic />
 
             {/* Affectation réserves */}
             {data.affectationReserves !== 0 && (
@@ -267,7 +267,7 @@ function EquityStatement({ meta, data }: Props) {
             )}
 
             {/* Closing */}
-            <MatrixRow label="Solde de clôture au 31 décembre 2025" data={closing} highlight="navy" bold />
+            <MatrixRow label={`Solde de clôture au 31 décembre ${meta.currentYear ?? new Date().getFullYear()}`} data={closing} highlight="navy" bold />
           </div>
         </div>
 
@@ -279,7 +279,7 @@ function EquityStatement({ meta, data }: Props) {
             <div className={`text-[18px] font-bold mt-1 ${data.resultatNet >= 0 ? 'text-[#065F46]' : 'text-[#991B1B]'}`}>
               {fmt(data.resultatNet, true)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: 'Exercice 2025 ·', ht: 'Egzèsis 2025 ·' })} {meta.currency ?? 'HTG'}</div>
+            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: `Exercice ${meta.currentYear ?? new Date().getFullYear()} ·`, ht: `Egzèsis ${meta.currentYear ?? new Date().getFullYear()} ·` })} {meta.currency ?? 'HTG'}</div>
           </div>
 
           {/* Variation CP */}
@@ -297,7 +297,7 @@ function EquityStatement({ meta, data }: Props) {
             <div className="text-[18px] font-bold mt-1 text-[#0F172A]">
               {fmt(closing.total, true)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: 'Au 31 déc. 2025 ·', ht: '31 des. 2025 ·' })} {meta.currency ?? 'HTG'}</div>
+            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: `Au 31 déc. ${meta.currentYear ?? new Date().getFullYear()} ·`, ht: `31 des. ${meta.currentYear ?? new Date().getFullYear()} ·` })} {meta.currency ?? 'HTG'}</div>
           </div>
         </div>
 
@@ -305,7 +305,7 @@ function EquityStatement({ meta, data }: Props) {
         <div className="mt-4 pt-3 border-t border-[#E2E8F0]">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748B] mb-1">{t({ fr: 'Notes', ht: 'Nòt' })}</p>
           <p className="text-[10px] text-[#94A3B8] leading-relaxed">
-            {t({ fr: 'Le capital social représente l\'investissement initial de l\'entrepreneur. Les prélèvements du propriétaire réduisent les capitaux propres (compte 4580). Le résultat de l\'exercice sera reporté en « Report à nouveau » à l\'ouverture 2026. Conformément au PCG-HT (Plan Comptable Général Haïti), adapté de SYSCOHADA.', ht: 'Kapital sosyal la reprezante envestisman inisyal antreprenè a. Prelevman pwopriyetè a redwi kapital pwòp yo (kont 4580). Rezilta egzèsis la pral rapòte nan « Rapò a nouvo » nan ouvèti 2026. Konfòman ak PCG-HT (Plan Kontab Jeneral Ayiti), adapte SYSCOHADA.' })}
+            {t({ fr: `Le capital social représente l'investissement initial de l'entrepreneur. Les prélèvements du propriétaire réduisent les capitaux propres (compte 4580). Le résultat de l'exercice sera reporté en « Report à nouveau » à l'ouverture ${(meta.currentYear ?? new Date().getFullYear()) + 1}. Conformément au PCG-HT (Plan Comptable Général Haïti), adapté de SYSCOHADA.`, ht: `Kapital sosyal la reprezante envestisman inisyal antreprenè a. Prelevman pwopriyetè a redwi kapital pwòp yo (kont 4580). Rezilta egzèsis la pral rapòte nan « Rapò a nouvo » nan ouvèti ${(meta.currentYear ?? new Date().getFullYear()) + 1}. Konfòman ak PCG-HT (Plan Kontab Jeneral Ayiti), adapte SYSCOHADA.` })}
           </p>
         </div>
       </div>

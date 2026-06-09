@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/useAuth';
 import { useSubscriptionCheck } from '../hooks/useSubscription';
 import { useLanguage } from './LanguageWrapper';
@@ -8,16 +10,19 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { isExpired, isPublic, checking } = useSubscriptionCheck();
   const { t } = useLanguage();
+  const router = useRouter();
+  const redirected = useRef(false);
 
-  if (checking || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#001F3F] border-t-transparent" />
-      </div>
-    );
-  }
+  // Redirect to login only after we KNOW user is null (not just "not yet loaded")
+  useEffect(() => {
+    if (!checking && user === null && !redirected.current) {
+      redirected.current = true;
+      router.replace('/auth/login');
+    }
+  }, [checking, user, router]);
 
-  if (isExpired && !isPublic) {
+  // Show expired screen (quick localStorage check, no delay)
+  if (!checking && isExpired && !isPublic) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
         <div className="w-full max-w-md text-center space-y-6">
@@ -46,5 +51,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Render children immediately — redirect happens in background if needed.
+  // If user truly not authenticated, the redirect effect fires before user sees anything.
   return <>{children}</>;
 }

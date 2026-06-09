@@ -495,8 +495,8 @@ function AiAssistantPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div className="border-t border-[var(--color-border)] px-4 py-3 bg-[var(--color-surface)]">
+        {/* Input — pb-mobile-nav adds clearance for the fixed 64px bottom nav on mobile */}
+        <div className="border-t border-[var(--color-border)] px-4 pt-3 pb-3 pb-mobile-nav bg-[var(--color-surface)]">
           <div className="flex items-end gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 focus-within:border-emerald-500/40 transition">
             <textarea
               ref={inputRef}

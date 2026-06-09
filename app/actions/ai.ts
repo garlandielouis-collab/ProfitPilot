@@ -24,10 +24,20 @@ export type CashflowPoint = {
   profit: number;
 };
 
+export type DashboardProduct = {
+  id: string;
+  name: string;
+  stock_quantity: number;
+  sale_price: number;
+  purchase_price: number;
+  category: string | null;
+};
+
 export type DashboardV2Data = {
   cashflow: CashflowPoint[];
   ledger: LedgerRow[];
   totals: { cashIn: number; cashOut: number; profit: number; debtTotal: number };
+  products?: DashboardProduct[];
 };
 
 // ── getDashboardV2Action ──────────────────────────────────────────────────────
@@ -48,22 +58,6 @@ export async function getDashboardV2Action(
     supabase   = ctx.supabase;
   } catch { return EMPTY; }
 
-  // ── Fetch business exchange rate for USD→HTG conversion ──────────────────
-  const { data: biz } = await supabase
-    .from('businesses')
-    .select('exchange_rate, default_currency')
-    .eq('id', businessId)
-    .maybeSingle();
-  const exchangeRate    = Number(biz?.exchange_rate ?? 130);
-  const reportCurrency  = (biz?.default_currency ?? 'HTG') as 'HTG' | 'USD';
-  const toReport = (amount: number, currency: string): number => {
-    const c = (currency ?? 'HTG').toUpperCase();
-    if (c === reportCurrency) return amount;
-    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
-    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
-    return amount;
-  };
-
   let dateFrom: string;
   let dateTo:   string;
   if (mode === 'year') {
@@ -74,13 +68,19 @@ export async function getDashboardV2Action(
     dateTo   = new Date(year, monthTo + 1, 0).toISOString().split('T')[0];
   }
 
-  // ── Parallel fetch — correct column names ─────────────────────────────────
+  // ── Parallel fetch — all data in one network round ────────────────────────
   const [
+    { data: biz },
     { data: salesRaw },
     { data: expRaw },
     { data: purchRaw },
+    { data: prodsRaw },
   ] = await Promise.all([
-    // sales: customer_name (not client_name)
+    supabase
+      .from('businesses')
+      .select('exchange_rate, default_currency')
+      .eq('id', businessId)
+      .maybeSingle(),
     supabase
       .from('sales')
       .select('id, total_amount, currency, payment_method, payment_status, customer_name, invoice_number, created_at')
@@ -88,8 +88,6 @@ export async function getDashboardV2Action(
       .is('deleted_at', null)
       .gte('created_at', `${dateFrom}T00:00:00`)
       .lte('created_at', `${dateTo}T23:59:59`),
-
-    // expenses: expense_date (not date), category via join (not category text)
     supabase
       .from('expenses')
       .select('id, amount, currency, payment_method, payment_status, description, expense_date, expense_categories(name)')
@@ -97,8 +95,6 @@ export async function getDashboardV2Action(
       .is('deleted_at', null)
       .gte('expense_date', dateFrom)
       .lte('expense_date', dateTo),
-
-    // purchases: total_amount, currency
     supabase
       .from('purchases')
       .select('id, total_amount, currency, payment_status, purchase_date, supplier_id')
@@ -106,11 +102,28 @@ export async function getDashboardV2Action(
       .is('deleted_at', null)
       .gte('purchase_date', dateFrom)
       .lte('purchase_date', dateTo),
+    supabase
+      .from('products')
+      .select('id, name, stock_quantity, sale_price, purchase_price, category')
+      .eq('business_id', businessId)
+      .is('deleted_at', null),
   ]);
 
   const sales     = (salesRaw  ?? []) as any[];
   const expenses  = (expRaw    ?? []) as any[];
   const purchases = (purchRaw  ?? []) as any[];
+  const products  = (prodsRaw  ?? []) as DashboardProduct[];
+
+  // ── Exchange rate (now from parallel fetch) ────────────────────────────────
+  const exchangeRate   = Number((biz as any)?.exchange_rate ?? 130);
+  const reportCurrency = ((biz as any)?.default_currency ?? 'HTG') as 'HTG' | 'USD';
+  const toReport = (amount: number, currency: string): number => {
+    const c = (currency ?? 'HTG').toUpperCase();
+    if (c === reportCurrency) return amount;
+    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
+    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
+    return amount;
+  };
 
   // ── Build ledger ──────────────────────────────────────────────────────────
   const seenInvoices = new Set<string>();
@@ -224,6 +237,7 @@ export async function getDashboardV2Action(
     cashflow,
     ledger,
     totals: { cashIn, cashOut, profit: cashIn - cashOut, debtTotal },
+    products,
   };
 }
 

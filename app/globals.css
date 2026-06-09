@@ -111,109 +111,18 @@ button {
    FINANCIAL REPORTS — A4 Print System
    ProfitPilot premium PDF export
 
-   TECHNIQUE: visibility (not display) — works at any
-   DOM depth inside Next.js app shell.
-
-   body > *:not(.print-portal) { display:none } is WRONG
-   in Next.js because .print-portal is nested deep inside
-   the app router layout, not a direct child of <body>.
+   TECHNIQUE: React createPortal renders #pp-print-root
+   as a DIRECT child of <body>.  In print we simply hide
+   every other direct body child — no visibility tricks,
+   no z-index fights, no position:fixed pagination bugs.
 ───────────────────────────────────────────────────── */
 
-@media print {
-  @page {
-    size: A4 portrait;
-    /* 12mm margins on all sides — content width = 186mm */
-    margin: 12mm 12mm 12mm 12mm;
-  }
-
-  html, body {
-    background: #ffffff !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-
-  /* ── STEP 1: make EVERYTHING invisible ──────────────
-     Use visibility (not display:none) so the print-portal
-     and its children can override it without being
-     blocked by a parent with display:none.             */
-  body * {
-    visibility: hidden !important;
-  }
-
-  /* ── STEP 2: make the print portal + descendants visible */
-  .print-portal {
-    visibility: visible !important;
-    display: block !important;
-    /* Overlay the full page, on top of everything */
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 99999 !important;
-    background: #ffffff !important;
-    overflow: visible !important;
-    width: 100% !important;
-    height: auto !important;
-  }
-  .print-portal * {
-    visibility: visible !important;
-  }
-
-  /* ── STEP 3: each report = one A4 page ────────────── */
-  .report-page {
-    /* Width = A4 minus @page margins (210mm - 24mm = 186mm) */
-    width: 186mm !important;
-    min-height: 0 !important;       /* let content determine height */
-    padding: 0 !important;          /* @page margins handle padding */
-    page-break-after: always !important;
-    break-after: page !important;
-    /* Allow natural page breaks inside long reports */
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    overflow: visible !important;
-    position: relative !important;
-  }
-  .report-page:last-child {
-    page-break-after: avoid !important;
-    break-after: avoid !important;
-  }
-
-  /* ── STEP 4: force background colours to print ─────── */
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Named colour overrides for Tailwind arbitrary values */
-  .bg-\[\#ECFDF5\] { background-color: #ECFDF5 !important; }
-  .bg-\[\#0F172A\] { background-color: #0F172A !important; }
-  .bg-\[\#F8FAFC\] { background-color: #F8FAFC !important; }
-  .bg-\[\#FEF2F2\] { background-color: #FEF2F2 !important; }
-  .bg-\[\#EFF6FF\] { background-color: #EFF6FF !important; }
-  .bg-\[\#F8FAFC\] { background-color: #F8FAFC !important; }
-
-  /* Text colour overrides */
-  .text-\[\#12B981\] { color: #12B981 !important; }
-  .text-\[\#0F172A\] { color: #0F172A !important; }
-  .text-\[\#065F46\] { color: #065F46 !important; }
-  .text-\[\#EF4444\] { color: #EF4444 !important; }
-  .text-\[\#6EE7B7\] { color: #6EE7B7 !important; }
-  .text-white        { color: #ffffff !important; }
-
-  /* Table rows — don't split across pages */
-  tr { page-break-inside: avoid !important; }
-
-  /* Borders in print */
-  .border-t       { border-top-width: 1px !important; }
-  .border-double  { border-style: double !important; }
-
-  /* Hide anything explicitly marked no-print */
-  .no-print {
-    display: none !important;
-    visibility: hidden !important;
-  }
+/* ── Screen: hide the print root completely ── */
+#pp-print-root {
+  display: none !important;
 }
 
-/* ── Screen: A4 paper card shadow ── */
+/* ── Screen: A4 paper card shadow for the preview ── */
 @media screen {
   .report-page {
     box-shadow:
@@ -221,20 +130,115 @@ button {
       0 4px 6px -1px rgba(15, 23, 42, 0.07),
       0 24px 48px -12px rgba(15, 23, 42, 0.14);
   }
+}
 
-  /* Hide print portal on screen — use off-canvas instead of display:none
-     so that visibility:visible in @media print can still override it.
-     display:none would block the visibility override in some browsers. */
-  .print-portal {
-    position: absolute !important;
-    left: -9999px !important;
-    top: 0 !important;
-    width: 210mm !important;
-    pointer-events: none !important;
-    opacity: 0 !important;
-    overflow: hidden !important;
-    height: 0 !important;
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm 14mm 12mm;   /* content width = 186mm */
   }
+
+  html, body {
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* ── Hide the entire app UI — only the print root prints ── */
+  body > *:not(#pp-print-root) {
+    display: none !important;
+  }
+
+  /* ── Show the print root as normal block flow ── */
+  #pp-print-root {
+    display: block !important;
+    width: 100% !important;
+    background: #ffffff !important;
+  }
+
+  /* ── Each report starts on a new page, natural height ── */
+  .report-page {
+    /* Start each report on a fresh page */
+    break-before: page !important;
+    page-break-before: always !important;
+    /* Natural height — no min-height that creates blank space */
+    min-height: 0 !important;
+    height: auto !important;
+    /* Full printable width */
+    width: 186mm !important;
+    max-width: 186mm !important;
+    /* Override inline padding — @page margins give us the margins */
+    padding: 10mm 12mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    /* Keep flex layout for header/content/footer alignment */
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* No trailing blank page after last report */
+  .report-page:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Individual accounting rows — keep each row intact, don't split a row */
+  .report-page tr,
+  .report-page .accounting-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Section headers — stay with their first row (widow control) */
+  .report-page header {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Force exact colour printing */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Font consistency */
+  .report-page * {
+    font-family: "Inter", Arial, sans-serif !important;
+  }
+
+  /* Background colour classes (Tailwind arbitrary values) */
+  .bg-\[\#ECFDF5\] { background-color: #ECFDF5 !important; }
+  .bg-\[\#0F172A\] { background-color: #0F172A !important; }
+  .bg-\[\#F8FAFC\] { background-color: #F8FAFC !important; }
+  .bg-\[\#FEF2F2\] { background-color: #FEF2F2 !important; }
+  .bg-\[\#EFF6FF\] { background-color: #EFF6FF !important; }
+
+  /* Text colour classes */
+  .text-\[\#12B981\] { color: #12B981 !important; }
+  .text-\[\#0F172A\] { color: #0F172A !important; }
+  .text-\[\#065F46\] { color: #065F46 !important; }
+  .text-\[\#EF4444\] { color: #EF4444 !important; }
+  .text-\[\#6EE7B7\] { color: #6EE7B7 !important; }
+  .text-\[\#94A3B8\] { color: #94A3B8 !important; }
+  .text-\[\#64748B\] { color: #64748B !important; }
+  .text-\[\#B91C1C\] { color: #B91C1C !important; }
+  .text-white        { color: #ffffff !important; }
+
+  /* Borders */
+  .border-t       { border-top-width: 1px !important; }
+  .border-double  { border-style: double !important; }
+
+  /* Hide non-report UI */
+  .no-print { display: none !important; }
 }
 
 /* ── Tabular numbers for all financial figures ── */
@@ -243,9 +247,19 @@ button {
   font-feature-settings: "tnum" 1;
 }
 
-/* ── Mobile bottom padding (clear fixed nav) ── */
+/* ── Mobile bottom padding (clear fixed nav ~64px) ── */
 @media (max-width: 1023px) {
   main:not(:has(> .fullscreen-layout)) {
-    padding-bottom: 5rem;
+    padding-bottom: 6rem;
+  }
+  /* AI page — input bar must clear the fixed mobile nav */
+  .pb-mobile-nav {
+    padding-bottom: calc(64px + 12px) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pb-mobile-nav {
+    padding-bottom: 12px;
   }
 }

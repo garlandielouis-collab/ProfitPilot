@@ -206,15 +206,17 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
     <ReportLayout meta={{ ...meta, reportTitle: 'TABLEAU DES FLUX DE TRÉSORERIE' }}>
       <div className="text-[13px]">
 
-        {/* Waterfall mini-chart */}
-        <WaterfallStrip
-          exploitation={c.fluxExploitation}
-          investissement={c.fluxInvestissement}
-          financement={c.fluxFinancement}
-        />
+        {/* Waterfall mini-chart — screen only, hidden in print to save space */}
+        <div className="no-print">
+          <WaterfallStrip
+            exploitation={c.fluxExploitation}
+            investissement={c.fluxInvestissement}
+            financement={c.fluxFinancement}
+          />
+        </div>
 
         {/* Column headers */}
-        <ColumnHeaders showPrevious={!!prev} />
+        <ColumnHeaders showPrevious={!!prev} currency={meta.currency ?? 'HTG'} currentYear={meta.currentYear} previousYear={meta.previousYear} />
 
         {/* ═══════════════════════════════════
             I. FLUX D'EXPLOITATION

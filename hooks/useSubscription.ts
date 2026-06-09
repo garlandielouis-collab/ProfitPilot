@@ -10,6 +10,10 @@ const TRIAL_HOURS = 72;
 const PUBLIC_PATHS = ['/', '/pricing', '/checkout', '/auth/login', '/auth/register', '/onboarding',
   '/blog', '/faq', '/guide', '/legal', '/updates', '/cookies-debug', '/debug'];
 
+// Pages toujours accessibles même si l'essai est expiré
+// (l'utilisateur doit pouvoir se déconnecter, accéder aux paramètres et à l'AI)
+const ALWAYS_ACCESSIBLE_PATHS = ['/settings', '/ai-assistant', '/parametres'];
+
 function safeGetItem(key: string): string | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -51,8 +55,9 @@ export function useSubscriptionCheck() {
   }, []);
 
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname?.startsWith(p));
+  const isAlwaysAccessible = ALWAYS_ACCESSIBLE_PATHS.some(p => pathname === p || pathname?.startsWith(p));
 
-  return { isExpired, checking, isPublic, isSubscribed };
+  return { isExpired, checking, isPublic: isPublic || isAlwaysAccessible, isSubscribed };
 }
 
 export function recordLogin() {

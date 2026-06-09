@@ -74,18 +74,13 @@ export default function ReportActions({
    */
   function triggerPrint() {
     if (onBeforePrint) onBeforePrint();
-    // Small rAF delay so React can re-render if onBeforePrint changed state
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.print();
-      });
-    });
+    // Portal is always mounted — call print directly, no delay needed
+    window.print();
   }
 
   async function handleDownloadPDF() {
     setDownloading(true);
-    // Give the browser a tick to show the loading state before the dialog
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 50)); // show spinner briefly
     setDownloading(false);
     triggerPrint();
   }

@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
-import { streamText, tool } from 'ai';
-import { z } from 'zod';
+import { streamText } from 'ai';
 import { getSupabaseServer } from '../../../../lib/supabaseServerClient';
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -76,12 +75,17 @@ C. EXPERT EN MARKETING & STRATÉGIE : Structure campagnes, focus sur acquisition
 D. GUIDE DE NAVIGATION : Si l'utilisateur a besoin d'aller quelque part, utilise l'outil naviguerVersPage.
 
 GUIDE DE NAVIGATION (ROUTES DISPONIBLES) :
-- 'dashboard' → Vue globale, graphiques de performance
-- 'comptabilite' → Flux financiers, marges, coûts, rapports de rentabilité
-- 'stocks' → État des inventaires, alertes de rupture, entrées/sorties
-- 'marketing' → Campagnes, CAC, communication
-- 'ventes' → Gestion clients, commandes, performance commerciale
-- 'parametres' → Configuration entreprise, devises, accès
+- '/dashboard' → Vue globale, graphiques de performance
+- '/rapports/comptabilite' → Flux financiers, marges, coûts, rapports de rentabilité
+- '/inventory' → État des inventaires, alertes de rupture, entrées/sorties
+- '/sales' → Gestion clients, commandes, performance commerciale
+- '/expenses' → Dépenses et charges
+- '/products' → Catalogue produits et prix
+- '/suppliers' → Fournisseurs et approvisionnement
+- '/purchases' → Achats et commandes fournisseurs
+- '/dettes' → Suivi des dettes et créances
+- '/rapports' → Tous les rapports financiers
+- '/settings' → Configuration entreprise, devises, accès
 
 PRIORITÉS DE CONSEILS :
 1. DETTES (PRIORITÉ MAX) — si dettes > 30% des ventes: ALERTE ROUGE
@@ -143,22 +147,10 @@ export async function POST(request: NextRequest) {
   ];
 
   const result = await streamText({
-    model: anthropic('claude-3-5-sonnet-latest'),
+    model: anthropic('claude-sonnet-4-6'),
     messages,
     system: SYSTEM_PROMPT,
-    tools: {
-      naviguerVersPage: tool({
-        description: "Redirige l'utilisateur vers une page spécifique de l'application.",
-        parameters: z.object({
-          pageDestination: z.enum(['dashboard', 'comptabilite', 'stocks', 'marketing', 'ventes', 'parametres']),
-          raison: z.string().describe("La raison du changement de page"),
-        }),
-        execute: async ({ pageDestination, raison }) => {
-          return { status: "success", destination: pageDestination, message: `Redirection vers ${pageDestination}...` };
-        },
-      }),
-    },
-    maxTokens: 1500,
+    maxOutputTokens: 4096,
   });
 
   // ── Streaming (default, utilisé par le front-end) ─────────────────────────

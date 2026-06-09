@@ -10,7 +10,11 @@ import type { EquityStatementData }  from '../../components/reports/EquityStatem
 // ── Public shape returned to the page ────────────────────────────────────────
 
 export type ReportsData = {
-  businessName:  string;
+  businessName:    string;
+  businessPhone?:  string;
+  businessAddress?: string;
+  businessSector?:  string;
+  businessTaxId?:   string;
   hasRealData:   boolean;
   periodLabel:   string;   // e.g. "T2 2026 — Avr/Jun"
   currency:      'HTG' | 'USD'; // Reporting currency
@@ -88,7 +92,8 @@ function emptyEquity(netProfit = 0): EquityStatementData {
 
 function emptyReports(businessName = 'ProfitPilot', periodLabel = '', currency: 'HTG' | 'USD' = 'HTG'): ReportsData {
   return {
-    businessName, hasRealData: false, periodLabel, currency,
+    businessName, businessPhone: '', businessAddress: '', businessSector: '', businessTaxId: '',
+    hasRealData: false, periodLabel, currency,
     income: emptyIncome(), balance: emptyBalance(),
     cashflow: emptyCashflow(), equity: emptyEquity(),
     kpi: { caNet: 0, cogs: 0, netProfit: 0, cashTotal: 0 },
@@ -159,7 +164,7 @@ export async function getReportsDataAction(
     { data: creditsRaw },
     { data: accountBalances },
   ] = await Promise.all([
-    supabase.from('businesses').select('name, exchange_rate, default_currency').eq('id', businessId).maybeSingle(),
+    supabase.from('businesses').select('name, phone, address, sector, tax_id, exchange_rate, default_currency').eq('id', businessId).maybeSingle(),
 
     // Sales within the selected period
     supabase.from('sales')
@@ -198,8 +203,12 @@ export async function getReportsDataAction(
       .eq('journal_entries.status', 'posted'),
   ]);
 
-  const biz          = (bizRaw as any);
-  const businessName = biz?.name ?? 'Mon Entreprise';
+  const biz            = (bizRaw as any);
+  const businessName   = biz?.name    ?? 'Mon Entreprise';
+  const businessPhone  = biz?.phone   ?? '';
+  const businessAddress = biz?.address ?? '';
+  const businessSector = biz?.sector  ?? '';
+  const businessTaxId  = biz?.tax_id  ?? '';
   // Exchange rate: 1 USD = X HTG. Default 130 if not set.
   const exchangeRate   = Number(biz?.exchange_rate ?? 130);
   // Default currency from business settings (what we report in)
@@ -426,6 +435,10 @@ export async function getReportsDataAction(
 
   return {
     businessName,
+    businessPhone,
+    businessAddress,
+    businessSector,
+    businessTaxId,
     hasRealData,
     periodLabel,
     currency: reportCurrency,

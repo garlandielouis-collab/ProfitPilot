@@ -1,6 +1,6 @@
 'use server';
 
-import { getBusinessContext, getBusinessExchangeRate } from '../../lib/serverAuth';
+import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { classifyExpenseCategory, isBankPaymentMethod, isAssetCategory, classifyAssetCategory, classifyTransaction, CHART_OF_ACCOUNTS, ACCOUNT_CODES as ENGINE_CODES } from '../../lib/accountingEngine';
 
@@ -379,8 +379,7 @@ export type BackfillResult = {
 };
 
 export async function backfillAllJournalEntries(): Promise<BackfillResult> {
-  const { supabase, businessId } = await getBusinessContext();
-  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
+  const { supabase, businessId, exchangeRate } = await getBusinessContext();
   const result: BackfillResult = { sales: 0, purchases: 0, expenses: 0, errors: [] };
 
   // ── 1. Ventes ────────────────────────────────────────────────────────────────
@@ -477,8 +476,7 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
 
 // Reconcile expenses: create journal entries for expenses that have none
 export async function reconcileMissingExpenseEntries(): Promise<number> {
-  const { supabase, businessId } = await getBusinessContext();
-  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
+  const { supabase, businessId, exchangeRate } = await getBusinessContext();
 
   // Get expenses for this business
   const { data: expenses } = await supabase
