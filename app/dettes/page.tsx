@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLanguage } from '../../components/LanguageWrapper';
 import { supabase } from '../../lib/supabaseClient';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { recordDebtPayment } from '../actions/debts';
 import { markClientCreditPaid } from '../actions/clients';
+import { markExpensePaid } from '../actions/expenses';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,6 +20,7 @@ type SupplierDebt = {
   product_name: string;
   quantity: number;
   amount: number;
+  currency: string;
   purchase_date: string;   // ISO date
   due_date: string;        // purchase_date + 30 days
   days_overdue: number;    // days since purchase_date
@@ -37,6 +40,19 @@ type ClientCredit = {
   created_at: string;
   due_date: string;        // created_at + 30 days
   days_since: number;
+  etat: EtatCritique;
+};
+
+type ExpenseDebt = {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  currency: string;
+  expense_date: string;
+  due_date: string;
+  days_overdue: number;
+  payment_status: 'Payé' | 'À Crédit';
   etat: EtatCritique;
 };
 
@@ -83,10 +99,10 @@ function waLink(phone: string | null, message: string): string | null {
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
 const MOCK_DEBTS: SupplierDebt[] = [
-  { id:'sd1', supplier_id:'s1', supplier_name:'Distribisyon ABC',   supplier_phone:'47123456', product_name:'Riz 50kg', quantity:10, amount:55000, purchase_date:'2026-04-10', due_date:'2026-05-10', days_overdue:42, payment_status:'À Crédit', etat:'Critique' },
-  { id:'sd2', supplier_id:'s2', supplier_name:'Boutik Santé Plus',  supplier_phone:'36987654', product_name:'Savon Detèjan', quantity:50, amount:18000, purchase_date:'2026-05-01', due_date:'2026-05-31', days_overdue:21, payment_status:'À Crédit', etat:'Atansyon' },
-  { id:'sd3', supplier_id:'s3', supplier_name:'Agri Depou Nò',      supplier_phone:null,       product_name:'Maïs Moulu', quantity:20, amount:12000, purchase_date:'2026-05-15', due_date:'2026-06-14', days_overdue:7,  payment_status:'À Crédit', etat:'Nòmal' },
-  { id:'sd4', supplier_id:'s1', supplier_name:'Distribisyon ABC',   supplier_phone:'47123456', product_name:'Farin Blé', quantity:15, amount:22500, purchase_date:'2026-04-05', due_date:'2026-05-05', days_overdue:47, payment_status:'Payé',    etat:'Nòmal' },
+  { id:'sd1', supplier_id:'s1', supplier_name:'Distribisyon ABC',   supplier_phone:'47123456', product_name:'Riz 50kg', quantity:10, amount:55000, currency:'HTG', purchase_date:'2026-04-10', due_date:'2026-05-10', days_overdue:42, payment_status:'À Crédit', etat:'Critique' },
+  { id:'sd2', supplier_id:'s2', supplier_name:'Boutik Santé Plus',  supplier_phone:'36987654', product_name:'Savon Detèjan', quantity:50, amount:18000, currency:'HTG', purchase_date:'2026-05-01', due_date:'2026-05-31', days_overdue:21, payment_status:'À Crédit', etat:'Atansyon' },
+  { id:'sd3', supplier_id:'s3', supplier_name:'Agri Depou Nò',      supplier_phone:null,       product_name:'Maïs Moulu', quantity:20, amount:12000, currency:'HTG', purchase_date:'2026-05-15', due_date:'2026-06-14', days_overdue:7,  payment_status:'À Crédit', etat:'Nòmal' },
+  { id:'sd4', supplier_id:'s1', supplier_name:'Distribisyon ABC',   supplier_phone:'47123456', product_name:'Farin Blé', quantity:15, amount:22500, currency:'HTG', purchase_date:'2026-04-05', due_date:'2026-05-05', days_overdue:47, payment_status:'Payé',    etat:'Nòmal' },
 ];
 
 const MOCK_CREDITS: ClientCredit[] = [
@@ -99,32 +115,34 @@ const MOCK_CREDITS: ClientCredit[] = [
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function EtatBadge({ etat }: { etat: EtatCritique }) {
+  const { t } = useLanguage();
   if (etat === 'Critique') return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/15 px-2.5 py-1 text-xs font-bold text-red-400">
       <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
-      Critique
+      {t({ fr: 'Critique', ht: 'Critique' })}
     </span>
   );
   if (etat === 'Atansyon') return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/40 bg-orange-500/15 px-2.5 py-1 text-xs font-bold text-orange-400">
       <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-      Atansyon
+      {t({ fr: 'Attention', ht: 'Atansyon' })}
     </span>
   );
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-400">
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-      Nòmal
+      {t({ fr: 'Normal', ht: 'Nòmal' })}
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage();
   const paid = status === 'Payé';
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold
       ${paid ? 'bg-emerald-500/15 text-emerald-400' : 'bg-blue-500/15 text-blue-400'}`}>
-      {status}
+      {t({ fr: { 'Payé': 'Payé', 'À Crédit': 'À Crédit' }[status] || status, ht: status })}
     </span>
   );
 }
@@ -134,9 +152,10 @@ interface RelancerButtonProps {
   message: string;
 }
 function RelancerButton({ phone, message }: RelancerButtonProps) {
+  const { t } = useLanguage();
   const link = waLink(phone, message);
   if (!link) return (
-    <span className="text-xs text-slate-300 italic">Nan gen #</span>
+    <span className="text-xs text-slate-300 italic">{t({ fr: 'Pas de #', ht: 'Nan gen #' })}</span>
   );
   return (
     <a
@@ -149,7 +168,7 @@ function RelancerButton({ phone, message }: RelancerButtonProps) {
       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
       </svg>
-      Relanse
+      {t({ fr: 'Relance', ht: 'Relanse' })}
     </a>
   );
 }
@@ -176,12 +195,13 @@ function StatCard({ label, value, sub, accent, glow, icon }: {
 // ── Section header ────────────────────────────────────────────────────────────
 
 function SectionTitle({ color, label, count }: { color: string; label: string; count: number }) {
+  const { t } = useLanguage();
   return (
     <div className="flex items-center gap-3">
       <div className={`h-8 w-1 rounded-full ${color}`} />
       <div>
         <h2 className="font-bold text-[#001F3F] text-lg">{label}</h2>
-        <p className="text-xs text-[var(--color-muted)]">{count} antrèman</p>
+        <p className="text-xs text-[var(--color-muted)]">{count} {t({ fr: 'entrées', ht: 'antrèman' })}</p>
       </div>
     </div>
   );
@@ -190,6 +210,7 @@ function SectionTitle({ color, label, count }: { color: string; label: string; c
 // ── DettesInner ───────────────────────────────────────────────────────────────
 
 function DettesInner() {
+  const { t } = useLanguage();
   const [supplierDebts,  setSupplierDebts]  = useState<SupplierDebt[]>(MOCK_DEBTS);
   const [clientCredits,  setClientCredits]  = useState<ClientCredit[]>(MOCK_CREDITS);
   const [loading,        setLoading]        = useState(true);
@@ -204,6 +225,54 @@ function DettesInner() {
   const [debtSearch,     setDebtSearch]     = useState('');
   const [creditSearch,   setCreditSearch]   = useState('');
 
+  // ── Expense debts ──────────────────────────────────────────────────────────────
+  const [expenseDebts,   setExpenseDebts]   = useState<ExpenseDebt[]>([]);
+  const [expenseStatus,  setExpenseStatus]  = useState<FilterStatus>('unpaid');
+  const [expenseCritOnly, setExpenseCritOnly] = useState(false);
+  const [expenseSearch,  setExpenseSearch]  = useState('');
+
+  // ── Business context ──────────────────────────────────────────────────────────
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [exchangeRate, setExchangeRate] = useState(130);
+
+  const getBusinessId = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: biz } = await supabase
+      .from('businesses')
+      .select('id, exchange_rate')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (biz) {
+      setBusinessId(biz.id);
+      setExchangeRate(Number(biz.exchange_rate ?? 130));
+      return biz.id;
+    }
+    return null;
+  }, []);
+
+  const refreshExchangeRate = useCallback(async () => {
+    if (!businessId) return;
+    const { data: bizRes } = await supabase
+      .from('businesses')
+      .select('exchange_rate')
+      .eq('id', businessId)
+      .maybeSingle();
+    if (bizRes?.exchange_rate) setExchangeRate(Number(bizRes.exchange_rate));
+  }, [businessId]);
+
+  // Auto-refresh exchange rate every 60s + on tab visibility change
+  useEffect(() => {
+    refreshExchangeRate();
+    const interval = setInterval(refreshExchangeRate, 60_000);
+    const onVisible = () => { if (!document.hidden) refreshExchangeRate(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshExchangeRate]);
+
   // ── Action loading states ────────────────────────────────────────────────────
   const [payingId, setPayingId] = useState<string | null>(null);
 
@@ -214,6 +283,9 @@ function DettesInner() {
       const { data: { user } } = await supabase.auth.getUser();
       setUserId(user?.id ?? null);
 
+      const bizId = await getBusinessId();
+      if (!bizId) { setLoading(false); return; }
+
       const today = new Date();
 
       // ── Supplier debts ──────────────────────────────────────────────────────
@@ -223,14 +295,16 @@ function DettesInner() {
         supabase
           .from('purchases')
           .select(`
-            id, supplier_id, purchase_date, total_amount, payment_status,
+            id, supplier_id, purchase_date, total_amount, payment_status, currency,
             purchase_items ( product_name, quantity )
           `)
+          .eq('business_id', bizId)
           .is('deleted_at', null)
           .order('purchase_date', { ascending: false }),
         supabase
           .from('suppliers')
           .select('id,name,phone')
+          .eq('business_id', bizId)
           .is('deleted_at', null),
       ]);
 
@@ -259,6 +333,7 @@ function DettesInner() {
           product_name:   productName,
           quantity:       qty,
           amount:         Number(r.total_amount),
+          currency:       r.currency ?? 'HTG',
           purchase_date:  r.purchase_date,
           due_date:       addDays(r.purchase_date, 30),
           days_overdue:   days,
@@ -270,7 +345,8 @@ function DettesInner() {
       // ── Client credits ─────────────────────────────────────────────────────
       const { data: ccRaw } = await supabase
         .from('sales')
-        .select('id,customer_id,customer_name,invoice_number,total_amount,currency,payment_status,created_at')
+        .select('id,customer_id,customer_name,customer_phone,invoice_number,total_amount,currency,payment_status,created_at')
+        .eq('business_id', bizId)
         .eq('payment_status', 'credit')
         .order('created_at', { ascending: false });
 
@@ -280,7 +356,7 @@ function DettesInner() {
           id:             r.id,
           client_id:      r.customer_id ?? null,
           client_name:    r.customer_name ?? '—',
-          client_phone:   null,
+          client_phone:   r.customer_phone ?? null,
           invoice_number: r.invoice_number ?? null,
           amount:         Number(r.total_amount),
           currency:       r.currency ?? 'HTG',
@@ -292,11 +368,37 @@ function DettesInner() {
         };
       });
 
-      // Only show demo if both lists are truly empty after successful fetch
-      const hasReal = debtsData.length > 0 || creditsData.length > 0;
+      // ── Expense debts ─────────────────────────────────────────────────────
+      const { data: expRaw } = await supabase
+        .from('expenses')
+        .select(`id, description, amount, currency, expense_date, expense_categories ( name )`)
+        .eq('business_id', bizId)
+        .eq('payment_status', 'credit')
+        .is('deleted_at', null)
+        .order('expense_date', { ascending: false });
+
+      const expensesData: ExpenseDebt[] = (expRaw ?? []).map((r: any) => {
+        const days = Math.floor((today.getTime() - new Date(r.expense_date).getTime()) / 86_400_000);
+        return {
+          id:             r.id,
+          description:    r.description ?? '—',
+          category:       r.expense_categories?.name ?? '—',
+          amount:         Number(r.amount),
+          currency:       r.currency ?? 'HTG',
+          expense_date:   r.expense_date,
+          due_date:       addDays(r.expense_date, 30),
+          days_overdue:   days,
+          payment_status: 'À Crédit' as const,
+          etat:           computeEtat(days, false),
+        };
+      });
+
+      // Only show demo if all lists are truly empty after successful fetch
+      const hasReal = debtsData.length > 0 || creditsData.length > 0 || expensesData.length > 0;
       setIsDemo(!hasReal);
       setSupplierDebts(hasReal ? debtsData : MOCK_DEBTS);
       setClientCredits(hasReal ? creditsData : MOCK_CREDITS);
+      setExpenseDebts(expensesData);
     } catch (e: any) {
       console.error('[dettes] loadAll error:', e?.message);
       // Do NOT fall back to demo silently — show empty so user knows
@@ -329,6 +431,15 @@ function DettesInner() {
     setPayingId(null);
   }
 
+  async function handlePayExpense(expenseId: string) {
+    setPayingId(expenseId);
+    try {
+      await markExpensePaid(expenseId);
+      await loadAll();
+    } catch { alert('Erè pandan peman depans.'); }
+    setPayingId(null);
+  }
+
   // ── Derived ─────────────────────────────────────────────────────────────────
   const filteredDebts = useMemo(() => {
     let rows = supplierDebts;
@@ -339,6 +450,15 @@ function DettesInner() {
     return rows;
   }, [supplierDebts, debtStatus, debtCritOnly, debtSearch]);
 
+  const filteredExpenses = useMemo(() => {
+    let rows = expenseDebts;
+    if (expenseStatus === 'unpaid') rows = rows.filter(r => r.payment_status === 'À Crédit');
+    else if (expenseStatus === 'paid') rows = rows.filter(r => r.payment_status === 'Payé');
+    if (expenseCritOnly) rows = rows.filter(r => r.etat === 'Critique');
+    if (expenseSearch)   rows = rows.filter(r => r.description.toLowerCase().includes(expenseSearch.toLowerCase()) || r.category.toLowerCase().includes(expenseSearch.toLowerCase()));
+    return rows;
+  }, [expenseDebts, expenseStatus, expenseCritOnly, expenseSearch]);
+
   const filteredCredits = useMemo(() => {
     let rows = clientCredits;
     if (creditStatus === 'unpaid') rows = rows.filter(r => r.payment_status === 'À Crédit');
@@ -348,11 +468,14 @@ function DettesInner() {
     return rows;
   }, [clientCredits, creditStatus, creditCritOnly, creditSearch]);
 
-  // Summary numbers
-  const totalDebtUnpaid   = useMemo(() => supplierDebts.filter(d => d.payment_status === 'À Crédit').reduce((s, d) => s + d.amount, 0), [supplierDebts]);
-  const totalCreditUnpaid = useMemo(() => clientCredits.filter(c => c.payment_status === 'À Crédit').reduce((s, c) => s + c.amount, 0), [clientCredits]);
+  // Summary numbers (all converted to HTG for the top stat cards)
+  const toHtg = (amt: number, cur: string) => (cur === 'USD' ? amt * exchangeRate : amt);
+  const totalDebtUnpaid    = useMemo(() => supplierDebts.filter(d => d.payment_status === 'À Crédit').reduce((s, d) => s + toHtg(d.amount, d.currency), 0), [supplierDebts, exchangeRate]);
+  const totalCreditUnpaid  = useMemo(() => clientCredits.filter(c => c.payment_status === 'À Crédit').reduce((s, c) => s + toHtg(c.amount, c.currency), 0), [clientCredits, exchangeRate]);
+  const totalExpenseUnpaid = useMemo(() => expenseDebts.filter(e => e.payment_status === 'À Crédit').reduce((s, e) => s + toHtg(e.amount, e.currency), 0), [expenseDebts, exchangeRate]);
   const critDebts   = useMemo(() => supplierDebts.filter(d => d.etat === 'Critique' && d.payment_status === 'À Crédit').length, [supplierDebts]);
   const critCredits = useMemo(() => clientCredits.filter(c => c.etat === 'Critique' && c.payment_status === 'À Crédit').length, [clientCredits]);
+  const critExpenses = useMemo(() => expenseDebts.filter(e => e.etat === 'Critique' && e.payment_status === 'À Crédit').length, [expenseDebts]);
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -363,34 +486,38 @@ function DettesInner() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-400/80">ProfitPilot</p>
-            <h1 className="mt-1 text-2xl font-bold md:text-3xl">Jesyon Kredi Aktif</h1>
-            <p className="text-sm text-[var(--color-muted)] mt-0.5">Dèt Founisè · Kreyans Kliyan</p>
+            <h1 className="mt-1 text-2xl font-bold md:text-3xl">{t({ fr: 'Gestion Crédit Actif', ht: 'Jesyon Kredi Aktif' })}</h1>
+            <p className="text-sm text-[var(--color-muted)] mt-0.5">{t({ fr: 'Dettes Fournisseurs · Créances Clients', ht: 'Dèt Founisè · Kreyans Kliyan' })}</p>
           </div>
           {isDemo && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              Données démo
+              {t({ fr: 'Données démo', ht: 'Done demo' })}
             </span>
           )}
         </div>
 
         {/* ── Stat Cards ──────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Dèt Founisè" value={fmtAmt(totalDebtUnpaid)}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <StatCard label={t({ fr: 'Dettes Fournisseurs', ht: 'Dèt Founisè' })} value={fmtAmt(totalDebtUnpaid)}
             accent="text-orange-400" glow="bg-orange-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>}
           />
-          <StatCard label="Kreyans Kliyan" value={fmtAmt(totalCreditUnpaid)}
+          <StatCard label={t({ fr: 'Créances Clients', ht: 'Kreyans Kliyan' })} value={fmtAmt(totalCreditUnpaid)}
             accent="text-blue-400" glow="bg-blue-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>}
           />
-          <StatCard label="Dèt Critique" value={`${critDebts} dèt`}
-            sub={critDebts > 0 ? '+30 jou san peman' : 'Tout an règ'}
+          <StatCard label={t({ fr: 'Dépenses Dues', ht: 'Depans Dite' })} value={fmtAmt(totalExpenseUnpaid)}
+            accent="text-violet-400" glow="bg-violet-500"
+            icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>}
+          />
+          <StatCard label={t({ fr: 'Dettes Critiques', ht: 'Dèt Critique' })} value={`${critDebts + critExpenses} ${t({ fr: 'impayés', ht: 'san peye' })}`}
+            sub={critDebts + critExpenses > 0 ? t({ fr: '+30 jours sans paiement', ht: '+30 jou san peman' }) : t({ fr: 'Tout en règle', ht: 'Tout an règ' })}
             accent="text-red-400" glow="bg-red-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
           />
-          <StatCard label="Kreyans Critique" value={`${critCredits} kliyan`}
-            sub={critCredits > 0 ? '+30 jou san peman' : 'Tout an règ'}
+          <StatCard label={t({ fr: 'Créances Critiques', ht: 'Kreyans Critique' })} value={`${critCredits} ${t({ fr: 'clients', ht: 'kliyan' })}`}
+            sub={critCredits > 0 ? t({ fr: '+30 jours sans paiement', ht: '+30 jou san peman' }) : t({ fr: 'Tout en règle', ht: 'Tout an règ' })}
             accent="text-red-400" glow="bg-red-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
           />
@@ -403,7 +530,7 @@ function DettesInner() {
 
           {/* Section header */}
           <div className="flex flex-col gap-3 border-b border-[var(--color-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <SectionTitle color="bg-orange-500" label="Dèt Founisè" count={filteredDebts.length} />
+            <SectionTitle color="bg-orange-500" label={t({ fr: 'Dettes Fournisseurs', ht: 'Dèt Founisè' })} count={filteredDebts.length} />
 
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-2">
@@ -413,7 +540,7 @@ function DettesInner() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input
-                  type="text" placeholder="Rechèch…" value={debtSearch}
+                  type="text" placeholder={t({ fr: 'Recherche…', ht: 'Rechèch…' })} value={debtSearch}
                   onChange={e => setDebtSearch(e.target.value)}
                   className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-orange-500/60 transition"
                 />
@@ -434,7 +561,7 @@ function DettesInner() {
                     ? 'bg-red-500/25 text-red-300 border border-red-500/50'
                     : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)] hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full bg-red-400 ${debtCritOnly ? 'animate-pulse' : ''}`} />
-                Critique sèlman
+                {t({ fr: 'Critique seulement', ht: 'Critique sèlman' })}
               </button>
             </div>
           </div>
@@ -444,9 +571,9 @@ function DettesInner() {
             <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
-                  {['Founisè', 'Pwodui', 'Dat Ref.', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'].map(h => (
+                  {(['Founisè', 'Pwodui', 'Dat Ref.', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'] as const).map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
-                      {h}
+                      {t({ fr: { Founisè: 'Fournisseur', Pwodui: 'Produit', 'Dat Ref.': 'Date Réf.', 'Dat Échéance': 'Date Échéance', 'Montan Rete': 'Montant Restant', 'État': 'État', Relanse: 'Relance', Aksyon: 'Action' }[h] || h, ht: h })}
                     </th>
                   ))}
                 </tr>
@@ -465,7 +592,7 @@ function DettesInner() {
                 ) : filteredDebts.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-[var(--color-muted)] text-sm">
-                      Pa gen dèt pou filtè sa a.
+                      {t({ fr: 'Aucune dette pour ce filtre.', ht: 'Pa gen dèt pou filtè sa a.' })}
                     </td>
                   </tr>
                 ) : filteredDebts.map((debt, i) => {
@@ -526,10 +653,10 @@ function DettesInner() {
                             onClick={() => handlePayDebt(debt.id)}
                             disabled={payingId === debt.id}
                             className="rounded-lg bg-emerald-600/80 hover:bg-emerald-600 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition">
-                            {payingId === debt.id ? '…' : 'Peye'}
+                            {payingId === debt.id ? '…' : t({ fr: 'Payer', ht: 'Peye' })}
                           </button>
                         ) : (
-                          <span className="text-xs text-emerald-400">✓ Peye</span>
+                          <span className="text-xs text-emerald-400">{t({ fr: '✓ Payé', ht: '✓ Peye' })}</span>
                         )}
                       </td>
                     </tr>
@@ -541,20 +668,145 @@ function DettesInner() {
 
           {/* Section footer */}
           <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span>Total annatant: <span className="text-orange-400 font-semibold">{fmtAmt(totalDebtUnpaid)}</span></span>
-            <span>Critique: <span className="text-red-400 font-semibold">{critDebts}</span></span>
-            <span>Atansyon: <span className="text-orange-400 font-semibold">{supplierDebts.filter(d => d.etat === 'Atansyon' && d.payment_status === 'À Crédit').length}</span></span>
+            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-orange-400 font-semibold">{fmtAmt(totalDebtUnpaid)}</span></span>
+            <span>{t({ fr: 'Critique:', ht: 'Critique:' })} <span className="text-red-400 font-semibold">{critDebts}</span></span>
+            <span>{t({ fr: 'Attention:', ht: 'Atansyon:' })} <span className="text-orange-400 font-semibold">{supplierDebts.filter(d => d.etat === 'Atansyon' && d.payment_status === 'À Crédit').length}</span></span>
           </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            SECTION 2 — Kreyans Kliyan
+            SECTION 2 — Dépenses Dues
         ════════════════════════════════════════════════════════════════════ */}
         <div className="rounded-2xl border border-[var(--color-border)] bg-white backdrop-blur-xl overflow-hidden">
 
           {/* Section header */}
           <div className="flex flex-col gap-3 border-b border-[var(--color-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <SectionTitle color="bg-blue-500" label="Kreyans Kliyan" count={filteredCredits.length} />
+            <SectionTitle color="bg-violet-500" label={t({ fr: 'Dépenses Dues', ht: 'Depans Dite' })} count={filteredExpenses.length} />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  type="text" placeholder={t({ fr: 'Recherche…', ht: 'Rechèch…' })} value={expenseSearch}
+                  onChange={e => setExpenseSearch(e.target.value)}
+                  className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-violet-500/60 transition"
+                />
+              </div>
+              {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
+                <button key={s} onClick={() => setExpenseStatus(s)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
+                    ${expenseStatus === s ? 'bg-violet-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
+                  {s === 'all' ? 'Tout' : s === 'unpaid' ? 'À Crédit' : 'Payé'}
+                </button>
+              ))}
+              <button
+                onClick={() => setExpenseCritOnly(p => !p)}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition
+                  ${expenseCritOnly
+                    ? 'bg-red-500/25 text-red-300 border border-red-500/50'
+                    : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)] hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
+                <span className={`h-1.5 w-1.5 rounded-full bg-red-400 ${expenseCritOnly ? 'animate-pulse' : ''}`} />
+                {t({ fr: 'Critique seulement', ht: 'Critique sèlman' })}
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[680px]">
+              <thead>
+                <tr className="border-b border-[var(--color-border)]">
+                  {(['Deskripsyon', 'Kategori', 'Dat Depans', 'Dat Échéance', 'Montan Rete', 'État', 'Aksyon'] as const).map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
+                      {t({ fr: { Deskripsyon: 'Description', Kategori: 'Catégorie', 'Dat Depans': 'Date Dépense', 'Dat Échéance': 'Date Échéance', 'Montan Rete': 'Montant Restant', 'État': 'État', Aksyon: 'Action' }[h] || h, ht: h })}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [...Array(4)].map((_, i) => (
+                    <tr key={i} className="border-b border-[var(--color-border)]">
+                      {[...Array(7)].map((_, j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="h-3 rounded bg-[var(--color-surface)] animate-pulse" style={{ width: `${35 + Math.random() * 50}%` }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : filteredExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-[var(--color-muted)] text-sm">
+                      {t({ fr: 'Aucune dépense due pour ce filtre.', ht: 'Pa gen depans dite pou filtè sa a.' })}
+                    </td>
+                  </tr>
+                ) : filteredExpenses.map((exp, i) => (
+                  <tr key={exp.id}
+                    className={`border-b border-[var(--color-border)] transition-colors group
+                      ${exp.etat === 'Critique' && exp.payment_status === 'À Crédit' ? 'bg-red-50' : ''}
+                      ${i % 2 === 0 ? '' : 'bg-[var(--color-surface)]'}
+                      hover:bg-slate-50`}>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-xs font-bold text-violet-400">
+                          {exp.description.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-[var(--color-text)] text-sm max-w-[200px] truncate" title={exp.description}>{exp.description}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-[var(--color-muted)] text-xs">{exp.category}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-[var(--color-muted)] text-xs font-mono">{fmtDate(exp.expense_date)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs">
+                      <span className={exp.etat === 'Critique' ? 'text-red-400 font-semibold' : exp.etat === 'Atansyon' ? 'text-orange-400' : 'text-[var(--color-muted)]'}>
+                        {fmtDate(exp.due_date)}
+                      </span>
+                      {exp.payment_status === 'À Crédit' && (
+                        <span className="ml-1.5 text-[var(--color-muted)]">({exp.days_overdue}j)</span>
+                      )}
+                    </td>
+                    <td className={`px-4 py-3 whitespace-nowrap font-bold tabular-nums
+                      ${exp.payment_status === 'Payé' ? 'text-emerald-400' : 'text-[var(--color-text)]'}`}>
+                      {fmtAmt(exp.amount, exp.currency)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {exp.payment_status === 'Payé'
+                        ? <StatusBadge status="Payé" />
+                        : <EtatBadge etat={exp.etat} />}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {exp.payment_status === 'À Crédit' ? (
+                        <button
+                          onClick={() => handlePayExpense(exp.id)}
+                          disabled={payingId === exp.id}
+                          className="rounded-lg bg-violet-600/80 hover:bg-violet-600 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition">
+                          {payingId === exp.id ? '…' : t({ fr: 'Payer', ht: 'Peye' })}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-emerald-400">{t({ fr: '✓ Payé', ht: '✓ Peye' })}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
+            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-violet-400 font-semibold">{fmtAmt(totalExpenseUnpaid)}</span></span>
+            <span>{t({ fr: 'Critique:', ht: 'Critique:' })} <span className="text-red-400 font-semibold">{critExpenses}</span></span>
+            <span>{t({ fr: 'Attention:', ht: 'Atansyon:' })} <span className="text-orange-400 font-semibold">{expenseDebts.filter(e => e.etat === 'Atansyon' && e.payment_status === 'À Crédit').length}</span></span>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            SECTION 3 — Kreyans Kliyan
+        ════════════════════════════════════════════════════════════════════ */}
+        <div className="rounded-2xl border border-[var(--color-border)] bg-white backdrop-blur-xl overflow-hidden">
+
+          {/* Section header */}
+          <div className="flex flex-col gap-3 border-b border-[var(--color-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <SectionTitle color="bg-blue-500" label={t({ fr: 'Créances Clients', ht: 'Kreyans Kliyan' })} count={filteredCredits.length} />
 
             <div className="flex flex-wrap items-center gap-2">
               {/* Search */}
@@ -563,7 +815,7 @@ function DettesInner() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input
-                  type="text" placeholder="Rechèch…" value={creditSearch}
+                  type="text" placeholder={t({ fr: 'Recherche…', ht: 'Rechèch…' })} value={creditSearch}
                   onChange={e => setCreditSearch(e.target.value)}
                   className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-blue-500/60 transition"
                 />
@@ -572,7 +824,7 @@ function DettesInner() {
                 <button key={s} onClick={() => setCreditStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
                     ${creditStatus === s ? 'bg-blue-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
-                  {s === 'all' ? 'Tout' : s === 'unpaid' ? 'À Crédit' : 'Payé'}
+                  {s === 'all' ? t({ fr: 'Tout', ht: 'Tout' }) : s === 'unpaid' ? t({ fr: 'À Crédit', ht: 'À Crédit' }) : t({ fr: 'Payé', ht: 'Payé' })}
                 </button>
               ))}
               {/* Smart filter */}
@@ -583,7 +835,7 @@ function DettesInner() {
                     ? 'bg-red-500/25 text-red-300 border border-red-500/50'
                     : 'bg-[var(--color-surface)] text-[var(--color-muted)] border border-[var(--color-border)] hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/30'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full bg-red-400 ${creditCritOnly ? 'animate-pulse' : ''}`} />
-                Critique sèlman
+                {t({ fr: 'Critique seulement', ht: 'Critique sèlman' })}
               </button>
             </div>
           </div>
@@ -593,9 +845,9 @@ function DettesInner() {
             <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
-                  {['Kliyan', 'Fakti #', 'Dat Kredi', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'].map(h => (
+                  {(['Kliyan', 'Fakti #', 'Dat Kredi', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'] as const).map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
-                      {h}
+                      {t({ fr: { Kliyan: 'Client', 'Fakti #': 'Facture #', 'Dat Kredi': 'Date Crédit', 'Dat Échéance': 'Date Échéance', 'Montan Rete': 'Montant Restant', 'État': 'État', Relanse: 'Relance', Aksyon: 'Action' }[h] || h, ht: h })}
                     </th>
                   ))}
                 </tr>
@@ -614,7 +866,7 @@ function DettesInner() {
                 ) : filteredCredits.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-[var(--color-muted)] text-sm">
-                      Pa gen kreyans pou filtè sa a.
+                      {t({ fr: 'Aucune créance pour ce filtre.', ht: 'Pa gen kreyans pou filtè sa a.' })}
                     </td>
                   </tr>
                 ) : filteredCredits.map((cc, i) => {
@@ -675,10 +927,10 @@ function DettesInner() {
                             onClick={() => handlePayCredit(cc.id)}
                             disabled={payingId === cc.id}
                             className="rounded-lg bg-blue-600/80 hover:bg-blue-600 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition">
-                            {payingId === cc.id ? '…' : 'Touche'}
+                            {payingId === cc.id ? '…' : t({ fr: 'Encaisser', ht: 'Touche' })}
                           </button>
                         ) : (
-                          <span className="text-xs text-emerald-400">✓ Touche</span>
+                          <span className="text-xs text-emerald-400">{t({ fr: '✓ Encaissé', ht: '✓ Touche' })}</span>
                         )}
                       </td>
                     </tr>
@@ -690,9 +942,9 @@ function DettesInner() {
 
           {/* Section footer */}
           <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span>Total annatant: <span className="text-blue-400 font-semibold">{fmtAmt(totalCreditUnpaid)}</span></span>
-            <span>Critique: <span className="text-red-400 font-semibold">{critCredits}</span></span>
-            <span>Atansyon: <span className="text-orange-400 font-semibold">{clientCredits.filter(c => c.etat === 'Atansyon' && c.payment_status === 'À Crédit').length}</span></span>
+            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-blue-400 font-semibold">{fmtAmt(totalCreditUnpaid)}</span></span>
+            <span>{t({ fr: 'Critique:', ht: 'Critique:' })} <span className="text-red-400 font-semibold">{critCredits}</span></span>
+            <span>{t({ fr: 'Attention:', ht: 'Atansyon:' })} <span className="text-orange-400 font-semibold">{clientCredits.filter(c => c.etat === 'Atansyon' && c.payment_status === 'À Crédit').length}</span></span>
           </div>
         </div>
 

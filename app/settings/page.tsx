@@ -75,6 +75,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 }
 
 function CopyBtn({ text }: { text: string }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -87,7 +88,7 @@ function CopyBtn({ text }: { text: string }) {
       className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition"
     >
       {copied ? <Check className="h-3 w-3 inline" /> : <Copy className="h-3 w-3 inline" />}
-      <span className="ml-1">{copied ? 'Copié' : 'Copier'}</span>
+      <span className="ml-1">{copied ? t({ fr: 'Copié', ht: 'Kopiye' }) : t({ fr: 'Copier', ht: 'Kopiye' })}</span>
     </button>
   );
 }
@@ -95,10 +96,10 @@ function CopyBtn({ text }: { text: string }) {
 // ── tab config ─────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'profile',    label: 'Profil',      icon: Building2  },
-  { id: 'payments',   label: 'Paiements',   icon: CreditCard },
-  { id: 'prefs',      label: 'Préférences', icon: Settings2  },
-  { id: 'security',   label: 'Sécurité',    icon: Shield     },
+  { id: 'profile' as const, label: 'Profil', labelT: { fr: 'Profil', ht: 'Pwofil' }, icon: Building2  },
+  { id: 'payments' as const, label: 'Paiements', labelT: { fr: 'Paiements', ht: 'Peman' }, icon: CreditCard },
+  { id: 'prefs' as const, label: 'Préférences', labelT: { fr: 'Préférences', ht: 'Preferans' }, icon: Settings2  },
+  { id: 'security' as const, label: 'Sécurité', labelT: { fr: 'Sécurité', ht: 'Sekirite' }, icon: Shield     },
 ] as const;
 type TabId = typeof TABS[number]['id'];
 
@@ -108,7 +109,9 @@ const PAYMENT_METHODS = [
   {
     key: 'moncash',
     label: 'MonCash',
+    labelT: { fr: 'MonCash', ht: 'MonCash' },
     description: 'Peman mobil via Digicel Haiti',
+    descriptionT: { fr: 'Paiement mobile via Digicel Haïti', ht: 'Peman mobil via Digicel Haiti' },
     icon: Smartphone,
     gradient: 'from-pink-50 to-rose-50',
     accent: 'text-pink-600',
@@ -118,7 +121,9 @@ const PAYMENT_METHODS = [
   {
     key: 'natcash',
     label: 'NatCash',
+    labelT: { fr: 'NatCash', ht: 'NatCash' },
     description: 'Peman mobil via Natcom Haiti',
+    descriptionT: { fr: 'Paiement mobile via Natcom Haïti', ht: 'Peman mobil via Natcom Haiti' },
     icon: Smartphone,
     gradient: 'from-purple-50 to-violet-50',
     accent: 'text-purple-600',
@@ -128,7 +133,9 @@ const PAYMENT_METHODS = [
   {
     key: 'visa',
     label: 'Carte Visa / Mastercard',
+    labelT: { fr: 'Carte Visa / Mastercard', ht: 'Kat Visa / Mastercard' },
     description: 'Peman pa kat kredi ou debi',
+    descriptionT: { fr: 'Paiement par carte de crédit ou débit', ht: 'Peman pa kat kredi ou debi' },
     icon: Wallet,
     gradient: 'from-blue-50 to-sky-50',
     accent: 'text-blue-600',
@@ -138,7 +145,9 @@ const PAYMENT_METHODS = [
   {
     key: 'cash',
     label: 'Espèces (Kach)',
+    labelT: { fr: 'Espèces (Kach)', ht: 'Espès (Kach)' },
     description: 'Peman an lajan kach dirèkteman',
+    descriptionT: { fr: 'Paiement en espèces directement', ht: 'Peman an lajan kach dirèkteman' },
     icon: Banknote,
     gradient: 'from-emerald-50 to-teal-50',
     accent: 'text-emerald-600',
@@ -152,6 +161,7 @@ const PAYMENT_METHODS = [
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ProfileTab({ userId }: { userId: string | undefined }) {
+  const { t } = useLanguage();
   const { profile } = useSettings();
   const dbData = profile.query.data;
 
@@ -197,7 +207,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
       const rate = Number(json?.rates?.HTG ?? 0);
       if (!rate || isNaN(rate)) throw new Error('Rate not found');
       setForm(prev => ({ ...prev, exchange_rate: parseFloat(rate.toFixed(2)) }));
-      toast.success(`✓ Taux actualisé : 1 USD = ${rate.toFixed(2)} HTG`);
+      toast.success(`${t({ fr: 'Taux actualisé :', ht: 'To mete ajou :' })} 1 USD = ${rate.toFixed(2)} HTG`);
     } catch {
       // Fallback to Frankfurter API
       try {
@@ -206,11 +216,11 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
         const rate2 = Number(json2?.rates?.HTG ?? 0);
         if (rate2 && !isNaN(rate2)) {
           setForm(prev => ({ ...prev, exchange_rate: parseFloat(rate2.toFixed(2)) }));
-          toast.success(`✓ Taux actualisé : 1 USD = ${rate2.toFixed(2)} HTG`);
+          toast.success(`${t({ fr: 'Taux actualisé :', ht: 'To mete ajou :' })} 1 USD = ${rate2.toFixed(2)} HTG`);
           return;
         }
       } catch { /* ignore */ }
-      toast.error('Impossible de récupérer le taux. Vérifiez votre connexion.');
+      toast.error(t({ fr: 'Impossible de récupérer le taux. Vérifiez votre connexion.', ht: 'Enposib rekipere to a. Verifye koneksyon ou.' }));
     } finally {
       setRateLoading(false);
     }
@@ -221,16 +231,18 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
   const fields: Array<{
     key: keyof BusinessProfileInput;
     label: string;
+    labelT: { fr: string; ht: string };
     placeholder: string;
+    placeholderT: { fr: string; ht: string };
     icon: React.ElementType;
     type?: string;
   }> = [
-    { key: 'name',    label: 'Nom de l\'entreprise', placeholder: 'Mon Entreprise',  icon: Building2 },
-    { key: 'sector',  label: 'Secteur d\'activité',  placeholder: 'Commerce, BTP…',  icon: Globe     },
-    { key: 'phone',   label: 'Téléphone',            placeholder: '+509 ___-____',   icon: Phone     },
-    { key: 'address', label: 'Adresse',              placeholder: 'Port-au-Prince…', icon: MapPin    },
-    { key: 'website', label: 'Site web',             placeholder: 'https://…',       icon: Globe, type: 'url' },
-    { key: 'tax_id',  label: 'NIF / TIN',            placeholder: 'Numéro fiscal',   icon: Shield    },
+    { key: 'name',    label: 'Nom de l\'entreprise', labelT: { fr: 'Nom de l\'entreprise', ht: 'Non antrepriz la' }, placeholder: 'Mon Entreprise', placeholderT: { fr: 'Mon Entreprise', ht: 'Mon Antrepriz' }, icon: Building2 },
+    { key: 'sector',  label: 'Secteur d\'activité', labelT: { fr: 'Secteur d\'activité', ht: 'Sektè aktivite' }, placeholder: 'Commerce, BTP…', placeholderT: { fr: 'Commerce, BTP…', ht: 'Komès, BTP…' }, icon: Globe },
+    { key: 'phone',   label: 'Téléphone', labelT: { fr: 'Téléphone', ht: 'Telefòn' }, placeholder: '+509 ___-____', placeholderT: { fr: '+509 ___-____', ht: '+509 ___-____' }, icon: Phone },
+    { key: 'address', label: 'Adresse', labelT: { fr: 'Adresse', ht: 'Adrès' }, placeholder: 'Port-au-Prince…', placeholderT: { fr: 'Port-au-Prince…', ht: 'Pòtoprens…' }, icon: MapPin },
+    { key: 'website', label: 'Site web', labelT: { fr: 'Site web', ht: 'Sit wèb' }, placeholder: 'https://…', placeholderT: { fr: 'https://…', ht: 'https://…' }, icon: Globe, type: 'url' },
+    { key: 'tax_id',  label: 'NIF / TIN', labelT: { fr: 'NIF / TIN', ht: 'NIF / TIN' }, placeholder: 'Numéro fiscal', placeholderT: { fr: 'Numéro fiscal', ht: 'Nimewo fiskal' }, icon: Shield },
   ];
 
   return (
@@ -238,18 +250,18 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
       <GlassCard>
         <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Building2 className="h-4 w-4 text-emerald-400" />
-          Profil de l'entreprise
+          {t({ fr: 'Profil de l\'entreprise', ht: 'Pwofil antrepriz la' })}
         </h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {fields.map(({ key, label, placeholder, icon: Icon, type }) => (
+          {fields.map(({ key, label, labelT, placeholder, placeholderT, icon: Icon, type }) => (
             <div key={key}>
-              <Label>{label}</Label>
+              <Label>{t(labelT)}</Label>
               <div className="relative">
                 <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" />
                 <Input
                   type={type ?? 'text'}
-                  placeholder={placeholder}
+                  placeholder={t(placeholderT)}
                   value={String(form[key] ?? '')}
                   onChange={set(key)}
                   className="pl-9"
@@ -263,24 +275,24 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
       <GlassCard>
         <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <DollarSign className="h-4 w-4 text-emerald-400" />
-          Devise &amp; Taux de change
+          {t({ fr: 'Devise & Taux de change', ht: 'Lajan & To chanj' })}
         </h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label>Devise par défaut</Label>
+            <Label>{t({ fr: 'Devise par défaut', ht: 'Lajan defo' })}</Label>
             <select
               value={form.default_currency}
               onChange={set('default_currency')}
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
             >
-              <option value="HTG">HTG — Gourde haïtienne</option>
-              <option value="USD">USD — Dollar américain</option>
+              <option value="HTG">{t({ fr: 'HTG — Gourde haïtienne', ht: 'HTG — Goud ayisyen' })}</option>
+              <option value="USD">{t({ fr: 'USD — Dollar américain', ht: 'USD — Dola ameriken' })}</option>
             </select>
           </div>
 
           <div>
-            <Label>Taux USD → HTG</Label>
+            <Label>{t({ fr: 'Taux USD → HTG', ht: 'To USD → HTG' })}</Label>
             <div className="flex gap-2">
               <Input
                 type="number"
@@ -293,7 +305,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
                 onClick={fetchLiveRate}
                 disabled={rateLoading}
                 className="flex-shrink-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-muted)] hover:text-emerald-400 transition disabled:opacity-50"
-                title="Taux en direct"
+                title={t({ fr: 'Taux en direct', ht: 'To an dirèk' })}
               >
                 <RefreshCw className={cn('h-4 w-4', rateLoading && 'animate-spin')} />
               </button>
@@ -310,7 +322,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
           className="flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
-          {profile.mutation.isPending ? 'Sauvegarde…' : 'Enregistrer le profil'}
+          {profile.mutation.isPending ? t({ fr: 'Sauvegarde…', ht: 'Sovgad…' }) : t({ fr: 'Enregistrer le profil', ht: 'Anrejistre pwofil la' })}
         </button>
       </div>
     </div>
@@ -322,15 +334,16 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function PaymentsTab() {
+  const { t } = useLanguage();
   return (
     <div className="space-y-4">
       <GlassCard>
         <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <CreditCard className="h-4 w-4 text-emerald-400" />
-          Méthodes de paiement configurées
+          {t({ fr: 'Méthodes de paiement configurées', ht: 'Metòd peman konfigire' })}
         </h2>
         <p className="mb-5 text-xs text-[var(--color-muted)]">
-          Numéros et intégrations actifs pour recevoir les paiements de vos clients.
+          {t({ fr: 'Numéros et intégrations actifs pour recevoir les paiements de vos clients.', ht: 'Nimewo ak entegrasyon aktif pou resevwa peman kliyan ou yo.' })}
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -350,17 +363,17 @@ function PaymentsTab() {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-[var(--color-text)]">{pm.label}</p>
-                      <p className="text-xs text-[var(--color-muted)]">{pm.description}</p>
+                      <p className="text-sm font-semibold text-[var(--color-text)]">{t(pm.labelT)}</p>
+                      <p className="text-xs text-[var(--color-muted)]">{t(pm.descriptionT)}</p>
                     </div>
                   </div>
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    Aktif
+                    {t({ fr: 'Actif', ht: 'Aktif' })}
                   </span>
                 </div>
 
                 <p className="mt-3 rounded-lg bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)]">
-                  {pm.key === 'cash' ? 'Peman fizik — pa bezwen konfigirasyon.' : 'Peman mobil — aksepte dirèkteman.'}
+                  {pm.key === 'cash' ? t({ fr: 'Paiement physique — pas besoin de configuration.', ht: 'Peman fizik — pa bezwen konfigirasyon.' }) : t({ fr: 'Paiement mobile — accepté directement.', ht: 'Peman mobil — aksepte dirèkteman.' })}
                 </p>
 
                 {pm.key === 'moncash' && pm.apiLink && (
@@ -373,7 +386,7 @@ function PaymentsTab() {
                       pm.accent,
                     )}
                   >
-                    Portail Moncash Business
+                    {t({ fr: 'Portail Moncash Business', ht: 'Portal Moncash Business' })}
                     <ChevronRight className="h-3 w-3" />
                   </a>
                 )}
@@ -394,7 +407,7 @@ function PaymentsTab() {
 function PreferencesTab({ userId }: { userId: string | undefined }) {
   const { prefs } = useSettings();
   const { isDark, setTheme } = useTheme();
-  const { language: currentLang, setLanguage } = useLanguage();
+  const { language: currentLang, setLanguage, t } = useLanguage();
   const raw = prefs.query.data;
 
   const [form, setForm] = useState<UserPreferencesInput>({
@@ -437,30 +450,30 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
       <GlassCard>
         <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Languages className="h-4 w-4 text-emerald-400" />
-          Langue &amp; Devise
+          {t({ fr: 'Langue & Devise', ht: 'Lang & Lajan' })}
         </h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label>Langue de l'interface</Label>
+            <Label>{t({ fr: 'Langue de l\'interface', ht: 'Lang entèfas la' })}</Label>
             <select
               value={form.language}
               onChange={(e) => setForm(prev => ({ ...prev, language: e.target.value as 'fr' | 'ht' }))}
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
             >
-              <option value="fr">🇫🇷 Français</option>
-              <option value="ht">🇭🇹 Kreyòl ayisyen</option>
+              <option value="fr">{t({ fr: '🇫🇷 Français', ht: '🇫🇷 Fransè' })}</option>
+              <option value="ht">{t({ fr: '🇭🇹 Kreyòl ayisyen', ht: '🇭🇹 Kreyòl ayisyen' })}</option>
             </select>
           </div>
           <div>
-            <Label>Devise d'affichage</Label>
+            <Label>{t({ fr: 'Devise d\'affichage', ht: 'Lajan afichaj' })}</Label>
             <select
               value={form.currency}
               onChange={(e) => setForm(prev => ({ ...prev, currency: e.target.value as 'HTG' | 'USD' }))}
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20"
             >
-              <option value="HTG">HTG — Gourde haïtienne</option>
-              <option value="USD">USD — Dollar américain</option>
+              <option value="HTG">{t({ fr: 'HTG — Gourde haïtienne', ht: 'HTG — Goud ayisyen' })}</option>
+              <option value="USD">{t({ fr: 'USD — Dollar américain', ht: 'USD — Dola ameriken' })}</option>
             </select>
           </div>
         </div>
@@ -469,21 +482,21 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
       <GlassCard>
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Bell className="h-4 w-4 text-emerald-400" />
-          Interface &amp; Notifications
+          {t({ fr: 'Interface & Notifications', ht: 'Entèfas & Notifikasyon' })}
         </h2>
         <div className="divide-y divide-[var(--color-border)]">
           <Toggle
-            label="Mode sombre"
+            label={t({ fr: 'Mode sombre', ht: 'Mòd fè nwa' })}
             checked={isDark}
             onChange={handleDarkModeToggle}
           />
           <Toggle
-            label="Notifications activées"
+            label={t({ fr: 'Notifications activées', ht: 'Notifikasyon aktive' })}
             checked={form.notifications_enabled}
             onChange={(v) => setForm(prev => ({ ...prev, notifications_enabled: v }))}
           />
           <Toggle
-            label="Sauvegarde automatique des formulaires"
+            label={t({ fr: 'Sauvegarde automatique des formulaires', ht: 'Sovodòt otomatik fòm yo' })}
             checked={form.auto_save}
             onChange={(v) => setForm(prev => ({ ...prev, auto_save: v }))}
           />
@@ -498,7 +511,7 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
           className="flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
-          {prefs.mutation.isPending ? 'Sauvegarde…' : 'Enregistrer les préférences'}
+          {prefs.mutation.isPending ? t({ fr: 'Sauvegarde…', ht: 'Sovgad…' }) : t({ fr: 'Enregistrer les préférences', ht: 'Anrejistre preferans yo' })}
         </button>
       </div>
     </div>
@@ -510,6 +523,7 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEmail: string | undefined }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pw,    setPw]    = useState('');
   const [pw2,   setPw2]   = useState('');
@@ -525,11 +539,11 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
 
   const handleChangePassword = async () => {
     if (!pw || pw !== pw2) {
-      toast.error('Les mots de passe ne correspondent pas');
+      toast.error(t({ fr: 'Les mots de passe ne correspondent pas', ht: 'Modpas yo pa koresponn' }));
       return;
     }
     if (pw.length < 8) {
-      toast.error('Minimum 8 caractères');
+      toast.error(t({ fr: 'Minimum 8 caractères', ht: 'Minimòm 8 karaktè' }));
       return;
     }
     setPwBusy(true);
@@ -538,7 +552,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Mot de passe mis à jour ✓');
+      toast.success(t({ fr: 'Mot de passe mis à jour ✓', ht: 'Modpas mete ajou ✓' }));
       setPw(''); setPw2('');
     }
   };
@@ -554,9 +568,9 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       a.download = `profitpilot-export-${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Export téléchargé ✓');
+      toast.success(t({ fr: 'Export téléchargé ✓', ht: 'Ekspòtasyon telechaje ✓' }));
     } catch (e: any) {
-      toast.error(e.message ?? 'Export échoué');
+      toast.error(e.message ?? t({ fr: 'Export échoué', ht: 'Ekspòtasyon echwe' }));
     } finally {
       setExportBusy(false);
     }
@@ -570,7 +584,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       await supabase.auth.signOut();
       router.replace('/auth/login');
     } catch (e: any) {
-      toast.error(e.message ?? 'Suppression échouée');
+      toast.error(e.message ?? t({ fr: 'Suppression échouée', ht: 'Efase echwe' }));
     } finally {
       setDeleteBusy(false);
     }
@@ -582,15 +596,15 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       <GlassCard>
         <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <CircleUser className="h-4 w-4 text-emerald-400" />
-          Compte connecté
+          {t({ fr: 'Compte connecté', ht: 'Kont konekte' })}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-[var(--color-surface)] px-4 py-3">
-            <p className="text-xs text-[var(--color-muted)]">Email</p>
+            <p className="text-xs text-[var(--color-muted)]">{t({ fr: 'Email', ht: 'Imèl' })}</p>
             <p className="mt-1 font-mono text-sm text-[var(--color-text)]">{userEmail ?? '—'}</p>
           </div>
           <div className="rounded-xl bg-[var(--color-surface)] px-4 py-3">
-            <p className="text-xs text-[var(--color-muted)]">ID utilisateur</p>
+            <p className="text-xs text-[var(--color-muted)]">{t({ fr: 'ID utilisateur', ht: 'ID itilizatè' })}</p>
             <p className="mt-1 truncate font-mono text-xs text-[var(--color-muted)]">{userId ?? '—'}</p>
           </div>
         </div>
@@ -601,7 +615,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
             className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-2.5 text-sm font-semibold text-red-400 hover:bg-red-500/20 transition"
           >
             <LogOut className="h-4 w-4" />
-            Se déconnecter
+            {t({ fr: 'Se déconnecter', ht: 'Dekonekte' })}
           </button>
         </div>
       </GlassCard>
@@ -610,11 +624,11 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       <GlassCard>
         <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Key className="h-4 w-4 text-emerald-400" />
-          Changer de mot de passe
+          {t({ fr: 'Changer de mot de passe', ht: 'Chanje modpas' })}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label>Nouveau mot de passe</Label>
+            <Label>{t({ fr: 'Nouveau mot de passe', ht: 'Nouvo modpas' })}</Label>
             <Input
               type="password"
               placeholder="••••••••"
@@ -623,7 +637,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
             />
           </div>
           <div>
-            <Label>Confirmer le mot de passe</Label>
+            <Label>{t({ fr: 'Confirmer le mot de passe', ht: 'Konfime modpas la' })}</Label>
             <Input
               type="password"
               placeholder="••••••••"
@@ -640,7 +654,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
             className="flex items-center gap-2 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-[var(--color-text)] hover:bg-slate-200 transition disabled:opacity-40"
           >
             <Save className="h-4 w-4" />
-            {pwBusy ? 'Mise à jour…' : 'Mettre à jour'}
+            {pwBusy ? t({ fr: 'Mise à jour…', ht: 'Ap mete ajou…' }) : t({ fr: 'Mettre à jour', ht: 'Mete ajou' })}
           </button>
         </div>
       </GlassCard>
@@ -650,10 +664,10 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       <GlassCard>
         <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Download className="h-4 w-4 text-emerald-400" />
-          Exporter vos données
+          {t({ fr: 'Exporter vos données', ht: 'Ekspòte done ou yo' })}
         </h2>
         <p className="mb-4 text-xs text-[var(--color-muted)]">
-          Téléchargez toutes vos données (ventes, dépenses, produits, clients…) au format JSON.
+          {t({ fr: 'Téléchargez toutes vos données (ventes, dépenses, produits, clients…) au format JSON.', ht: 'Telechaje tout done ou yo (vant, depans, pwodwi, kliyan…) nan fòma JSON.' })}
         </p>
         <button
           type="button"
@@ -662,7 +676,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
           className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20 transition disabled:opacity-40"
         >
           <Download className="h-4 w-4" />
-          {exportBusy ? 'Export en cours…' : 'Télécharger mes données'}
+          {exportBusy ? t({ fr: 'Export en cours…', ht: 'Ekspòtasyon an kou…' }) : t({ fr: 'Télécharger mes données', ht: 'Telechaje done m yo' })}
         </button>
       </GlassCard>
 
@@ -670,11 +684,10 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       <GlassCard className="border-red-500/20 bg-red-50">
         <h2 className="mb-1 flex items-center gap-2 text-base font-semibold text-red-400">
           <Trash2 className="h-4 w-4" />
-          Zone dangereuse — Supprimer le compte
+          {t({ fr: 'Zone dangereuse — Supprimer le compte', ht: 'Zòn danjere — Efase kont la' })}
         </h2>
         <p className="mb-4 text-xs text-[var(--color-muted)]">
-          Cette action supprime définitivement toutes vos données. Tapez{' '}
-          <strong className="text-red-400 font-mono">SUPPRIMER</strong> pour confirmer.
+          {t({ fr: 'Cette action supprime définitivement toutes vos données. Tapez', ht: 'Aksyon sa a efase tout done ou yo definitivman. Tape' })} <strong className="text-red-400 font-mono">SUPPRIMER</strong> {t({ fr: 'pour confirmer.', ht: 'pou konfime.' })}
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <Input
@@ -690,7 +703,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
             className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-500 transition disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" />
-            {deleteBusy ? 'Suppression…' : 'Supprimer définitivement'}
+            {deleteBusy ? t({ fr: 'Suppression…', ht: 'Efase…' }) : t({ fr: 'Supprimer définitivement', ht: 'Efase definitivman' })}
           </button>
         </div>
       </GlassCard>
@@ -703,6 +716,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function SettingsPage() {
+  const { t } = useLanguage();
   const { userId, userEmail, loading } = useSettings();
   const [activeTab, setActiveTab] = useState<TabId>('profile');
 
@@ -733,19 +747,19 @@ function SettingsPage() {
           className="mb-8"
         >
           <p className="mb-1 text-xs font-medium uppercase tracking-widest text-emerald-500">
-            Paramètres
+            {t({ fr: 'Paramètres', ht: 'Anviwònman' })}
           </p>
           <h1 className="text-2xl font-bold text-[#001F3F] md:text-3xl">
-            Compte &amp; Préférences
+            {t({ fr: 'Compte & Préférences', ht: 'Kont & Preferans' })}
           </h1>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Gérez votre profil d'entreprise, vos paiements et vos préférences de l'application.
+            {t({ fr: 'Gérez votre profil d\'entreprise, vos paiements et vos préférences de l\'application.', ht: 'Jere pwofil antrepriz ou, peman ou ak preferans aplikasyon an.' })}
           </p>
         </motion.div>
 
         {/* ── Tab bar ──────────────────────────────────────────────────────── */}
         <div className="mb-6 flex gap-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1">
-          {TABS.map(({ id, label, icon: Icon }) => {
+          {TABS.map(({ id, label, labelT, icon: Icon }) => {
             const active = activeTab === id;
             return (
               <button
@@ -760,7 +774,7 @@ function SettingsPage() {
                 )}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden sm:inline">{t(labelT)}</span>
               </button>
             );
           })}

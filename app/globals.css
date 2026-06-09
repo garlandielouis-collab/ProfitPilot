@@ -162,11 +162,11 @@ button {
   .report-page {
     /* Width = A4 minus @page margins (210mm - 24mm = 186mm) */
     width: 186mm !important;
-    min-height: 246mm !important;   /* 297mm - 12mm - 12mm - footer */
+    min-height: 0 !important;       /* let content determine height */
     padding: 0 !important;          /* @page margins handle padding */
     page-break-after: always !important;
     break-after: page !important;
-    page-break-inside: avoid !important;
+    /* Allow natural page breaks inside long reports */
     box-shadow: none !important;
     border-radius: 0 !important;
     overflow: visible !important;
@@ -241,4 +241,11 @@ button {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
+}
+
+/* ── Mobile bottom padding (clear fixed nav) ── */
+@media (max-width: 1023px) {
+  main:not(:has(> .fullscreen-layout)) {
+    padding-bottom: 5rem;
+  }
 }

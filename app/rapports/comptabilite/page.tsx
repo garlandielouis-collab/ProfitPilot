@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useLanguage } from '../../../components/LanguageWrapper';
 import { ProtectedRoute } from '../../../components/ProtectedRoute';
 import {
   getJournalEntries,
@@ -11,6 +12,7 @@ import {
   backfillAllJournalEntries,
   type BackfillResult,
 } from '../../actions/accounting';
+import { classifyTransaction, CHART_OF_ACCOUNTS } from '../../../lib/accountingEngine';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, Scale, RefreshCw, Sparkles, AlertTriangle,
@@ -18,22 +20,15 @@ import {
   ArrowDownRight, History, RotateCcw,
 } from 'lucide-react';
 
-// ── Account names ─────────────────────────────────────────────────────────────
+// ── Account names (from unified chart of accounts) ──────────────────────────
 
-const ACCOUNT_NAMES: Record<string, string> = {
-  '1110': 'Caisse',               '1120': 'Banque',
-  '1130': 'Comptes Clients',      '1140': 'Stocks',
-  '1150': 'Fournitures (Actif)',  '1210': 'Équipements',
-  '2110': 'Comptes Fournisseurs', '2120': 'Salaires à Payer',
-  '2130': 'Taxes à Payer',        '2200': 'Emprunts Bancaires',
-  '3100': 'Capital',              '3200': 'Résultats Non Distribués',
-  '4100': 'Ventes',               '4200': 'Revenus Services',
-  '4900': 'Revenus Divers',       '5100': 'Achats Marchandises',
-  '5200': 'Salaires',             '5300': 'Loyer',
-  '5400': 'Fournitures Bureau',   '5500': 'Marketing',
-  '5600': 'Internet & Téléphone', '5700': 'Transport',
-  '5800': 'Intérêts',             '5900': 'Charges Diverses',
-};
+const ACCOUNT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.values(CHART_OF_ACCOUNTS).map(a => [a.code, a.name])
+);
+
+const ACCOUNT_HT: Record<string, string> = Object.fromEntries(
+  Object.values(CHART_OF_ACCOUNTS).map(a => [a.code, a.name_ht])
+);
 
 const CLASS_COLOR: Record<string, string> = {
   Asset:   'text-blue-600 bg-blue-50',
@@ -43,35 +38,17 @@ const CLASS_COLOR: Record<string, string> = {
   Expense: 'text-amber-600 bg-amber-50',
 };
 
-// ── AI Classifier ─────────────────────────────────────────────────────────────
+// ── AI Classifier (unified engine) ────────────────────────────────────────────
 
-function aiClassify(text: string): { debit: string; credit: string; label: string; confidence: 'high' | 'medium' | 'low' } {
-  const t = text.toLowerCase();
-  if ((t.includes('vente')||t.includes('vann')) && (t.includes('crédit')||t.includes('kliyan')))
-    return { debit:'1130', credit:'4100', label:'Vente à crédit — Débit Clients / Crédit Ventes', confidence:'high' };
-  if (t.includes('vente')||t.includes('vann')||t.includes('encaissement')||t.includes('vant'))
-    return { debit:'1110', credit:'4100', label:'Vente comptant — Débit Caisse / Crédit Ventes', confidence:'high' };
-  if ((t.includes('paiement')||t.includes('règlement'))&&(t.includes('fournisseur')||t.includes('founisè')))
-    return { debit:'2110', credit:'1120', label:'Paiement fournisseur — Débit Fournisseurs / Crédit Banque', confidence:'high' };
-  if (t.includes('achat')||t.includes('acha')||t.includes('stock')&&!t.includes('fournisseur'))
-    return { debit:'5100', credit:'1110', label:'Achat stock — Débit Achats / Crédit Caisse', confidence:'high' };
-  if (t.includes('salaire')||t.includes('salè'))
-    return { debit:'5200', credit:'1120', label:'Salaires — Débit Salaires / Crédit Banque', confidence:'high' };
-  if (t.includes('loyer')||t.includes('lwaye'))
-    return { debit:'5300', credit:'1110', label:'Loyer — Débit Loyer / Crédit Caisse', confidence:'high' };
-  if (t.includes('emprunt')||t.includes('prêt')||t.includes('prè'))
-    return { debit:'1120', credit:'2200', label:'Emprunt — Débit Banque / Crédit Emprunts', confidence:'high' };
-  if (t.includes('remboursement')||t.includes('ranbousman'))
-    return { debit:'2200', credit:'1120', label:'Remboursement — Débit Emprunts / Crédit Banque', confidence:'high' };
-  if (t.includes('capital')||t.includes('dépôt')||t.includes('apport'))
-    return { debit:'1110', credit:'3100', label:'Apport capital — Débit Caisse / Crédit Capital', confidence:'high' };
-  if (t.includes('fourniture')||t.includes('bureau'))
-    return { debit:'5400', credit:'1110', label:'Fournitures — Débit Fournitures / Crédit Caisse', confidence:'medium' };
-  if (t.includes('transport')||t.includes('livraison'))
-    return { debit:'5700', credit:'1110', label:'Transport — Débit Transport / Crédit Caisse', confidence:'medium' };
-  if (t.includes('internet')||t.includes('téléphone')||t.includes('mobile'))
-    return { debit:'5600', credit:'1110', label:'Internet/Tél — Débit Internet / Crédit Caisse', confidence:'medium' };
-  return { debit:'5900', credit:'1110', label:'Charge diverse — à vérifier avec Pilot AI', confidence:'low' };
+function aiClassify(text: string): { debit: string; credit: string; label: string; label_ht: string; confidence: 'high' | 'medium' | 'low' } {
+  const rule = classifyTransaction(text);
+  return {
+    debit: rule.debit,
+    credit: rule.credit,
+    label: rule.label,
+    label_ht: rule.label_ht,
+    confidence: rule.confidence,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,6 +70,7 @@ type JLine = { account_code: string; description: string; debit: number; credit:
 // ═════════════════════════════════════════════════════════════════════════════
 
 function ComptabiliteInner() {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<'journal' | 'balance' | 'ledger' | 'bilan' | 'saisie'>('journal');
 
   // Journal
@@ -298,9 +276,9 @@ function ComptabiliteInner() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#12B981]">Comptabilité</p>
-            <h1 className="text-2xl font-bold text-[#0F172A] mt-1">Journal Général & Comptabilité</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Double entrée · Grand Livre · Balance de vérification</p>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#12B981]">{t({ fr: 'Comptabilité', ht: 'Kontabilite' })}</p>
+            <h1 className="text-2xl font-bold text-[#0F172A] mt-1">{t({ fr: 'Journal Général & Comptabilité', ht: 'Jeneral Jounal & Kontabilite' })}</h1>
+            <p className="text-sm text-slate-500 mt-0.5">{t({ fr: 'Double entrée · Grand Livre · Balance de vérification', ht: 'Doub antre · Gran Liv · Balans verifyasyon' })}</p>
           </div>
 
           {/* Backfill button */}
@@ -376,33 +354,43 @@ function ComptabiliteInner() {
             ) : entries.length === 0 ? (
               <div className="p-12 text-center">
                 <History size={32} className="mx-auto text-slate-200 mb-3" />
-                <p className="font-medium text-slate-400">Aucune écriture comptable</p>
+                <p className="font-medium text-slate-400">{t({ fr: 'Aucune écriture comptable', ht: 'Pa gen ekriti kontab' })}</p>
                 <p className="text-sm text-slate-300 mt-1">Klike "Kontabilize tranzaksyon existants" pou kòmanse</p>
               </div>
             ) : (
               <div className="divide-y divide-[#F1F5F9]">
-                {entries.map(entry => (
-                  <div key={entry.id}>
+                {entries.map(entry => {
+                  const isVoided = entry.status === 'void';
+                  const isReversal = entry.description?.startsWith('ANNULATION');
+                  return (
+                  <div key={entry.id} className={isVoided ? 'opacity-60' : ''}>
                     <button
                       onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
-                      className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-50 transition"
+                      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition ${isVoided ? 'hover:bg-red-50' : 'hover:bg-slate-50'}`}
                     >
                       <div className={`shrink-0 rounded-xl px-2 py-1 text-[10px] font-bold ${
+                        isVoided ? 'bg-red-100 text-red-500 line-through' :
+                        isReversal ? 'bg-red-100 text-red-700' :
                         entry.reference_type === 'sale' ? 'bg-emerald-100 text-emerald-700' :
                         entry.reference_type === 'purchase' ? 'bg-blue-100 text-blue-700' :
                         entry.reference_type === 'expense' ? 'bg-amber-100 text-amber-700' :
                         'bg-slate-100 text-slate-600'
                       }`}>
-                        {entry.reference_type === 'sale' ? 'VENTE' :
+                        {isVoided ? 'ANILE' :
+                         isReversal ? 'ANILASYON' :
+                         entry.reference_type === 'sale' ? 'VENTE' :
                          entry.reference_type === 'purchase' ? 'ACHA' :
                          entry.reference_type === 'expense' ? 'DEPANS' : 'MANUEL'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#0F172A] truncate">{entry.description?.replace('[Backfill] ', '')}</p>
+                        <p className={`text-sm font-semibold truncate ${isVoided ? 'text-red-400 line-through' : 'text-[#0F172A]'}`}>
+                          {entry.description?.replace('[Backfill] ', '')}
+                          {isVoided && <span className="ml-2 text-[10px] font-normal text-red-400 no-underline">(annulée)</span>}
+                        </p>
                         <p className="text-xs text-slate-400">{entry.entry_number} · {fmtDate(entry.entry_date)}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-[#0F172A]">{fmtHTG(entry.total_debit)} HTG</p>
+                        <p className={`text-sm font-bold ${isVoided ? 'text-red-300 line-through' : 'text-[#0F172A]'}`}>{fmtHTG(entry.total_debit_base ?? entry.total_debit)} HTG</p>
                         <p className={`text-[10px] font-semibold ${Math.abs(entry.total_debit - entry.total_credit) < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>
                           {Math.abs(entry.total_debit - entry.total_credit) < 0.01 ? '✓ Équilibré' : '⚠ Déséquilibré'}
                         </p>
@@ -434,10 +422,10 @@ function ComptabiliteInner() {
                                     </td>
                                     <td className="py-1.5 text-slate-500">{line.description}</td>
                                     <td className="py-1.5 text-right font-semibold text-blue-700">
-                                      {Number(line.debit_amount) > 0 ? fmtHTG(Number(line.debit_amount)) : '—'}
+                                      {Number(line.base_debit ?? line.debit_amount) > 0 ? fmtHTG(Number(line.base_debit ?? line.debit_amount)) : '—'}
                                     </td>
                                     <td className="py-1.5 text-right font-semibold text-emerald-700">
-                                      {Number(line.credit_amount) > 0 ? fmtHTG(Number(line.credit_amount)) : '—'}
+                                      {Number(line.base_credit ?? line.credit_amount) > 0 ? fmtHTG(Number(line.base_credit ?? line.credit_amount)) : '—'}
                                     </td>
                                   </tr>
                                 ))}
@@ -448,7 +436,8 @@ function ComptabiliteInner() {
                       )}
                     </AnimatePresence>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -817,7 +806,7 @@ function ComptabiliteInner() {
                           </span>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-500 mb-3 italic">{aiSuggestion.label}</p>
+                      <p className="text-[10px] text-slate-500 mb-3 italic">{t({ fr: aiSuggestion.label, ht: aiSuggestion.label_ht })}</p>
                       <button onClick={applyAISuggestion}
                         className="w-full rounded-lg bg-[#0F172A] py-2 text-xs font-semibold text-white hover:bg-[#0F172A]/90 transition">
                         Aplike sujestyon sa a →
@@ -854,7 +843,7 @@ function ComptabiliteInner() {
               <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Règles fondamentales</p>
                 <div className="space-y-2 text-xs text-slate-600">
-                  {[
+                  {([
                     ['Vente Cash', 'D Caisse / C Ventes'],
                     ['Vente Crédit', 'D Clients / C Ventes'],
                     ['Achat Cash', 'D Achats / C Caisse'],
@@ -862,9 +851,9 @@ function ComptabiliteInner() {
                     ['Dépense', 'D Charge / C Caisse'],
                     ['Emprunt', 'D Banque / C Emprunts'],
                     ['Salaires', 'D Salaires / C Banque'],
-                  ].map(([op, rule]) => (
+                  ] as [string, string][]).map(([op, rule]) => (
                     <div key={op} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                      <span className="font-semibold">{op}</span>
+                      <span className="font-semibold">{t({ fr: { 'Vente Cash': 'Vente Cash', 'Vente Crédit': 'Vente Crédit', 'Achat Cash': 'Achat Cash', 'Achat Crédit': 'Achat Crédit', 'Dépense': 'Dépense', 'Emprunt': 'Emprunt', 'Salaires': 'Salaires' }[op] || op, ht: { 'Vente Cash': 'Vant Kach', 'Vente Crédit': 'Vant Kredi', 'Achat Cash': 'Acha Kach', 'Achat Crédit': 'Acha Kredi', 'Dépense': 'Depans', 'Emprunt': 'Prè', 'Salaires': 'Salè' }[op] || op })}</span>
                       <span className="text-slate-400">{rule}</span>
                     </div>
                   ))}
@@ -905,34 +894,34 @@ function ComptabiliteInner() {
                           <option value="">Chwazi...</option>
                           <optgroup label="ACTIFS">
                             {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('1')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {v}</option>
+                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
                             ))}
                           </optgroup>
                           <optgroup label="PASSIFS">
                             {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('2')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {v}</option>
+                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
                             ))}
                           </optgroup>
                           <optgroup label="CAPITAUX">
                             {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('3')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {v}</option>
+                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
                             ))}
                           </optgroup>
                           <optgroup label="REVENUS">
                             {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('4')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {v}</option>
+                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
                             ))}
                           </optgroup>
                           <optgroup label="CHARGES">
-                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('5')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {v}</option>
+                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('6')).map(([k,v]) => (
+                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
                             ))}
                           </optgroup>
                         </select>
                       </div>
                       <div className="col-span-4">
                         <input value={line.description} onChange={e => { const nl=[...lines]; nl[i]={...nl[i],description:e.target.value}; setLines(nl); }}
-                          placeholder="Description liy lan..."
+                          placeholder={t({ fr: 'Description de la ligne...', ht: 'Description liy lan...' })}
                           className="w-full rounded-xl border border-[#E2E8F0] bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#12B981] focus:bg-white transition" />
                       </div>
                       <div className="col-span-2">
@@ -986,7 +975,7 @@ function ComptabiliteInner() {
                 <div className="flex gap-3">
                   <button onClick={handleSave} disabled={saving || !balanced}
                     className="flex-1 rounded-2xl bg-[#0F172A] py-3 text-sm font-bold text-white hover:bg-[#0F172A]/90 transition disabled:opacity-40">
-                    {saving ? 'Anrejistreman…' : '✓ Anrejistre Ekriti Kontab'}
+                    {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: '✓ Enregistrer Écriture Comptable', ht: '✓ Anrejistre Ekriti Kontab' })}
                   </button>
                   {!balanced && (
                     <button onClick={autoBalance}

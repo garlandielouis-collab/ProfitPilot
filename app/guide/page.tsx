@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '../../components/LanguageWrapper';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -15,6 +16,7 @@ const STEPS = [
 ];
 
 export default function GuidePage() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="mx-auto max-w-4xl px-5 py-16 md:px-10">
@@ -22,8 +24,8 @@ export default function GuidePage() {
           <ArrowLeft size={14} /> Retounen lakay
         </Link>
         <div className="mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">Dokimantasyon</span>
-          <h1 className="mt-2 text-3xl font-extrabold text-[#001f3f]">Gid Kòmanse</h1>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">{t({ fr: 'Guide', ht: 'Dokimantasyon' })}</span>
+          <h1 className="mt-2 text-3xl font-extrabold text-[#001f3f]">{t({ fr: "Guide d'utilisation", ht: 'Gid Kòmanse' })}</h1>
           <p className="mt-3 text-slate-500">Yon gid pa-a-pa pou konfigire ProfitPilot pou biznis ou nan mwens pase 30 minit.</p>
           <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#50c878]/10 px-4 py-2 text-sm font-semibold text-[#50c878]">
             <CheckCircle size={14} /> Tan total estimé: ~30 minit
@@ -38,7 +40,7 @@ export default function GuidePage() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between gap-4">
-                  <h3 className="font-bold text-[#001f3f]">{s.title}</h3>
+                  <h3 className="font-bold text-[#001f3f]">{t({ fr: { 'Kreye Kont Ou': 'Créez Votre Compte', 'Konfigire Biznis Ou': 'Configurez Votre Entreprise', 'Ajoute Pwodui Ou Yo': 'Ajoutez Vos Produits' }[s.title] || s.title, ht: s.title })}</h3>
                   <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">{s.time}</span>
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{s.desc}</p>

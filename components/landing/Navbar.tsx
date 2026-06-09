@@ -57,22 +57,10 @@ export function Navbar() {
         {/* Brand */}
         <div className="flex items-center gap-3">
           <img
-            src="/logo.png"
+            src="/profitpilot-logo.png"
             alt="ProfitPilot"
             className="h-9 w-9 rounded-xl object-contain"
-            onError={(e) => {
-              const el = e.currentTarget;
-              el.style.display = 'none';
-              const fb = el.nextElementSibling as HTMLElement | null;
-              if (fb) fb.style.display = 'flex';
-            }}
           />
-          <div
-            className="hidden h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white"
-            style={gradBtn}
-          >
-            PP
-          </div>
           <span className="text-sm font-semibold text-[#001f3f]">ProfitPilot</span>
         </div>
 

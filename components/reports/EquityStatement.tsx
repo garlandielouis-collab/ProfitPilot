@@ -5,7 +5,8 @@
 
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
+import { useLanguage } from '../LanguageWrapper';
 import ReportLayout, { type ReportMeta } from './ReportLayout';
 
 // ─────────────────────────────────────────────────────────────────
@@ -194,7 +195,8 @@ interface Props {
   data: EquityStatementData;
 }
 
-export default function EquityStatement({ meta, data }: Props) {
+function EquityStatement({ meta, data }: Props) {
+  const { t } = useLanguage();
   const { opening, afterApports, afterResult, afterReserves, afterDiv, closing } = compute(data);
 
   // Delta row helper
@@ -211,13 +213,11 @@ export default function EquityStatement({ meta, data }: Props) {
   }
 
   return (
-    <ReportLayout meta={{ ...meta, reportTitle: 'ÉTAT DES CAPITAUX PROPRES' }}>
+    <ReportLayout meta={{ ...meta, reportTitle: t({ fr: 'ÉTAT DES CAPITAUX PROPRES', ht: 'ETA KAPITAL PWOP' }) }}>
       <div>
         {/* Description */}
         <p className="text-[11px] text-[#64748B] mb-4 leading-relaxed">
-          Cet état présente les variations survenues dans les capitaux propres au cours de
-          l'exercice clos le 31 décembre 2025, incluant le résultat net, les apports,
-          les affectations et les prélèvements du propriétaire.
+          {t({ fr: 'Cet état présente les variations survenues dans les capitaux propres au cours de l\'exercice clos le 31 décembre 2025, incluant le résultat net, les apports, les affectations et les prélèvements du propriétaire.', ht: 'Eta sa a prezante varyasyon ki te fèt nan kapital pwòp yo pandan egzèsis la ki fèmen 31 desanm 2025, ki gen ladan rezilta nèt, apò yo, afektasyon yo ak prelevman pwopriyetè a.' })}
         </p>
 
         {/* Matrix table — scrollable on small screens */}
@@ -228,42 +228,42 @@ export default function EquityStatement({ meta, data }: Props) {
             <div className="flex-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#94A3B8] pr-2">
               Événement
             </div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>Capital</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>Apports</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>Réserves</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>Report RAN</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-[#6EE7B7]`}>Résultat</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-[#FCA5A5]`}>Prélèvt.</div>
+            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Capital', ht: 'Kapital' })}</div>
+            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Apports', ht: 'Apò' })}</div>
+            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Réserves', ht: 'Rezèv' })}</div>
+            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Report RAN', ht: 'Rapò RAN' })}</div>
+            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-[#6EE7B7]`}>{t({ fr: 'Résultat', ht: 'Rezilta' })}</div>
+            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-[#FCA5A5]`}>{t({ fr: 'Prélèvt.', ht: 'Prelev.' })}</div>
             <div className="min-w-[84px] text-right text-[9px] font-bold uppercase tracking-wide text-[#6EE7B7] pl-1 border-l border-[#334155] ml-1">
-              Total CP
+              {t({ fr: 'Total CP', ht: 'Total CP' })}
             </div>
           </div>
 
           <div className="min-w-max">
             {/* Opening */}
-            <MatrixRow label="Solde d'ouverture au 1er janvier 2025" data={opening} highlight="gray" bold />
+            <MatrixRow label={t({ fr: "Solde d'ouverture au 1er janvier 2025", ht: 'Sòl ouvèti 1e janvye 2025' })} data={opening} highlight="gray" bold />
 
             {/* Apports */}
             {data.apportsNouveaux !== 0 && (
-              <MatrixRow label="  + Apports en capital de l'exercice" data={delta(opening, afterApports)} isDelta italic />
+              <MatrixRow label={t({ fr: '  + Apports en capital de l\'exercice', ht: '  + Apò an kapital egzèsis la' })} data={delta(opening, afterApports)} isDelta italic />
             )}
 
             {/* Résultat */}
-            <MatrixRow label="  + Résultat net de l'exercice 2025" data={delta(afterApports, afterResult)} isDelta italic />
+            <MatrixRow label={t({ fr: '  + Résultat net de l\'exercice 2025', ht: '  + Rezilta nèt egzèsis 2025' })} data={delta(afterApports, afterResult)} isDelta italic />
 
             {/* Affectation réserves */}
             {data.affectationReserves !== 0 && (
-              <MatrixRow label="  → Affectation aux réserves légales" data={delta(afterResult, afterReserves)} isDelta italic />
+              <MatrixRow label={t({ fr: '  → Affectation aux réserves légales', ht: '  → Afektasyon nan rezèv legal' })} data={delta(afterResult, afterReserves)} isDelta italic />
             )}
 
             {/* Dividendes */}
             {data.dividendesDistribues !== 0 && (
-              <MatrixRow label="  − Dividendes distribués / retraits sur bénéfices" data={delta(afterReserves, afterDiv)} isDelta italic />
+              <MatrixRow label={t({ fr: '  − Dividendes distribués / retraits sur bénéfices', ht: '  − Dividann distribye / retrè sou benefis' })} data={delta(afterReserves, afterDiv)} isDelta italic />
             )}
 
             {/* Prélèvements */}
             {data.prelevementsExercice !== 0 && (
-              <MatrixRow label="  − Prélèvements personnels du propriétaire" data={delta(afterDiv, closing)} isDelta italic />
+              <MatrixRow label={t({ fr: '  − Prélèvements personnels du propriétaire', ht: '  − Prelevman pèsonèl pwopriyetè a' })} data={delta(afterDiv, closing)} isDelta italic />
             )}
 
             {/* Closing */}
@@ -279,39 +279,38 @@ export default function EquityStatement({ meta, data }: Props) {
             <div className={`text-[18px] font-bold mt-1 ${data.resultatNet >= 0 ? 'text-[#065F46]' : 'text-[#991B1B]'}`}>
               {fmt(data.resultatNet, true)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">Exercice 2025 · HTG</div>
+            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: 'Exercice 2025 ·', ht: 'Egzèsis 2025 ·' })} {meta.currency ?? 'HTG'}</div>
           </div>
 
           {/* Variation CP */}
           <div className="rounded-xl border-2 border-[#3B82F6] bg-[#EFF6FF] p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Variation CP</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">{t({ fr: 'Variation CP', ht: 'Varyasyon CP' })}</div>
             <div className={`text-[18px] font-bold mt-1 ${closing.total - opening.total >= 0 ? 'text-[#1D4ED8]' : 'text-[#DC2626]'}`}>
               {fmtDelta(closing.total - opening.total)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">vs. ouverture · HTG</div>
+            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: 'vs. ouverture ·', ht: 'vs. ouvèti ·' })} {meta.currency ?? 'HTG'}</div>
           </div>
 
           {/* Total capitaux propres */}
           <div className="rounded-xl border-2 border-[#0F172A] bg-[#F8FAFC] p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Total capitaux</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">{t({ fr: 'Total capitaux', ht: 'Total kapital' })}</div>
             <div className="text-[18px] font-bold mt-1 text-[#0F172A]">
               {fmt(closing.total, true)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">Au 31 déc. 2025 · HTG</div>
+            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: 'Au 31 déc. 2025 ·', ht: '31 des. 2025 ·' })} {meta.currency ?? 'HTG'}</div>
           </div>
         </div>
 
         {/* Notes */}
         <div className="mt-4 pt-3 border-t border-[#E2E8F0]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748B] mb-1">Notes</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748B] mb-1">{t({ fr: 'Notes', ht: 'Nòt' })}</p>
           <p className="text-[10px] text-[#94A3B8] leading-relaxed">
-            Le capital social représente l'investissement initial de l'entrepreneur.
-            Les prélèvements du propriétaire réduisent les capitaux propres (compte 4580).
-            Le résultat de l'exercice sera reporté en « Report à nouveau » à l'ouverture 2026.
-            Conformément au PCG-HT (Plan Comptable Général Haïti), adapté de SYSCOHADA.
+            {t({ fr: 'Le capital social représente l\'investissement initial de l\'entrepreneur. Les prélèvements du propriétaire réduisent les capitaux propres (compte 4580). Le résultat de l\'exercice sera reporté en « Report à nouveau » à l\'ouverture 2026. Conformément au PCG-HT (Plan Comptable Général Haïti), adapté de SYSCOHADA.', ht: 'Kapital sosyal la reprezante envestisman inisyal antreprenè a. Prelevman pwopriyetè a redwi kapital pwòp yo (kont 4580). Rezilta egzèsis la pral rapòte nan « Rapò a nouvo » nan ouvèti 2026. Konfòman ak PCG-HT (Plan Kontab Jeneral Ayiti), adapte SYSCOHADA.' })}
           </p>
         </div>
       </div>
     </ReportLayout>
   );
 }
+
+export default memo(EquityStatement);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useLanguage } from '../../components/LanguageWrapper';
 import { cleanupOrphans } from '../actions/cleanup';
 
 type State = {
@@ -17,6 +18,7 @@ type CleanupState = {
 };
 
 export default function MigratePage() {
+  const { t } = useLanguage();
   const [state, setState] = useState<State>({ status: 'idle', message: '' });
   const [cleanup, setCleanup] = useState<CleanupState>({ status: 'idle', message: '' });
   const [sql, setSql] = useState('');
@@ -34,17 +36,17 @@ export default function MigratePage() {
       const r = await fetch('/api/migrate', { method: 'POST' });
       const d = await r.json();
       if (d.success) {
-        setState({ status: 'success', message: d.message || 'Migration réussie !' });
+        setState({ status: 'success', message: d.message || t({ fr: 'Migration réussie !', ht: 'Migrasyon reyisi !' }) });
       } else {
         setState({ status: 'error', message: d.error, sql: d.sql, hint: d.hint });
       }
     } catch (e: any) {
-      setState({ status: 'error', message: e.message, sql, hint: 'Erreur réseau' });
+      setState({ status: 'error', message: e.message, sql, hint: t({ fr: 'Erreur réseau', ht: 'Erè rezo' }) });
     }
   }, [sql]);
 
   const runCleanup = useCallback(async () => {
-    setCleanup({ status: 'loading', message: 'Nettoyage en cours…' });
+    setCleanup({ status: 'loading', message: t({ fr: 'Nettoyage en cours…', ht: 'Netwayaj an kou…' }) });
     try {
       const r = await cleanupOrphans();
       if (r.success) {
@@ -70,7 +72,7 @@ export default function MigratePage() {
 
       {/* ── Migration SQL ── */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold">Migration RLS Products</h2>
+        <h2 className="mb-2 text-lg font-semibold">{t({ fr: 'Migration RLS Products', ht: 'Migrasyon RLS Pwodui yo' })}</h2>
         <p className="mb-4 text-sm text-slate-600">
           Applique le fix RLS + trigger sur la table <code>products</code>.
         </p>
@@ -80,7 +82,7 @@ export default function MigratePage() {
           disabled={state.status === 'loading'}
           className="rounded-xl bg-[#001F3F] px-6 py-3 font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-50"
         >
-          {state.status === 'loading' ? 'Exécution…' : '▶ Exécuter la Migration'}
+          {state.status === 'loading' ? t({ fr: 'Exécution…', ht: 'Ekzekisyon…' }) : t({ fr: '▶ Exécuter la Migration', ht: '▶ Ekzekite Migrasyon an' })}
         </button>
 
         {state.status === 'success' && (
@@ -123,7 +125,7 @@ export default function MigratePage() {
           disabled={cleanup.status === 'loading'}
           className="rounded-xl bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
         >
-          {cleanup.status === 'loading' ? 'Nettoyage…' : '🧹 Nettoyer les Orphelins'}
+          {cleanup.status === 'loading' ? t({ fr: 'Nettoyage…', ht: 'Netwayaj…' }) : t({ fr: '🧹 Nettoyer les Orphelins', ht: '🧹 Netwaye òfelen yo' })}
         </button>
 
         {cleanup.status === 'success' && (

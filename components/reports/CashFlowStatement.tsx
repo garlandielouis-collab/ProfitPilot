@@ -5,7 +5,8 @@
 
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
+import { useLanguage } from '../LanguageWrapper';
 import ReportLayout, {
   AccountingRow,
   ColumnHeaders,
@@ -146,6 +147,7 @@ function WaterfallStrip({
   investissement: number;
   financement: number;
 }) {
+  const { t } = useLanguage();
   const total = Math.abs(exploitation) + Math.abs(investissement) + Math.abs(financement) || 1;
 
   function fmt(v: number) {
@@ -157,7 +159,7 @@ function WaterfallStrip({
   const bars = [
     { label: 'Exploitation', value: exploitation, color: exploitation >= 0 ? '#12B981' : '#EF4444' },
     { label: 'Investissement', value: investissement, color: investissement >= 0 ? '#3B82F6' : '#F97316' },
-    { label: 'Financement', value: financement, color: financement >= 0 ? '#8B5CF6' : '#F59E0B' },
+    { label: t({ fr: 'Financement', ht: 'Finansman' }), value: financement, color: financement >= 0 ? '#8B5CF6' : '#F59E0B' },
   ];
 
   return (
@@ -194,7 +196,8 @@ interface Props {
   showPrevious?: boolean;
 }
 
-export default function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
+function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
+  const { t } = useLanguage();
   const c = calc(data);
   const p = data.prev ? calc(data.prev) : null;
   const prev = showPrevious && p ? p : undefined;
@@ -225,13 +228,13 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
 
         <div className="px-4 pt-1 pb-[2px]">
           <span className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wider">
-            Encaissements (Entrées de cash)
+            {t({ fr: 'Encaissements (Entrées de cash)', ht: 'Lajan resevwa (Antre kach)' })}
           </span>
         </div>
-        <AccountingRow label="Encaissements sur ventes comptant"      current={c.encaissementsVentes}    previous={prev?.encaissementsVentes}    indent={1} />
-        <AccountingRow label="Encaissements services et livraisons"   current={c.encaissementsServices}  previous={prev?.encaissementsServices}  indent={1} />
-        <AccountingRow label="Recouvrement créances clients"          current={c.autresEncaissements}    previous={prev?.autresEncaissements}    indent={1} />
-        <AccountingRow label="Total encaissements"                    current={c.totalEntrees}           previous={prev?.totalEntrees}           bold highlight="gray" topBorder />
+        <AccountingRow label={t({ fr: 'Encaissements sur ventes comptant', ht: 'Lajan resevwa sou vant kach' })}      current={c.encaissementsVentes}    previous={prev?.encaissementsVentes}    indent={1} />
+        <AccountingRow label={t({ fr: 'Encaissements services et livraisons', ht: 'Lajan resevwa sèvis ak livrezon' })}   current={c.encaissementsServices}  previous={prev?.encaissementsServices}  indent={1} />
+        <AccountingRow label={t({ fr: 'Recouvrement créances clients', ht: 'Rekouvreman kreyans kliyan' })}          current={c.autresEncaissements}    previous={prev?.autresEncaissements}    indent={1} />
+        <AccountingRow label={t({ fr: 'Total encaissements', ht: 'Total lajan resevwa' })}                    current={c.totalEntrees}           previous={prev?.totalEntrees}           bold highlight="gray" topBorder />
 
         <div className="px-4 pt-2 pb-[2px]">
           <span className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wider">
@@ -239,16 +242,16 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
           </span>
         </div>
         <AccountingRow label="Paiements fournisseurs / achats"        current={-c.decaissementsAchats}           previous={prev ? -prev.decaissementsAchats : undefined}           indent={1} />
-        <AccountingRow label="Paiements salaires nets"                current={-c.decaissementsSalaires}         previous={prev ? -prev.decaissementsSalaires : undefined}         indent={1} />
+        <AccountingRow label={t({ fr: 'Paiements salaires nets', ht: 'Peman salè nèt' })}                current={-c.decaissementsSalaires}         previous={prev ? -prev.decaissementsSalaires : undefined}         indent={1} />
         <AccountingRow label="Cotisations ONA / OFATMA"               current={-c.decaissementsChargesSociales} previous={prev ? -prev.decaissementsChargesSociales : undefined} indent={1} />
-        <AccountingRow label="Loyers payés"                           current={-c.decaissementsLoyers}           previous={prev ? -prev.decaissementsLoyers : undefined}           indent={1} />
-        <AccountingRow label="Marketing et publicité"                 current={-c.decaissementsMarketing}        previous={prev ? -prev.decaissementsMarketing : undefined}        indent={1} />
-        <AccountingRow label="Autres charges décaissées"              current={-c.decaissementsAutres}           previous={prev ? -prev.decaissementsAutres : undefined}           indent={1} />
-        <AccountingRow label="Impôts et taxes payés"                  current={-c.impotsPaies}                  previous={prev ? -prev.impotsPaies : undefined}                   indent={1} italic />
-        <AccountingRow label="Total décaissements"                    current={-c.totalSorties}                 previous={prev ? -prev.totalSorties : undefined}                  bold highlight="gray" topBorder />
+        <AccountingRow label={t({ fr: 'Loyers payés', ht: 'Lwaye peye' })}                           current={-c.decaissementsLoyers}           previous={prev ? -prev.decaissementsLoyers : undefined}           indent={1} />
+        <AccountingRow label={t({ fr: 'Marketing et publicité', ht: 'Maketing ak piblisite' })}                 current={-c.decaissementsMarketing}        previous={prev ? -prev.decaissementsMarketing : undefined}        indent={1} />
+        <AccountingRow label={t({ fr: 'Autres charges décaissées', ht: 'Lòt chaj debouse' })}              current={-c.decaissementsAutres}           previous={prev ? -prev.decaissementsAutres : undefined}           indent={1} />
+        <AccountingRow label={t({ fr: 'Impôts et taxes payés', ht: 'Enpo ak taks peye' })}                  current={-c.impotsPaies}                  previous={prev ? -prev.impotsPaies : undefined}                   indent={1} italic />
+        <AccountingRow label={t({ fr: 'Total décaissements', ht: 'Total debousman' })}                    current={-c.totalSorties}                 previous={prev ? -prev.totalSorties : undefined}                  bold highlight="gray" topBorder />
 
         <AccountingRow
-          label="FLUX NET D'EXPLOITATION (A)"
+          label={t({ fr: "FLUX NET D'EXPLOITATION (A)", ht: 'FLUX NET EKSPLWATASYON (A)' })}
           current={c.fluxExploitation}
           previous={prev?.fluxExploitation}
           bold
@@ -261,15 +264,15 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
         ═══════════════════════════════════ */}
         <CfSection
           number="II"
-          title="Flux d'investissement"
-          subtitle="Acquisitions et cessions d'actifs non courants"
+          title={t({ fr: "Flux d'investissement", ht: 'Flux envestisman' })}
+          subtitle={t({ fr: 'Acquisitions et cessions d\'actifs non courants', ht: 'Akirisyon ak sesyon aktif ki pa kouran' })}
           color="#3B82F6"
         />
-        <AccountingRow label="Acquisitions d'immobilisations"          current={-c.acquisitionsImmobilisations}  previous={prev ? -prev.acquisitionsImmobilisations : undefined}  indent={1} />
-        <AccountingRow label="Cessions d'immobilisations"              current={c.cedImmobilisations}            previous={prev?.cedImmobilisations}                              indent={1} />
+        <AccountingRow label={t({ fr: 'Acquisitions d\'immobilisations', ht: 'Akirisyon imobilizasyon' })}          current={-c.acquisitionsImmobilisations}  previous={prev ? -prev.acquisitionsImmobilisations : undefined}  indent={1} />
+        <AccountingRow label={t({ fr: 'Cessions d\'immobilisations', ht: 'Sesyon imobilizasyon' })}              current={c.cedImmobilisations}            previous={prev?.cedImmobilisations}                              indent={1} />
         <AccountingRow label="Autres investissements"                  current={-c.autresInvestissements}        previous={prev ? -prev.autresInvestissements : undefined}         indent={1} italic />
         <AccountingRow
-          label="FLUX NET D'INVESTISSEMENT (B)"
+          label={t({ fr: "FLUX NET D'INVESTISSEMENT (B)", ht: 'FLUX NET ENVESTISMAN (B)' })}
           current={c.fluxInvestissement}
           previous={prev?.fluxInvestissement}
           bold
@@ -288,10 +291,10 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
         />
         <AccountingRow label="Nouveaux emprunts contractés"            current={c.empruntContractes}       previous={prev?.empruntContractes}      indent={1} />
         <AccountingRow label="Apports en capital du propriétaire"      current={c.apportsProprio}          previous={prev?.apportsProprio}         indent={1} />
-        <AccountingRow label="Remboursements d'emprunts (capital)"     current={-c.remboursementsPrets}    previous={prev ? -prev.remboursementsPrets : undefined}    indent={1} />
+        <AccountingRow label={t({ fr: 'Remboursements d\'emprunts (capital)', ht: 'Ranbousman anprunt (kapital)' })}     current={-c.remboursementsPrets}    previous={prev ? -prev.remboursementsPrets : undefined}    indent={1} />
         <AccountingRow label="Prélèvements du propriétaire"           current={-c.prelevementsProprio}    previous={prev ? -prev.prelevementsProprio : undefined}    indent={1} italic />
         <AccountingRow
-          label="FLUX NET DE FINANCEMENT (C)"
+          label={t({ fr: 'FLUX NET DE FINANCEMENT (C)', ht: 'FLUX NET FINANSMAN (C)' })}
           current={c.fluxFinancement}
           previous={prev?.fluxFinancement}
           bold
@@ -305,12 +308,12 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
         <div className="mt-4 border border-[#E2E8F0] rounded-lg overflow-hidden">
           <div className="bg-[#0F172A] px-4 py-2">
             <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-white">
-              Synthèse de trésorerie
+              {t({ fr: 'Synthèse de trésorerie', ht: 'Sentèz trezoreri' })}
             </span>
           </div>
 
           <AccountingRow
-            label="VARIATION NETTE DE TRÉSORERIE  (A+B+C)"
+            label={t({ fr: 'VARIATION NETTE DE TRÉSORERIE  (A+B+C)', ht: 'VARYASYON NET TREZORERI (A+B+C)' })}
             current={c.variationNette}
             previous={prev?.variationNette}
             bold
@@ -324,7 +327,7 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
             italic
           />
           <AccountingRow
-            label="TRÉSORERIE AU 31 DÉCEMBRE"
+            label={t({ fr: 'TRÉSORERIE AU 31 DÉCEMBRE', ht: 'TREZORERI 31 DESANM' })}
             current={c.tresorerieFinExercice}
             previous={prev?.tresorerieFinExercice}
             bold
@@ -335,12 +338,12 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
           {/* Days of cash metric */}
           <div className="flex gap-3 px-4 py-2 bg-[#F8FAFC] border-t border-[#E2E8F0]">
             <div className="flex-1">
-              <span className="text-[10px] uppercase tracking-wider text-[#94A3B8]">Couverture trésorerie</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#94A3B8]">{t({ fr: 'Couverture trésorerie', ht: 'Kouvèti trezoreri' })}</span>
             </div>
             <div>
               {c.totalSorties > 0 ? (
                 <span className="text-[12px] font-semibold text-[#12B981]">
-                  {Math.round((c.tresorerieFinExercice / (c.totalSorties / 12)))} mois de réserve
+                  {Math.round((c.tresorerieFinExercice / (c.totalSorties / 12)))} {t({ fr: 'mois de réserve', ht: 'mwa rezèv' })}
                 </span>
               ) : (
                 <span className="text-[12px] text-[#94A3B8]">—</span>
@@ -352,9 +355,7 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
         {/* Notes */}
         <div className="mt-3 pt-2 border-t border-[#E2E8F0]">
           <p className="text-[10px] text-[#94A3B8] leading-relaxed">
-            Méthode directe · La trésorerie inclut caisse, banque, MonCash et Natcash.
-            Les flux d'exploitation correspondent aux activités génératrices de revenus.
-            Les flux d'investissement incluent les achats d'équipements et matériel.
+            {t({ fr: 'Méthode directe · La trésorerie inclut caisse, banque, MonCash et Natcash. Les flux d\'exploitation correspondent aux activités génératrices de revenus. Les flux d\'investissement incluent les achats d\'équipements et matériel.', ht: 'Metòd dirèk · Trezoreri a gen ladan kès, bank, MonCash ak Natcash. Flux eksplwatasyon yo koresponn ak aktivite ki jenere revni. Flux envestisman yo gen ladan acha ekipman ak materyèl.' })}
           </p>
         </div>
 
@@ -362,3 +363,5 @@ export default function CashFlowStatement({ meta, data, showPrevious = true }: P
     </ReportLayout>
   );
 }
+
+export default memo(CashFlowStatement);

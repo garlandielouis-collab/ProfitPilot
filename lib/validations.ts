@@ -27,6 +27,50 @@ export const userPreferencesSchema = z.object({
 
 export type UserPreferencesInput = z.infer<typeof userPreferencesSchema>;
 
+// ── Sale (createSaleAction) ────────────────────────────────────────────────────
+
+const paymentMethodEnum = z.enum([
+  'Cash', 'MonCash', 'Natcash', 'Card', 'Bank', 'Cheque', 'Transfer',
+]);
+
+const paymentStatusEnum = z.enum(['pending', 'paid', 'partial', 'credit']);
+
+export const saleItemSchema = z.object({
+  product_id:   z.string().uuid('ID produit invalide'),
+  variant_id:   z.string().uuid().optional(),
+  product_name: z.string().min(1, 'Nom produit requis'),
+  sku:          z.string().optional(),
+  quantity:     z.coerce.number().int().positive('Quantité doit être > 0'),
+  unit_price:   z.coerce.number().nonnegative('Prix unitaire doit être >= 0'),
+  discount_percent: z.coerce.number().min(0).max(100).default(0),
+  tax_rate:     z.coerce.number().min(0).max(100).default(0),
+});
+
+export const createSaleSchema = z.object({
+  business_id:      z.string().uuid('ID entreprise invalide'),
+  warehouse_id:     z.string().uuid().optional(),
+  customer_id:      z.string().uuid().optional(),
+  customer_name:    z.string().max(200).optional(),
+  sale_date:        z.string().optional(),
+  currency:         z.enum(['HTG', 'USD']).default('HTG'),
+  payment_method:   paymentMethodEnum,
+  payment_status:   paymentStatusEnum.default('paid'),
+  discount_percent: z.coerce.number().min(0).max(100).default(0),
+  tax_amount:       z.coerce.number().nonnegative().default(0),
+  notes:            z.string().max(1000).optional(),
+  items:            z.array(saleItemSchema).min(1, 'Au moins un article requis'),
+}).refine(
+  (data) => {
+    if (data.payment_status === 'credit' && !data.customer_id && !data.customer_name) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Un client (customer_id ou customer_name) est requis pour une vente à crédit', path: ['customer_id'] }
+);
+
+export type CreateSaleInput = z.infer<typeof createSaleSchema>;
+
 // ── Conversation ─────────────────────────────────────────────────────────────
 
 export const newConversationSchema = z.object({

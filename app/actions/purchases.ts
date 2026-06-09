@@ -1,6 +1,6 @@
 'use server';
 
-import { getBusinessContext } from '../../lib/serverAuth';
+import { getBusinessContext, getBusinessExchangeRate } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { recordPurchaseEntry } from './accounting';
 
@@ -29,6 +29,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
   if (payload.purchase_price_per_unit < 0) throw new Error('Pri inite pa valab.');
 
   const { supabase, businessId, userId } = await getBusinessContext();
+  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
 
   const discountPct   = payload.discount_percent ?? 0;
   const currency      = payload.currency ?? 'HTG';
@@ -66,6 +67,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
       purchase_date:   new Date().toISOString().split('T')[0],
       status:          'confirmed',
       currency,
+      exchange_rate:    currency === 'USD' ? exchangeRate : 1,
       subtotal_amount: subtotal,
       discount_amount: discountAmt,
       total_amount:    total,
@@ -174,6 +176,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
       date: new Date().toISOString().split('T')[0],
       currency,
       paymentMethod: dbMethod ?? 'Cash',
+      exchangeRate: currency === 'USD' ? exchangeRate : 1,
     });
   } catch (error) {
     console.error('[accounting] recordPurchaseEntry failed:', (error as Error).message);

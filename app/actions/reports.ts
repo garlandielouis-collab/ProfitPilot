@@ -1,6 +1,7 @@
 'use server';
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { isAssetCategory } from '../../lib/accountingEngine';
 import type { IncomeStatementData } from '../../components/reports/IncomeStatement';
 import type { BalanceSheetData }     from '../../components/reports/BalanceSheet';
 import type { CashFlowData }         from '../../components/reports/CashFlowStatement';
@@ -148,7 +149,7 @@ export async function getReportsDataAction(
   const quarterStart    = new Date(year, Math.floor(mo / 3) * 3, 1).toISOString();
   const semiAnnualStart = new Date(year, mo < 6 ? 0 : 6, 1).toISOString();
 
-  // ── Parallel fetch — filtered by owner_id AND selected period ──────────────
+  // ── Parallel fetch — filtered by business_id AND selected period ──────────
   const [
     { data: bizRaw },
     { data: salesRaw },
@@ -156,31 +157,45 @@ export async function getReportsDataAction(
     { data: purchRaw },
     { data: prodsRaw },
     { data: creditsRaw },
+    { data: accountBalances },
   ] = await Promise.all([
     supabase.from('businesses').select('name, exchange_rate, default_currency').eq('id', businessId).maybeSingle(),
 
-    // Sales within the selected period — filtré par business_id
+    // Sales within the selected period
     supabase.from('sales')
       .select('total_amount, created_at, payment_method, payment_status, currency')
       .eq('business_id', businessId)
+      .is('deleted_at', null)
       .gte('created_at', `${fromIso}T00:00:00`)
       .lte('created_at', `${toIso}T23:59:59`),
 
     supabase.from('expenses')
       .select('amount, expense_date, payment_method, currency, expense_categories(name)')
       .eq('business_id', businessId)
+      .is('deleted_at', null)
       .gte('expense_date', fromIso)
       .lte('expense_date', toIso),
 
     supabase.from('purchases')
       .select('total_amount, payment_status, purchase_date, currency')
       .eq('business_id', businessId)
+      .is('deleted_at', null)
       .gte('purchase_date', fromIso)
       .lte('purchase_date', toIso),
 
     supabase.from('products').select('stock_quantity, purchase_price, currency').eq('business_id', businessId),
 
     supabase.from('customer_transactions').select('amount, type, currency').eq('business_id', businessId).eq('type', 'credit'),
+
+    // Real account balances from double-entry accounting (posted entries only)
+    supabase.from('journal_entry_lines')
+      .select(`
+        base_debit, base_credit,
+        chart_of_accounts!inner ( code, name, account_class ),
+        journal_entries!inner ( business_id, status )
+      `)
+      .eq('journal_entries.business_id', businessId)
+      .eq('journal_entries.status', 'posted'),
   ]);
 
   const biz          = (bizRaw as any);
@@ -205,7 +220,24 @@ export async function getReportsDataAction(
   const prods    = (prodsRaw    ?? []) as any[];
   const credits  = (creditsRaw  ?? []) as any[];
 
-  const hasRealData = sales.length > 0 || expenses.length > 0 || purch.length > 0;
+  // ── Compute real account balances from journal_entry_lines ──────────────────
+  const accountMap: Record<string, { code: string; name: string; class: string; balance: number }> = {};
+  for (const l of (accountBalances ?? []) as any[]) {
+    const acc = l.chart_of_accounts;
+    if (!acc) continue;
+    const debit  = Number(l.base_debit  ?? 0);
+    const credit = Number(l.base_credit ?? 0);
+    const key = acc.code as string;
+    if (!accountMap[key]) accountMap[key] = { code: key, name: acc.name, class: acc.account_class, balance: 0 };
+    if (acc.account_class === 'Asset' || acc.account_class === 'Expense') {
+      accountMap[key].balance += debit - credit;
+    } else {
+      accountMap[key].balance += credit - debit;
+    }
+  }
+  const accountBalance = (code: string): number => accountMap[code]?.balance ?? 0;
+
+  const hasRealData = sales.length > 0 || expenses.length > 0 || purch.length > 0 || (accountBalances ?? []).length > 0;
 
   // ── Period sums — converted to reporting currency ────────────────────────────
   const selectedRevenue  = sales.reduce((s: number, r: any) =>
@@ -232,21 +264,41 @@ export async function getReportsDataAction(
   const semiAnnualSums = legacySumsWithCurrency(semiAnnualStart.split('T')[0], toIso); // within semi-annual
 
   // ── Expense breakdown by category ──────────────────────────────────────────
-  // Normalize: expense category comes from join now
+  // Classify each expense into the correct income-statement bucket
   const getCat = (e: any): string => (e.expense_categories as any)?.name ?? e.category ?? '';
 
-  const byCategory = (cat: string) =>
-    expenses.filter((e: any) => getCat(e).toLowerCase().includes(cat.toLowerCase()))
-      .reduce((s: number, e: any) => s + toReportCurrency(Number(e.amount || 0), e.currency), 0);
+  function classifyExpenseField(category: string): keyof IncomeStatementData {
+    const c = category.toLowerCase();
+    if (c.includes('salaire') || c.includes('salary') || c.includes('salè'))    return 'salaires';
+    if (c.includes('loyer')   || c.includes('rent')   || c.includes('lwaye'))   return 'loyers';
+    if (c.includes('marketing') || c.includes('publicité') || c.includes('pub') || c.includes('makèting')) return 'marketing';
+    if (c.includes('internet') || c.includes('téléphone') || c.includes('telephone') || c.includes('mobile') || c.includes('entènèt')) return 'electriciteInternet';
+    if (c.includes('électricité') || c.includes('electricite') || c.includes('elektrisite') || c.includes('eau') || c.includes('dlo')) return 'electriciteInternet';
+    if (c.includes('transport') || c.includes('livraison') || c.includes('transpò') || c.includes('vehicule') || c.includes('véhicule') || c.includes('veyikil') || c.includes('deplasman') || c.includes('déplacement')) return 'transport';
+    if (c.includes('bancaire') || c.includes('bank') || c.includes('banque'))   return 'fraisBancaires';
+    if (c.includes('fourniture') || c.includes('bureau') || c.includes('founitì')) return 'autresCharges';
+    if (c.includes('intérêt') || c.includes('enterè')  || c.includes('intérêts')) return 'chargesFinancieres';
+    if (c.includes('équipement') || c.includes('matériel') || c.includes('ekipman') || c.includes('machine')) return 'dotationsAmortissements';
+    if (c.includes('impôt') || c.includes('taxe') || c.includes('tca') || c.includes('enpo')) return 'impotTaxes';
+    if (c.includes('social') || c.includes('ona') || c.includes('ofatma'))       return 'chargesSociales';
+    if (c.includes('amortissement') || c.includes('amòtisman'))                 return 'dotationsAmortissements';
+    if (c.includes('stock') || c.includes('acha') || c.includes('achat') || c.includes('marchandise')) return 'variationStock';
+    if (c.includes('remboursement') || c.includes('ranbousman'))                return 'autresCharges';
+    return 'autresCharges';
+  }
 
-  const expLoyer    = byCategory('Loyer');
-  const expSalaire  = byCategory('Salaire');
-  const expStock    = byCategory('Stock');
-  const expRemb     = byCategory('Remboursement');
-  const expAutres   = expenses.filter((e: any) => {
-    const cat = getCat(e).toLowerCase();
-    return !['loyer','salaire','stock','remboursement'].some(k => cat.includes(k));
-  }).reduce((s: number, e: any) => s + toReportCurrency(Number(e.amount || 0), e.currency), 0);
+  const incomeBuckets: Record<string, number> = {
+    loyers: 0, salaires: 0, chargesSociales: 0, marketing: 0,
+    transport: 0, electriciteInternet: 0, fraisBancaires: 0,
+    autresCharges: 0, dotationsAmortissements: 0, impotTaxes: 0,
+    variationStock: 0, chargesFinancieres: 0,
+  };
+
+  for (const e of expenses) {
+    const field = classifyExpenseField(getCat(e));
+    const amt   = toReportCurrency(Number(e.amount || 0), e.currency);
+    incomeBuckets[field] = (incomeBuckets[field] ?? 0) + amt;
+  }
 
   // ── Purchases — converted to reporting currency ──────────────────────────
   const cogs = purch.filter((p: any) => p.payment_status === 'paid' || p.payment_status === 'Payé')
@@ -278,50 +330,55 @@ export async function getReportsDataAction(
     autresRevenus:           0,
     retoursRabais:           0,
     achatsMarchandises:      cogs,
-    variationStock:          0,
+    variationStock:          incomeBuckets.variationStock,
     transportAchat:          0,
-    loyers:                  expLoyer,
-    salaires:                expSalaire,
-    chargesSociales:         0,
-    marketing:               0,
-    transport:               0,
-    electriciteInternet:     0,
-    fraisBancaires:          0,
-    autresCharges:           expAutres + expRemb,
-    dotationsAmortissements: 0,
+    loyers:                  incomeBuckets.loyers,
+    salaires:                incomeBuckets.salaires,
+    chargesSociales:         incomeBuckets.chargesSociales,
+    marketing:               incomeBuckets.marketing,
+    transport:               incomeBuckets.transport,
+    electriciteInternet:     incomeBuckets.electriciteInternet,
+    fraisBancaires:          incomeBuckets.fraisBancaires,
+    autresCharges:           incomeBuckets.autresCharges,
+    dotationsAmortissements: incomeBuckets.dotationsAmortissements,
     produitsFinanciers:      0,
-    chargesFinancieres:      0,
-    impotTaxes:              0,
+    chargesFinancieres:      incomeBuckets.chargesFinancieres,
+    impotTaxes:              incomeBuckets.impotTaxes,
   };
 
-  // ── Balance Sheet ──────────────────────────────────────────────────────────
+  // ── Balance Sheet (using real account balances where available) ────────────
   const balance: BalanceSheetData = {
-    terrains: 0, batimentsConstruct: 0, materielInformatique: 0,
-    mobilierBureau: 0, vehicules: 0, autresImmobilisations: 0, amortissementsCumules: 0,
-    stocksMarchandises: stockValue + expStock,
-    creancesClients,
-    avancesFournisseurs: 0,
-    tresoreriebanque:    cashTotal * 0.6,
-    tresorerieMonCash:   cashTotal * 0.25,
-    tresorerieNatcash:   cashTotal * 0.1,
-    tresorerieCaisse:    cashTotal * 0.05,
-    autresActifsCourants: 0,
-    capitalSocial:           0,
+    terrains:               accountBalance('1250') + accountBalance('1260'),
+    batimentsConstruct:     accountBalance('1240'),
+    materielInformatique:   accountBalance('1210'),
+    mobilierBureau:         accountBalance('1220'),
+    vehicules:              accountBalance('1230'),
+    autresImmobilisations:  accountBalance('1280'),
+    amortissementsCumules:  accountBalance('1290'),
+    stocksMarchandises:     accountBalance('3100') > 0 ? accountBalance('3100') : stockValue + incomeBuckets.variationStock,
+    creancesClients:        accountBalance('1130') > 0 ? accountBalance('1130') : creancesClients,
+    avancesFournisseurs:    accountBalance('1140'),
+    tresorerieCaisse:       accountBalance('1110'),
+    tresoreriebanque:       accountBalance('1120'),
+    tresorerieMonCash:      0,
+    tresorerieNatcash:      0,
+    autresActifsCourants:   accountBalance('1190'),
+    capitalSocial:           accountBalance('3100'),
     apportsProprio:          0,
-    reservesLegales:         0,
-    reportANouveau:          0,
+    reservesLegales:         accountBalance('3130'),
+    reportANouveau:          accountBalance('3140'),
     resultatExercice:        netProfit,
-    prelevementsProprietaire: 0,
-    empruntsBancairesLT:     0,
-    pretesLT:                0,
-    dettesImmobilisations:   0,
-    detteFournisseurs,
-    salairesPayer:  0,
-    onaPayer:       0,
-    taxesPayer:     0,
-    chargesPayer:   0,
-    avancesClients: 0,
-    autresPassifsCourants: 0,
+    prelevementsProprietaire: accountBalance('3110'),
+    empruntsBancairesLT:     accountBalance('2200'),
+    pretesLT:                accountBalance('2210'),
+    dettesImmobilisations:   accountBalance('2290'),
+    detteFournisseurs:       accountBalance('2110') > 0 ? accountBalance('2110') : detteFournisseurs,
+    salairesPayer:           accountBalance('2310'),
+    onaPayer:                accountBalance('2320'),
+    taxesPayer:              accountBalance('2330'),
+    chargesPayer:            accountBalance('2390'),
+    avancesClients:          accountBalance('2400'),
+    autresPassifsCourants:   accountBalance('2490'),
   };
 
   // ── Cash Flow Statement ────────────────────────────────────────────────────
@@ -336,17 +393,17 @@ export async function getReportsDataAction(
     encaissementsServices:           cashMonCash + cashCard,
     autresEncaissements:             0,
     decaissementsAchats:             cogs,
-    decaissementsSalaires:           expSalaire,
-    decaissementsChargesSociales:    0,
-    decaissementsLoyers:             expLoyer,
-    decaissementsMarketing:          0,
-    decaissementsAutres:             expAutres + expRemb,
+    decaissementsSalaires:           incomeBuckets.salaires,
+    decaissementsChargesSociales:    incomeBuckets.chargesSociales,
+    decaissementsLoyers:             incomeBuckets.loyers,
+    decaissementsMarketing:          incomeBuckets.marketing,
+    decaissementsAutres:             incomeBuckets.autresCharges + incomeBuckets.electriciteInternet + incomeBuckets.fraisBancaires + incomeBuckets.transport + incomeBuckets.dotationsAmortissements + incomeBuckets.impotTaxes,
     impotsPaies:                     0,
     acquisitionsImmobilisations:     0,
     cedImmobilisations:              0,
     autresInvestissements:           0,
     empruntContractes:               0,
-    remboursementsPrets:             expRemb,
+    remboursementsPrets:             incomeBuckets.autresCharges,
     apportsProprio:                  0,
     prelevementsProprio:             0,
     tresorerieDebutExercice:         0,

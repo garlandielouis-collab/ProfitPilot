@@ -7,6 +7,7 @@ import { Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { CockpitWelcome } from '../../components/CockpitWelcome';
+import { useLanguage } from '../../components/LanguageWrapper';
 
 import {
   Area, AreaChart, Bar, BarChart,
@@ -158,7 +159,7 @@ function computeHealthScore(cashIn: number, cashOut: number, profit: number, deb
 // SVG HEALTH GAUGE
 // ─────────────────────────────────────────────────────────────────────────────
 
-function HealthGauge({ score }: { score: number }) {
+function HealthGauge({ score, label }: { score: number; label: string }) {
   const r = 72, cx = 100, cy = 108, sw = 11;
 
   function polar(deg: number) {
@@ -174,7 +175,6 @@ function HealthGauge({ score }: { score: number }) {
 
   const endAngle = 135 + Math.max(1, (score / 100) * 270);
   const col = score >= 70 ? C.emerald : score >= 40 ? C.amber : C.red;
-  const label = score >= 70 ? 'EXCELLENT' : score >= 40 ? 'MOYEN' : 'FAIBLE';
 
   return (
     <svg viewBox="0 0 200 200" className="h-48 w-48 drop-shadow-2xl">
@@ -240,6 +240,7 @@ interface KPICardProps {
 }
 
 function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, loading, index = 0 }: KPICardProps) {
+  const { t } = useLanguage();
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
@@ -279,7 +280,7 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
           {!loading && trend !== null && (
             <span className={`flex items-center gap-1 text-[11px] font-bold ${trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               <span>{trend >= 0 ? '↗' : '↘'}</span>
-              {Math.abs(trend).toFixed(1)}% vs mois passé
+              {Math.abs(trend).toFixed(1)}% {t({ fr: 'vs mois passé', ht: 'vs mwa pase a' })}
             </span>
           )}
           {!loading && (
@@ -435,7 +436,7 @@ function AIInsightCard({ insight, idx }: { insight: Insight; idx: number }) {
 // STOCK STATUS BAR
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StockBar({ qty, reorder }: { qty: number; reorder: number }) {
+function StockBar({ qty, reorder, outOfStockT, lowT }: { qty: number; reorder: number; outOfStockT: string; lowT: string }) {
   const pct = reorder > 0 ? Math.min(100, (qty / (reorder * 2)) * 100) : 50;
   const col = qty === 0 ? C.red : qty <= reorder ? C.amber : C.emerald;
   return (
@@ -444,7 +445,7 @@ function StockBar({ qty, reorder }: { qty: number; reorder: number }) {
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: col }} />
       </div>
       <span className="text-[11px] tabular-nums font-semibold" style={{ color: col }}>
-        {qty === 0 ? 'Épuisé' : qty <= reorder ? `${qty} (bas)` : qty}
+        {qty === 0 ? outOfStockT : qty <= reorder ? `${qty} (${lowT})` : qty}
       </span>
     </div>
   );
@@ -545,10 +546,11 @@ function DashboardInner() {
   const currentYear  = now.getFullYear();
   const currentMonth = now.getMonth();
   const hour         = now.getHours();
-  const greeting     = hour < 12 ? 'Bonjou' : hour < 18 ? 'Bonswa' : 'Bonswa';
+  const { t } = useLanguage();
+  const greeting     = hour < 12 ? t({ fr: 'Bonjour', ht: 'Bonjou' }) : hour < 18 ? t({ fr: 'Bonsoir', ht: 'Bonswa' }) : t({ fr: 'Bonsoir', ht: 'Bonswa' });
   const searchParams  = useSearchParams();
   const showWelcome   = searchParams.get('welcome') === '1';
-  const [companyName, setCompanyName] = useState('votre entreprise');
+  const [companyName, setCompanyName] = useState(t({ fr: 'votre entreprise', ht: 'antrepriz ou a' }));
   useEffect(() => {
     const stored = localStorage.getItem('pp_company');
     if (stored) setCompanyName(stored);
@@ -646,11 +648,12 @@ function DashboardInner() {
 
   useEffect(() => {
     load(periodMode, monthRange[0], monthRange[1]);
-  }, [periodMode, monthRange, load]);
+  }, [periodMode, monthRange[0], monthRange[1], load]);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
   const marginPct = totals.cashIn > 0 ? (totals.profit / totals.cashIn) * 100 : 0;
   const healthScore = computeHealthScore(totals.cashIn, totals.cashOut, totals.profit, totals.debtTotal);
+  const healthLabel = healthScore >= 70 ? t({ fr: 'EXCELLENT', ht: 'EKSELAN' }) : healthScore >= 40 ? t({ fr: 'MOYEN', ht: 'MOYEN' }) : t({ fr: 'FAIBLE', ht: 'FÈB' });
 
   const bilanRows = useMemo(() => {
     const map = new Map<string, { idx: number; rev: number; dep: number }>();
@@ -698,10 +701,11 @@ function DashboardInner() {
     return cashflow.slice(0, 12).map(p => { bal += p.profit; return Math.max(0, bal); });
   }, [cashflow]);
 
-  const lowStockCount  = products.filter(p => p.stock_quantity <= (p.reorder_point ?? 0)).length;
-  const outOfStockCount = products.filter(p => p.stock_quantity === 0).length;
-  // Use purchase_price (cost price) for stock value — more accurate than sale_price
-  const totalStockValue = products.reduce((s, p) => s + (p.stock_quantity * ((p as any).purchase_price ?? p.selling_price ?? 0)), 0);
+  const { lowStockCount, outOfStockCount, totalStockValue } = useMemo(() => ({
+    lowStockCount:   products.filter(p => p.stock_quantity <= (p.reorder_point ?? 0)).length,
+    outOfStockCount: products.filter(p => p.stock_quantity === 0).length,
+    totalStockValue: products.reduce((s, p) => s + (p.stock_quantity * ((p as any).purchase_price ?? p.selling_price ?? 0)), 0),
+  }), [products]);
 
   // AI Insights (computed from real data)
   const aiInsights: Insight[] = useMemo(() => {
@@ -709,25 +713,25 @@ function DashboardInner() {
 
     if (marginPct >= 20) {
       insights.push({ type:'success', icon:'🚀',
-        text: `Maji pwofitabilite w ekselan — ${marginPct.toFixed(1)}% — biznis ou an bòn sante finansyè.`,
-        action: 'Wè rapò konplè'
+        text: t({ fr: `Votre marge de profitabilité est excellente — ${marginPct.toFixed(1)}% — votre entreprise est en bonne santé financière.`, ht: `Maji pwofitabilite w ekselan — ${marginPct.toFixed(1)}% — biznis ou an bòn sante finansyè.` }),
+        action: t({ fr: 'Voir rapport complet', ht: 'Wè rapò konplè' })
       });
     } else if (marginPct >= 5) {
       insights.push({ type:'info', icon:'📊',
-        text: `Maj ou a ${marginPct.toFixed(1)}% — travay sou redwi depans yo pou amelyore pwofi ou.`,
-        action: 'Analize depans'
+        text: t({ fr: `Votre marge est de ${marginPct.toFixed(1)}% — travaillez sur la réduction des dépenses pour améliorer votre profit.`, ht: `Maj ou a ${marginPct.toFixed(1)}% — travay sou redwi depans yo pou amelyore pwofi ou.` }),
+        action: t({ fr: 'Analyser les dépenses', ht: 'Analize depans' })
       });
     } else {
       insights.push({ type:'danger', icon:'🔴',
-        text: `Alèt : maj ou a ${marginPct.toFixed(1)}%. Depans yo depase reveni yo. Pran aksyon tousuit.`,
-        action: 'Wè depans yo'
+        text: t({ fr: `Alerte : votre marge est de ${marginPct.toFixed(1)}%. Les dépenses dépassent les revenus. Agissez immédiatement.`, ht: `Alèt : maj ou a ${marginPct.toFixed(1)}%. Depans yo depase reveni yo. Pran aksyon tousuit.` }),
+        action: t({ fr: 'Voir les dépenses', ht: 'Wè depans yo' })
       });
     }
 
     if (totals.debtTotal > totals.cashIn * 0.5 && totals.debtTotal > 0) {
       insights.push({ type:'warning', icon:'⚠️',
-        text: `Dèt ou yo reprezante ${(totals.debtTotal / totals.cashIn * 100).toFixed(0)}% reveni ou. Panse redwi chaj kredi yo.`,
-        action: 'Jere dèt yo'
+        text: t({ fr: `Vos dettes représentent ${(totals.debtTotal / totals.cashIn * 100).toFixed(0)}% de vos revenus. Pensez à réduire vos charges de crédit.`, ht: `Dèt ou yo reprezante ${(totals.debtTotal / totals.cashIn * 100).toFixed(0)}% reveni ou. Panse redwi chaj kredi yo.` }),
+        action: t({ fr: 'Gérer les dettes', ht: 'Jere dèt yo' })
       });
     }
 
@@ -738,19 +742,19 @@ function DashboardInner() {
     const top = Object.entries(byCategory).sort(([,a],[,b]) => b - a)[0];
     if (top) {
       insights.push({ type:'info', icon:'⭐',
-        text: `Miyò kliyan / kategori ou pou peryòd sa a : "${top[0]}" ak ${fmt(top[1])}.` });
+        text: t({ fr: `Meilleur client / catégorie pour cette période : "${top[0]}" avec ${fmt(top[1])}.`, ht: `Miyò kliyan / kategori ou pou peryòd sa a : "${top[0]}" ak ${fmt(top[1])}.` }) });
     }
 
     if (outOfStockCount > 0) {
       insights.push({ type:'warning', icon:'📦',
-        text: `${outOfStockCount} pwodwi rive zewo nan stòk. Renouvle yo tousuit pou evite pèdi vant.`,
-        action: 'Wè envantè'
+        text: t({ fr: `${outOfStockCount} produits sont en rupture de stock. Réapprovisionnez-les immédiatement pour éviter de perdre des ventes.`, ht: `${outOfStockCount} pwodwi rive zewo nan stòk. Renouvle yo tousuit pou evite pèdi vant.` }),
+        action: t({ fr: "Voir l'inventaire", ht: 'Wè envantè' })
       });
     }
 
     if (totals.cashIn > 0 && totals.profit > 0) {
       insights.push({ type:'success', icon:'💰',
-        text: `Pwofi nèt ou pou peryòd sa a : ${fmt(totals.profit)}. Kontinye konsa !`
+        text: t({ fr: `Votre profit net pour cette période : ${fmt(totals.profit)}. Continuez comme ça !`, ht: `Pwofi nèt ou pou peryòd sa a : ${fmt(totals.profit)}. Kontinye konsa !` })
       });
     }
 
@@ -759,10 +763,10 @@ function DashboardInner() {
 
   // Health score breakdown
   const healthFactors = [
-    { label: 'Pwofitabilite', score: Math.round(Math.min(30, Math.max(0, marginPct >= 30 ? 30 : marginPct >= 20 ? 24 : marginPct >= 10 ? 15 : marginPct >= 5 ? 8 : 0))), max: 30, color: C.emerald },
-    { label: 'Revenu',        score: totals.cashIn > 0 ? 20 : 0, max: 20, color: C.blue },
-    { label: 'Kontwòl depans',score: Math.round(totals.cashIn > 0 ? (totals.cashOut / totals.cashIn < 0.60 ? 25 : totals.cashOut / totals.cashIn < 0.70 ? 20 : totals.cashOut / totals.cashIn < 0.80 ? 12 : totals.cashOut / totals.cashIn < 0.90 ? 6 : 0) : 0), max: 25, color: C.purple },
-    { label: 'Jestyon dèt',   score: Math.round(totals.cashIn > 0 ? (totals.debtTotal / totals.cashIn < 0.20 ? 25 : totals.debtTotal / totals.cashIn < 0.40 ? 18 : totals.debtTotal / totals.cashIn < 0.60 ? 10 : totals.debtTotal / totals.cashIn < 0.80 ? 4 : 0) : 0), max: 25, color: C.amber },
+    { label: t({ fr: 'Pwofitabilite', ht: 'Pwofitabilite' }), score: Math.round(Math.min(30, Math.max(0, marginPct >= 30 ? 30 : marginPct >= 20 ? 24 : marginPct >= 10 ? 15 : marginPct >= 5 ? 8 : 0))), max: 30, color: C.emerald },
+    { label: t({ fr: 'Revenu', ht: 'Revni' }),        score: totals.cashIn > 0 ? 20 : 0, max: 20, color: C.blue },
+    { label: t({ fr: 'Kontrôle des dépenses', ht: 'Kontwòl depans' }),score: Math.round(totals.cashIn > 0 ? (totals.cashOut / totals.cashIn < 0.60 ? 25 : totals.cashOut / totals.cashIn < 0.70 ? 20 : totals.cashOut / totals.cashIn < 0.80 ? 12 : totals.cashOut / totals.cashIn < 0.90 ? 6 : 0) : 0), max: 25, color: C.purple },
+    { label: t({ fr: 'Gestion des dettes', ht: 'Jestyon dèt' }),   score: Math.round(totals.cashIn > 0 ? (totals.debtTotal / totals.cashIn < 0.20 ? 25 : totals.debtTotal / totals.cashIn < 0.40 ? 18 : totals.debtTotal / totals.cashIn < 0.60 ? 10 : totals.debtTotal / totals.cashIn < 0.80 ? 4 : 0) : 0), max: 25, color: C.amber },
   ];
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
@@ -789,16 +793,16 @@ function DashboardInner() {
                 transition={{ duration: 0.5 }}
               >
                 <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-emerald-400/70">
-                  ProfitPilot · Tableau de bord
+                  {t({ fr: 'ProfitPilot · Tableau de bord', ht: 'ProfitPilot · Tablo debò' })}
                 </p>
                 <h1 className="mt-2 text-2xl font-extrabold tracking-tight md:text-3xl lg:text-4xl">
                   {greeting},{' '}
                   <span className="bg-gradient-to-r from-[#001F3F] to-[#001F3F]/60 bg-clip-text text-transparent">
-                    {userName || 'Entrepreneur'} 👋
+                    {userName || t({ fr: 'Entrepreneur', ht: 'Antreprenè' })} 👋
                   </span>
                 </h1>
                 <p className="mt-1.5 text-sm text-[var(--color-muted)]">
-                  Voici les performances de votre business — {periodLabel}
+                   {t({ fr: 'Voici les performances de votre business', ht: 'Men pèfòmans biznis ou a' })} — {periodLabel}
                 </p>
               </motion.div>
             </div>
@@ -813,7 +817,7 @@ function DashboardInner() {
                              bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-400"
                 >
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                  Données démo
+                   {t({ fr: 'Données démo', ht: 'Done Demo' })}
                 </motion.span>
               )}
               <Link href="/ai-assistant"
@@ -821,7 +825,7 @@ function DashboardInner() {
                            bg-emerald-500/10 px-4 py-2 text-[12px] font-semibold text-emerald-400
                            transition hover:bg-emerald-500/20 hover:border-emerald-500/50">
                 <span className="text-base leading-none">🤖</span>
-                Pilot AI
+                {t({ fr: 'Pilot AI', ht: 'Pilot AI' })}
               </Link>
               <Link href="/settings"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)]
@@ -852,7 +856,7 @@ function DashboardInner() {
                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
                     : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                 }`}>
-                {m === 'mois' ? '📅 Mwa' : m === 'trimestre' ? '📊 Trimès' : '📈 Semès'}
+                {m === 'mois' ? t({ fr: '📅 Mois', ht: '📅 Mwa' }) : m === 'trimestre' ? t({ fr: '📊 Trimestre', ht: '📊 Trimès' }) : t({ fr: '📈 Semestre', ht: '📈 Semès' })}
               </button>
             ))}
           </div>
@@ -896,46 +900,46 @@ function DashboardInner() {
         {/* 3. KPI CARDS                                                     */}
         {/* ──────────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard index={0} label="Revenus du mois" value={loading ? '…' : fmt(totals.cashIn)}
-            sub="Total des ventes" trend={null} color={C.blue}
+          <KPICard index={0} label={t({ fr: 'Revenus du mois', ht: 'Revni mwa a' })} value={loading ? t({ fr: '…', ht: '…' }) : fmt(totals.cashIn)}
+            sub={t({ fr: 'Total des ventes', ht: 'Total lavant yo' })} trend={null} color={C.blue}
             sparkData={spRevenue} sparkId="rev" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12"/>
             </svg>}
           />
-          <KPICard index={1} label="Profit net" value={loading ? '…' : fmt(totals.profit)}
-            sub={loading ? '' : `Marge ${marginPct.toFixed(1)}%`}
+          <KPICard index={1} label={t({ fr: 'Profit net', ht: 'Pwofi nèt' })} value={loading ? '…' : fmt(totals.profit)}
+            sub={loading ? '' : `${t({ fr: 'Marge', ht: 'Maj' })} ${marginPct.toFixed(1)}%`}
             trend={null} color={totals.profit >= 0 ? C.emerald : C.red}
             sparkData={spProfit} sparkId="pft" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
             </svg>}
           />
-          <KPICard index={2} label="Dépenses" value={loading ? '…' : fmt(totals.cashOut)}
-            sub="Achats + charges" trend={null} color={C.red}
+          <KPICard index={2} label={t({ fr: 'Dépenses', ht: 'Depans' })} value={loading ? '…' : fmt(totals.cashOut)}
+            sub={t({ fr: 'Achats + charges', ht: 'Acha + chaj' })} trend={null} color={C.red}
             sparkData={spExpenses} sparkId="exp" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6"/>
             </svg>}
           />
-          <KPICard index={3} label="Trésorerie" value={loading ? '…' : fmt(Math.max(0, totals.profit))}
-            sub="Solde disponible" trend={null}
+          <KPICard index={3} label={t({ fr: 'Trésorerie', ht: 'Lajan kach' })} value={loading ? '…' : fmt(Math.max(0, totals.profit))}
+            sub={t({ fr: 'Solde disponible', ht: 'Sòd disponib' })} trend={null}
             color={totals.profit >= 0 ? C.cyan : C.red}
             sparkData={spCashflow} sparkId="cf" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
             </svg>}
           />
-          <KPICard index={4} label="Dettes fournisseurs" value={loading ? '…' : fmt(totals.debtTotal)}
-            sub="À crédit" trend={null} color={C.amber}
+          <KPICard index={4} label={t({ fr: 'Dettes fournisseurs', ht: 'Dèt founisè' })} value={loading ? '…' : fmt(totals.debtTotal)}
+            sub={t({ fr: 'À crédit', ht: 'Ak kredi' })} trend={null} color={C.amber}
             sparkData={Array.from({length:12},(_,i)=>totals.debtTotal*(0.5+Math.sin(i)*0.3))}
             sparkId="dbt" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>}
           />
-          <KPICard index={5} label="Produits en rupture" value={String(outOfStockCount)}
-            sub={`${lowStockCount} en stock bas`} trend={null}
+          <KPICard index={5} label={t({ fr: 'Produits en rupture', ht: 'Pwodwi fini nan stock' })} value={String(outOfStockCount)}
+            sub={t({ fr: `${lowStockCount} en stock bas`, ht: `${lowStockCount} stock ba` })} trend={null}
             color={outOfStockCount > 0 ? C.red : C.emerald}
             sparkData={Array.from({length:12},(_,i)=>Math.max(0,outOfStockCount+Math.sin(i)*1.5))}
             sparkId="stk" loading={loading}
@@ -943,8 +947,8 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
             </svg>}
           />
-          <KPICard index={6} label="Transactions" value={loading ? '…' : String(ledger.length)}
-            sub={`${salesRows.length} ventes · ${expensesRows.length} dépenses`}
+          <KPICard index={6} label={t({ fr: 'Transactions', ht: 'Transaksyon' })} value={loading ? '…' : String(ledger.length)}
+            sub={t({ fr: `${salesRows.length} ventes · ${expensesRows.length} dépenses`, ht: `${salesRows.length} vant · ${expensesRows.length} depans` })}
             trend={null} color={C.purple}
             sparkData={Array.from({length:12},(_,i)=>4+Math.sin(i*0.7)*3+Math.random()*2)}
             sparkId="txn" loading={loading}
@@ -952,8 +956,8 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
             </svg>}
           />
-          <KPICard index={7} label="Valeur stock total" value={fmtK(totalStockValue) + ' HTG'}
-            sub={`${products.length} produits`} trend={null} color={C.pink}
+          <KPICard index={7} label={t({ fr: 'Valeur stock total', ht: 'Valè stock total' })} value={fmtK(totalStockValue) + ' HTG'}
+            sub={t({ fr: `${products.length} produits`, ht: `${products.length} pwodwi` })} trend={null} color={C.pink}
             sparkData={Array.from({length:12},(_,i)=>totalStockValue*(0.8+Math.sin(i*0.5)*0.2))}
             sparkId="sv" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -973,14 +977,14 @@ function DashboardInner() {
           <GlassCard className="p-5">
             <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-400/70">Cashflow</p>
-                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">Évolution du flux de trésorerie</h3>
-                <p className="text-[11px] text-[var(--color-muted)] mt-0.5">Entrées vs sorties · {periodLabel}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-400/70">{t({ fr: 'Cashflow', ht: 'Flus kach' })}</p>
+                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">{t({ fr: 'Évolution du flux de trésorerie', ht: 'Evolisyon flus lajan kach la' })}</h3>
+                <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{t({ fr: 'Entrées vs sorties', ht: 'Antre vs sòti' })} · {periodLabel}</p>
               </div>
               <div className="flex items-center gap-4">
-                <LegendDot color={C.blue}    label="Cash In" />
-                <LegendDot color={C.red}     label="Cash Out" />
-                <LegendDot color={C.emerald} label="Profit" />
+                <LegendDot color={C.blue}    label={t({ fr: 'Cash In', ht: 'Antre Kach' })} />
+                <LegendDot color={C.red}     label={t({ fr: 'Cash Out', ht: 'Sòti Kach' })} />
+                <LegendDot color={C.emerald} label={t({ fr: 'Profit', ht: 'Pwofi' })} />
               </div>
             </div>
 
@@ -1010,13 +1014,13 @@ function DashboardInner() {
                       tickLine={false} axisLine={false} width={50} tickFormatter={fmtK} />
                     <Tooltip content={<GlassTooltip />}
                       cursor={{ stroke: 'rgba(0,0,0,0.08)', strokeWidth: 1 }} />
-                    <Area type="monotone" dataKey="cashIn"  name="Cash In"
+                    <Area type="monotone" dataKey="cashIn"  name={t({ fr: 'Cash In', ht: 'Antre Kach' })}
                       stroke={C.blue}    strokeWidth={2}   fill="url(#gIn)"
                       dot={false} activeDot={{ r: 5, fill: C.blue,    stroke:'#fff', strokeWidth:2 }} />
-                    <Area type="monotone" dataKey="cashOut" name="Cash Out"
+                    <Area type="monotone" dataKey="cashOut" name={t({ fr: 'Cash Out', ht: 'Sòti Kach' })}
                       stroke={C.red}     strokeWidth={2}   fill="url(#gOut)"
                       dot={false} activeDot={{ r: 5, fill: C.red,     stroke:'#fff', strokeWidth:2 }} />
-                    <Area type="monotone" dataKey="profit"  name="Profit"
+                    <Area type="monotone" dataKey="profit"  name={t({ fr: 'Profit', ht: 'Pwofi' })}
                       stroke={C.emerald} strokeWidth={1.5} fill="url(#gPft)" strokeDasharray="5 3"
                       dot={false} activeDot={{ r: 4, fill: C.emerald, stroke:'#fff', strokeWidth:2 }} />
                   </AreaChart>
@@ -1038,14 +1042,14 @@ function DashboardInner() {
           >
             <GlassCard className="p-5 h-full">
               <div className="mb-5">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-purple-400/70">Performance</p>
-                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">Revenus vs Dépenses par mois</h3>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-purple-400/70">{t({ fr: 'Performance', ht: 'Pèfòmans' })}</p>
+                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">{t({ fr: 'Revenus vs Dépenses par mois', ht: 'Revni vs Depans pa mwa' })}</h3>
                 <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{periodLabel}</p>
               </div>
 
               {loading ? <ChartSkel h="h-56 md:h-64" /> : bilanRows.length === 0 ? (
                 <div className="flex h-56 items-center justify-center text-sm text-[var(--color-muted)]">
-                  Aucune donnée pour cette période.
+                  {t({ fr: 'Aucune donnée pour cette période.', ht: 'Pa gen done pou peryòd sa a.' })}
                 </div>
               ) : (
                 <div className="h-56 md:h-64">
@@ -1060,9 +1064,9 @@ function DashboardInner() {
                       <Tooltip content={<GlassTooltip />}
                         cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
                       <ReferenceLine y={0} stroke="rgba(0,0,0,0.1)" />
-                      <Bar dataKey="revenue"  name="Revenu"  fill={C.blue}   radius={[5,5,0,0]} maxBarSize={42} />
-                      <Bar dataKey="expenses" name="Dépenses" fill={C.red}   radius={[5,5,0,0]} maxBarSize={42} />
-                      <Bar dataKey="profit"   name="Profit"   radius={[5,5,0,0]} maxBarSize={42}>
+                      <Bar dataKey="revenue"  name={t({ fr: 'Revenu', ht: 'Revni' })}  fill={C.blue}   radius={[5,5,0,0]} maxBarSize={42} />
+                      <Bar dataKey="expenses" name={t({ fr: 'Dépenses', ht: 'Depans' })} fill={C.red}   radius={[5,5,0,0]} maxBarSize={42} />
+                      <Bar dataKey="profit"   name={t({ fr: 'Profit', ht: 'Pwofi' })}   radius={[5,5,0,0]} maxBarSize={42}>
                         {bilanRows.map((r, i) => (
                           <Cell key={i} fill={r.profit >= 0 ? C.emerald : C.red} fillOpacity={0.85} />
                         ))}
@@ -1074,9 +1078,9 @@ function DashboardInner() {
 
               {!loading && bilanRows.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-4 justify-end">
-                  <LegendDot color={C.blue}    label="Revenu" />
-                  <LegendDot color={C.red}     label="Dépenses" />
-                  <LegendDot color={C.emerald} label="Profit +" />
+                  <LegendDot color={C.blue}    label={t({ fr: 'Revenu', ht: 'Revni' })} />
+                  <LegendDot color={C.red}     label={t({ fr: 'Dépenses', ht: 'Depans' })} />
+                  <LegendDot color={C.emerald} label={t({ fr: 'Profit +', ht: 'Pwofi +' })} />
                 </div>
               )}
             </GlassCard>
@@ -1086,7 +1090,7 @@ function DashboardInner() {
           <div className="flex flex-col gap-3">
             {/* Margin */}
             <GlassCard className="p-4 flex flex-col gap-3">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-muted)]">Marge Profit</p>
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-muted)]">{t({ fr: 'Marge Profit', ht: 'Maj Pwofi' })}</p>
               {loading ? <div className="h-8 w-20 animate-pulse rounded-xl bg-slate-100" /> : (
                 <>
                   <p className={`text-3xl font-extrabold tracking-tight ${
@@ -1102,21 +1106,21 @@ function DashboardInner() {
                       style={{ background: marginPct >= 20 ? C.emerald : marginPct >= 5 ? C.amber : C.red }}
                     />
                   </div>
-                  <p className="text-[10px] text-[var(--color-muted)]">Profit ÷ Revenu total</p>
+                  <p className="text-[10px] text-[var(--color-muted)]">{t({ fr: 'Profit ÷ Revenu total', ht: 'Pwofi ÷ Revni total' })}</p>
                 </>
               )}
             </GlassCard>
 
             {/* Cashflow balance */}
             <GlassCard className="p-4 flex flex-col gap-2">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-muted)]">Solde Net</p>
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-[var(--color-muted)]">{t({ fr: 'Solde Net', ht: 'Sòd Nèt' })}</p>
               {loading ? <div className="h-8 w-24 animate-pulse rounded-xl bg-slate-100" /> : (
                 <>
                   <p className={`text-2xl font-extrabold tracking-tight ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {totals.profit >= 0 ? '+' : ''}{fmtK(totals.profit)}
                     <span className="text-xs font-medium text-[var(--color-muted)] ml-1">HTG</span>
                   </p>
-                  <p className="text-[10px] text-[var(--color-muted)]">Cash In − Cash Out</p>
+                  <p className="text-[10px] text-[var(--color-muted)]">{t({ fr: 'Cash In − Cash Out', ht: 'Antre Kach − Sòti Kach' })}</p>
                 </>
               )}
             </GlassCard>
@@ -1135,14 +1139,14 @@ function DashboardInner() {
                     : 'border-red-200 bg-red-50 text-red-600'
                 }`}>
                 <span className="font-bold">
-                  {marginPct >= 20 ? '✅ Excellent' : marginPct >= 5 ? '⚠️ Moyen' : '🔴 Alerte'}
+                  {marginPct >= 20 ? t({ fr: '✅ Excellent', ht: '✅ Ekselan' }) : marginPct >= 5 ? t({ fr: '⚠️ Moyen', ht: '⚠️ Mwayen' }) : t({ fr: '🔴 Alerte', ht: '🔴 Alèt' })}
                 </span>
                 <p className="mt-1 text-[11px] opacity-80">
                   {marginPct >= 20
-                    ? 'Performance financière exceptionnelle.'
+                    ? t({ fr: 'Performance financière exceptionnelle.', ht: 'Pèfòmans finansye eksepsyonèl.' })
                     : marginPct >= 5
-                    ? 'Marge acceptable, surveillez vos charges.'
-                    : 'Marge critique — réduisez les dépenses.'}
+                    ? t({ fr: 'Marge acceptable, surveillez vos charges.', ht: 'Maj akseptab, siveye chaj ou yo.' })
+                    : t({ fr: 'Marge critique — réduisez les dépenses.', ht: 'Maj kritik — redwi depans yo.' })}
                 </p>
               </motion.div>
             )}
@@ -1170,14 +1174,14 @@ function DashboardInner() {
                                    border-2 border-white animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#001F3F]">Pilot AI</h3>
-                  <p className="text-[11px] text-[var(--color-muted)]">Analyse automatique de votre business</p>
+                  <h3 className="font-bold text-[#001F3F]">{t({ fr: 'Pilot AI', ht: 'Pilot AI' })}</h3>
+                  <p className="text-[11px] text-[var(--color-muted)]">{t({ fr: 'Analyse automatique de votre business', ht: 'Analiz otomatik biznis ou a' })}</p>
                 </div>
                 <span className="ml-auto inline-flex items-center gap-1.5 rounded-full
                                  border border-emerald-500/20 bg-emerald-500/10
                                  px-2.5 py-1 text-[10px] font-semibold text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  En ligne
+                  {t({ fr: 'En ligne', ht: 'An liy' })}
                 </span>
               </div>
 
@@ -1196,7 +1200,7 @@ function DashboardInner() {
                 className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/20
                            bg-emerald-500/8 py-3 text-[12px] font-semibold text-emerald-400
                            transition hover:bg-emerald-100 hover:border-emerald-300">
-                <span>💬</span> Ouvrir Pilot AI — posez vos questions
+                <span>💬</span> {t({ fr: 'Ouvrir Pilot AI — posez vos questions', ht: 'Louvri Pilot AI — poze kesyon ou yo' })}
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -1212,15 +1216,15 @@ function DashboardInner() {
           >
             <GlassCard className="p-5 h-full">
               <div className="mb-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-400/70">Santé Business</p>
-                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">Score Financier</h3>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-400/70">{t({ fr: 'Santé Business', ht: 'Sante Biznis' })}</p>
+                <h3 className="mt-0.5 font-bold text-[#001F3F] text-lg">{t({ fr: 'Score Financier', ht: 'Skò Finansye' })}</h3>
               </div>
 
               {/* Gauge */}
               <div className="flex justify-center my-2">
                 {loading
                   ? <div className="h-48 w-48 animate-pulse rounded-full bg-[var(--color-surface)]" />
-                  : <HealthGauge score={healthScore} />
+                  : <HealthGauge score={healthScore} label={healthLabel} />
                 }
               </div>
 
@@ -1247,7 +1251,7 @@ function DashboardInner() {
               </div>
 
               <p className="mt-4 text-[10.5px] text-[var(--color-muted)] leading-relaxed">
-                Score calculé à partir de votre marge, contrôle des dépenses, revenus et gestion des dettes.
+                {t({ fr: 'Score calculé à partir de votre marge, contrôle des dépenses, revenus et gestion des dettes.', ht: 'Skò kalkile apati maj ou, kontwòl depans, revni ak jesyon dèt.' })}
               </p>
             </GlassCard>
           </motion.div>
@@ -1261,29 +1265,29 @@ function DashboardInner() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.35 }}
         >
-          <SectionLabel color={C.cyan}>Actions Rapides</SectionLabel>
+          <SectionLabel color={C.cyan}>{t({ fr: 'Actions Rapides', ht: 'Aksyon Rapid' })}</SectionLabel>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-            <QAButton href="/sales"     color={C.emerald} label="Nouvelle vente"
+            <QAButton href="/sales"     color={C.emerald} label={t({ fr: 'Nouvelle vente', ht: 'Nouvo vant' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>} />
-            <QAButton href="/expenses"  color={C.red}     label="Ajouter dépense"
+            <QAButton href="/expenses"  color={C.red}     label={t({ fr: 'Ajouter dépense', ht: 'Ajoute depans' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
               </svg>} />
-            <QAButton href="/products"  color={C.blue}    label="Ajouter produit"
+            <QAButton href="/products"  color={C.blue}    label={t({ fr: 'Ajouter produit', ht: 'Ajoute pwodui' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
               </svg>} />
-            <QAButton href="/rapports"  color={C.purple}  label="Voir rapports"
+            <QAButton href="/rapports"  color={C.purple}  label={t({ fr: 'Voir rapports', ht: 'Wè rapò' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>} />
-            <QAButton href="/purchases" color={C.amber}   label="Nouvel achat"
+            <QAButton href="/purchases" color={C.amber}   label={t({ fr: 'Nouvel achat', ht: 'Nouvo acha' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>} />
-            <QAButton href="/suppliers" color={C.pink}    label="Fournisseur"
+            <QAButton href="/suppliers" color={C.pink}    label={t({ fr: 'Fournisseur', ht: 'Founisè' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
               </svg>} />
@@ -1303,12 +1307,12 @@ function DashboardInner() {
             <GlassCard className="p-5 h-full">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-orange-400/70">Inventaire</p>
-                  <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">Santé du Stock</h3>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-orange-400/70">{t({ fr: 'Inventaire', ht: 'Envantè' })}</p>
+                  <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">{t({ fr: 'Santé du Stock', ht: 'Sante Stock' })}</h3>
                 </div>
                 <Link href="/inventory"
                   className="text-[11px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition">
-                  Tout voir →
+                  {t({ fr: 'Tout voir', ht: 'Wè tout' })} →
                 </Link>
               </div>
 
@@ -1318,15 +1322,15 @@ function DashboardInner() {
                                   ${outOfStockCount > 0 ? 'bg-red-100 text-red-600 border border-red-200'
                                                        : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${outOfStockCount > 0 ? 'bg-red-400 animate-pulse' : 'bg-emerald-400'}`}/>
-                  {outOfStockCount} épuisé{outOfStockCount > 1 ? 's' : ''}
+                  {outOfStockCount} {t({ fr: outOfStockCount > 1 ? 'épuisés' : 'épuisé', ht: outOfStockCount > 1 ? 'Epuize' : 'Epuize' })}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25
                                  bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-700">
-                  ⚠ {lowStockCount} stock bas
+                  ⚠ {lowStockCount} {t({ fr: 'stock bas', ht: 'stock ba' })}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/20
                                  bg-blue-100 px-3 py-1 text-[11px] font-bold text-blue-700">
-                  📦 {products.length} produits
+                  📦 {products.length} {t({ fr: 'produits', ht: 'pwodui' })}
                 </span>
               </div>
 
@@ -1347,9 +1351,9 @@ function DashboardInner() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[12.5px] font-semibold text-[var(--color-text)] truncate">{p.name}</p>
-                      <p className="text-[10px] text-[var(--color-muted)]">{p.category ?? 'Produit'}</p>
+                      <p className="text-[10px] text-[var(--color-muted)]">{p.category ?? t({ fr: 'Produit', ht: 'Pwodui' })}</p>
                     </div>
-                    <StockBar qty={p.stock_quantity} reorder={p.reorder_point ?? 0} />
+                    <StockBar qty={p.stock_quantity} reorder={p.reorder_point ?? 0} outOfStockT={t({ fr: 'Épuisé', ht: 'Epuize' })} lowT={t({ fr: 'bas', ht: 'ba' })} />
                   </motion.div>
                 ))}
               </div>
@@ -1357,7 +1361,7 @@ function DashboardInner() {
               {/* Stock value footer */}
               <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3
                               flex items-center justify-between">
-                <p className="text-[11px] text-[var(--color-muted)]">Valeur totale stock</p>
+                <p className="text-[11px] text-[var(--color-muted)]">{t({ fr: 'Valeur totale stock', ht: 'Valè stock total' })}</p>
                 <p className="text-sm font-bold text-[#001F3F]">{fmt(totalStockValue)}</p>
               </div>
             </GlassCard>
@@ -1372,12 +1376,12 @@ function DashboardInner() {
             <GlassCard className="p-5 h-full">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-400/70">Activité</p>
-                  <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">Transactions Récentes</h3>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-400/70">{t({ fr: 'Activité', ht: 'Aktivite' })}</p>
+                  <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">{t({ fr: 'Transactions Récentes', ht: 'Transaksyon Resan' })}</h3>
                 </div>
                 <button onClick={() => setShowFullLedger(v => !v)}
                   className="text-[11px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition">
-                  {showFullLedger ? 'Réduire' : 'Tout voir'} →
+                  {showFullLedger ? t({ fr: 'Réduire', ht: 'Redui' }) : t({ fr: 'Tout voir', ht: 'Wè tout' })} →
                 </button>
               </div>
 
@@ -1424,10 +1428,10 @@ function DashboardInner() {
               {/* Summary */}
               {!loading && (
                 <div className="mt-4 flex justify-between text-[11px] text-[var(--color-muted)] border-t border-[var(--color-border)] pt-3">
-                  <span>Total entrées:
+                  <span>{t({ fr: 'Total entrées:', ht: 'Total antre:' })}
                     <span className="ml-1 font-semibold text-emerald-400">{fmt(salesRows.reduce((s,r) => s+r.amount, 0))}</span>
                   </span>
-                  <span>Total sorties:
+                  <span>{t({ fr: 'Total sorties:', ht: 'Total sòti:' })}
                     <span className="ml-1 font-semibold text-red-400">{fmt(expensesRows.reduce((s,r) => s+r.amount, 0))}</span>
                   </span>
                 </div>
@@ -1444,29 +1448,29 @@ function DashboardInner() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.5 }}
         >
-          <SectionLabel color={C.purple}>Rapports Financiers</SectionLabel>
+          <SectionLabel color={C.purple}>{t({ fr: 'Rapports Financiers', ht: 'Rapò Finansye' })}</SectionLabel>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <ReportCard href="/rapports" color={C.blue}
-              title="État des résultats"
-              subtitle="Profits & pertes du mois"
+              title={t({ fr: 'État des résultats', ht: 'Eta rezilta' })}
+              subtitle={t({ fr: 'Profits & pertes du mois', ht: 'Pwofi & pèt mwa a' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>} />
             <ReportCard href="/rapports" color={C.emerald}
-              title="Bilan comptable"
-              subtitle="Actif, passif, capitaux"
+              title={t({ fr: 'Bilan comptable', ht: 'Bilans kontabl' })}
+              subtitle={t({ fr: 'Actif, passif, capitaux', ht: 'Aktif, pasif, kapital' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
               </svg>} />
             <ReportCard href="/rapports" color={C.cyan}
-              title="Flux de trésorerie"
-              subtitle="Entrées et sorties de cash"
+              title={t({ fr: 'Flux de trésorerie', ht: 'Flux trezoreri' })}
+              subtitle={t({ fr: 'Entrées et sorties de cash', ht: 'Antre ak sòti kach' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
               </svg>} />
             <ReportCard href="/rapports" color={C.purple}
-              title="Capitaux propres"
-              subtitle="Évolution des fonds propres"
+              title={t({ fr: 'Capitaux propres', ht: 'Kapital pwòp' })}
+              subtitle={t({ fr: 'Évolution des fonds propres', ht: 'Evolisyon fon pwòp' })}
               icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>} />
@@ -1488,9 +1492,9 @@ function DashboardInner() {
               <div className="flex items-center gap-3">
                 <div className="h-6 w-0.5 rounded-full bg-[#001F3F]/20" />
                 <div>
-                  <h3 className="font-bold text-[#001F3F]">Livre de Transactions</h3>
+                  <h3 className="font-bold text-[#001F3F]">{t({ fr: 'Livre de Transactions', ht: 'Livre Transaksyon' })}</h3>
                   <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
-                    {loading ? '…' : `${filteredLedger.length} entrées · ${periodLabel}`}
+                    {loading ? '…' : `${filteredLedger.length} ${t({ fr: 'entrées', ht: 'antre' })} · ${periodLabel}`}
                   </p>
                 </div>
               </div>
@@ -1502,7 +1506,7 @@ function DashboardInner() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  <input type="text" placeholder="Rechercher…" value={ledgerSearch}
+                  <input type="text" placeholder={t({ fr: 'Rechercher…', ht: 'Chèche…' })} value={ledgerSearch}
                     onChange={e => { setLedgerSearch(e.target.value); setLedgerPage(1); }}
                     className="w-36 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2 pl-8 pr-3
                                text-[12px] text-[var(--color-text)] outline-none placeholder-slate-400
@@ -1513,7 +1517,7 @@ function DashboardInner() {
                   className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2
                              text-[12px] text-[var(--color-text)] outline-none transition
                              focus:border-emerald-500/50">
-                  <option value="">Tout type</option>
+                  <option value="">{t({ fr: 'Tout type', ht: 'Tout tip' })}</option>
                   {['Vann','Acha','Dèt'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
                 {(ledgerSearch || ledgerType) && (
@@ -1525,7 +1529,7 @@ function DashboardInner() {
                 )}
                 <button
                   onClick={() => exportCSV(
-                    ['Date','Description','Catégorie','Type','Méthode','Montant','Monnaie'],
+                    [t({ fr:'Date', ht:'Dat' }),t({ fr:'Description', ht:'Deskripsyon' }),t({ fr:'Catégorie', ht:'Kategori' }),t({ fr:'Type', ht:'Tip' }),t({ fr:'Méthode', ht:'Metòd' }),t({ fr:'Montant', ht:'Montan' }),t({ fr:'Monnaie', ht:'Lajan' })],
                     filteredLedger.map(r => [r.date, r.description, r.category, r.type, r.payment_method, r.amount, r.currency]),
                     `transactions-${periodLabel.replace(/\s/g,'-')}.csv`
                   )}
@@ -1537,7 +1541,7 @@ function DashboardInner() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  CSV
+                  {t({ fr: 'CSV', ht: 'CSV' })}
                 </button>
               </div>
             </div>
@@ -1547,12 +1551,15 @@ function DashboardInner() {
               <table className="w-full min-w-[580px] text-sm">
                 <thead>
                   <tr className="border-b border-[var(--color-border)]">
-                    {['Date','Description','Type','Méthode','Montant'].map(h => (
+                    {['Date','Description','Type','Méthode','Montant'].map(h => {
+  const th = t({ fr: h, ht: h === 'Date' ? 'Dat' : h === 'Description' ? 'Deskripsyon' : h === 'Type' ? 'Tip' : h === 'Méthode' ? 'Metòd' : 'Montan' });
+  return (
                       <th key={h} className="px-5 py-3 text-left text-[10px] font-bold uppercase
                                              tracking-[0.12em] text-[var(--color-muted)] whitespace-nowrap">
-                        {h}
+                        {th}
                       </th>
-                    ))}
+                    );
+                  })}
                   </tr>
                 </thead>
                 <tbody>
@@ -1569,7 +1576,7 @@ function DashboardInner() {
                       ))
                     : paginatedLedger.length === 0
                     ? <tr><td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-300">
-                        Aucune transaction pour cette période.
+                        {t({ fr: 'Aucune transaction pour cette période.', ht: 'Pa gen transaksyon pou peryòd sa a.' })}
                       </td></tr>
                     : paginatedLedger.map((row, i) => (
                         <tr key={row.id}
@@ -1605,7 +1612,7 @@ function DashboardInner() {
                   <button onClick={() => setLedgerPage(p => Math.max(1, p-1))} disabled={ledgerPage === 1}
                     className="rounded-lg px-3 py-1.5 text-[11px] text-[var(--color-muted)] transition
                                hover:bg-slate-100 hover:text-[var(--color-text)] disabled:opacity-20 disabled:cursor-not-allowed">
-                    ← Précédent
+                    ← {t({ fr: 'Précédent', ht: 'Anvan' })}
                   </button>
                   {Array.from({length: Math.min(ledgerPageCount, 5)}, (_,i) => i+1).map(pg => (
                     <button key={pg} onClick={() => setLedgerPage(pg)}
@@ -1620,7 +1627,7 @@ function DashboardInner() {
                   <button onClick={() => setLedgerPage(p => Math.min(ledgerPageCount, p+1))} disabled={ledgerPage === ledgerPageCount}
                     className="rounded-lg px-3 py-1.5 text-[11px] text-[var(--color-muted)] transition
                                hover:bg-slate-100 hover:text-[var(--color-text)] disabled:opacity-20 disabled:cursor-not-allowed">
-                    Suivant →
+                    {t({ fr: 'Suivant', ht: 'Apre' })} →
                   </button>
                 </div>
               </div>
@@ -1628,10 +1635,10 @@ function DashboardInner() {
 
             {/* Footer totals */}
             <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-8 gap-y-1 text-[11px] text-[var(--color-muted)]">
-              <span>Cash In: <span className="font-bold text-blue-400">{fmt(totals.cashIn)}</span></span>
-              <span>Cash Out: <span className="font-bold text-red-400">{fmt(totals.cashOut)}</span></span>
-              <span>Solde: <span className={`font-bold ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(totals.profit)}</span></span>
-              <span>Dettes: <span className="font-bold text-amber-400">{fmt(totals.debtTotal)}</span></span>
+              <span>{t({ fr: 'Cash In:', ht: 'Antre Kach:' })} <span className="font-bold text-blue-400">{fmt(totals.cashIn)}</span></span>
+              <span>{t({ fr: 'Cash Out:', ht: 'Sòti Kach:' })} <span className="font-bold text-red-400">{fmt(totals.cashOut)}</span></span>
+              <span>{t({ fr: 'Solde:', ht: 'Sòd:' })} <span className={`font-bold ${totals.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt(totals.profit)}</span></span>
+              <span>{t({ fr: 'Dettes:', ht: 'Dèt:' })} <span className="font-bold text-amber-400">{fmt(totals.debtTotal)}</span></span>
             </div>
           </GlassCard>
         </motion.div>

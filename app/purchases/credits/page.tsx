@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 import { formatCurrency } from '../../../lib/utils';
+import { useLanguage } from '../../../components/LanguageWrapper';
 import { Button } from '../../../components/Button';
 
 type CreditPurchase = {
@@ -15,6 +16,7 @@ type CreditPurchase = {
 };
 
 export default function CreditPurchasesPage() {
+  const { t } = useLanguage();
   const [credits, setCredits] = useState<CreditPurchase[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,30 +66,30 @@ export default function CreditPurchasesPage() {
       <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-primary/90">Achats à crédit</p>
-            <h1 className="text-3xl font-semibold text-anthracite">Transactions en attente</h1>
+            <p className="text-sm uppercase tracking-[0.3em] text-primary/90">{t({ fr: 'Achats à crédit', ht: 'Acha a kredi' })}</p>
+            <h1 className="text-3xl font-semibold text-anthracite">{t({ fr: 'Transactions en attente', ht: 'Tranzaksyon annatant' })}</h1>
             <p className="mt-2 max-w-2xl text-sm text-anthracite/70">Les achats marqués «À Crédit» sont visibles ici sans impacter immédiatement le cash-flow.</p>
           </div>
           <Button type="button" onClick={() => window.history.back()}>
-            Retour
+            {t({ fr: 'Retour', ht: 'Retounen' })}
           </Button>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
         {loading ? (
-          <p className="py-10 text-center text-anthracite/70">Chargement des achats à crédit…</p>
+          <p className="py-10 text-center text-anthracite/70">{t({ fr: 'Chargement des achats à crédit…', ht: 'Chajman acha a kredi…' })}</p>
         ) : credits.length === 0 ? (
-          <p className="py-10 text-center text-anthracite/70">Aucun achat à crédit trouvé.</p>
+          <p className="py-10 text-center text-anthracite/70">{t({ fr: 'Aucun achat à crédit trouvé.', ht: 'Pa gen acha a kredi jwenn.' })}</p>
         ) : (
           <table className="min-w-full border-collapse text-left text-sm text-anthracite">
             <thead>
               <tr className="border-b border-slate-200">
-                <th className="px-4 py-3">Fournisseur</th>
-                <th className="px-4 py-3">Produit</th>
-                <th className="px-4 py-3">Quantité</th>
-                <th className="px-4 py-3">Montant</th>
-                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">{t({ fr: 'Fournisseur', ht: 'Founisè' })}</th>
+                <th className="px-4 py-3">{t({ fr: 'Produit', ht: 'Pwodui' })}</th>
+                <th className="px-4 py-3">{t({ fr: 'Quantité', ht: 'Kantite' })}</th>
+                <th className="px-4 py-3">{t({ fr: 'Montant', ht: 'Montan' })}</th>
+                <th className="px-4 py-3">{t({ fr: 'Date', ht: 'Dat' })}</th>
               </tr>
             </thead>
             <tbody>

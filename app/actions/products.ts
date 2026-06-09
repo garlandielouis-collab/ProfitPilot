@@ -10,6 +10,7 @@ export type ProductPayload = {
   sale_price: number;
   stock_quantity: number;
   image_url?: string | null;
+  currency?: 'HTG' | 'USD';
 };
 
 export type Product = {
@@ -20,6 +21,7 @@ export type Product = {
   sale_price: number;
   stock_quantity: number;
   image_url: string | null;
+  currency: 'HTG' | 'USD';
 };
 
 async function getAuthUser() {
@@ -34,7 +36,7 @@ export async function getProductsAction(): Promise<Product[]> {
 
   const { data, error } = await supabase
     .from('products')
-    .select('id,name,category,purchase_price,sale_price,stock_quantity,image_url')
+    .select('id,name,category,purchase_price,sale_price,stock_quantity,image_url,currency')
     .eq('user_id', userId)
     .order('name');
 
@@ -52,6 +54,7 @@ export async function createProductAction(payload: ProductPayload): Promise<stri
     purchase_price: payload.purchase_price,
     sale_price:     payload.sale_price,
     stock_quantity: payload.stock_quantity,
+    currency:       payload.currency ?? 'HTG',
     image_url:      payload.image_url ?? null,
   }).select('id').single();
 

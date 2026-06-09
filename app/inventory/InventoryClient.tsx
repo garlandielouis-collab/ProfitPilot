@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { useLanguage } from '../../components/LanguageWrapper';
 import {
   getInventory,
   adjustStock,
@@ -48,25 +49,25 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-HT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-const movementConfig: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
-  sale_out:       { label: 'Vant',         Icon: ArrowDownRight, color: '#EF4444', bg: '#FEF2F2' },
-  purchase_in:    { label: 'Acha',         Icon: ArrowUpRight,   color: '#12B981', bg: '#ECFDF5' },
-  adjustment_in:  { label: 'Ajisteman +',  Icon: ArrowUpRight,   color: '#3B82F6', bg: '#EFF6FF' },
-  adjustment_out: { label: 'Ajisteman -',  Icon: ArrowDownRight, color: '#F59E0B', bg: '#FFFBEB' },
+const movementConfig: Record<string, { label: string; labelT: { fr: string; ht: string }; Icon: any; color: string; bg: string }> = {
+  sale_out:       { label: 'Vant', labelT: { fr: 'Vente', ht: 'Vant' }, Icon: ArrowDownRight, color: '#EF4444', bg: '#FEF2F2' },
+  purchase_in:    { label: 'Acha', labelT: { fr: 'Achat', ht: 'Acha' }, Icon: ArrowUpRight,   color: '#12B981', bg: '#ECFDF5' },
+  adjustment_in:  { label: 'Ajisteman +', labelT: { fr: 'Ajustement +', ht: 'Ajisteman +' }, Icon: ArrowUpRight,   color: '#3B82F6', bg: '#EFF6FF' },
+  adjustment_out: { label: 'Ajisteman -', labelT: { fr: 'Ajustement -', ht: 'Ajisteman -' }, Icon: ArrowDownRight, color: '#F59E0B', bg: '#FFFBEB' },
 };
 
-function stockLabel(qty: number): { label: string; color: string; bg: string } {
-  if (qty === 0) return { label: 'Epuize', color: '#EF4444', bg: '#FEF2F2' };
-  if (qty <= 5)  return { label: 'FÃ¨b',   color: '#F59E0B', bg: '#FFFBEB' };
-  return              { label: 'Bon',    color: '#12B981', bg: '#ECFDF5' };
+function stockLabel(qty: number, t: (o: { fr: string; ht: string }) => string): { label: string; color: string; bg: string } {
+  if (qty === 0) return { label: t({ fr: 'Épuisé', ht: 'Epuize' }), color: '#EF4444', bg: '#FEF2F2' };
+  if (qty <= 5)  return { label: t({ fr: 'Faible', ht: 'Fèb' }),   color: '#F59E0B', bg: '#FFFBEB' };
+  return              { label: t({ fr: 'Bon', ht: 'Bon' }),    color: '#12B981', bg: '#ECFDF5' };
 }
 
-const REASONS = [
-  'Koreksyon envantÃ¨',
-  'PÃ¨t / Domaj',
-  'Retou pwodui',
-  'Kont fizik',
-  'LÃ²t rezon',
+const REASONS: Array<{ value: string; label: { fr: string; ht: string } }> = [
+  { value: 'Koreksyon envantè', label: { fr: 'Correction inventaire', ht: 'Koreksyon envantè' } },
+  { value: 'Pèt / Domaj', label: { fr: 'Perte / Dégât', ht: 'Pèt / Domaj' } },
+  { value: 'Retou pwodui', label: { fr: 'Retour produit', ht: 'Retou pwodui' } },
+  { value: 'Kont fizik', label: { fr: 'Inventaire physique', ht: 'Kont fizik' } },
+  { value: 'Lòt rezon', label: { fr: 'Autre raison', ht: 'Lòt rezon' } },
 ];
 
 // â”€â”€ AdjustModal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -78,20 +79,21 @@ type AdjustModalProps = {
 };
 
 function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
+  const { t } = useLanguage();
   const [newQty, setNewQty] = useState(product.stock_quantity);
-  const [reason, setReason] = useState(REASONS[0]);
+  const [reason, setReason] = useState(REASONS[0].value);
   const [customReason, setCustomReason] = useState('');
   const [reorderPt, setReorderPt] = useState(product.reorder_point ?? 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const diff = newQty - product.stock_quantity;
-  const isCustom = reason === 'LÃ²t rezon';
+  const isCustom = reason === 'Lòt rezon';
   const finalReason = isCustom ? customReason : reason;
 
   async function handleSave() {
-    if (newQty < 0) { setError('Kantite pa ka negatif.'); return; }
-    if (!finalReason.trim()) { setError('Rezon obligatwa.'); return; }
+    if (newQty < 0) { setError(t({ fr: 'Quantité ne peut être négative.', ht: 'Kantite pa ka negatif.' })); return; }
+    if (!finalReason.trim()) { setError(t({ fr: 'Raison obligatoire.', ht: 'Rezon obligatwa.' })); return; }
     setSaving(true);
     setError('');
     try {
@@ -100,7 +102,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.message ?? 'ErÃ¨');
+      setError(err.message ?? t({ fr: 'Erreur', ht: 'Erè' }));
     } finally {
       setSaving(false);
     }
@@ -122,7 +124,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-800">Ajiste Stock</h2>
+            <h2 className="text-lg font-semibold text-slate-800">{t({ fr: 'Ajuster Stock', ht: 'Ajiste Stock' })}</h2>
             <p className="text-sm text-slate-500 truncate max-w-xs">{product.name}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-slate-100 transition-colors">
@@ -140,12 +142,12 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
 
           {/* Current qty display */}
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 flex items-center justify-between">
-            <span className="text-sm text-slate-600">Stock AktyÃ¨l</span>
+            <span className="text-sm text-slate-600">{t({ fr: 'Stock Actuel', ht: 'Stock Aktèl' })}</span>
             <span className="text-2xl font-semibold text-slate-800">{product.stock_quantity}</span>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Nouvo Kantite *</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">{t({ fr: 'Nouvelle Quantité *', ht: 'Nouvo Kantite *' })}</label>
             <input
               type="number"
               min="0"
@@ -155,26 +157,26 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
             />
             {diff !== 0 && (
               <p className={`mt-1.5 text-xs font-medium ${diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {diff > 0 ? `+${diff}` : diff} inite pa rapÃ² ak stock aktyÃ¨l
+                {diff > 0 ? `+${diff}` : diff} {t({ fr: 'unités par rapport au stock actuel', ht: 'inite pa rapò ak stock aktyèl' })}
               </p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Rezon</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">{t({ fr: 'Raison', ht: 'Rezon' })}</label>
             <div className="grid grid-cols-1 gap-2">
               {REASONS.map(r => (
                 <button
-                  key={r}
+                  key={r.value}
                   type="button"
-                  onClick={() => setReason(r)}
+                  onClick={() => setReason(r.value)}
                   className={`text-left rounded-xl border px-4 py-2.5 text-sm transition ${
-                    reason === r
+                    reason === r.value
                       ? 'border-[#001F3F] bg-emerald-50 text-emerald-700 font-medium'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {r}
+                  {t(r.label)}
                 </button>
               ))}
             </div>
@@ -182,14 +184,14 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
               <input
                 value={customReason}
                 onChange={e => setCustomReason(e.target.value)}
-                placeholder="Ekri rezon ou a..."
+                placeholder={t({ fr: 'Écrivez votre raison…', ht: 'Ekri rezon ou a...' })}
                 className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
               />
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Pwen ReÃ²d (alÃ¨t stock fÃ¨b)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">{t({ fr: "Point de réapprovisionnement (alerte stock faible)", ht: 'Pwen Reòd (alèt stock fèb)' })}</label>
             <input
               type="number"
               min="0"
@@ -197,7 +199,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
               onChange={e => setReorderPt(parseInt(e.target.value) || 0)}
               className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
             />
-            <p className="mt-1 text-xs text-slate-500">Ou pral resevwa alÃ¨t lÃ¨ stock tonbe anba nivo sa a.</p>
+            <p className="mt-1 text-xs text-slate-500">{t({ fr: 'Vous recevrez une alerte lorsque le stock tombe en dessous de ce niveau.', ht: 'Ou pral resevwa alèt lè stock tonbe anba nivo sa a.' })}</p>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -206,14 +208,14 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
               onClick={onClose}
               className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
             >
-              Anile
+              {t({ fr: 'Annuler', ht: 'Anile' })}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
               className="flex-1 rounded-xl bg-[#001F3F] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#002D5B] disabled:opacity-60 transition"
             >
-              {saving ? 'Sove...' : 'Sove Ajisteman'}
+              {saving ? t({ fr: 'Sauvegarde…', ht: 'Sove...' }) : t({ fr: 'Sauvegarder Ajustement', ht: 'Sove Ajisteman' })}
             </button>
           </div>
         </div>
@@ -239,6 +241,7 @@ export function InventoryClient({
   const [tab,        setTab]       = useState<'stock' | 'history'>('stock');
   const [adjustProduct, setAdjustProduct] = useState<InventoryProduct | null>(null);
   const [topSold, setTopSold] = useState<Array<{ name: string; qty: number; revenue: number }>>([]);
+  const { t } = useLanguage();
 
   // Fetch top products by quantity sold from sale_items
   useEffect(() => {
@@ -271,7 +274,7 @@ export function InventoryClient({
       const data = await getInventory();
       setInventory(data);
     } catch (err: any) {
-      setError(err.message ?? 'ErÃ¨ chajman.');
+      setError(err.message ?? t({ fr: 'Erreur de chargement.', ht: 'Erè chajman.' }));
     } finally {
       setLoading(false);
     }
@@ -298,12 +301,12 @@ export function InventoryClient({
   // Health score
   const healthScore = Math.max(0, 100 - outOfStockCount * 15 - lowStockCount * 5);
   const healthColor = healthScore > 75 ? '#12B981' : healthScore > 50 ? '#F59E0B' : '#EF4444';
-  const healthLabel = healthScore > 75 ? 'Bon' : healthScore > 50 ? 'Mwayen' : 'Kritik';
+  const healthLabel = healthScore > 75 ? t({ fr: 'Bon', ht: 'Bon' }) : healthScore > 50 ? t({ fr: 'Moyen', ht: 'Mwayen' }) : t({ fr: 'Critique', ht: 'Kritik' });
   const healthMsg = healthScore > 75
-    ? 'EnvantÃ¨ ou an bon sante. Kontinye monitore stock yo.'
+    ? t({ fr: 'Votre inventaire est en bonne santé. Continuez à surveiller les stocks.', ht: 'Envantè ou an bon sante. Kontinye monitore stock yo.' })
     : healthScore > 50
-    ? `${lowStockCount} pwodui fÃ¨b. Konsidere rekÃ²mande yo.'`
-    : `Atansyon! ${outOfStockCount} pwodui epuize ak ${lowStockCount} ki fÃ¨b. Aksyon ijan nesesÃ¨.`;
+    ? `${lowStockCount} ${t({ fr: 'produits faibles. Envisagez de les réapprovisionner.', ht: 'pwodui fèb. Konsidere rekòmande yo.' })}`
+    : `${t({ fr: 'Attention!', ht: 'Atansyon!' })} ${outOfStockCount} ${t({ fr: 'produits épuisés et', ht: 'pwodui épuisé ak' })} ${lowStockCount} ${t({ fr: 'faibles. Action urgente nécessaire.', ht: 'ki fèb. Aksyon ijan nesesè.' })}`;
 
   // Chart data
   const topByQty = topSold.map(p => ({ name: p.name, qty: p.qty }));
@@ -314,10 +317,10 @@ export function InventoryClient({
     .map(p => ({ name: p.name.length > 12 ? p.name.slice(0, 12) + 'â€¦' : p.name, val: p.purchase_price * p.stock_quantity }));
 
   const kpis = [
-    { label: 'Total Pwodui', value: totalProducts.toString(), icon: Package, color: '#12B981', bg: '#ECFDF5' },
-    { label: 'ValÃ¨ Stock', value: fmtHTG(totalValue), icon: Warehouse, color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Stock FÃ¨b', value: lowStockCount.toString(), icon: TrendingDown, color: '#F59E0B', bg: '#FFFBEB' },
-    { label: 'Epuize', value: outOfStockCount.toString(), icon: AlertTriangle, color: '#EF4444', bg: '#FEF2F2' },
+    { label: t({ fr: 'Total Produits', ht: 'Total Pwodui' }), value: totalProducts.toString(), icon: Package, color: '#12B981', bg: '#ECFDF5' },
+    { label: t({ fr: 'Valeur Stock', ht: 'Valè Stock' }), value: fmtHTG(totalValue), icon: Warehouse, color: '#3B82F6', bg: '#EFF6FF' },
+    { label: t({ fr: 'Stock Faible', ht: 'Stock Fèb' }), value: lowStockCount.toString(), icon: TrendingDown, color: '#F59E0B', bg: '#FFFBEB' },
+    { label: t({ fr: 'Épuisé', ht: 'Epuize' }), value: outOfStockCount.toString(), icon: AlertTriangle, color: '#EF4444', bg: '#FEF2F2' },
   ];
 
   return (
@@ -326,8 +329,8 @@ export function InventoryClient({
       <div className="border-b border-slate-200 bg-white px-6 py-5 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-800">Jesyon EnvantÃ¨</h1>
-            <p className="mt-1 text-sm text-slate-500">Swiv stock, mouvman ak alÃ¨t pwodui ou yo.</p>
+            <h1 className="text-2xl font-semibold text-slate-800">{t({ fr: 'Gestion Inventaire', ht: 'Jesyon Envantè' })}</h1>
+            <p className="mt-1 text-sm text-slate-500">{t({ fr: 'Suivez le stock, les mouvements et les alertes de vos produits.', ht: 'Swiv stock, mouvman ak alèt pwodwi ou yo.' })}</p>
           </div>
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -336,7 +339,7 @@ export function InventoryClient({
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            Rafraichi
+            {t({ fr: 'Rafraîchir', ht: 'Rafraichi' })}
           </motion.button>
         </div>
       </div>
@@ -389,7 +392,7 @@ export function InventoryClient({
               <span className="mt-2 text-xs font-semibold" style={{ color: healthColor }}>{healthLabel}</span>
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-slate-800 mb-1">Sante EnvantÃ¨</h3>
+              <h3 className="font-semibold text-slate-800 mb-1">{t({ fr: 'Santé Inventaire', ht: 'Sante Envantè' })}</h3>
               <p className="text-sm text-slate-600 mb-3">{healthMsg}</p>
               <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                 <motion.div
@@ -418,7 +421,7 @@ export function InventoryClient({
             }`}
           >
             <Package size={15} />
-            Stock
+            {t({ fr: 'Stock', ht: 'Stock' })}
           </button>
           <button
             onClick={() => setTab('history')}
@@ -427,7 +430,7 @@ export function InventoryClient({
             }`}
           >
             <History size={15} />
-            Istorik Mouvman
+            {t({ fr: 'Historique Mouvements', ht: 'Istorik Mouvman' })}
           </button>
         </div>
 
@@ -449,7 +452,7 @@ export function InventoryClient({
                 >
                   <AlertTriangle size={18} className="text-amber-500 shrink-0" />
                   <p className="text-sm text-amber-800">
-                    <span className="font-semibold">{lowStockCount} pwodui</span> gen stock fÃ¨b epi bezwen atansyon.
+                    <span className="font-semibold">{lowStockCount} {t({ fr: 'produits', ht: 'pwodui' })}</span> {t({ fr: 'ont un stock faible et nécessitent attention.', ht: 'gen stock fèb epi bezwen atansyon.' })}
                   </p>
                 </motion.div>
               )}
@@ -459,19 +462,19 @@ export function InventoryClient({
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Top by sales qty */}
                   <div className="rounded-2xl bg-white border border-slate-200 p-5">
-                    <h3 className="text-sm font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-800 mb-1 flex items-center gap-2">
                       <BarChart3 size={16} className="text-[#001F3F]" />
-                      Top Pwodui â€” Pi Plis Vann
+                      {t({ fr: 'Top Produits — Les Plus Vendus', ht: 'Top Pwodwi — Pi Plis Vann' })}
                     </h3>
-                    <p className="text-xs text-slate-400 mb-4">Pa kantite inite vann (tout tan)</p>
+                    <p className="text-xs text-slate-400 mb-4">{t({ fr: "Par quantité d'unités vendues (tout temps)", ht: 'Pa kantite inite vann (tout tan)' })}</p>
                     <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={topByQty.length ? topByQty : [{ name: 'Okenn done', qty: 0 }]} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                      <BarChart data={topByQty.length ? topByQty : [{ name: t({ fr: 'Aucune donnée', ht: 'Okenn done' }), qty: 0 }]} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                         <Tooltip
                           contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 12 }}
-                          formatter={(v: any) => [`${v} inite`, 'Vann']}
+                          formatter={(v: any) => [`${v} ${t({ fr: 'unités', ht: 'inite' })}`, t({ fr: 'Vente', ht: 'Vant' })]}
                         />
                         <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
                           {topByQty.map((_, idx) => (
@@ -484,9 +487,9 @@ export function InventoryClient({
 
                   {/* Top by value */}
                   <div className="rounded-2xl bg-white border border-slate-200 p-5">
-                    <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
                       <TrendingUp size={16} className="text-[#3B82F6]" />
-                      Top Pwodui pa ValÃ¨
+                      {t({ fr: 'Top Produits par Valeur', ht: 'Top Pwodui pa Valè' })}
                     </h3>
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={topByValue} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -495,7 +498,7 @@ export function InventoryClient({
                         <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + 'k'} />
                         <Tooltip
                           contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 12 }}
-                          formatter={(v: any) => [fmtHTG(v), 'ValÃ¨']}
+                          formatter={(v: any) => [fmtHTG(v), t({ fr: 'Valeur', ht: 'Valè' })]}
                         />
                         <Bar dataKey="val" radius={[6, 6, 0, 0]}>
                           {topByValue.map((_, idx) => (
@@ -519,14 +522,22 @@ export function InventoryClient({
                 ) : inventory.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <Package size={36} className="text-slate-300 mb-3" />
-                    <p className="text-slate-500 text-sm">Pa gen pwodui nan envantÃ¨.</p>
+                    <p className="text-slate-500 text-sm">{t({ fr: 'Aucun produit dans l\'inventaire.', ht: 'Pa gen pwodui nan envantè.' })}</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50">
-                          {['Pwodui', 'Kategori', 'Stock', 'Pwen ReÃ²d', 'ValÃ¨', 'Estati', 'Aksyon'].map(h => (
+                          {[
+                            t({ fr: 'Produit', ht: 'Pwodui' }),
+                            t({ fr: 'Catégorie', ht: 'Kategori' }),
+                            t({ fr: 'Stock', ht: 'Stock' }),
+                            t({ fr: 'Point Réappro', ht: 'Pwen Reòd' }),
+                            t({ fr: 'Valeur', ht: 'Valè' }),
+                            t({ fr: 'Statut', ht: 'Estati' }),
+                            t({ fr: 'Action', ht: 'Aksyon' }),
+                          ].map(h => (
                             <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">
                               {h}
                             </th>
@@ -535,7 +546,7 @@ export function InventoryClient({
                       </thead>
                       <tbody className="divide-y divide-[#E2E8F0]">
                         {inventory.map((p, i) => {
-                          const sl = stockStatus(p);
+                          const sl = stockStatus(p, t);
                           const val = p.purchase_price * p.stock_quantity;
                           return (
                             <motion.tr
@@ -573,7 +584,7 @@ export function InventoryClient({
                                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap"
                                 >
                                   <Sliders size={12} />
-                                  Ajiste
+                                  {t({ fr: 'Ajuster', ht: 'Ajiste' })}
                                 </button>
                               </td>
                             </motion.tr>
@@ -602,7 +613,7 @@ export function InventoryClient({
               ) : movements.length === 0 ? (
                 <div className="rounded-2xl bg-white border border-slate-200 flex flex-col items-center justify-center py-16 text-center">
                   <Clock size={36} className="text-slate-300 mb-3" />
-                  <p className="text-slate-500 text-sm">Pa gen istorik mouvman ankÃ².</p>
+                  <p className="text-slate-500 text-sm">{t({ fr: 'Aucun historique de mouvement pour l\'instant.', ht: 'Pa gen istorik mouvman ankò.' })}</p>
                 </div>
               ) : (
                 movements.map((m, i) => {
@@ -625,7 +636,7 @@ export function InventoryClient({
                             className="rounded-full px-2 py-0.5 text-xs font-semibold"
                             style={{ background: cfg.bg, color: cfg.color }}
                           >
-                            {cfg.label}
+                            {t(cfg.labelT)}
                           </span>
                           <span className="font-medium text-sm text-slate-800 truncate">{m.product_name}</span>
                         </div>
@@ -660,10 +671,10 @@ export function InventoryClient({
   );
 }
 
-function stockStatus(p: InventoryProduct): { label: string; color: string; bg: string } {
-  if (p.stock_quantity === 0) return { label: 'Epuize', color: '#EF4444', bg: '#FEF2F2' };
-  if (p.alert_active || p.stock_quantity <= 5) return { label: 'FÃ¨b', color: '#F59E0B', bg: '#FFFBEB' };
-  return { label: 'Bon', color: '#12B981', bg: '#ECFDF5' };
+function stockStatus(p: InventoryProduct, t: (o: { fr: string; ht: string }) => string): { label: string; color: string; bg: string } {
+  if (p.stock_quantity === 0) return { label: t({ fr: 'Épuisé', ht: 'Epuize' }), color: '#EF4444', bg: '#FEF2F2' };
+  if (p.alert_active || p.stock_quantity <= 5) return { label: t({ fr: 'Faible', ht: 'Fèb' }), color: '#F59E0B', bg: '#FFFBEB' };
+  return { label: t({ fr: 'Bon', ht: 'Bon' }), color: '#12B981', bg: '#ECFDF5' };
 }
 
 // InventoryClient is the named export used by page.tsx

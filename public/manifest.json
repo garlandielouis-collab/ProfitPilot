@@ -1,0 +1,23 @@
+{
+  "name": "ProfitPilot",
+  "short_name": "ProfitPilot",
+  "description": "Gestion financière intelligente pour entrepreneurs haïtiens",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#001F3F",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/profitpilot-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/profitpilot-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 'use server';
 
+import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 
 type CleanupResult = {
@@ -23,6 +24,23 @@ const USER_TABLES = [
 
 export async function cleanupOrphans(): Promise<CleanupResult> {
   const result: CleanupResult = { success: true, deleted: {}, errors: [] };
+
+  // ── Vérification d'autorisation ──────────────────────────────────────────
+  const server = await getSupabaseServer();
+  const { data: { user }, error: authErr } = await server.auth.getUser();
+
+  if (authErr || !user) {
+    return { success: false, deleted: {}, errors: ['Non authentifié'] };
+  }
+
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+
+  if (adminEmails.length > 0 && !adminEmails.includes(user.email?.toLowerCase() ?? '')) {
+    return { success: false, deleted: {}, errors: ['Accès refusé : seuls les administrateurs peuvent lancer le nettoyage'] };
+  }
+
+  // ── Fin vérification ─────────────────────────────────────────────────────
 
   let validUserIds: Set<string>;
 

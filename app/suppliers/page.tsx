@@ -5,6 +5,7 @@ import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { supabase } from '../../lib/supabaseClient';
 import { formatCurrency } from '../../lib/utils';
 import { upsertSupplier, deleteSupplier, markPurchasePaid } from '../actions/suppliers';
+import { useLanguage } from '../../components/LanguageWrapper';
 import {
   ChevronDown, ChevronUp, CreditCard, Edit2, Loader2, Plus,
   Trash2, Users, X,
@@ -46,6 +47,7 @@ function EditModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useLanguage();
   const [name, setName] = useState(supplier.name);
   const [email, setEmail] = useState(supplier.email ?? '');
   const [phone, setPhone] = useState(supplier.phone ?? '');
@@ -94,7 +96,7 @@ function EditModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Email</label>
+                        <label className="mb-1 block text-xs font-medium text-slate-500">{t({ fr: 'Email', ht: 'Imèl' })}</label>
               <input
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -103,7 +105,7 @@ function EditModal({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Téléphone</label>
+              <label className="mb-1 block text-xs font-medium text-slate-500">{t({ fr: 'Téléphone', ht: 'Telefòn' })}</label>
               <input
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
@@ -139,7 +141,7 @@ function EditModal({
             disabled={saving || !name.trim()}
             className="flex-1 rounded-xl bg-[#001F3F] py-2.5 text-sm font-medium text-white hover:bg-[#002D5B] disabled:opacity-50"
           >
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
+            {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: 'Enregistrer', ht: 'Anrejistre' })}
           </button>
         </div>
       </div>
@@ -158,6 +160,7 @@ function DeleteModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const hasPurchases = supplier.purchases.length > 0;
 
@@ -198,7 +201,7 @@ function DeleteModal({
               disabled={busy}
               className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {busy ? 'Suppression…' : 'Supprimer'}
+              {busy ? t({ fr: 'Suppression…', ht: 'Siprime…' }) : t({ fr: 'Supprimer', ht: 'Siprime' })}
             </button>
           )}
         </div>
@@ -210,6 +213,7 @@ function DeleteModal({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SuppliersPage() {
+  const { t } = useLanguage();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -355,7 +359,7 @@ export default function SuppliersPage() {
 
           {/* ── Page header ── */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#001F3F]/90">Fournisseurs</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-[#001F3F]/90">{t({ fr: 'Fournisseurs', ht: 'Founisè yo' })}</p>
             <h1 className="mt-1 text-2xl font-semibold text-[#212529] md:text-3xl">
               Gestion des Fournisseurs
             </h1>
@@ -370,7 +374,7 @@ export default function SuppliersPage() {
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
-              Ajouter un fournisseur
+              {t({ fr: 'Ajouter un fournisseur', ht: 'Ajoute yon founisè' })}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               {/* Nom */}
@@ -379,14 +383,14 @@ export default function SuppliersPage() {
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Founisè S.A."
+                  placeholder={t({ fr: 'Fournisseur S.A.', ht: 'Founisè S.A.' })}
                   required
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
                 />
               </div>
               {/* Email */}
               <div className="flex-1 min-w-0">
-                <label className="mb-1 block text-xs font-medium text-slate-500">Email</label>
+                <label className="mb-1 block text-xs font-medium text-slate-500">{t({ fr: 'Email', ht: 'Imèl' })}</label>
                 <input
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
@@ -397,7 +401,7 @@ export default function SuppliersPage() {
               </div>
               {/* Téléphone */}
               <div className="flex-1 min-w-0">
-                <label className="mb-1 block text-xs font-medium text-slate-500">Téléphone</label>
+                <label className="mb-1 block text-xs font-medium text-slate-500">{t({ fr: 'Téléphone', ht: 'Telefòn' })}</label>
                 <input
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
@@ -430,7 +434,7 @@ export default function SuppliersPage() {
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-                Ajouter
+                {t({ fr: 'Ajouter', ht: 'Ajoute' })}
               </button>
             </div>
             {formErr && <p className="mt-2 text-xs text-red-600">{formErr}</p>}
@@ -556,16 +560,16 @@ export default function SuppliersPage() {
                           <button
                             onClick={() => setEditSupplier(sup)}
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-[#001F3F]"
-                            title="Modifier"
-                            aria-label="Modifier"
+                            title={t({ fr: 'Modifier', ht: 'Modifye' })}
+                            aria-label={t({ fr: 'Modifier', ht: 'Modifye' })}
                           >
                             <Edit2 size={15} />
                           </button>
                           <button
                             onClick={() => setDeleteTarget(sup)}
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                            title="Supprimer"
-                            aria-label="Supprimer"
+                            title={t({ fr: 'Supprimer', ht: 'Siprime' })}
+                            aria-label={t({ fr: 'Supprimer', ht: 'Siprime' })}
                           >
                             <Trash2 size={15} />
                           </button>

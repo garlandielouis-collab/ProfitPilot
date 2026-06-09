@@ -4,21 +4,22 @@ import { useRef, useState } from 'react';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { useLanguage } from '../LanguageWrapper';
 
 const CONVERSATIONS = [
   {
-    q: 'Quel est mon produit le plus rentable ?',
-    a: '🏆 Votre produit le plus rentable est le **Savon Karité 250g** avec une marge de **68%**. Il représente 34% de votre profit total ce mois. Je recommande d\'augmenter votre stock de 80 unités avant la semaine prochaine.',
+    q: { fr: 'Quel est mon produit le plus rentable ?', ht: 'Ki pwodui ki pi rantab mwen an ?' },
+    a: { fr: '🏆 Votre produit le plus rentable est le **Savon Karité 250g** avec une marge de **68%**. Il représente 34% de votre profit total ce mois. Je recommande d\'augmenter votre stock de 80 unités avant la semaine prochaine.', ht: '🏆 Pwodui ki pi rantab ou a se **Savon Karité 250g** ak yon maj **68%**. Li reprezante 34% de pwofi total ou mwa sa a. Mwen rekòmande ogmante stock ou a 80 inite anvan semèn pwochen an.' },
     delay: 0,
   },
   {
-    q: 'Pourquoi mon profit a diminué ce mois ?',
-    a: '📉 Votre profit a baissé de **12%** car vos achats fournisseurs ont augmenté de 18% (prix du Dolar). De plus, 3 produits ont des marges négatives. Voici les ajustements recommandés pour récupérer **45 000 HTG** de profit.',
+    q: { fr: 'Pourquoi mon profit a diminué ce mois ?', ht: 'Poukisa pwofi mwen diminye mwa sa a ?' },
+    a: { fr: '📉 Votre profit a baissé de **12%** car vos achats fournisseurs ont augmenté de 18% (prix du Dolar). De plus, 3 produits ont des marges négatives. Voici les ajustements recommandés pour récupérer **45 000 HTG** de profit.', ht: '📉 Pwofi ou desann **12%** paske achat fournisseur ou yo ogmante 18% (pri Dola a). Anplis, 3 pwodui gen maj negatif. Men ajistman rekòmande yo pou rekipere **45 000 HTG** pwofi.' },
     delay: 0,
   },
   {
-    q: 'Quels produits dois-je réapprovisionner ?',
-    a: '⚠️ **3 produits urgents à commander** : Savon Karité (2 unités restantes, rupture dans 2 jours), Crème Hydratante (5 unités, rupture dans 4 jours), Huile Coco (8 unités). Commande suggérée : **85 000 HTG** total.',
+    q: { fr: 'Quels produits dois-je réapprovisionner ?', ht: 'Ki pwodui mwen dwe re-apwovizyone ?' },
+    a: { fr: '⚠️ **3 produits urgents à commander** : Savon Karité (2 unités restantes, rupture dans 2 jours), Crème Hydratante (5 unités, rupture dans 4 jours), Huile Coco (8 unités). Commande suggérée : **85 000 HTG** total.', ht: '⚠️ **3 pwodui ijan pou kòmande** : Savon Karité (2 inite retan, rupture nan 2 jou), Crème Hydratante (5 inite, rupture nan 4 jou), Huile Coco (8 inite). Kòmand sijere : **85 000 HTG** total.' },
     delay: 0,
   },
 ];
@@ -45,6 +46,7 @@ function formatResponse(text: string) {
 }
 
 export function PilotAISection() {
+  const { t } = useLanguage();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-60px' });
   const [active, setActive] = useState(0);
@@ -72,13 +74,13 @@ export function PilotAISection() {
           className="mb-14 text-center"
         >
           <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#50c878]/30 bg-[#50c878]/10 px-4 py-1.5 text-xs font-semibold text-[#50c878]">
-            <Sparkles size={11} /> Intelligence Artificielle Financière
+            <Sparkles size={11} /> {t({ fr: 'Intelligence Artificielle Financière', ht: 'Entèlijans Atifisyèl Finansye' })}
           </span>
           <h2 className="mt-4 text-3xl font-extrabold text-[#001f3f] sm:text-4xl">
-            Rencontrez <span style={{ background: 'linear-gradient(135deg,#001f3f,#50c878)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Pilot AI</span>
+            {t({ fr: 'Rencontrez', ht: 'Rankontre' })} <span style={{ background: 'linear-gradient(135deg,#001f3f,#50c878)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Pilot AI</span>
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
-            Votre conseiller financier personnel, disponible 24h/24. Il analyse votre business en temps réel et vous guide vers la croissance.
+            {t({ fr: 'Votre conseiller financier personnel, disponible 24h/24. Il analyse votre business en temps réel et vous guide vers la croissance.', ht: 'Konseye finansye pèsonèl ou, disponib 24/24. Li analize biznis ou an tan reyèl epi gide w nan kwasans lan.' })}
           </p>
         </motion.div>
 
@@ -89,7 +91,7 @@ export function PilotAISection() {
             transition={{ delay: 0.2, duration: 0.7 }}
             className="flex flex-col gap-3"
           >
-            <p className="mb-2 text-sm font-semibold text-slate-400 uppercase tracking-widest">Questions fréquentes</p>
+            <p className="mb-2 text-sm font-semibold text-slate-400 uppercase tracking-widest">{t({ fr: 'Questions fréquentes', ht: 'Kesyon frekan' })}</p>
             {CONVERSATIONS.map((c, i) => (
               <button
                 key={i}
@@ -106,7 +108,7 @@ export function PilotAISection() {
                   <Send size={12} />
                 </div>
                 <span className={`text-sm font-medium ${active === i ? 'text-[#001f3f]' : 'text-slate-600'}`}>
-                  {c.q}
+                  {t(c.q)}
                 </span>
               </button>
             ))}
@@ -116,7 +118,7 @@ export function PilotAISection() {
               className="mt-3 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#001f3f] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#001f3f]/90 active:scale-95"
             >
               <Sparkles size={14} />
-              Parler à Pilot AI maintenant
+              {t({ fr: 'Parler à Pilot AI maintenant', ht: 'Pale ak Pilot AI kounye a' })}
             </Link>
           </motion.div>
 
@@ -139,7 +141,7 @@ export function PilotAISection() {
                 <p className="text-sm font-bold text-[#001f3f]">Pilot AI</p>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-[#50c878] animate-pulse" />
-                  <p className="text-[10px] text-slate-400">En ligne — Analyse votre business</p>
+                  <p className="text-[10px] text-slate-400">{t({ fr: 'En ligne — Analyse votre business', ht: 'An liy — Analize biznis ou' })}</p>
                 </div>
               </div>
             </div>
@@ -149,7 +151,7 @@ export function PilotAISection() {
               {/* User message */}
               <div className="flex justify-end">
                 <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-[#001f3f] px-4 py-3">
-                  <p className="text-sm text-white">{CONVERSATIONS[active].q}</p>
+                  <p className="text-sm text-white">{t(CONVERSATIONS[active].q)}</p>
                 </div>
               </div>
 
@@ -176,7 +178,7 @@ export function PilotAISection() {
                         className="rounded-2xl rounded-tl-sm bg-white border border-[#E2E8F0] px-4 py-3"
                       >
                         <p className="text-sm leading-relaxed text-slate-700">
-                          {formatResponse(CONVERSATIONS[active].a)}
+                          {formatResponse(t(CONVERSATIONS[active].a))}
                         </p>
                       </motion.div>
                     ) : null}
@@ -188,7 +190,7 @@ export function PilotAISection() {
             {/* Input area */}
             <div className="border-t border-[#E2E8F0] bg-white p-3">
               <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5">
-                <p className="flex-1 text-sm text-slate-400">Posez votre question à Pilot AI...</p>
+                <p className="flex-1 text-sm text-slate-400">{t({ fr: 'Posez votre question à Pilot AI...', ht: 'Poze kesyon ou a Pilot AI...' })}</p>
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#001f3f]">
                   <Send size={11} className="text-white" />
                 </div>

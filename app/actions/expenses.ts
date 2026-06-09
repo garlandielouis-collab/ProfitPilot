@@ -1,8 +1,9 @@
 'use server';
 
-import { getBusinessContext } from '../../lib/serverAuth';
+import { getBusinessContext, getBusinessExchangeRate } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { recordExpenseEntry } from './accounting';
+import { mapCategoryToAccountCode } from '../../lib/accountingEngine';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,10 +56,11 @@ async function findOrCreateCategory(
 
   if (existing?.id) return existing.id;
 
-  // Create new
+  // Create new with proper account_code so DB trigger and reports work correctly
+  const accountCode = mapCategoryToAccountCode(name.trim());
   const { data: created, error } = await supabase
     .from('expense_categories')
-    .insert({ business_id: businessId, name: name.trim() })
+    .insert({ business_id: businessId, name: name.trim(), account_code: accountCode })
     .select('id')
     .single();
 
@@ -69,6 +71,53 @@ async function findOrCreateCategory(
   return created.id;
 }
 
+// ── Balance check ─────────────────────────────────────────────────────────────
+
+async function checkCashBalance(
+  supabase: any,
+  businessId: string,
+  amountHtg: number,
+  paymentMethod: string | null,
+  paymentStatus: string,
+): Promise<string> {
+  // Only check for cash/bank payments, not for credit
+  if (paymentStatus === 'credit' || paymentStatus === 'pending') return paymentStatus;
+
+  // Determine which account to check
+  const isCash = !paymentMethod || paymentMethod === 'Cash';
+  const accountCode = isCash ? '1110' : '1120';
+
+  const { data: acctData } = await supabase
+    .from('chart_of_accounts')
+    .select('id')
+    .eq('business_id', businessId)
+    .eq('code', accountCode)
+    .single();
+
+  if (!acctData?.id) return paymentStatus; // Account not found, skip check
+
+  const { data: lines } = await supabase
+    .from('journal_entry_lines')
+    .select('base_debit, base_credit')
+    .eq('account_id', acctData.id);
+
+  const accountBalance = (lines ?? []).reduce(
+    (sum: number, l: any) => sum + Number(l.base_debit ?? 0) - Number(l.base_credit ?? 0),
+    0,
+  );
+
+  // Skip check if no transactions recorded yet (first transaction)
+  if (lines && lines.length > 0 && accountBalance < amountHtg) {
+    if (isCash) {
+      throw new Error(`Solde insufisan nan kès! Disponib: ${accountBalance.toFixed(2)} HTG, bezwen: ${amountHtg.toFixed(2)} HTG. Chwazi yon lòt metòd peman oswa diminye montan an.`);
+    }
+    // For bank/electronic methods, auto-switch to credit
+    return 'credit';
+  }
+
+  return paymentStatus;
+}
+
 // ── upsertExpense ─────────────────────────────────────────────────────────────
 
 export async function upsertExpense(payload: ExpensePayload): Promise<void> {
@@ -76,6 +125,15 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
   if (!payload.amount || payload.amount <= 0) throw new Error('Montan pa valab.');
 
   const { supabase, businessId, userId } = await getBusinessContext();
+  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
+
+  // Check account balance before proceeding
+  const amountInHtg = payload.currency === 'USD' ? payload.amount * exchangeRate : payload.amount;
+  const dbStatus = STATUS_MAP[payload.payment_status] ?? 'paid';
+  const dbMethod = payload.payment_method
+    ? (METHOD_MAP[payload.payment_method] ?? null)
+    : null;
+  const finalStatus = await checkCashBalance(supabase, businessId, amountInHtg, dbMethod, dbStatus);
 
   const categoryId = await findOrCreateCategory(supabase, businessId, userId, payload.category);
 
@@ -84,17 +142,13 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
   const rand   = Math.floor(Math.random() * 900000) + 100000;
   const expNum = `EXP-${year}-${rand}`;
 
-  const dbStatus = STATUS_MAP[payload.payment_status]  ?? 'paid';
-  const dbMethod = payload.payment_method
-    ? (METHOD_MAP[payload.payment_method] ?? null)
-    : null;
-
   const fields: Record<string, unknown> = {
     description:    payload.description.trim(),
     category_id:    categoryId,
     amount:         payload.amount,
     currency:       payload.currency       ?? 'HTG',
-    payment_status: dbStatus,
+    exchange_rate:  (payload.currency ?? 'HTG') === 'USD' ? exchangeRate : 1,
+    payment_status: finalStatus,
     payment_method: dbMethod,
     expense_date:   payload.date,
     supplier_id:    payload.supplier_id    || null,
@@ -114,9 +168,11 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
         description: payload.description.trim(),
         amount: payload.amount,
         categoryName: payload.category,
+        paymentStatus: finalStatus,
         date: payload.date,
         currency: payload.currency ?? 'HTG',
         paymentMethod: dbMethod ?? 'Cash',
+        exchangeRate: (payload.currency ?? 'HTG') === 'USD' ? exchangeRate : 1,
       });
     } catch (err) {
       console.error('[accounting] recordExpenseEntry failed on update:', (err as Error).message);
@@ -135,9 +191,11 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
         description: payload.description.trim(),
         amount: payload.amount,
         categoryName: payload.category,
+        paymentStatus: finalStatus,
         date: payload.date,
         currency: payload.currency ?? 'HTG',
         paymentMethod: dbMethod ?? 'Cash',
+        exchangeRate: (payload.currency ?? 'HTG') === 'USD' ? exchangeRate : 1,
       });
     } catch (error) {
       console.error('[accounting] recordExpenseEntry failed:', (error as Error).message);
@@ -150,8 +208,43 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
 // ── deleteExpense ─────────────────────────────────────────────────────────────
 
 export async function deleteExpense(expenseId: string): Promise<void> {
-  const { supabase, businessId } = await getBusinessContext();
+  const { supabase, businessId, userId } = await getBusinessContext();
 
+  // 1. Find ALL journal entries for this expense (original + any old ANNULATION reversal)
+  const { data: entries } = await supabase
+    .from('journal_entries')
+    .select('id')
+    .eq('business_id', businessId)
+    .eq('reference_type', 'expense')
+    .eq('reference_id', expenseId);
+
+  for (const je of entries ?? []) {
+    // 2. Zero out all journal entry lines
+    await supabase
+      .from('journal_entry_lines')
+      .update({
+        debit_amount: 0,
+        credit_amount: 0,
+        base_debit: 0,
+        base_credit: 0,
+      })
+      .eq('journal_entry_id', je.id);
+
+    // 3. Mark entry as void and zero its totals
+    await supabase
+      .from('journal_entries')
+      .update({
+        status: 'void',
+        total_debit: 0,
+        total_credit: 0,
+        voided_by: userId,
+        voided_at: new Date().toISOString(),
+        voided_reason: 'Dépense annulée',
+      })
+      .eq('id', je.id);
+  }
+
+  // 5. Soft-delete the expense
   const { error } = await supabase
     .from('expenses')
     .update({ deleted_at: new Date().toISOString() })
@@ -160,6 +253,23 @@ export async function deleteExpense(expenseId: string): Promise<void> {
 
   if (error) throw new Error(error.message);
   revalidatePath('/expenses');
+  revalidatePath('/rapports/comptabilite');
+  revalidatePath('/rapports');
+  revalidatePath('/dashboard');
+}
+
+// ── markExpensePaid ───────────────────────────────────────────────────────────
+
+export async function markExpensePaid(expenseId: string): Promise<void> {
+  const { supabase, businessId } = await getBusinessContext();
+  const { error } = await supabase
+    .from('expenses')
+    .update({ payment_status: 'paid' })
+    .eq('id', expenseId)
+    .eq('business_id', businessId);
+  if (error) throw new Error(error.message);
+  revalidatePath('/expenses');
+  revalidatePath('/dettes');
 }
 
 // ── getExpenses ───────────────────────────────────────────────────────────────
@@ -197,4 +307,52 @@ export async function getExpenses() {
     date:           r.expense_date,
     supplier_id:    r.supplier_id ?? null,
   }));
+}
+
+// ── cleanupDeletedExpenses ─────────────────────────────────────────────────────
+// Nettoye les écritures comptables pour les dépenses déjà soft-supprimées
+// (ancienne version de deleteExpense créait des entrées ANNULATION avec montants)
+
+export async function cleanupDeletedExpenses(): Promise<number> {
+  const { supabase, businessId } = await getBusinessContext();
+
+  const { data: deletedExpenses } = await supabase
+    .from('expenses')
+    .select('id')
+    .eq('business_id', businessId)
+    .not('deleted_at', 'is', null);
+
+  let cleaned = 0;
+  for (const exp of deletedExpenses ?? []) {
+    const { data: entries } = await supabase
+      .from('journal_entries')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('reference_type', 'expense')
+      .eq('reference_id', exp.id);
+
+    for (const je of entries ?? []) {
+      await supabase
+        .from('journal_entry_lines')
+        .update({ debit_amount: 0, credit_amount: 0, base_debit: 0, base_credit: 0 })
+        .eq('journal_entry_id', je.id);
+
+      await supabase
+        .from('journal_entries')
+        .update({
+          status: 'void',
+          total_debit: 0,
+          total_credit: 0,
+          voided_reason: 'Dépense annulée (nettoyage)',
+        })
+        .eq('id', je.id);
+
+      cleaned += 1;
+    }
+  }
+
+  revalidatePath('/rapports/comptabilite');
+  revalidatePath('/rapports');
+  revalidatePath('/dashboard');
+  return cleaned;
 }

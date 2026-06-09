@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Language = 'fr' | 'ht';
 
@@ -14,8 +14,24 @@ type LanguageContextType = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+const LANG_KEY = 'pp_language';
+
 export function LanguageWrapper({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('fr');
+  const [language, setLanguageState] = useState<Language>('fr');
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(LANG_KEY) as Language | null;
+    if (saved === 'fr' || saved === 'ht') {
+      setLanguageState(saved);
+    }
+    setHydrated(true);
+  }, []);
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem(LANG_KEY, lang);
+  };
 
   const value = useMemo(
     () => ({

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { useLanguage } from './LanguageWrapper';
 import { X, Printer } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,8 +42,10 @@ function fmt(n: number, currency: 'HTG' | 'USD') {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise' }: Props) {
+export function SaleInvoiceModal({ data, onClose, businessName: rawBusinessName = 'Mon Entreprise' }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
+  const businessName = rawBusinessName === 'Mon Entreprise' ? t({ fr: 'Mon Entreprise', ht: 'Mon Entreprise' }) : rawBusinessName;
 
   const handlePrint = () => {
     const el = printRef.current;
@@ -104,7 +107,7 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
         {/* Modal header */}
         <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-[28px] border-b border-slate-100 bg-white px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-[#1a1a2e]">Facture</h2>
+            <h2 className="text-lg font-semibold text-[#1a1a2e]">{t({ fr: 'Facture', ht: 'Fakti' })}</h2>
             <p className="text-sm text-slate-500">{invoiceNumber}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -113,7 +116,7 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
               className="inline-flex items-center gap-2 rounded-2xl bg-[#0056b3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0047a1] active:scale-95"
             >
               <Printer size={15} />
-              Imprimer / PDF
+              {t({ fr: 'Imprimer / PDF', ht: 'Enprime / PDF' })}
             </button>
             <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 transition">
               <X size={18} className="text-slate-500" />
@@ -131,7 +134,7 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
               <span className="text-[#6c63ff] text-2xl font-extrabold">Pilot</span>
             </div>
             <div className="inv-meta text-right">
-              <h2 className="text-2xl font-bold text-[#0056b3]">FACTURE</h2>
+              <h2 className="text-2xl font-bold text-[#0056b3]">{t({ fr: 'FACTURE', ht: 'FAKTI' })}</h2>
               <p className="mt-1 text-sm text-slate-500">{invoiceNumber}</p>
               <p className="text-sm text-slate-500">
                 {date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -144,14 +147,14 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
           {/* Parties */}
           <div className="grid grid-cols-2 gap-8 mb-8">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400 mb-2">Émetteur</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400 mb-2">{t({ fr: 'Émetteur', ht: 'Emétè' })}</p>
               <p className="text-base font-bold text-[#1a1a2e]">{bizName}</p>
               <p className="text-sm text-slate-500">via ProfitPilot</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400 mb-2">Facturé à</p>
-              <p className="text-base font-bold text-[#1a1a2e]">{clientName || 'Client comptoir'}</p>
-              <p className="text-sm text-slate-500">Devise: {currency}</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-slate-400 mb-2">{t({ fr: 'Facturé à', ht: 'Faktire a' })}</p>
+              <p className="text-base font-bold text-[#1a1a2e]">{clientName || t({ fr: 'Client comptoir', ht: 'Kliyan kontwa' })}</p>
+              <p className="text-sm text-slate-500">{t({ fr: 'Devise:', ht: 'Deviz:' })} {currency}</p>
             </div>
           </div>
 
@@ -159,10 +162,10 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
           <table className="w-full border-collapse text-sm mb-6">
             <thead>
               <tr className="bg-[#f0f4ff]">
-                <th className="px-3 py-2.5 text-left text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">Produit</th>
-                <th className="px-3 py-2.5 text-right text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">Qté</th>
-                <th className="px-3 py-2.5 text-right text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">Prix unitaire</th>
-                <th className="px-3 py-2.5 text-right text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">Total</th>
+                <th className="px-3 py-2.5 text-left text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">{t({ fr: 'Produit', ht: 'Pwodui' })}</th>
+                <th className="px-3 py-2.5 text-right text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">{t({ fr: 'Qté', ht: 'Kte' })}</th>
+                <th className="px-3 py-2.5 text-right text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">{t({ fr: 'Prix unitaire', ht: 'Pri inite' })}</th>
+                <th className="px-3 py-2.5 text-right text-[10px] uppercase tracking-widest text-[#0056b3] font-semibold">{t({ fr: 'Total', ht: 'Total' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#eef2ff]">
@@ -182,17 +185,17 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
             <table className="w-full text-sm">
               <tbody>
                 <tr>
-                  <td className="py-1.5 text-slate-500">Sous-total HT</td>
+                  <td className="py-1.5 text-slate-500">{t({ fr: 'Sous-total HT', ht: 'Sou-total HT' })}</td>
                   <td className="py-1.5 text-right font-medium text-[#1a1a2e]">{fmt(subtotal, currency)}</td>
                 </tr>
                 {discountPercent > 0 && (
                   <tr className="text-red-600">
-                    <td className="py-1.5">Remise ({discountPercent}%)</td>
+                    <td className="py-1.5">{t({ fr: 'Remise', ht: 'Remiz' })} ({discountPercent}%)</td>
                     <td className="py-1.5 text-right font-medium">−{fmt(discountAmount, currency)}</td>
                   </tr>
                 )}
                 <tr className="border-t-2 border-[#0056b3]">
-                  <td className="pt-3 pb-1 text-base font-bold text-[#0056b3]">TOTAL</td>
+                  <td className="pt-3 pb-1 text-base font-bold text-[#0056b3]">{t({ fr: 'TOTAL', ht: 'TOTAL' })}</td>
                   <td className="pt-3 pb-1 text-right text-base font-extrabold text-[#0056b3]">{fmt(totalAmount, currency)}</td>
                 </tr>
               </tbody>
@@ -201,15 +204,15 @@ export function SaleInvoiceModal({ data, onClose, businessName = 'Mon Entreprise
 
           {/* Payment badge */}
           <div className="mt-6 flex items-center gap-3">
-            <p className="text-sm text-slate-500">Mode de paiement:</p>
+            <p className="text-sm text-slate-500">{t({ fr: 'Mode de paiement:', ht: 'Mòd peman:' })}</p>
             <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${isCredit ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-              {isCredit ? '⏳ À Crédit' : `✓ ${paymentMethod}`}
+              {isCredit ? `⏳ ${t({ fr: 'À Crédit', ht: 'À Kredi' })}` : `✓ ${paymentMethod}`}
             </span>
           </div>
 
           {/* Footer */}
           <div className="mt-10 border-t border-slate-100 pt-4 text-center text-[11px] text-slate-400">
-            Mèsi pou konfyans ou — {bizName} © {new Date().getFullYear()} · via ProfitPilot
+            {t({ fr: 'Merci pour votre confiance', ht: 'Mèsi pou konfyans ou' })} — {bizName} © {new Date().getFullYear()} · via ProfitPilot
           </div>
         </div>
       </div>

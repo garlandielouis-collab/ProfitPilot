@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from './Button';
+import { useLanguage } from './LanguageWrapper';
 import { supabase } from '../lib/supabaseClient';
 
 type SupplierFormProps = {
@@ -14,6 +15,7 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const { t } = useLanguage();
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
 
@@ -60,7 +62,7 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
     }
 
     setStatus('success');
-    setMessage('Fournisseur enregistré avec succès.');
+    setMessage(t({ fr: 'Fournisseur enregistré avec succès.', ht: 'Founisè anrejistre avèk siksè.' }));
     setName('');
     setPhone('');
     setEmail('');
@@ -70,23 +72,23 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-anthracite">Ajouter un fournisseur</h2>
-        <p className="mt-1 text-sm text-anthracite/70">Créez un fournisseur pour vos achats à crédit et achats fournisseurs.</p>
+        <h2 className="text-xl font-semibold text-anthracite">{t({ fr: 'Ajouter un fournisseur', ht: 'Ajoute yon founisè' })}</h2>
+        <p className="mt-1 text-sm text-anthracite/70">{t({ fr: 'Créez un fournisseur pour vos achats à crédit et achats fournisseurs.', ht: 'Kreye yon founisè pou acha a kredi ak acha founisè yo.' })}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-anthracite/90">Nom</label>
+            <label className="text-sm font-medium text-anthracite/90">{t({ fr: 'Nom', ht: 'Non' })}</label>
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Ex: Founisè S.A."
+              placeholder={t({ fr: 'Ex: Founisè S.A.', ht: 'Eg: Founisè S.A.' })}
               className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-anthracite outline-none transition focus:border-primary focus:bg-white"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-anthracite/90">Téléphone</label>
+            <label className="text-sm font-medium text-anthracite/90">{t({ fr: 'Téléphone', ht: 'Telefòn' })}</label>
             <input
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
@@ -97,7 +99,7 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-anthracite/90">Email</label>
+          <label className="text-sm font-medium text-anthracite/90">{t({ fr: 'Email', ht: 'Imèl' })}</label>
           <input
             type="email"
             value={email}
@@ -109,7 +111,7 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
 
         <div className="flex justify-end">
           <Button type="submit" className={canSubmit ? '' : 'bg-slate-200 text-anthracite cursor-not-allowed'} disabled={!canSubmit || status === 'submitting'}>
-            Enregistrer le fournisseur
+            {t({ fr: 'Enregistrer le fournisseur', ht: 'Anrejistre founisè a' })}
           </Button>
         </div>
 

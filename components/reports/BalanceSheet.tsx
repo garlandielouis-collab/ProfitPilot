@@ -5,7 +5,8 @@
 
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
+import { useLanguage } from '../LanguageWrapper';
 import ReportLayout, { type ReportMeta } from './ReportLayout';
 
 // ─────────────────────────────────────────────────────────────────
@@ -210,21 +211,22 @@ interface Props {
   showPrevious?: boolean;
 }
 
-export default function BalanceSheet({ meta, data, showPrevious = true }: Props) {
+function BalanceSheet({ meta, data, showPrevious = true }: Props) {
+  const { t } = useLanguage();
   const c = compute(data);
   const p = data.prev ? compute(data.prev) : null;
   const pv = (v: number | undefined) => (showPrevious && p ? (v ?? 0) : undefined);
 
   return (
-    <ReportLayout meta={{ ...meta, reportTitle: 'BILAN' }}>
+    <ReportLayout meta={{ ...meta, reportTitle: t({ fr: 'BILAN', ht: 'BILANS' }) }}>
       {/* Balance check banner */}
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-4 text-[11px] font-semibold
         ${c.balanced ? 'bg-[#ECFDF5] text-[#065F46]' : 'bg-[#FEF2F2] text-[#991B1B]'}`}>
         <span>{c.balanced ? '✓' : '⚠'}</span>
         <span>
           {c.balanced
-            ? `Bilan équilibré — Total Actif = Total Passif = ${fmt(c.totalActif)} HTG`
-            : `Déséquilibre détecté — Actif ${fmt(c.totalActif)} ≠ Passif ${fmt(c.totalPassif)}`}
+            ? `${t({ fr: 'Bilan équilibré — Total Actif = Total Passif =', ht: 'Bilans ekilibre — Total Aktif = Total Pasif =' })} ${fmt(c.totalActif)} ${meta.currency ?? 'HTG'}`
+            : `${t({ fr: 'Déséquilibre détecté — Actif', ht: 'Desequilib detekte — Aktif' })} ${fmt(c.totalActif)} ${t({ fr: '≠ Passif', ht: '≠ Pasif' })} ${fmt(c.totalPassif)}`}
         </span>
       </div>
 
@@ -237,35 +239,35 @@ export default function BalanceSheet({ meta, data, showPrevious = true }: Props)
         <div className="border border-[#E2E8F0] rounded-lg overflow-hidden">
           {/* Header */}
           <div className="bg-[#0F172A] px-3 py-2 flex justify-between items-center">
-            <span className="text-white text-[11px] font-bold uppercase tracking-[0.1em]">ACTIF</span>
+            <span className="text-white text-[11px] font-bold uppercase tracking-[0.1em]">{t({ fr: 'ACTIF', ht: 'AKTIF' })}</span>
             <span className="text-[#6EE7B7] text-[11px] font-semibold">{fmt(c.totalActif)}</span>
           </div>
 
           {/* ACTIF NON COURANT */}
-          <BSSection title="Actif non courant (Immobilisations)" color="#3B82F6" />
-          <BSRow label="Terrains"                      val={c.terrains}              prevVal={pv(p?.terrains)}              indent={1} />
-          <BSRow label="Bâtiments et constructions"    val={c.batimentsConstruct}    prevVal={pv(p?.batimentsConstruct)}    indent={1} />
-          <BSRow label="Matériel informatique"         val={c.materielInformatique}  prevVal={pv(p?.materielInformatique)}  indent={1} />
-          <BSRow label="Mobilier de bureau"            val={c.mobilierBureau}        prevVal={pv(p?.mobilierBureau)}        indent={1} />
-          <BSRow label="Véhicules"                     val={c.vehicules}             prevVal={pv(p?.vehicules)}             indent={1} />
-          <BSRow label="Autres immobilisations"        val={c.autresImmobilisations} prevVal={pv(p?.autresImmobilisations)} indent={1} />
-          <BSRow label="(−) Amortissements cumulés"   val={-c.amortissementsCumules} prevVal={pv(p ? -p.amortissementsCumules : undefined)} indent={2} italic />
-          <BSRow label="Immobilisations nettes"        val={c.immoNettes}            prevVal={pv(p?.immoNettes)}            bold highlight="gray" border />
+          <BSSection title={t({ fr: 'Actif non courant (Immobilisations)', ht: 'Aktif ki pa kouran (Imobilizasyon)' })} color="#3B82F6" />
+          <BSRow label={t({ fr: 'Terrains', ht: 'Tè' })}                      val={c.terrains}              prevVal={pv(p?.terrains)}              indent={1} />
+          <BSRow label={t({ fr: 'Bâtiments et constructions', ht: 'Bilding ak konstriksyon' })}    val={c.batimentsConstruct}    prevVal={pv(p?.batimentsConstruct)}    indent={1} />
+          <BSRow label={t({ fr: 'Matériel informatique', ht: 'Materyèl enfòmatik' })}         val={c.materielInformatique}  prevVal={pv(p?.materielInformatique)}  indent={1} />
+          <BSRow label={t({ fr: 'Mobilier de bureau', ht: 'Mèb biwo' })}            val={c.mobilierBureau}        prevVal={pv(p?.mobilierBureau)}        indent={1} />
+          <BSRow label={t({ fr: 'Véhicules', ht: 'Veyikil' })}                     val={c.vehicules}             prevVal={pv(p?.vehicules)}             indent={1} />
+          <BSRow label={t({ fr: 'Autres immobilisations', ht: 'Lòt imobilizasyon' })}        val={c.autresImmobilisations} prevVal={pv(p?.autresImmobilisations)} indent={1} />
+          <BSRow label={t({ fr: '(−) Amortissements cumulés', ht: '(−) Amotisman kimile' })}   val={-c.amortissementsCumules} prevVal={pv(p ? -p.amortissementsCumules : undefined)} indent={2} italic />
+          <BSRow label={t({ fr: 'Immobilisations nettes', ht: 'Imobilizasyon nèt yo' })}        val={c.immoNettes}            prevVal={pv(p?.immoNettes)}            bold highlight="gray" border />
 
           {/* ACTIF COURANT */}
-          <BSSection title="Actif courant" color="#8B5CF6" />
-          <BSRow label="Stocks de marchandises"        val={c.stocksMarchandises}    prevVal={pv(p?.stocksMarchandises)}    indent={1} />
-          <BSRow label="Créances clients (AR)"         val={c.creancesClients}       prevVal={pv(p?.creancesClients)}       indent={1} />
-          <BSRow label="Avances versées fournisseurs"  val={c.avancesFournisseurs}   prevVal={pv(p?.avancesFournisseurs)}   indent={1} />
-          <BSRow label="Trésorerie — Banque"           val={c.tresoreriebanque}      prevVal={pv(p?.tresoreriebanque)}      indent={2} />
-          <BSRow label="Trésorerie — MonCash"          val={c.tresorerieMonCash}     prevVal={pv(p?.tresorerieMonCash)}     indent={2} />
-          <BSRow label="Trésorerie — Natcash"          val={c.tresorerieNatcash}     prevVal={pv(p?.tresorerieNatcash)}     indent={2} />
-          <BSRow label="Caisse HTG"                    val={c.tresorerieCaisse}      prevVal={pv(p?.tresorerieCaisse)}      indent={2} />
-          <BSRow label="Autres actifs courants"        val={c.autresActifsCourants}  prevVal={pv(p?.autresActifsCourants)}  indent={1} />
+          <BSSection title={t({ fr: 'Actif courant', ht: 'Aktif kouran' })} color="#8B5CF6" />
+          <BSRow label={t({ fr: 'Stocks de marchandises', ht: 'Stock machandiz yo' })}        val={c.stocksMarchandises}    prevVal={pv(p?.stocksMarchandises)}    indent={1} />
+          <BSRow label={t({ fr: 'Créances clients (AR)', ht: 'Kreyans kliyan (AR)' })}         val={c.creancesClients}       prevVal={pv(p?.creancesClients)}       indent={1} />
+          <BSRow label={t({ fr: 'Avances versées fournisseurs', ht: 'Avans founisè' })}  val={c.avancesFournisseurs}   prevVal={pv(p?.avancesFournisseurs)}   indent={1} />
+          <BSRow label={t({ fr: 'Trésorerie — Banque', ht: 'Trezoreri — Bank' })}           val={c.tresoreriebanque}      prevVal={pv(p?.tresoreriebanque)}      indent={2} />
+          <BSRow label={t({ fr: 'Trésorerie — MonCash', ht: 'Trezoreri — MonCash' })}          val={c.tresorerieMonCash}     prevVal={pv(p?.tresorerieMonCash)}     indent={2} />
+          <BSRow label={t({ fr: 'Trésorerie — Natcash', ht: 'Trezoreri — Natcash' })}          val={c.tresorerieNatcash}     prevVal={pv(p?.tresorerieNatcash)}     indent={2} />
+          <BSRow label={t({ fr: 'Caisse HTG', ht: 'Kès HTG' })}                    val={c.tresorerieCaisse}      prevVal={pv(p?.tresorerieCaisse)}      indent={2} />
+          <BSRow label={t({ fr: 'Autres actifs courants', ht: 'Lòt aktif kouran' })}        val={c.autresActifsCourants}  prevVal={pv(p?.autresActifsCourants)}  indent={1} />
           <BSRow label="Total Actif courant"           val={c.actifCourant}          prevVal={pv(p?.actifCourant)}          bold highlight="gray" border />
 
           {/* TOTAL ACTIF */}
-          <BSRow label="TOTAL ACTIF"                   val={c.totalActif}            prevVal={pv(p?.totalActif)}            bold highlight="navy" border />
+          <BSRow label={t({ fr: 'TOTAL ACTIF', ht: 'TOTAL AKTIF' })}                   val={c.totalActif}            prevVal={pv(p?.totalActif)}            bold highlight="navy" border />
         </div>
 
         {/* ═══════════════════════════════
@@ -279,46 +281,46 @@ export default function BalanceSheet({ meta, data, showPrevious = true }: Props)
           </div>
 
           {/* CAPITAUX PROPRES */}
-          <BSSection title="Capitaux propres" color="#12B981" />
-          <BSRow label="Capital social"                val={c.capitalSocial}              prevVal={pv(p?.capitalSocial)}              indent={1} />
-          <BSRow label="Apports propriétaire"          val={c.apportsProprio}             prevVal={pv(p?.apportsProprio)}             indent={1} />
-          <BSRow label="Réserves légales"              val={c.reservesLegales}            prevVal={pv(p?.reservesLegales)}            indent={1} />
-          <BSRow label="Report à nouveau"              val={c.reportANouveau}             prevVal={pv(p?.reportANouveau)}             indent={1} />
-          <BSRow label="Résultat de l'exercice"        val={c.resultatExercice}           prevVal={pv(p?.resultatExercice)}           indent={1} bold />
-          <BSRow label="(−) Prélèvements propriétaire" val={-c.prelevementsProprietaire} prevVal={pv(p ? -p.prelevementsProprietaire : undefined)} indent={2} italic />
-          <BSRow label="TOTAL CAPITAUX PROPRES"        val={c.capitauxPropres}            prevVal={pv(p?.capitauxPropres)}            bold highlight="green" border />
+          <BSSection title={t({ fr: 'Capitaux propres', ht: 'Kapital pwop' })} color="#12B981" />
+          <BSRow label={t({ fr: 'Capital social', ht: 'Kapital sosyal' })}                val={c.capitalSocial}              prevVal={pv(p?.capitalSocial)}              indent={1} />
+          <BSRow label={t({ fr: 'Apports propriétaire', ht: 'Apò pwopriyetè' })}          val={c.apportsProprio}             prevVal={pv(p?.apportsProprio)}             indent={1} />
+          <BSRow label={t({ fr: 'Réserves légales', ht: 'Rezèv legal' })}              val={c.reservesLegales}            prevVal={pv(p?.reservesLegales)}            indent={1} />
+          <BSRow label={t({ fr: 'Report à nouveau', ht: 'Rapò a nouvo' })}              val={c.reportANouveau}             prevVal={pv(p?.reportANouveau)}             indent={1} />
+          <BSRow label={t({ fr: 'Résultat de l\'exercice', ht: 'Rezilta egzèsis la' })}        val={c.resultatExercice}           prevVal={pv(p?.resultatExercice)}           indent={1} bold />
+          <BSRow label={t({ fr: '(−) Prélèvements propriétaire', ht: '(−) Prelevman pwopriyetè' })} val={-c.prelevementsProprietaire} prevVal={pv(p ? -p.prelevementsProprietaire : undefined)} indent={2} italic />
+          <BSRow label={t({ fr: 'TOTAL CAPITAUX PROPRES', ht: 'TOTAL KAPITAL PWOP' })}        val={c.capitauxPropres}            prevVal={pv(p?.capitauxPropres)}            bold highlight="green" border />
 
           {/* PASSIF NON COURANT */}
-          <BSSection title="Passif non courant (Dettes LT)" color="#EF4444" />
-          <BSRow label="Emprunts bancaires long terme"  val={c.empruntsBancairesLT}  prevVal={pv(p?.empruntsBancairesLT)}  indent={1} />
-          <BSRow label="Prêts long terme"               val={c.pretesLT}             prevVal={pv(p?.pretesLT)}             indent={1} />
-          <BSRow label="Dettes sur immobilisations"     val={c.dettesImmobilisations} prevVal={pv(p?.dettesImmobilisations)} indent={1} />
-          <BSRow label="Total Passif non courant"       val={c.passifNC}             prevVal={pv(p?.passifNC)}             bold highlight="gray" border />
+          <BSSection title={t({ fr: 'Passif non courant (Dettes LT)', ht: 'Pasif ki pa kouran (Dèt LT)' })} color="#EF4444" />
+          <BSRow label={t({ fr: 'Emprunts bancaires long terme', ht: 'Anprunt bankè long tèm' })}  val={c.empruntsBancairesLT}  prevVal={pv(p?.empruntsBancairesLT)}  indent={1} />
+          <BSRow label={t({ fr: 'Prêts long terme', ht: 'Prè long tèm' })}               val={c.pretesLT}             prevVal={pv(p?.pretesLT)}             indent={1} />
+          <BSRow label={t({ fr: 'Dettes sur immobilisations', ht: 'Dèt sou imobilizasyon' })}     val={c.dettesImmobilisations} prevVal={pv(p?.dettesImmobilisations)} indent={1} />
+          <BSRow label={t({ fr: 'Total Passif non courant', ht: 'Total Pasif ki pa kouran' })}       val={c.passifNC}             prevVal={pv(p?.passifNC)}             bold highlight="gray" border />
 
           {/* PASSIF COURANT */}
-          <BSSection title="Passif courant (Dettes CT)" color="#F97316" />
-          <BSRow label="Fournisseurs — dettes (AP)"    val={c.detteFournisseurs}     prevVal={pv(p?.detteFournisseurs)}     indent={1} />
-          <BSRow label="Personnel — salaires à payer"  val={c.salairesPayer}         prevVal={pv(p?.salairesPayer)}         indent={1} />
-          <BSRow label="ONA / OFATMA à payer"          val={c.onaPayer}              prevVal={pv(p?.onaPayer)}              indent={1} />
-          <BSRow label="Taxes et impôts à payer"       val={c.taxesPayer}            prevVal={pv(p?.taxesPayer)}            indent={1} />
-          <BSRow label="Charges à payer"               val={c.chargesPayer}          prevVal={pv(p?.chargesPayer)}          indent={1} />
-          <BSRow label="Avances reçues des clients"    val={c.avancesClients}        prevVal={pv(p?.avancesClients)}        indent={1} />
-          <BSRow label="Autres dettes courantes"       val={c.autresPassifsCourants} prevVal={pv(p?.autresPassifsCourants)} indent={1} />
-          <BSRow label="Total Passif courant"          val={c.passifCourant}         prevVal={pv(p?.passifCourant)}         bold highlight="gray" border />
+          <BSSection title={t({ fr: 'Passif courant (Dettes CT)', ht: 'Pasif kouran (Dèt CT)' })} color="#F97316" />
+          <BSRow label={t({ fr: 'Fournisseurs — dettes (AP)', ht: 'Founisè — dèt (AP)' })}    val={c.detteFournisseurs}     prevVal={pv(p?.detteFournisseurs)}     indent={1} />
+          <BSRow label={t({ fr: 'Personnel — salaires à payer', ht: 'Pèsonèl — salè pou peye' })}  val={c.salairesPayer}         prevVal={pv(p?.salairesPayer)}         indent={1} />
+          <BSRow label={t({ fr: 'ONA / OFATMA à payer', ht: 'ONA / OFATMA pou peye' })}          val={c.onaPayer}              prevVal={pv(p?.onaPayer)}              indent={1} />
+          <BSRow label={t({ fr: 'Taxes et impôts à payer', ht: 'Taks ak impò pou peye' })}       val={c.taxesPayer}            prevVal={pv(p?.taxesPayer)}            indent={1} />
+          <BSRow label={t({ fr: 'Charges à payer', ht: 'Chaj pou peye' })}               val={c.chargesPayer}          prevVal={pv(p?.chargesPayer)}          indent={1} />
+          <BSRow label={t({ fr: 'Avances reçues des clients', ht: 'Avans resevwa nan men kliyan' })}    val={c.avancesClients}        prevVal={pv(p?.avancesClients)}        indent={1} />
+          <BSRow label={t({ fr: 'Autres dettes courantes', ht: 'Lòt dèt kouran' })}       val={c.autresPassifsCourants} prevVal={pv(p?.autresPassifsCourants)} indent={1} />
+          <BSRow label={t({ fr: 'Total Passif courant', ht: 'Total Pasif kouran' })}          val={c.passifCourant}         prevVal={pv(p?.passifCourant)}         bold highlight="gray" border />
 
           {/* TOTAL PASSIF */}
-          <BSRow label="TOTAL PASSIF & CAPITAUX"       val={c.totalPassif}           prevVal={pv(p?.totalPassif)}           bold highlight="navy" border />
+          <BSRow label={t({ fr: 'TOTAL PASSIF & CAPITAUX', ht: 'TOTAL PASIF & KAPITAL' })}       val={c.totalPassif}           prevVal={pv(p?.totalPassif)}           bold highlight="navy" border />
         </div>
       </div>
 
       {/* Notes */}
       <div className="mt-4 pt-2 border-t border-[#E2E8F0]">
         <p className="text-[10px] text-[#94A3B8] leading-relaxed">
-          Les montants sont exprimés en Gourdes Haïtiennes (HTG) · L'équation fondamentale
-          ACTIF = CAPITAUX PROPRES + DETTES est vérifiée à chaque opération par le moteur
-          comptable ProfitPilot. Trésorerie mobile: MonCash (Digicel) et Natcash (Natcom).
+          {t({ fr: `Les montants sont exprimés en Gourdes Haïtiennes (${meta.currency ?? 'HTG'}) · L'équation fondamentale ACTIF = CAPITAUX PROPRES + DETTES est vérifiée à chaque opération par le moteur comptable ProfitPilot. — Trésorerie`, ht: `Montan yo eksprime an Goud Ayisyen (${meta.currency ?? 'HTG'}) · Ekasyon fondamantal AKTIF = KAPITAL PWOP + DET yo verifye nan chak operasyon pa motè kontab ProfitPilot. — Trezoreri` })}
         </p>
       </div>
     </ReportLayout>
   );
 }
+
+export default memo(BalanceSheet);

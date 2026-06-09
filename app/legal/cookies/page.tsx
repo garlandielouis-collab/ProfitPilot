@@ -1,7 +1,10 @@
+'use client';
+import { useLanguage } from '../../../components/LanguageWrapper';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
 export default function CookiesPage() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="mx-auto max-w-3xl px-5 py-16 md:px-10">
@@ -25,7 +28,7 @@ export default function CookiesPage() {
                     <code className="text-xs font-mono text-[#001f3f]">{name}</code>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{type}</span>
                   </div>
-                  <p className="text-xs text-slate-500">{desc}</p>
+                  <p className="text-xs text-slate-500">{t({ fr: { 'Sesyon otantifikasyon Supabase': "Session d'authentification Supabase", 'Lang ak preferans entèfas': 'Langue et préférences d\'interface', 'Pèfòmans Vercel': 'Performance Vercel' }[desc] || desc, ht: desc })}</p>
                 </li>
               ))}
             </ul>

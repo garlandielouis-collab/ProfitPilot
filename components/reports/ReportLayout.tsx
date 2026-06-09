@@ -41,11 +41,7 @@ function formatDate(iso?: string) {
 
 function PPLogo() {
   return (
-    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="36" height="36" rx="8" fill="#0F172A" />
-      <path d="M10 10h8.5c3.3 0 5.5 2 5.5 5s-2.2 5-5.5 5H13v6h-3V10z" fill="#12B981" />
-      <path d="M13 13h5c1.5 0 2.5 0.9 2.5 2s-1 2-2.5 2h-5v-4z" fill="#fff" />
-    </svg>
+    <img src="/profitpilot-logo.png" alt="ProfitPilot" width={36} height={36} className="rounded-lg object-contain" />
   );
 }
 
@@ -224,6 +220,7 @@ export default function ReportLayout({
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
+        pageBreakAfter: 'always',
       }}
     >
       {/* ── HEADER ── */}

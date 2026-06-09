@@ -76,52 +76,82 @@ export async function deleteClient(clientId: string): Promise<void> {
   revalidatePath('/clients');
 }
 
-export async function markClientCreditPaid(transactionId: string): Promise<void> {
-  const { supabase, businessId } = await getBusinessContext();
-
-  // Get the transaction
-  const { data: tx, error: fetchErr } = await supabase
-    .from('customer_transactions')
-    .select('customer_id,amount,balance_after')
-    .eq('id', transactionId)
-    .eq('business_id', businessId)
+async function reduceCustomerBalance(supabase: any, customerId: string, amount: number) {
+  const { data: cust } = await supabase
+    .from('customers')
+    .select('outstanding_balance')
+    .eq('id', customerId)
     .single();
+  if (cust) {
+    const newBalance = Math.max(0, (cust.outstanding_balance ?? 0) - amount);
+    await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', customerId);
+  }
+}
 
-  if (fetchErr || !tx) throw new Error('Transaction introuvable.');
+export async function markClientCreditPaid(transactionOrSaleId: string): Promise<void> {
+  const { supabase, businessId, userId } = await getBusinessContext();
 
-  // Record a payment transaction (reduces outstanding_balance)
+  // Try as customer_transactions.id first
+  const { data: tx } = await supabase
+    .from('customer_transactions')
+    .select('id,client_id,client_name,sale_id,amount,currency')
+    .eq('id', transactionOrSaleId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  if (tx) {
+    const { error: insertErr } = await supabase
+      .from('customer_transactions')
+      .insert({
+        owner_id:   userId,
+        business_id: businessId,
+        client_id:  tx.client_id,
+        client_name: tx.client_name ?? 'Kliyan',
+        sale_id:    tx.sale_id,
+        type:       'payment',
+        amount:     tx.amount,
+        currency:   tx.currency ?? 'HTG',
+        notes:      'Peman kredi',
+      });
+    if (insertErr) throw new Error(insertErr.message);
+
+    if (tx.client_id) {
+      await reduceCustomerBalance(supabase, tx.client_id, tx.amount);
+    }
+    revalidatePath('/clients');
+    return;
+  }
+
+  // Not found — try as sales.id
+  const { data: sale } = await supabase
+    .from('sales')
+    .select('id,customer_id,customer_name,total_amount,currency')
+    .eq('id', transactionOrSaleId)
+    .maybeSingle();
+
+  if (!sale) throw new Error('Transaction introuvable.');
+
+  await supabase.from('sales').update({ payment_status: 'paid' }).eq('id', sale.id);
+
   const { error: insertErr } = await supabase
     .from('customer_transactions')
     .insert({
-      business_id:      businessId,
-      customer_id:      tx.customer_id,
-      transaction_date: new Date().toISOString(),
-      type:             'payment',
-      amount:           tx.amount,
-      currency:         'HTG',
-      description:      'Peman kredi',
-      reference_type:   'credit_payment',
-      reference_id:     transactionId,
+      owner_id:    userId,
+      business_id: businessId,
+      client_id:   sale.customer_id,
+      client_name: sale.customer_name ?? 'Kliyan',
+      sale_id:     sale.id,
+      type:        'payment',
+      amount:      sale.total_amount,
+      currency:    sale.currency ?? 'HTG',
+      notes:       'Peman kredi depi vant',
     });
-
   if (insertErr) throw new Error(insertErr.message);
 
-  // Update customer outstanding_balance
-  if (tx.customer_id) {
-    const { data: cust } = await supabase
-      .from('customers')
-      .select('outstanding_balance')
-      .eq('id', tx.customer_id)
-      .single();
-
-    if (cust) {
-      const newBalance = Math.max(0, (cust.outstanding_balance ?? 0) - tx.amount);
-      await supabase
-        .from('customers')
-        .update({ outstanding_balance: newBalance })
-        .eq('id', tx.customer_id);
-    }
+  if (sale.customer_id) {
+    await reduceCustomerBalance(supabase, sale.customer_id, sale.total_amount);
   }
 
   revalidatePath('/clients');
+  revalidatePath('/dettes');
 }

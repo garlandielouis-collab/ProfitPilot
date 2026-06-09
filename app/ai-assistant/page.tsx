@@ -17,6 +17,7 @@ import { supabase }               from '../../lib/supabaseClient';
 import { useConversations }        from '../../hooks/useConversations';
 import { useMessages }             from '../../hooks/useMessages';
 import { getWeeklySummaryAction }  from '../actions/ai';
+import { useLanguage }            from '../../components/LanguageWrapper';
 import { cn }                      from '../../lib/utils';
 import type { Conversation }       from '../actions/conversations';
 
@@ -31,15 +32,6 @@ function timeAgo(iso: string) {
   if (h < 24) return `${h}h`;
   return `${Math.floor(h / 24)}j`;
 }
-
-// ── Quick suggestions ─────────────────────────────────────────────────────────
-
-const QUICK = [
-  { icon: TrendingUp,    text: 'Analyse mes ventes cette semaine' },
-  { icon: AlertTriangle, text: 'Quelles sont mes dettes urgentes ?' },
-  { icon: Package,       text: 'Produits en rupture de stock ?' },
-  { icon: DollarSign,    text: 'Comment améliorer ma trésorerie ?' },
-];
 
 // ── Typing dots ───────────────────────────────────────────────────────────────
 
@@ -128,6 +120,7 @@ function SidebarContent({
   onToggle:      () => void;
   onMobileClose?: () => void;
 }) {
+  const { t } = useLanguage();
   const { query, create, rename, remove } = useConversations(userId);
   const conversations = query.data ?? [];
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -159,7 +152,7 @@ function SidebarContent({
       <div className="flex items-center justify-between gap-2 p-3 border-b border-[var(--color-border)]">
         {!collapsed && (
           <span className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">
-            Conversations
+            {t({ fr: 'Conversations', ht: 'Konvèsasyon' })}
           </span>
         )}
         {/* Desktop toggle */}
@@ -195,7 +188,7 @@ function SidebarContent({
           )}
         >
           <Plus className="h-4 w-4 flex-shrink-0" />
-          {!collapsed && <span>Nouvelle analyse</span>}
+          {!collapsed && <span>{t({ fr: 'Nouvelle analyse', ht: 'Nouvo analiz' })}</span>}
         </button>
       </div>
 
@@ -231,7 +224,7 @@ function SidebarContent({
                   />
                 ) : (
                   <span className="flex-1 min-w-0 truncate text-xs">
-                    {c.title ?? 'Sans titre'}
+                    {c.title ?? t({ fr: 'Sans titre', ht: 'San tit' })}
                   </span>
                 )}
                 <span className="text-[10px] text-[var(--color-muted)] flex-shrink-0">
@@ -331,6 +324,13 @@ function Sidebar({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AiAssistantPage() {
+  const { t } = useLanguage();
+  const QUICK = [
+    { icon: TrendingUp,    text: t({ fr: 'Analyse mes ventes cette semaine', ht: 'Analize vant mwen yo semèn sa a' }) },
+    { icon: AlertTriangle, text: t({ fr: 'Quelles sont mes dettes urgentes ?', ht: 'Ki dèt ijan mwen yo?' }) },
+    { icon: Package,       text: t({ fr: 'Produits en rupture de stock ?', ht: 'Pwodui ki fini nan stock?' }) },
+    { icon: DollarSign,    text: t({ fr: 'Comment améliorer ma trésorerie ?', ht: 'Kijan amelyore trezoreri mwen?' }) },
+  ];
   const [userId,        setUserId]        = useState<string | undefined>();
   const [sidebarOpen,   setSidebarOpen]   = useState(true);
   const [mobileSidebar, setMobileSidebar] = useState(false);
@@ -382,7 +382,7 @@ function AiAssistantPage() {
   const showWelcome = messages.length === 0;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
+    <div className="fullscreen-layout flex h-screen overflow-hidden bg-[var(--color-bg)]">
 
       {/* Sidebar */}
       <Sidebar
@@ -404,17 +404,18 @@ function AiAssistantPage() {
           <button
             type="button"
             onClick={() => setMobileSidebar(true)}
-            className="lg:hidden flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-2 text-[var(--color-muted)] transition hover:bg-slate-100 flex-shrink-0"
+            className="lg:hidden flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-emerald-600 dark:text-emerald-400 transition hover:bg-emerald-500/20 flex-shrink-0 font-medium"
             title="Conversations"
           >
             <MessageSquare className="h-4 w-4" />
+            <span className="text-xs">{t({ fr: 'Analyses', ht: 'Analiz' })}</span>
           </button>
 
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
             <Sparkles className="h-4 w-4 text-emerald-400" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-[var(--color-text)]">PilotAI</h1>
+            <h1 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Pilot AI', ht: 'Pilot AI' })}</h1>
             <p className="hidden sm:block text-xs text-[var(--color-muted)]">Assistant financier intelligent</p>
           </div>
           <div className="ml-auto">
@@ -426,7 +427,7 @@ function AiAssistantPage() {
                 'h-1.5 w-1.5 rounded-full',
                 summary ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600',
               )} />
-              {summary ? 'Données chargées' : 'Chargement…'}
+              {summary ? t({ fr: 'Données chargées', ht: 'Done chaje' }) : t({ fr: 'Chargement…', ht: 'Chajman…' })}
             </span>
           </div>
         </div>
@@ -457,7 +458,7 @@ function AiAssistantPage() {
                       key={text}
                       type="button"
                       onClick={() => {
-                        if (!activeConvId) { toast.error('Créez d\'abord une conversation ←'); return; }
+                        if (!activeConvId) { toast.error(t({ fr: 'Créez d\'abord une conversation', ht: 'Kreye yon konvèsasyon anvan' }) + ' ←'); return; }
                         setInput(text);
                         inputRef.current?.focus();
                       }}
@@ -470,9 +471,14 @@ function AiAssistantPage() {
                 </div>
 
                 {!activeConvId && (
-                  <p className="mt-8 text-xs text-[var(--color-muted)]">
-                    ← Créez une conversation dans le panneau de gauche pour commencer
-                  </p>
+                  <div className="mt-8 space-y-2">
+                    <p className="hidden sm:block text-xs text-[var(--color-muted)]">
+                      ← Créez une analyse dans le panneau de gauche pour commencer
+                    </p>
+                    <p className="sm:hidden text-xs text-[var(--color-muted)]">
+                      Ouvrez le menu <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-emerald-600 dark:text-emerald-400 font-medium"><MessageSquare className="h-3 w-3" /> Analyses</span> en haut à gauche pour créer une analyse
+                    </p>
+                  </div>
                 )}
               </motion.div>
             ) : (
@@ -500,8 +506,8 @@ function AiAssistantPage() {
               onKeyDown={handleKeyDown}
               placeholder={
                 activeConvId
-                  ? 'Posez votre question… (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)'
-                  : 'Créez ou sélectionnez une conversation pour commencer…'
+                  ? t({ fr: 'Posez votre question… (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)', ht: 'Poze kesyon ou… (Antre pou voye, Shift+Antre pou nouvo liy)' })
+                  : t({ fr: 'Créez ou sélectionnez une conversation pour commencer…', ht: 'Kreye oswa chwazi yon konvèsasyon pou kòmanse…' })
               }
               disabled={!activeConvId}
               className="flex-1 resize-none bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-muted)] outline-none leading-relaxed max-h-40 overflow-y-auto disabled:cursor-not-allowed"

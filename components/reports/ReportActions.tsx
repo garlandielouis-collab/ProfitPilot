@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useLanguage } from '../LanguageWrapper';
 
 interface ReportActionsProps {
   reportTitle: string;
@@ -62,6 +63,7 @@ export default function ReportActions({
   onBeforePrint,
   className = '',
 }: ReportActionsProps) {
+  const { t } = useLanguage();
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -117,11 +119,11 @@ export default function ReportActions({
           disabled:opacity-60 disabled:cursor-not-allowed
           shadow-sm no-print
         "
-        title="Enregistrer en PDF"
+        title={t({ fr: 'Enregistrer en PDF', ht: 'Anrejistre an PDF' })}
       >
         {downloading ? <Spinner /> : <DownloadIcon />}
-        <span className="hidden sm:inline">{downloading ? 'Génération...' : 'Télécharger PDF'}</span>
-        <span className="sm:hidden">{downloading ? '...' : 'PDF'}</span>
+        <span className="hidden sm:inline">{downloading ? t({ fr: 'Génération...', ht: 'Jenerasyon...' }) : t({ fr: 'Télécharger PDF', ht: 'Telechaje PDF' })}</span>
+        <span className="sm:hidden">{downloading ? '...' : t({ fr: 'PDF', ht: 'PDF' })}</span>
       </button>
 
       {/* Print */}
@@ -137,7 +139,7 @@ export default function ReportActions({
         "
       >
         <PrintIcon />
-        <span className="hidden sm:inline">Imprimer</span>
+        <span className="hidden sm:inline">{t({ fr: 'Imprimer', ht: 'Enprime' })}</span>
       </button>
 
       {/* Share / Copy link */}
@@ -153,7 +155,7 @@ export default function ReportActions({
         "
       >
         <ShareIcon />
-        <span className="hidden sm:inline">{copied ? 'Lien copié ✓' : 'Partager'}</span>
+        <span className="hidden sm:inline">{copied ? `${t({ fr: 'Lien copié', ht: 'Lyen kopiye' })} ✓` : t({ fr: 'Partager', ht: 'Pataje' })}</span>
       </button>
     </div>
   );
@@ -164,6 +166,20 @@ export default function ReportActions({
 // ─────────────────────────────────────────────────────────────────
 
 export type ReportType = 'income' | 'balance' | 'cashflow' | 'equity';
+
+const TAB_LABEL_HT: Record<ReportType, string> = {
+  income: 'Konte Rezilta',
+  balance: 'Bilans',
+  cashflow: 'Flux Trezoreri',
+  equity: 'Kapital Pwòp',
+};
+
+const TAB_SUBLABEL_HT: Record<ReportType, string> = {
+  income: 'P&L · Revni & Chaj',
+  balance: 'Aktif · Pasif · Kapital',
+  cashflow: 'Cash · Lajan likid',
+  equity: 'Patrimwàn · Rezilta',
+};
 
 const REPORT_TABS: { key: ReportType; label: string; sublabel: string; icon: string }[] = [
   { key: 'income',   label: 'État des Résultats',       sublabel: 'P&L · Revenus & Charges', icon: '📈' },
@@ -178,6 +194,7 @@ interface ReportSelectorProps {
 }
 
 export function ReportTypeSelector({ active, onChange }: ReportSelectorProps) {
+  const { t } = useLanguage();
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 no-print">
       {REPORT_TABS.map((tab) => (
@@ -195,9 +212,9 @@ export function ReportTypeSelector({ active, onChange }: ReportSelectorProps) {
           `}
         >
           <span className="text-xl leading-none">{tab.icon}</span>
-          <span className="text-[13px] font-semibold leading-tight mt-1">{tab.label}</span>
+          <span className="text-[13px] font-semibold leading-tight mt-1">{t({ fr: tab.label, ht: TAB_LABEL_HT[tab.key] })}</span>
           <span className={`text-[11px] leading-tight ${active === tab.key ? 'text-[#94A3B8]' : 'text-[#64748B]'}`}>
-            {tab.sublabel}
+            {t({ fr: tab.sublabel, ht: TAB_SUBLABEL_HT[tab.key] })}
           </span>
           {active === tab.key && (
             <span className="mt-1 h-[2px] w-8 rounded-full bg-[#12B981]" />
@@ -229,7 +246,18 @@ interface PeriodPickerProps {
   onChange: (p: PeriodType) => void;
 }
 
+const PERIOD_LABEL_HT: Record<PeriodType, string> = {
+  Q1: 'T1 — Jan/Mas',
+  Q2: 'T2 — Avr/Jen',
+  Q3: 'T3 — Jiy/Sep',
+  Q4: 'T4 — Okt/Des',
+  H1: 'S1 — 6 mwa',
+  H2: 'S2 — 6 mwa',
+  FY: 'Anyèl 2025',
+};
+
 export function PeriodPicker({ active, onChange }: PeriodPickerProps) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-wrap gap-2 no-print">
       {PERIODS.map((p) => (
@@ -246,7 +274,7 @@ export function PeriodPicker({ active, onChange }: PeriodPickerProps) {
             }
           `}
         >
-          {p.label}
+          {t({ fr: p.label, ht: PERIOD_LABEL_HT[p.key] })}
         </button>
       ))}
     </div>

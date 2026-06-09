@@ -10,6 +10,7 @@ import {
 
 import { NewSaleForm }         from '../../components/NewSaleForm';
 import { SalesHistoryTable }   from '../../components/SalesHistoryTable';
+import { useLanguage }         from '../../components/LanguageWrapper';
 import { ProtectedRoute }      from '../../components/ProtectedRoute';
 import { cn }                  from '../../lib/utils';
 import { getSalesMetrics, getSalesCRMData, type ClientSummary } from '../actions/sales';
@@ -184,9 +185,15 @@ const TABS = [
   { id: 'history',  label: 'Historique',       icon: Receipt      },
   { id: 'crm',      label: 'CRM Clients',      icon: Users        },
 ] as const;
+const TAB_LABELS: Record<string, { fr: string; ht: string }> = {
+  pos:     { fr: 'Point de Vente', ht: 'Pwen Vant' },
+  history: { fr: 'Historique',     ht: 'Istoryal' },
+  crm:     { fr: 'CRM Clients',    ht: 'KRM Kliyan' },
+};
 type TabId = typeof TABS[number]['id'];
 
 export default function SalesPage() {
+  const { t } = useLanguage();
   const [activeTab,   setActiveTab]   = useState<TabId>('pos');
   const [historyKey,  setHistoryKey]  = useState(0);
   const [metrics,     setMetrics]     = useState<Metrics>({
@@ -227,12 +234,12 @@ export default function SalesPage() {
 
           {/* ── Header ───────────────────────────────────────────────────────── */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#001F3F]/90">Module</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#001F3F]/90">{t({ fr: 'Module', ht: 'Modil' })}</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-800 md:text-3xl">
-              Ventes &amp; CRM
+              {t({ fr: 'Ventes & CRM', ht: 'Vant & KRM' })}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Enregistrez des ventes, consultez l'historique et analysez vos clients.
+              {t({ fr: 'Enregistrez des ventes, consultez l\'historique et analysez vos clients.', ht: 'Anrejistre vant, konsilte istorik la epi analize kliyan ou yo.' })}
             </p>
           </div>
 
@@ -240,30 +247,30 @@ export default function SalesPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KPI
               icon={TrendingUp}
-              label="Ventes ce mois"
+              label={t({ fr: 'Ventes ce mois', ht: 'Vant mwa sa a' })}
               value={fmt(metrics.monthlyTotal)}
               sub={now}
               accent="bg-blue-100 text-[#001F3F]"
             />
             <KPI
               icon={ShoppingCart}
-              label="Ventes totales"
+              label={t({ fr: 'Ventes totales', ht: 'Vant total' })}
               value={fmt(metrics.allTimeTotal)}
-              sub="Depuis le début"
+              sub={t({ fr: 'Depuis le début', ht: 'Depi kòmansman' })}
               accent="bg-emerald-100 text-emerald-600"
             />
             <KPI
               icon={Receipt}
-              label="Transactions / mois"
+              label={t({ fr: 'Transactions / mois', ht: 'Tranzaksyon / mwa' })}
               value={String(metrics.monthlyCount)}
               sub={now}
               accent="bg-violet-100 text-violet-600"
             />
             <KPI
               icon={Star}
-              label="Top client (mois)"
+              label={t({ fr: 'Top client (mois)', ht: 'Pi bon kliyan (mwa)' })}
               value={metrics.topClient ?? '—'}
-              sub="Par chiffre d'affaires"
+              sub={t({ fr: 'Par chiffre d\'affaires', ht: 'Pa chif afè' })}
               accent="bg-amber-100 text-amber-600"
             />
           </div>
@@ -285,7 +292,7 @@ export default function SalesPage() {
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="hidden sm:inline">{t(TAB_LABELS[id] ?? { fr: label, ht: label })}</span>
                 </button>
               );
             })}

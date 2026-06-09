@@ -1,40 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer }          from '../../../../lib/supabaseServerClient';
+import { NextRequest } from 'next/server';
+import { anthropic } from '@ai-sdk/anthropic';
+import { streamText, tool } from 'ai';
+import { z } from 'zod';
+import { getSupabaseServer } from '../../../../lib/supabaseServerClient';
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL   = 'claude-3-5-sonnet-20241022';
-
-// ── System prompt ─────────────────────────────────────────────────────────────
-
-const SYSTEM_PROMPT = `Tu es PilotAI, l'assistant intelligent de ProfitPilot — la solution de gestion financière pour les entrepreneurs haïtiens.
-
-**RÔLE PRINCIPAL:**
-Tu aides les propriétaires d'entreprises haïtiennes à prendre des décisions financières intelligentes basées sur leurs données réelles.
-
-**CONTEXTE:**
-- Petite et moyenne entreprise haïtienne
-- Devise principale: HTG (Gourdes haïtiennes), secondaire USD
-- Gestion: ventes, stocks, achats, dettes fournisseurs, dépenses
-- Objectif: maximiser les profits et maintenir une trésorerie saine
-
-**PRIORITÉS DE CONSEILS:**
-1. DETTES (PRIORITÉ MAX) — si dettes > 30% des ventes: ALERTE ROUGE
-2. STOCKS — rupture = perte de ventes imminente
-3. VENTES — identifier les tendances et produits vedettes
-4. TRÉSORERIE — maintenir un coussin de sécurité ≥ 10% des ventes mensuelles
-
-**STYLE:**
-- Réponds en Français ou Créole haïtien selon le contexte
-- Direct, chaleureux, comme un ami-conseiller de confiance
-- Chiffres concrets tirés des données fournies
-- Commence par les urgences, termine par des actions concrètes numérotées
-- Utilise du Markdown: **gras**, listes à puces, ## titres si nécessaire
-
-**LIMITES:**
-- Pas de conseils fiscaux ou légaux
-- Reste dans le domaine de la gestion d'entreprise / finances
-- Si données insuffisantes: demande des précisions`;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -89,18 +59,45 @@ async function getRecentMessages(conversationId: string) {
   }
 }
 
+const SYSTEM_PROMPT = `Tu es Pilot AI, l'assistant personnel, expert et guide officiel de ProfitPilot.
+
+CONTEXTE :
+ProfitPilot est une plateforme d'ingénierie financière et de gestion conçue pour les entrepreneurs haïtiens. L'application élimine l'imprécision, structure le business et automatise les stocks.
+
+LES TROIS PILIERS DE L'APPLICATION :
+1. Élimination de l'imprécision financière — structure et fiabilise tous les calculs de rentabilité, marge et trésorerie.
+2. Automatisation des stocks — met à jour les inventaires en temps réel.
+3. Centralisation des données — rassemble toutes les métriques vitales en un tableau de bord.
+
+TON RÔLE — Tu incarnes 4 experts :
+A. EXPERT EN COMPTABILITÉ & GESTION : Traque la rentabilité, analyse marges, coûts, trésorerie.
+B. EXPERT EN VENTES & COMMERCIAL : Optimise le cycle de vente, analyse rotation des stocks.
+C. EXPERT EN MARKETING & STRATÉGIE : Structure campagnes, focus sur acquisition rentable et fidélisation.
+D. GUIDE DE NAVIGATION : Si l'utilisateur a besoin d'aller quelque part, utilise l'outil naviguerVersPage.
+
+GUIDE DE NAVIGATION (ROUTES DISPONIBLES) :
+- 'dashboard' → Vue globale, graphiques de performance
+- 'comptabilite' → Flux financiers, marges, coûts, rapports de rentabilité
+- 'stocks' → État des inventaires, alertes de rupture, entrées/sorties
+- 'marketing' → Campagnes, CAC, communication
+- 'ventes' → Gestion clients, commandes, performance commerciale
+- 'parametres' → Configuration entreprise, devises, accès
+
+PRIORITÉS DE CONSEILS :
+1. DETTES (PRIORITÉ MAX) — si dettes > 30% des ventes: ALERTE ROUGE
+2. STOCKS — rupture = perte de ventes imminente
+3. VENTES — identifier les tendances et produits vedettes
+4. TRÉSORERIE — maintenir un coussin de sécurité ≥ 10% des ventes mensuelles
+
+STYLE : Direct, percutant, professionnel, pragmatique. En Français ou Créole haïtien selon le contexte. Commence par les urgences, termine par des actions concrètes numérotées. Utilise du Markdown. Pas de conseils fiscaux ou légaux.
+
+Note — ProfitPilot est une plateforme d'ingénierie financière et de gestion. Ses fonctionnalités incluent : Backend-as-a-Service, tableaux de bord, comptabilité, marges, stocks en temps réel, suivi des ventes, et espace marketing. Support : assistant Pilot AI (chat), email support@profitpilot.app. Sécurité : Row Level Security PostgreSQL, sauvegardes quotidiennes automatisées.`;
+
 // ── POST handler ──────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  try {
-    const sup = await getSupabaseServer();
-    const userCheck = await sup.auth.getUser();
-    console.log('API /ai/chat auth.getUser', { user: userCheck.data?.user ?? null, error: userCheck.error?.message ?? null });
-  } catch (e) {
-    console.error('API /ai/chat auth check failed', e);
-  }
   if (!API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
+    return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), { status: 500 });
   }
 
   let body: {
@@ -114,7 +111,7 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
   }
 
   const {
@@ -126,7 +123,7 @@ export async function POST(request: NextRequest) {
   } = body;
 
   if (!userMessage) {
-    return NextResponse.json({ error: 'userMessage is required' }, { status: 400 });
+    return new Response(JSON.stringify({ error: 'userMessage is required' }), { status: 400 });
   }
 
   // Build message history
@@ -145,70 +142,39 @@ export async function POST(request: NextRequest) {
     },
   ];
 
-  // ── Streaming response ─────────────────────────────────────────────────────
-  if (stream) {
-    const upstream = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key':         API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type':      'application/json',
-      },
-      body: JSON.stringify({
-        model:      MODEL,
-        max_tokens: 1500,
-        stream:     true,
-        system:     SYSTEM_PROMPT,
-        messages,
+  const result = await streamText({
+    model: anthropic('claude-3-5-sonnet-latest'),
+    messages,
+    system: SYSTEM_PROMPT,
+    tools: {
+      naviguerVersPage: tool({
+        description: "Redirige l'utilisateur vers une page spécifique de l'application.",
+        parameters: z.object({
+          pageDestination: z.enum(['dashboard', 'comptabilite', 'stocks', 'marketing', 'ventes', 'parametres']),
+          raison: z.string().describe("La raison du changement de page"),
+        }),
+        execute: async ({ pageDestination, raison }) => {
+          return { status: "success", destination: pageDestination, message: `Redirection vers ${pageDestination}...` };
+        },
       }),
-    });
+    },
+    maxTokens: 1500,
+  });
 
-    if (!upstream.ok) {
-      const err = await upstream.text();
-      console.error('[Claude API stream]', err);
-      return NextResponse.json({ error: 'API upstream error' }, { status: upstream.status });
-    }
-
-    // Transform Anthropic SSE → simplified SSE
+  // ── Streaming (default, utilisé par le front-end) ─────────────────────────
+  if (stream) {
+    // Transform AI SDK stream → format attendu par le front-end: data: {"delta":"token"}\n\n
+    const textStream = result.textStream;
+    const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        const reader  = upstream.body!.getReader();
-        const decoder = new TextDecoder();
-
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-              controller.close();
-              break;
-            }
-
-            const chunk = decoder.decode(value, { stream: true });
-            for (const line of chunk.split('\n')) {
-              if (!line.startsWith('data:')) continue;
-              const raw = line.slice(5).trim();
-              if (!raw || raw === '[DONE]') continue;
-
-              try {
-                const evt = JSON.parse(raw) as Record<string, unknown>;
-
-                // Anthropic event type: content_block_delta
-                if (
-                  evt.type === 'content_block_delta' &&
-                  typeof evt.delta === 'object' &&
-                  evt.delta !== null &&
-                  (evt.delta as Record<string, unknown>).type === 'text_delta'
-                ) {
-                  const token = (evt.delta as Record<string, unknown>).text as string;
-                  const sse   = `data: ${JSON.stringify({ delta: token })}\n\n`;
-                  controller.enqueue(new TextEncoder().encode(sse));
-                }
-              } catch {
-                // skip malformed lines
-              }
-            }
+          for await (const chunk of textStream) {
+            const sse = `data: ${JSON.stringify({ delta: chunk })}\n\n`;
+            controller.enqueue(encoder.encode(sse));
           }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
         } catch (err) {
           controller.error(err);
         }
@@ -217,36 +183,16 @@ export async function POST(request: NextRequest) {
 
     return new Response(readable, {
       headers: {
-        'Content-Type':  'text/event-stream; charset=utf-8',
+        'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache',
-        'Connection':    'keep-alive',
+        'Connection': 'keep-alive',
       },
     });
   }
 
-  // ── Non-streaming fallback (backwards-compat) ─────────────────────────────
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'x-api-key':         API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type':      'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1024,
-      system:     SYSTEM_PROMPT,
-      messages,
-    }),
+  // ── Non-streaming fallback ────────────────────────────────────────────────
+  const text = await result.text;
+  return new Response(JSON.stringify({ response: text }), {
+    headers: { 'Content-Type': 'application/json' },
   });
-
-  if (!response.ok) {
-    const err = await response.text();
-    console.error('[Claude API]', err);
-    return NextResponse.json({ error: 'Failed to get AI response' }, { status: response.status });
-  }
-
-  const data = (await response.json()) as { content: Array<{ text: string }> };
-  return NextResponse.json({ response: data.content[0]?.text ?? '' });
 }
-

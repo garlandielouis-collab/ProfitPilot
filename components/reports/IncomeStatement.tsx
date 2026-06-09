@@ -5,7 +5,8 @@
 
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
+import { useLanguage } from '../LanguageWrapper';
 import ReportLayout, {
   AccountingRow,
   ColumnHeaders,
@@ -111,13 +112,14 @@ interface Props {
   showPrevious?: boolean;
 }
 
-export default function IncomeStatement({ meta, data, showPrevious = true }: Props) {
+function IncomeStatement({ meta, data, showPrevious = true }: Props) {
+  const { t } = useLanguage();
   const c = calc(data);
   const p = data.prev ? calc(data.prev) : null;
   const prev = showPrevious && p ? p : undefined;
 
   return (
-    <ReportLayout meta={{ ...meta, reportTitle: 'ÉTAT DES RÉSULTATS' }}>
+    <ReportLayout meta={{ ...meta, reportTitle: t({ fr: 'ÉTAT DES RÉSULTATS', ht: 'KONTE REZILTA' }) }}>
       <div className="text-[13px]">
 
         {/* ── Column headers ── */}
@@ -129,12 +131,12 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         <div className="mt-3">
           <div className="px-4 py-[5px]">
             <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#12B981]">
-              I — Revenus d'exploitation
+              {t({ fr: 'I — Revenus d\'exploitation', ht: 'I — Revni eksplwatasyon' })}
             </span>
           </div>
           <AccountingRow label="Ventes de marchandises"    note="(1)"  current={c.ventesMarchandises}  previous={prev?.ventesMarchandises}  indent={1} />
           <AccountingRow label="Prestations de services"   note="(2)"  current={c.prestationsServices} previous={prev?.prestationsServices} indent={1} />
-          <AccountingRow label="Autres revenus"            note="(3)"  current={c.autresRevenus}       previous={prev?.autresRevenus}       indent={1} />
+          <AccountingRow label={t({ fr: 'Autres revenus', ht: 'Lòt revni' })}            note="(3)"  current={c.autresRevenus}       previous={prev?.autresRevenus}       indent={1} />
           <AccountingRow label="Retours et rabais sur ventes"           current={-c.retoursRabais}      previous={prev ? -prev.retoursRabais : undefined} indent={1} italic />
           <AccountingRow
             label="CHIFFRE D'AFFAIRES NET"
@@ -152,14 +154,14 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         <div className="mt-2">
           <div className="px-4 py-[5px]">
             <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#EF4444]">
-              II — Coût des marchandises vendues
+              {t({ fr: 'II — Coût des marchandises vendues', ht: 'II — Pri machandiz vann' })}
             </span>
           </div>
-          <AccountingRow label="Achats de marchandises"       current={c.achatsMarchandises}  previous={prev?.achatsMarchandises}  indent={1} />
-          <AccountingRow label="Variation de stocks"          current={c.variationStock}       previous={prev?.variationStock}       indent={1} italic />
+          <AccountingRow label={t({ fr: 'Achats de marchandises', ht: 'Acha machandiz' })}       current={c.achatsMarchandises}  previous={prev?.achatsMarchandises}  indent={1} />
+          <AccountingRow label={t({ fr: 'Variation de stocks', ht: 'Varyasyon stock yo' })}          current={c.variationStock}       previous={prev?.variationStock}       indent={1} italic />
           <AccountingRow label="Transport sur achats"         current={c.transportAchat}       previous={prev?.transportAchat}       indent={1} />
           <AccountingRow
-            label="TOTAL COÛT DES VENTES"
+            label={t({ fr: 'TOTAL COÛT DES VENTES', ht: 'TOTAL PRI VANT YO' })}
             current={c.cogs}
             previous={prev?.cogs}
             bold
@@ -173,7 +175,7 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         ════════════════════════════════════ */}
         <div className="mt-1">
           <AccountingRow
-            label="MARGE BRUTE"
+            label={t({ fr: 'MARGE BRUTE', ht: 'MAJ BRIT' })}
             current={c.margeBrute}
             previous={prev?.margeBrute}
             bold
@@ -183,7 +185,7 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
           {/* Margin % inline note */}
           <div className="flex gap-2 px-4 pb-1">
             <span className="flex-1 pl-0 text-[11px] text-[#64748B] italic">
-              Taux de marge brute
+              {t({ fr: 'Taux de marge brute', ht: 'To maj brit' })}
             </span>
             <span className="w-28 text-right text-[11px] font-semibold text-[#12B981]">
               {c.caNet > 0 ? ((c.margeBrute / c.caNet) * 100).toFixed(1) : '0.0'}%
@@ -202,20 +204,20 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         <div className="mt-2">
           <div className="px-4 py-[5px]">
             <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#EF4444]">
-              III — Charges d'exploitation
+              {t({ fr: 'III — Charges d\'exploitation', ht: 'III — Chaj eksplwatasyon' })}
             </span>
           </div>
-          <AccountingRow label="Loyers et charges locatives"  current={c.loyers}              previous={prev?.loyers}              indent={1} />
-          <AccountingRow label="Salaires et traitements"       current={c.salaires}            previous={prev?.salaires}            indent={1} />
-          <AccountingRow label="Charges sociales (ONA/OFATMA)" current={c.chargesSociales}     previous={prev?.chargesSociales}     indent={1} />
-          <AccountingRow label="Marketing et publicité"        current={c.marketing}           previous={prev?.marketing}           indent={1} />
-          <AccountingRow label="Transport et déplacements"     current={c.transport}           previous={prev?.transport}           indent={1} />
+          <AccountingRow label={t({ fr: 'Loyers et charges locatives', ht: 'Lwaye ak chaj lokatif' })}  current={c.loyers}              previous={prev?.loyers}              indent={1} />
+          <AccountingRow label={t({ fr: 'Salaires et traitements', ht: 'Salè ak tretman' })}       current={c.salaires}            previous={prev?.salaires}            indent={1} />
+          <AccountingRow label={t({ fr: 'Charges sociales (ONA/OFATMA)', ht: 'Chaj sosyal (ONA/OFATMA)' })} current={c.chargesSociales}     previous={prev?.chargesSociales}     indent={1} />
+          <AccountingRow label={t({ fr: 'Marketing et publicité', ht: 'Maketing ak piblisite' })}        current={c.marketing}           previous={prev?.marketing}           indent={1} />
+          <AccountingRow label={t({ fr: 'Transport et déplacements', ht: 'Transpò ak deplasman' })}     current={c.transport}           previous={prev?.transport}           indent={1} />
           <AccountingRow label="Électricité et Internet"       current={c.electriciteInternet} previous={prev?.electriciteInternet} indent={1} />
-          <AccountingRow label="Frais bancaires"               current={c.fraisBancaires}      previous={prev?.fraisBancaires}      indent={1} />
-          <AccountingRow label="Autres charges"                current={c.autresCharges}       previous={prev?.autresCharges}       indent={1} />
+          <AccountingRow label={t({ fr: 'Frais bancaires', ht: 'Frè bankè' })}               current={c.fraisBancaires}      previous={prev?.fraisBancaires}      indent={1} />
+          <AccountingRow label={t({ fr: 'Autres charges', ht: 'Lòt chaj' })}                current={c.autresCharges}       previous={prev?.autresCharges}       indent={1} />
           <AccountingRow label="Dotations aux amortissements"  current={c.dotationsAmortissements} previous={prev?.dotationsAmortissements} indent={1} italic />
           <AccountingRow
-            label="TOTAL CHARGES D'EXPLOITATION"
+            label={t({ fr: 'TOTAL CHARGES D\'EXPLOITATION', ht: 'TOTAL CHAJ EKSPLWATASYON' })}
             current={c.chargesOp}
             previous={prev?.chargesOp}
             bold
@@ -228,7 +230,7 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
             RÉSULTAT D'EXPLOITATION
         ════════════════════════════════════ */}
         <AccountingRow
-          label="RÉSULTAT D'EXPLOITATION"
+          label={t({ fr: 'RÉSULTAT D\'EXPLOITATION', ht: 'REZILTA EKSPLWATASYON' })}
           current={c.resoOp}
           previous={prev?.resoOp}
           bold
@@ -242,11 +244,11 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         <div className="mt-2">
           <div className="px-4 py-[5px]">
             <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
-              IV — Résultat financier
+              {t({ fr: 'IV — Résultat financier', ht: 'IV — Rezilta finansye' })}
             </span>
           </div>
-          <AccountingRow label="Produits financiers (intérêts reçus)" current={c.produitsFinanciers}  previous={prev?.produitsFinanciers} indent={1} />
-          <AccountingRow label="Charges financières (intérêts payés)"  current={-c.chargesFinancieres} previous={prev ? -prev.chargesFinancieres : undefined} indent={1} italic />
+          <AccountingRow label={t({ fr: 'Produits financiers (intérêts reçus)', ht: 'Pwodui finansye (enterè resevwa)' })} current={c.produitsFinanciers}  previous={prev?.produitsFinanciers} indent={1} />
+          <AccountingRow label={t({ fr: 'Charges financières (intérêts payés)', ht: 'Chaj finansye (enterè peye)' })}  current={-c.chargesFinancieres} previous={prev ? -prev.chargesFinancieres : undefined} indent={1} italic />
         </div>
 
         {/* ════════════════════════════════════
@@ -263,7 +265,7 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
 
         {/* Tax */}
         <AccountingRow
-          label="Impôt sur le résultat (TCA / IR)"
+          label={t({ fr: 'Impôt sur le résultat (TCA / IR)', ht: 'Enpo sou rezilta (TCA / IR)' })}
           current={-c.impotTaxes}
           previous={prev ? -prev.impotTaxes : undefined}
           indent={1}
@@ -275,7 +277,7 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         ════════════════════════════════════ */}
         <div className="mt-1">
           <AccountingRow
-            label="RÉSULTAT NET DE L'EXERCICE"
+            label={t({ fr: 'RÉSULTAT NET DE L\'EXERCICE', ht: 'REZILTA NET EKSESIS LA' })}
             current={c.resoNet}
             previous={prev?.resoNet}
             bold
@@ -285,7 +287,7 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
           {/* Net margin % */}
           <div className="flex gap-2 px-4 pt-1 pb-3">
             <span className="flex-1 text-[11px] text-[#64748B] italic">
-              Marge nette
+              {t({ fr: 'Marge nette', ht: 'Maj net' })}
             </span>
             <span className={`w-28 text-right text-[11px] font-bold ${c.margeNetPct >= 0 ? 'text-[#12B981]' : 'text-[#EF4444]'}`}>
               {c.margeNetPct.toFixed(1)}%
@@ -303,14 +305,10 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
         ════════════════════════════════════ */}
         <div className="mt-4 pt-3 border-t border-[#E2E8F0]">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748B] mb-2">
-            Notes explicatives
+            {t({ fr: 'Notes explicatives', ht: 'Nòt eksplikatif' })}
           </p>
           <p className="text-[10px] text-[#94A3B8] leading-relaxed">
-            (1) Inclut les ventes en boutique, WhatsApp et Instagram.&nbsp;&nbsp;
-            (2) Services de livraison et commissions.&nbsp;&nbsp;
-            (3) Revenus divers et produits exceptionnels.&nbsp;&nbsp;
-            Les chiffres entre parenthèses représentent des montants négatifs.
-            Les comparatifs 2024 sont présentés à titre indicatif.
+            {t({ fr: '(1) Inclut les ventes en boutique, WhatsApp et Instagram.&nbsp;&nbsp;(2) Services de livraison et commissions.&nbsp;&nbsp;(3) Revenus divers et produits exceptionnels.&nbsp;&nbsp;Les chiffres entre parenthèses représentent des montants négatifs. Les comparatifs 2024 sont présentés à titre indicatif.', ht: '(1) Enkli vant nan boutik, WhatsApp ak Instagram.&nbsp;&nbsp;(2) Sèvis livrezon ak komisyon.&nbsp;&nbsp;(3) Revni divè ak pwodui eksepsyonèl.&nbsp;&nbsp;Chif ant parantèz yo reprezante montan negatif. Konparatif 2024 yo prezante endikatif.' })}
           </p>
         </div>
 
@@ -318,3 +316,5 @@ export default function IncomeStatement({ meta, data, showPrevious = true }: Pro
     </ReportLayout>
   );
 }
+
+export default memo(IncomeStatement);

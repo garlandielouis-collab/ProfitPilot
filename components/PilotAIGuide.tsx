@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { X, ArrowRight, Sparkles, ChevronRight } from 'lucide-react';
+import { X, ArrowRight, Sparkles, ChevronRight, AlertTriangle } from 'lucide-react';
+import { checkSubscriptionExpired } from '../hooks/useSubscription';
 
 // ── Guide scripts per page ────────────────────────────────────────────────────
 
@@ -72,6 +73,11 @@ const DEFAULT_GUIDE: GuideMessage = {
   inactivityTip: 'Naviguez dans le menu pour explorer toutes les fonctionnalités.',
 };
 
+const SUBSCRIPTION_EXPIRED_GUIDE: GuideMessage = {
+  text: '🔔 Votre période d\'essai de 72h est terminée. Souscrivez à un abonnement pour débloquer toutes les fonctionnalités et continuer à utiliser ProfitPilot.',
+  action: { label: 'Voir les abonnements →', href: '/pricing' },
+};
+
 // ── Typewriter ────────────────────────────────────────────────────────────────
 
 function useTypewriter(text: string, speed = 22) {
@@ -102,8 +108,13 @@ export function PilotAIGuide() {
   const [minimized,  setMinimized]  = useState(false);
   const [currentMsg, setCurrentMsg] = useState('');
   const [showTip,    setShowTip]    = useState(false);
+  const [subExpired, setSubExpired] = useState(false);
   const inactivityRef = useRef<NodeJS.Timeout>();
   const { displayed, done } = useTypewriter(currentMsg);
+
+  useEffect(() => {
+    setSubExpired(checkSubscriptionExpired());
+  }, []);
 
   // Only show in protected app pages
   const isAppPage = pathname !== '/' &&
@@ -117,7 +128,7 @@ export function PilotAIGuide() {
     !pathname.startsWith('/updates');
 
   // Get guide for current page
-  const guide = PAGE_GUIDES[pathname] ?? DEFAULT_GUIDE;
+  const guide = subExpired ? SUBSCRIPTION_EXPIRED_GUIDE : (PAGE_GUIDES[pathname] ?? DEFAULT_GUIDE);
 
   // Show on page change
   useEffect(() => {

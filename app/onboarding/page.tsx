@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowRight, Sparkles, Building2, ChevronRight, Check, Zap } from 'lucide-react';
+import { useLanguage } from '../../components/LanguageWrapper';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -12,46 +13,46 @@ type Path = 'split' | 'demo' | 'buyer';
 type BuyerStep = 'name' | 'sector' | 'challenge' | 'loading' | 'reveal';
 
 const SECTORS = [
-  { id: 'boutique',   emoji: '🛍️', label: 'Boutique / Mode',        sub: 'Vêtements, accessoires' },
-  { id: 'cosmetique', emoji: '💄', label: 'Cosmétiques / Beauté',   sub: 'Soins, maquillage' },
-  { id: 'restaurant', emoji: '🍽️', label: 'Restaurant / Traiteur',  sub: 'Food, livraison' },
-  { id: 'wholesale',  emoji: '📦', label: 'Commerce en Gros',        sub: 'Import, distribution' },
-  { id: 'service',    emoji: '⚡', label: 'Services',                sub: 'Conseil, tech, beauté' },
-  { id: 'online',     emoji: '📱', label: 'Business en Ligne',       sub: 'WhatsApp, Instagram' },
+  { id: 'boutique',   emoji: '🛍️', label: { fr: 'Boutique / Mode', ht: 'Boutik / Mòd' },        sub: { fr: 'Vêtements, accessoires', ht: 'Rad, akseswa' } },
+  { id: 'cosmetique', emoji: '💄', label: { fr: 'Cosmétiques / Beauté', ht: 'Kosmetik / Bote' },   sub: { fr: 'Soins, maquillage', ht: 'Swen, makiyaj' } },
+  { id: 'restaurant', emoji: '🍽️', label: { fr: 'Restaurant / Traiteur', ht: 'Restoran / Traiteur' },  sub: { fr: 'Food, livraison', ht: 'Manje, livrezon' } },
+  { id: 'wholesale',  emoji: '📦', label: { fr: 'Commerce en Gros', ht: 'Komès an Gwo' },        sub: { fr: 'Import, distribution', ht: 'Enpòtasyon, distribisyon' } },
+  { id: 'service',    emoji: '⚡', label: { fr: 'Services', ht: 'Sèvis' },                sub: { fr: 'Conseil, tech, beauté', ht: 'Konsèy, teknoloji, bote' } },
+  { id: 'online',     emoji: '📱', label: { fr: 'Business en Ligne', ht: 'Biznis an Liy' },       sub: { fr: 'WhatsApp, Instagram', ht: 'WhatsApp, Instagram' } },
 ];
 
 const CHALLENGES = [
-  { id: 'profit',    emoji: '💰', label: 'Konnen profit reyèl mwen',   sub: 'Kalkilasyon egzak chak jou' },
-  { id: 'stock',     emoji: '📦', label: 'Jere stock mwen',            sub: 'Evite ruptures & pèt' },
-  { id: 'cashflow',  emoji: '🌊', label: 'Kontwole flus trezoreri',     sub: 'Cash disponib chak jou' },
-  { id: 'reports',   emoji: '📊', label: 'Jenere rapò finansye',        sub: 'Bilan, eta rezilta' },
+  { id: 'profit',    emoji: '💰', label: { fr: 'Connaître mon profit réel', ht: 'Konnen profit reyèl mwen' },   sub: { fr: 'Calculs exacts chaque jour', ht: 'Kalkilasyon egzak chak jou' } },
+  { id: 'stock',     emoji: '📦', label: { fr: 'Gérer mon stock', ht: 'Jere stock mwen' },            sub: { fr: 'Éviter ruptures & pertes', ht: 'Evite ruptures & pèt' } },
+  { id: 'cashflow',  emoji: '🌊', label: { fr: 'Contrôler mon flux trésorerie', ht: 'Kontwole flus trezoreri' },     sub: { fr: 'Cash disponible chaque jour', ht: 'Cash disponib chak jou' } },
+  { id: 'reports',   emoji: '📊', label: { fr: 'Générer des rapports financiers', ht: 'Jenere rapò finansye' },        sub: { fr: 'Bilan, état des résultats', ht: 'Bilan, eta rezilta' } },
 ];
 
 const LOADING_STEPS = [
-  { text: 'Analyse de votre secteur d\'activité…',      ms: 1200 },
-  { text: 'Configuration du cockpit financier…',         ms: 1100 },
-  { text: 'Calibration des alertes intelligentes…',      ms: 1000 },
-  { text: 'Activation des rapports automatiques…',       ms: 1100 },
-  { text: 'Préparation de vos insights Pilot AI…',       ms: 1200 },
-  { text: '✓ Cockpit prêt. Bienvenue dans le futur.',    ms: 800  },
+  { text: { fr: 'Analyse de votre secteur d\'activité…', ht: 'Analiz sektè aktivite ou…' },      ms: 1200 },
+  { text: { fr: 'Configuration du cockpit financier…', ht: 'Konfigirasyon kabin finansye…' },    ms: 1100 },
+  { text: { fr: 'Calibration des alertes intelligentes…', ht: 'Kalibrasyon alèt entelijan…' },   ms: 1000 },
+  { text: { fr: 'Activation des rapports automatiques…', ht: 'Aktivasyon rapò otomatik…' },      ms: 1100 },
+  { text: { fr: 'Préparation de vos insights Pilot AI…', ht: 'Preparasyon insights Pilot AI ou…' }, ms: 1200 },
+  { text: { fr: '✓ Cockpit prêt. Bienvenue dans le futur.', ht: '✓ Kabin pare. Byenveni nan fiti a.' }, ms: 800  },
 ];
 
 const DEMO_STEPS = [
   {
-    title: 'Votre Cockpit Financial',
-    text: 'Voici votre tableau de bord. J\'ai détecté une hausse de marge de 15% sur vos produits phares. Zéro calculs manuels — c\'est mon travail.',
+    title: { fr: 'Votre Cockpit Financial', ht: 'Kabin Finansye Ou' },
+    text: { fr: 'Voici votre tableau de bord. J\'ai détecté une hausse de marge de 15% sur vos produits phares. Zéro calculs manuels — c\'est mon travail.', ht: 'Men tablo debò ou. Mwen detekte yon ogmantasyon marge 15% sou pwodui prensipal ou yo. Zewo kalkil manyèl — se travay mwen.' },
     icon: '📊',
     action: null,
   },
   {
-    title: 'Alerte Stock Critique',
-    text: 'Voyez cette alerte rouge ? Je préviens vos ruptures de stock AVANT qu\'elles n\'arrivent. Vous économisez des ventes perdues chaque semaine.',
+    title: { fr: 'Alerte Stock Critique', ht: 'Alèt Stock Kritik' },
+    text: { fr: 'Voyez cette alerte rouge ? Je préviens vos ruptures de stock AVANT qu\'elles n\'arrivent. Vous économisez des ventes perdues chaque semaine.', ht: 'Wè alèt wouj sa a ? Mwen anpeche ruptures stock ou ANVAN yo rive. Ou ekonomize vant pedi chak semèn.' },
     icon: '📦',
     action: null,
   },
   {
-    title: 'Intelligence Financière',
-    text: 'En 10 secondes, vous venez de voir ce qui prend 2h à calculer manuellement. Imaginez cela avec VOS chiffres, VOS produits, VOTRE business.',
+    title: { fr: 'Intelligence Financière', ht: 'Entèlijans Finansye' },
+    text: { fr: 'En 10 secondes, vous venez de voir ce qui prend 2h à calculer manuellement. Imaginez cela avec VOS chiffres, VOS produits, VOTRE business.', ht: 'An 10 segond, ou fèk wè sa ta pran 2 èdtan pou kalkile manyèlman. Imajine sa ak CHIFF ou, PWODUI ou, BIZNIS ou.' },
     icon: '🤖',
     action: 'convert',
   },
@@ -142,8 +143,10 @@ function AIAvatar({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
 
 // ── AI Speech Bubble ──────────────────────────────────────────────────────────
 
-function AIBubble({ text, onDone, onNext, nextLabel = 'Suivant →', showNext = true }:
+function AIBubble({ text, onDone, onNext, nextLabel, showNext = true }:
   { text: string; onDone?: () => void; onNext?: () => void; nextLabel?: string; showNext?: boolean }) {
+  const { t } = useLanguage();
+  const resolvedNextLabel = nextLabel ?? t({ fr: 'Suivant →', ht: 'Apre →' });
   const { displayed, done } = useTypewriter(text);
   useEffect(() => { if (done && onDone) onDone(); }, [done]);
 
@@ -189,6 +192,7 @@ function Progress({ step, total }: { step: number; total: number }) {
 // ── Main Onboarding ───────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
+  const { t } = useLanguage();
   const router = useRouter();
 
   // State
@@ -239,17 +243,20 @@ export default function OnboardingPage() {
                 🤖
               </motion.div>
             </div>
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#50c878] mb-2">Pilot AI</p>
-            <h1 className="text-3xl font-extrabold text-white sm:text-4xl">
-              Bienvenue sur ProfitPilot
-            </h1>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#50c878] mb-2">Pilot AI</p>
+              <h1 className="text-3xl font-extrabold text-white sm:text-4xl">
+                {t({ fr: 'Bienvenue sur ProfitPilot', ht: 'Byenveni sou ProfitPilot' })}
+              </h1>
+              <p className="mt-3 text-sm text-white/60 max-w-md mx-auto">
+                {t({ fr: '🔔 72 heures d\'essai gratuit — Après cela, abonnement obligatoire pour continuer.', ht: '🔔 72 èdtan esè gratis — Apre sa, abònman obligatwa pou kontinye.' })}
+              </p>
           </motion.div>
 
           {/* AI Speech */}
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}
             className="w-full max-w-xl mb-10">
             <AIBubble
-              text="Bonjou ! Mwen se Pilot AI — ou gid entèlijan ProfitPilot. Souhaitez-vous voir une démonstration rapide de ma puissance, ou commencer à configurer votre propre business dès maintenant ?"
+              text={t({ fr: 'Bonjour ! Je suis Pilot AI — votre guide intelligent ProfitPilot. Souhaitez-vous voir une démonstration rapide de ma puissance, ou commencer à configurer votre propre business dès maintenant ?\n\n🔔 **Rappel** : Vous avez **72 heures** d\'essai gratuit après votre inscription. Après cela, un abonnement sera nécessaire pour continuer à utiliser ProfitPilot.', ht: 'Bonjou ! Mwen se Pilot AI — ou gid entèlijan ProfitPilot. Souhaitez-vous voir une démonstration rapide de ma puissance, ou commencer à configurer votre propre business dès maintenant ?\n\n🔔 **Rapèl** : Ou gen **72 èdtan** esè gratis apre enskripsyon ou. Apre sa, yon abònman pral nesesè pou kontinye itilize ProfitPilot.' })}
               showNext={false}
             />
           </motion.div>
@@ -260,22 +267,22 @@ export default function OnboardingPage() {
             <button onClick={() => setPath('demo')}
               className="group flex-1 rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-left backdrop-blur-sm transition hover:border-[#50c878]/40 hover:bg-white/10 active:scale-95">
               <div className="text-2xl mb-2">🔍</div>
-              <p className="font-bold text-white">Explorer la démo</p>
-              <p className="mt-1 text-sm text-white/50">Voir ProfitPilot en action avec des données fictives</p>
+              <p className="font-bold text-white">{t({ fr: 'Explorer la démo', ht: 'Eksplore demo a' })}</p>
+              <p className="mt-1 text-sm text-white/50">{t({ fr: 'Voir ProfitPilot en action avec des données fictives', ht: 'Wè ProfitPilot an aksyon ak done fiktif' })}</p>
             </button>
             <button onClick={() => setPath('buyer')}
               className="group flex-1 rounded-2xl border border-[#50c878]/40 bg-[#50c878]/10 px-6 py-5 text-left backdrop-blur-sm transition hover:bg-[#50c878]/20 active:scale-95 relative overflow-hidden">
               <span className="absolute top-3 right-3 rounded-full bg-[#50c878] px-2 py-0.5 text-[10px] font-bold text-[#001f3f]">RECOMMANDÉ</span>
               <div className="text-2xl mb-2">🚀</div>
-              <p className="font-bold text-white">Démarrer mon business</p>
-              <p className="mt-1 text-sm text-white/50">Configurer mon espace personnalisé en 2 minutes</p>
+              <p className="font-bold text-white">{t({ fr: 'Démarrer mon business', ht: 'Kòmanse biznis mwen' })}</p>
+              <p className="mt-1 text-sm text-white/50">{t({ fr: 'Configurer mon espace personnalisé en 2 minutes', ht: 'Konfigire espas pèsonalize mwen an 2 minit' })}</p>
             </button>
           </motion.div>
 
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
             className="mt-8 text-xs text-white/30">
-            Déjà inscrit ?{' '}
-            <Link href="/auth/login" className="text-[#50c878] hover:underline">Se connecter</Link>
+            {t({ fr: 'Déjà inscrit ?', ht: 'Deja enskri ?' })} {' '}
+            <Link href="/auth/login" className="text-[#50c878] hover:underline">{t({ fr: 'Se connecter', ht: 'Konekte' })}</Link>
           </motion.p>
         </div>
       </div>
@@ -291,9 +298,9 @@ export default function OnboardingPage() {
         <div className="relative z-10 flex min-h-screen flex-col px-5 py-8 md:px-10">
           {/* Top bar */}
           <div className="flex items-center justify-between mb-8">
-            <button onClick={() => setPath('split')} className="text-xs text-white/40 hover:text-white/70 transition">← Retour</button>
+            <button onClick={() => setPath('split')} className="text-xs text-white/40 hover:text-white/70 transition">{t({ fr: '← Retour', ht: '← Retounen' })}</button>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-white/40">Démonstration</span>
+              <span className="text-xs text-white/40">{t({ fr: 'Démonstration', ht: 'Demostrasyon' })}</span>
               <Progress step={demoStep + 1} total={DEMO_STEPS.length} />
             </div>
           </div>
@@ -308,15 +315,15 @@ export default function OnboardingPage() {
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <span className="text-3xl">{step.icon}</span>
-                    <h2 className="text-xl font-bold text-white">{step.title}</h2>
+                    <h2 className="text-xl font-bold text-white">{t(step.title)}</h2>
                   </div>
                   {/* Mock dashboard elements */}
                   {demoStep === 0 && (
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { l: 'Ventes Auj.', v: '48 500 HTG', c: '#50c878', t: '+14%' },
-                        { l: 'Profit Net',  v: '12 800 HTG', c: '#3b82f6', t: '+8%'  },
-                        { l: 'Marge Moy.',  v: '34.2%',      c: '#a855f7', t: '+15%' },
+                        { l: t({ fr: 'Ventes Auj.', ht: 'Vant Jodi a' }), v: '48 500 HTG', c: '#50c878', t: '+14%' },
+                        { l: t({ fr: 'Profit Net', ht: 'Pwofi Nèt' }),  v: '12 800 HTG', c: '#3b82f6', t: '+8%'  },
+                        { l: t({ fr: 'Marge Moy.', ht: 'Marge Mway.' }),  v: '34.2%',      c: '#a855f7', t: '+15%' },
                       ].map(k => (
                         <div key={k.l} className="rounded-2xl border border-white/10 bg-white/5 p-3">
                           <p className="text-[10px] text-white/50 mb-1">{k.l}</p>
@@ -325,7 +332,7 @@ export default function OnboardingPage() {
                         </div>
                       ))}
                       <div className="col-span-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <p className="text-[10px] text-white/50 mb-2">Cashflow — 7 derniers jours</p>
+                        <p className="text-[10px] text-white/50 mb-2">{t({ fr: 'Cashflow — 7 derniers jours', ht: 'Cashflow — 7 dènye jou' })}</p>
                         <div className="flex items-end gap-1 h-12">
                           {[40, 65, 48, 82, 55, 91, 72].map((h, i) => (
                             <div key={i} className="flex-1 rounded-t-sm transition-all"
@@ -359,7 +366,7 @@ export default function OnboardingPage() {
                         className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-[#001f3f] to-[#0d3566] text-4xl border border-[#50c878]/30">
                         🤖
                       </motion.div>
-                      <p className="text-white/70 text-sm max-w-sm mx-auto">ProfitPilot analyse vos données en continu et prend les décisions avant même que vous ne le sachiez.</p>
+                      <p className="text-white/70 text-sm max-w-sm mx-auto">{t({ fr: 'ProfitPilot analyse vos données en continu et prend les décisions avant même que vous ne le sachiez.', ht: 'ProfitPilot analize done ou kontinyèlman epi pran desizyon anvan menm ou pa konnen.' })}</p>
                     </div>
                   )}
                 </div>
@@ -370,12 +377,12 @@ export default function OnboardingPage() {
             <AnimatePresence mode="wait">
               <motion.div key={`bubble-${demoStep}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <AIBubble
-                  text={step.text}
+                  text={t(step.text)}
                   onNext={step.action === 'convert'
                     ? () => setPath('buyer')
                     : () => setDemoStep(s => Math.min(s + 1, DEMO_STEPS.length - 1))
                   }
-                  nextLabel={step.action === 'convert' ? '🚀 Créer mon compte gratuit' : 'Suivant →'}
+                  nextLabel={step.action === 'convert' ? t({ fr: '🚀 Créer mon compte gratuit', ht: '🚀 Kreye kont gratis mwen' }) : t({ fr: 'Suivant →', ht: 'Apre →' })}
                 />
               </motion.div>
             </AnimatePresence>
@@ -392,9 +399,9 @@ export default function OnboardingPage() {
       <div className="relative z-10 flex min-h-screen flex-col px-5 py-8 md:px-10">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-8">
-          <button onClick={() => setPath('split')} className="text-xs text-white/40 hover:text-white/70 transition">← Retour</button>
+          <button onClick={() => setPath('split')} className="text-xs text-white/40 hover:text-white/70 transition">{t({ fr: '← Retour', ht: '← Retounen' })}</button>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-white/40">Configuration</span>
+            <span className="text-xs text-white/40">{t({ fr: 'Configuration', ht: 'Konfigirasyon' })}</span>
             <Progress step={['name','sector','challenge','loading','reveal'].indexOf(buyerStep) + 1} total={5} />
           </div>
         </div>
@@ -406,7 +413,7 @@ export default function OnboardingPage() {
             <AnimatePresence mode="wait">
               <motion.div key="name" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                 <AIBubble
-                  text="Parfait ! Je vais configurer votre espace personnalisé. Commençons. Quel est le nom de votre entreprise ?"
+                  text={t({ fr: 'Parfait ! Je vais configurer votre espace personnalisé. Commençons. Quel est le nom de votre entreprise ?', ht: 'Pafè ! Mwen pral konfigire espas pèsonalize ou. Ann kòmanse. Ki non biznis ou ?' })}
                   showNext={false}
                 />
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 2 }} className="mt-4 ml-13 space-y-3">
@@ -414,13 +421,13 @@ export default function OnboardingPage() {
                     value={name}
                     onChange={e => setName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && name.trim() && setBuyerStep('sector')}
-                    placeholder="ex: Boutique Marie, Épicerie Bon Goût…"
+                    placeholder={t({ fr: 'ex: Boutique Marie, Épicerie Bon Goût…', ht: 'eg: Boutik Marie, Episeri Bon Gou…' })}
                     className="w-full rounded-2xl border border-white/20 bg-white/10 px-5 py-4 text-white placeholder-white/30 backdrop-blur-sm outline-none focus:border-[#50c878]/60 focus:bg-white/15 transition text-sm"
                     autoFocus
                   />
                   <button onClick={() => name.trim() && setBuyerStep('sector')} disabled={!name.trim()}
                     className="inline-flex items-center gap-2 rounded-xl bg-[#50c878] px-6 py-3 text-sm font-bold text-[#001f3f] disabled:opacity-30 hover:bg-[#4db86e] active:scale-95 transition-all">
-                    Continuer <ArrowRight size={14} />
+                    {t({ fr: 'Continuer', ht: 'Kontinye' })} <ArrowRight size={14} />
                   </button>
                 </motion.div>
               </motion.div>
@@ -432,7 +439,7 @@ export default function OnboardingPage() {
             <AnimatePresence mode="wait">
               <motion.div key="sector" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                 <AIBubble
-                  text={`Excellent ! "${name}" — c'est un beau nom. Quel est votre secteur d'activité ?`}
+                  text={t({ fr: `Excellent ! "${name}" — c'est un beau nom. Quel est votre secteur d'activité ?`, ht: `Ekselan ! "${name}" — se yon bèl non. Ki sektè aktivite ou ?` })}
                   showNext={false}
                 />
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5 }} className="mt-4 grid grid-cols-2 gap-3">
@@ -440,8 +447,8 @@ export default function OnboardingPage() {
                     <button key={s.id} onClick={() => { setSector(s.id); setBuyerStep('challenge'); }}
                       className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left backdrop-blur-sm transition hover:border-[#50c878]/40 hover:bg-white/10 active:scale-95">
                       <span className="text-xl">{s.emoji}</span>
-                      <p className="mt-2 font-semibold text-white text-sm">{s.label}</p>
-                      <p className="text-xs text-white/40">{s.sub}</p>
+                      <p className="mt-2 font-semibold text-white text-sm">{t(s.label)}</p>
+                      <p className="text-xs text-white/40">{t(s.sub)}</p>
                     </button>
                   ))}
                 </motion.div>
@@ -454,7 +461,7 @@ export default function OnboardingPage() {
             <AnimatePresence mode="wait">
               <motion.div key="challenge" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                 <AIBubble
-                  text="Dernière question. Quel est votre défi prioritaire en ce moment ?"
+                  text={t({ fr: 'Dernière question. Quel est votre défi prioritaire en ce moment ?', ht: 'Dènye kesyon. Ki defi prioritè ou kounye a ?' })}
                   showNext={false}
                 />
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.5 }} className="mt-4 space-y-3">
@@ -463,8 +470,8 @@ export default function OnboardingPage() {
                       className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left backdrop-blur-sm transition hover:border-[#50c878]/40 hover:bg-white/10 active:scale-95">
                       <span className="text-2xl">{c.emoji}</span>
                       <div>
-                        <p className="font-semibold text-white">{c.label}</p>
-                        <p className="text-xs text-white/40">{c.sub}</p>
+                        <p className="font-semibold text-white">{t(c.label)}</p>
+                        <p className="text-xs text-white/40">{t(c.sub)}</p>
                       </div>
                       <ChevronRight size={16} className="ml-auto text-white/30" />
                     </button>
@@ -486,7 +493,7 @@ export default function OnboardingPage() {
                   <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                     className="flex items-center justify-center gap-2 text-sm">
                     <span className="text-[#50c878]">{i <= loadingIdx - 1 ? '✓' : '⟳'}</span>
-                    <span className={i <= loadingIdx - 1 ? 'text-white/60' : 'text-white'}>{s.text}</span>
+                    <span className={i <= loadingIdx - 1 ? 'text-white/60' : 'text-white'}>{t(s.text)}</span>
                   </motion.div>
                 ))}
               </div>
@@ -510,23 +517,23 @@ export default function OnboardingPage() {
                   <motion.div animate={{ boxShadow: ['0 0 0 0 rgba(80,200,120,0)', '0 0 40px rgba(80,200,120,0.3)', '0 0 0 0 rgba(80,200,120,0)'] }}
                     transition={{ duration: 2, repeat: 3 }}
                     className="inline-block rounded-2xl border border-[#50c878]/30 bg-[#50c878]/10 px-6 py-2 mb-4">
-                    <p className="font-black text-[#50c878] text-lg">✓ Cockpit Prêt !</p>
+                    <p className="font-black text-[#50c878] text-lg">{t({ fr: '✓ Cockpit Prêt !', ht: '✓ Kabin Pare !' })}</p>
                   </motion.div>
-                  <h2 className="text-2xl font-extrabold text-white">Bienvenue, {name} !</h2>
+                  <h2 className="text-2xl font-extrabold text-white">{t({ fr: 'Bienvenue', ht: 'Byenveni' })}, {name} !</h2>
                   <p className="text-white/60 mt-2 text-sm max-w-sm mx-auto">
-                    Votre espace ProfitPilot est configuré et optimisé pour votre secteur. Je surveille tout pour vous.
+                    {t({ fr: 'Votre espace ProfitPilot est configuré et optimisé pour votre secteur. Je surveille tout pour vous.', ht: 'Espas ProfitPilot ou konfigure epi optimize pou sektè ou. Mwen siveye tout bagay pou ou.' })}
                   </p>
                 </div>
 
                 {/* Features unlocked */}
                 <div className="rounded-2xl border border-[#50c878]/20 bg-[#50c878]/5 p-5 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-widest text-[#50c878] mb-3">Fonctionnalités Activées</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-[#50c878] mb-3">{t({ fr: 'Fonctionnalités Activées', ht: 'Fonksyonalite Aktive' })}</p>
                   {[
-                    '📊 Dashboard intelligent avec alertes IA',
-                    '📦 Gestion stock avec prévisions ruptures',
-                    '💰 Calcul profit automatique HTG/USD',
-                    '🤖 Pilot AI — conseiller financier personnel',
-                    '📋 Rapports financiers automatiques',
+                    t({ fr: '📊 Dashboard intelligent avec alertes IA', ht: '📊 Dashboard entelijan ak alèt IA' }),
+                    t({ fr: '📦 Gestion stock avec prévisions ruptures', ht: '📦 Jesyon stock ak previzyon ruptures' }),
+                    t({ fr: '💰 Calcul profit automatique HTG/USD', ht: '💰 Kalkil pwofi otomatik HTG/USD' }),
+                    t({ fr: '🤖 Pilot AI — conseiller financier personnel', ht: '🤖 Pilot AI — konseye finansye pèsonèl' }),
+                    t({ fr: '📋 Rapports financiers automatiques', ht: '📋 Rapò finansye otomatik' }),
                   ].map((f, i) => (
                     <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
                       className="flex items-center gap-2 text-sm text-white/80">
@@ -538,25 +545,25 @@ export default function OnboardingPage() {
 
                 {/* Moment magique */}
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
-                  <p className="font-semibold text-white mb-1">🎯 Premier objectif :</p>
+                  <p className="font-semibold text-white mb-1">🎯 {t({ fr: 'Premier objectif :', ht: 'Premye objektif :' })}</p>
                   <p>Klike sou <strong className="text-[#50c878]">"+ Nouvo Pwodui"</strong> nan paj Produits la — Pilot AI pral kalkile mòj ou otomatikman.</p>
                 </div>
 
                 {/* CTA */}
                 <div className="flex flex-col gap-3">
-                  <Link href="/auth/register"
+                  <Link href={`/auth/register${name ? `?business_name=${encodeURIComponent(name.trim())}` : ''}`}
                     className="group flex items-center justify-center gap-3 rounded-2xl bg-[#50c878] px-6 py-4 text-base font-black text-[#001f3f] shadow-2xl hover:bg-[#4db86e] active:scale-95 transition-all">
                     <Sparkles size={16} />
-                    Créer mon compte gratuit
+                    {t({ fr: 'Créer mon compte gratuit', ht: 'Kreye kont gratis mwen' })}
                     <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
                   </Link>
                   <Link href="/dashboard"
                     className="text-center text-sm text-white/40 hover:text-white/70 transition py-2">
-                    Explorer sans compte →
+                    {t({ fr: 'Explorer sans compte →', ht: 'Eksplore san kont →' })}
                   </Link>
                 </div>
 
-                <p className="text-center text-xs text-white/30">Aucune carte bancaire • 3 jours Premium gratuits inclus</p>
+                <p className="text-center text-xs text-white/30">{t({ fr: 'Aucune carte bancaire • 3 jours Premium gratuits inclus', ht: 'Pa gen kat bankè • 3 jou Premium gratis enkli' })}</p>
               </motion.div>
             </AnimatePresence>
           )}

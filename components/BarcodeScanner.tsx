@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useLanguage } from './LanguageWrapper';
 import { X, Camera } from 'lucide-react';
 
 type BarcodeScannerProps = {
@@ -10,6 +11,7 @@ type BarcodeScannerProps = {
 
 export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
   const [error, setError] = useState<string | null>(null);
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const html5QrcodeRef = useRef<any>(null);
 
@@ -39,7 +41,7 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
           }
         );
       } catch (err: any) {
-        setError(err?.message ?? 'Impossible d\'accéder à la caméra.');
+        setError(err?.message ?? t({ fr: 'Impossible d\'accéder à la caméra.', ht: 'Enposib aksede kamera a.' }));
       }
     }
 
@@ -61,7 +63,7 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
       <div className="relative w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2 text-lg font-semibold text-anthracite">
-            <Camera className="h-5 w-5" /> Scanner de code-barres
+            <Camera className="h-5 w-5" /> {t({ fr: 'Scanner de code-barres', ht: 'Skyane kòd-bar' })}
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-anthracite transition hover:bg-slate-100">
             <X className="h-5 w-5" />
@@ -79,7 +81,7 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
         </div>
 
         <div className="border-t border-slate-200 px-4 py-4 text-sm text-anthracite/80">
-          Pointez la caméra vers le code-barres du produit. Si le produit existe, il sera ajouté automatiquement au panier.
+          {t({ fr: 'Pointez la caméra vers le code-barres du produit. Si le produit existe, il sera ajouté automatiquement au panier.', ht: 'Vize kamera a sou kòd-bar la. Si pwodwi a egziste, li pral ajoute otomatikman nan panye a.' })}
         </div>
       </div>
     </div>

@@ -44,9 +44,11 @@ export function InvoiceTemplate({
       <div className="border-b-2 border-primary pb-6 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white font-bold">
-              PP
-            </div>
+            <img
+              src="/profitpilot-logo.png"
+              alt="ProfitPilot"
+              className="h-12 w-12 rounded-2xl object-contain"
+            />
             <div>
               <h1 className="text-2xl font-bold text-primary">ProfitPilot</h1>
               <p className="text-sm text-anthracite/70">{t({ fr: 'Facture', ht: 'Fakti' })}</p>

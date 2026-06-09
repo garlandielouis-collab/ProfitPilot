@@ -1,4 +1,5 @@
 'use client';
+import { useLanguage } from '../../components/LanguageWrapper';
 import Link from 'next/link';
 import { ArrowLeft, Clock, Tag } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -22,6 +23,7 @@ const TAG_COLORS: Record<string, string> = {
 };
 
 export default function BlogPage() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <div className="mx-auto max-w-5xl px-5 py-16 md:px-10">
@@ -29,7 +31,7 @@ export default function BlogPage() {
           <ArrowLeft size={14} /> Retounen lakay
         </Link>
         <div className="mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">Blog</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">{t({ fr: 'Blog', ht: 'Blog' })}</span>
           <h1 className="mt-2 text-3xl font-extrabold text-[#001f3f]">Konsèy pou Antreprenè Ayisyen</h1>
           <p className="mt-3 text-slate-500">Gid pratik, konsèy jesyon ak istwa siksè pou devlope biznis ou.</p>
         </div>
@@ -39,7 +41,7 @@ export default function BlogPage() {
               className="group rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm hover:border-[#50c878]/30 hover:shadow-md transition-all cursor-pointer">
               <div className="mb-3 flex items-center justify-between">
                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${TAG_COLORS[p.tag] ?? 'bg-slate-100 text-slate-600'}`}>
-                  <Tag size={8} className="inline mr-1" />{p.tag}
+                  <Tag size={8} className="inline mr-1" />{t({ fr: { Jesyon: 'Gestion', Envantè: 'Inventaire', 'Pilot AI': 'Pilot AI', Rapò: 'Rapport', Fournisè: 'Fournisseur', Trezoreri: 'Trésorerie' }[p.tag] || p.tag, ht: p.tag })}
                 </span>
                 <span className="flex items-center gap-1 text-[10px] text-slate-400">
                   <Clock size={10} /> {p.time}

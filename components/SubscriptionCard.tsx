@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from './LanguageWrapper';
 import { Button } from './Button';
 
 type SubscriptionCardProps = {
@@ -15,6 +16,7 @@ type SubscriptionCardProps = {
 };
 
 export function SubscriptionCard({ plan, selected, onSelect }: SubscriptionCardProps) {
+  const { t } = useLanguage();
   return (
     <div className={`rounded-[28px] border p-6 shadow-sm transition ${selected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
       <div className="flex items-center justify-between gap-3">
@@ -26,7 +28,7 @@ export function SubscriptionCard({ plan, selected, onSelect }: SubscriptionCardP
       </div>
 
       <div className="mt-6">
-        <p className="text-sm text-anthracite/70">Prix</p>
+        <p className="text-sm text-anthracite/70">{t({ fr: 'Prix', ht: 'Pri' })}</p>
         <p className="mt-2 text-4xl font-bold text-primary">G {plan.priceG.toLocaleString('fr-FR')}</p>
       </div>
 
@@ -40,7 +42,7 @@ export function SubscriptionCard({ plan, selected, onSelect }: SubscriptionCardP
       </div>
 
       <Button type="button" onClick={() => onSelect(plan.key)} className="mt-6 w-full bg-primary text-white hover:bg-[#004799]">
-        {selected ? 'Plan choisi' : 'Sélectionner'}
+        {selected ? t({ fr: 'Plan choisi', ht: 'Plan chwazi' }) : t({ fr: 'Sélectionner', ht: 'Seleksyone' })}
       </Button>
     </div>
   );

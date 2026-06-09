@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from './LanguageWrapper';
 import { useRouter } from 'next/navigation';
 
 // ─────────────────────────────────────────────────────────
@@ -98,11 +99,12 @@ function InsightCard({ icon, stat, label, detail, color, delay }: {
 export function CockpitWelcome({ companyName }: { companyName: string }) {
   const router  = useRouter();
   const [phase, setPhase] = useState<Phase>('overlay');
+  const { t } = useLanguage();
 
   const MESSAGES = [
-    { text: `Cockpit de ${companyName} activé.`,                                           delay: 0    },
-    { text: "J'ai analysé votre secteur et configuré votre tableau de bord.",               delay: 2200 },
-    { text: "Voici un aperçu de vos performances simulées pour ce mois.",                  delay: 4000 },
+    { text: `${t({ fr: 'Cockpit de', ht: 'Cockpit' })} ${companyName} ${t({ fr: 'activé.', ht: 'aktive.' })}`, delay: 0 },
+    { text: t({ fr: "J'ai analysé votre secteur et configuré votre tableau de bord.", ht: "Mwen analize sektè ou e konfigire tablo debò ou." }), delay: 2200 },
+    { text: t({ fr: "Voici un aperçu de vos performances simulées pour ce mois.", ht: "Men yon aperçu simulation pèfòmans ou yo pou mwa sa a." }), delay: 4000 },
   ];
 
   useEffect(() => {
@@ -156,14 +158,14 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
                 </div>
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Pilot AI</p>
+                <p className="text-sm font-semibold text-white">{t({ fr: 'Pilot AI', ht: 'Pilot AI' })}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <motion.div
                     className="h-1.5 w-1.5 rounded-full bg-emerald-400"
                     animate={{ opacity: [1, 0.4, 1] }}
                     transition={{ duration: 1.2, repeat: Infinity }}
                   />
-                  <span className="text-[10px] text-emerald-400">En ligne · Analyse terminée</span>
+                  <span className="text-[10px] text-emerald-400">{t({ fr: 'En ligne · Analyse terminée', ht: 'An liy · Analiz fini' })}</span>
                 </div>
               </div>
             </div>
@@ -193,19 +195,19 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               transition={{ delay: 4.5 }}
               className="space-y-2"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">Aperçu rapide</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">{t({ fr: 'Aperçu rapide', ht: 'Aperçu rapid' })}</p>
               <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2.5">
                 <span className="text-base">📈</span>
                 <div>
-                  <p className="text-xs font-semibold text-emerald-400">+14.6% de croissance</p>
-                  <p className="text-[10px] text-slate-500">vs mois précédent · données de démo</p>
+                  <p className="text-xs font-semibold text-emerald-400">{t({ fr: '+14.6% de croissance', ht: '+14.6% kwasans' })}</p>
+                  <p className="text-[10px] text-slate-500">{t({ fr: 'vs mois précédent · données de démo', ht: 'vs mwa anvan · done demo' })}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2.5">
                 <span className="text-base">⚠️</span>
                 <div>
-                  <p className="text-xs font-semibold text-amber-400">3 produits en rupture prévue</p>
-                  <p className="text-[10px] text-slate-500">Stock insuffisant d&apos;ici 5 jours</p>
+                  <p className="text-xs font-semibold text-amber-400">{t({ fr: '3 produits en rupture prévue', ht: '3 pwodwi an rupture prevwa' })}</p>
+                  <p className="text-[10px] text-slate-500">{t({ fr: "Stock insuffisant d'ici 5 jours", ht: 'Stock ensifizan nan 5 jou' })}</p>
                 </div>
               </div>
             </motion.div>
@@ -218,7 +220,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               onClick={handleDismiss}
               className="mt-5 w-full rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
             >
-              Explorer mon Cockpit →
+              {t({ fr: 'Explorer mon Cockpit →', ht: 'Eksplore Cockpit mwen →' })}
             </motion.button>
           </motion.div>
         )}
@@ -234,7 +236,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
             <div className="mb-6 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <p className="text-sm font-semibold text-white">Pilot AI — Premier Insight</p>
+                <p className="text-sm font-semibold text-white">{t({ fr: 'Pilot AI — Premier Insight', ht: 'Pilot AI — Premye Insight' })}</p>
               </div>
               <button
                 onClick={handleDismiss}
@@ -262,32 +264,32 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               <InsightCard
                 icon="💰"
                 stat="1,285,400 G"
-                label="Chiffre d'affaires"
-                detail="Exercice en cours · +14.6% vs N-1"
+                label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })}
+                detail={t({ fr: 'Exercice en cours · +14.6% vs N-1', ht: 'Egzèsis an kou · +14.6% vs N-1' })}
                 color="emerald"
                 delay={0.4}
               />
               <InsightCard
                 icon="📦"
                 stat="3 produits"
-                label="Rupture imminente"
-                detail="Stock insuffisant d'ici 5 jours"
+                label={t({ fr: 'Rupture imminente', ht: 'Rupt iminan' })}
+                detail={t({ fr: 'Stock insuffisant d\'ici 5 jours', ht: 'Stock ensifizan nan 5 jou' })}
                 color="amber"
                 delay={0.55}
               />
               <InsightCard
                 icon="👥"
                 stat="5 clients VIP"
-                label="Clientèle fidèle"
-                detail=">50,000 HTG d'achats totaux"
+                label={t({ fr: 'Clientèle fidèle', ht: 'Kliyan fidèl' })}
+                detail={t({ fr: ">50,000 HTG d'achats totaux", ht: '>50,000 HTG acha total' })}
                 color="blue"
                 delay={0.7}
               />
               <InsightCard
                 icon="📉"
                 stat="87,500 G"
-                label="Dettes clients"
-                detail="À recouvrer ce mois"
+                label={t({ fr: 'Dettes clients', ht: 'Dèt kliyan' })}
+                detail={t({ fr: 'À recouvrer ce mois', ht: 'Pou rekipere mwa sa a' })}
                 color="rose"
                 delay={0.85}
               />
@@ -304,13 +306,13 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
                 onClick={handleDismiss}
                 className="flex-1 rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
               >
-                Voir mon Dashboard
+                {t({ fr: 'Voir mon Dashboard', ht: 'Wè Dashboard mwen' })}
               </button>
               <button
                 onClick={() => { handleDismiss(); }}
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-slate-400 transition hover:bg-white/10"
               >
-                Plus tard
+                {t({ fr: 'Plus tard', ht: 'Pita' })}
               </button>
             </motion.div>
           </motion.div>

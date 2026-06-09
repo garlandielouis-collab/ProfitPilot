@@ -7,6 +7,7 @@ import {
   quickCreateSupplier, quickCreateProduct,
   type QuickSupplierResult, type QuickProductResult,
 } from '../app/actions/quickCreate';
+import { useLanguage } from './LanguageWrapper';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ interface ComboboxProps<T extends { id: string; name: string }> {
 function Combobox<T extends { id: string; name: string }>({
   label, placeholder, options, selected, onSelect, onCreateNew, renderOption, error,
 }: ComboboxProps<T>) {
+  const { t } = useLanguage();
   const [open, setOpen]     = useState(false);
   const [query, setQuery]   = useState('');
   const ref                 = useRef<HTMLDivElement>(null);
@@ -175,7 +177,7 @@ function Combobox<T extends { id: string; name: string }>({
                   ref={inputRef}
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Rechèch rapid…"
+                  placeholder={t({ fr: 'Recherche rapide…', ht: 'Rechèch rapid…' })}
                   className="flex-1 bg-transparent text-xs text-[#212529] outline-none placeholder-[#212529]/30"
                 />
               </div>
@@ -185,7 +187,7 @@ function Combobox<T extends { id: string; name: string }>({
             <div className="max-h-48 overflow-y-auto">
               {filtered.length === 0 ? (
                 <p className="px-3 py-3 text-xs text-[#212529]/40 text-center">
-                  {query ? `Okenn rezilta pou "${query}"` : 'Okenn opsyon'}
+                    {query ? `Okenn rezilta pou "${query}"` : t({ fr: 'Aucune option', ht: 'Okenn opsyon' })}
                 </p>
               ) : filtered.map(item => (
                 <button
@@ -208,7 +210,7 @@ function Combobox<T extends { id: string; name: string }>({
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-[#0056b3] hover:bg-blue-50 transition"
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0056b3] text-white text-[10px] font-bold">+</span>
-                {query ? `Kreye "${query}"` : 'Kreye nouvo'}
+                {query ? `Kreye "${query}"` : t({ fr: 'Créer nouveau', ht: 'Kreye nouvo' })}
               </button>
             </div>
           </div>
@@ -233,9 +235,10 @@ function QuickCreateSupplierModal({ ownerId, onCreated, onClose }: QuickCreateSu
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [err,   setErr]   = useState('');
+  const { t } = useLanguage();
 
   async function handleSave() {
-    if (!name.trim()) { setErr('Non obligatwa.'); return; }
+    if (!name.trim()) { setErr(t({ fr: 'Nom obligatoire.', ht: 'Non obligatwa.' })); return; }
     setSaving(true);
     try {
       const created: QuickSupplierResult = await quickCreateSupplier({ name, phone, email });
@@ -248,22 +251,22 @@ function QuickCreateSupplierModal({ ownerId, onCreated, onClose }: QuickCreateSu
   }
 
   return (
-    <ModalWrapper title="Nouvo Founisè" onClose={onClose}>
+    <ModalWrapper title={t({ fr: 'Nouveau Fournisseur', ht: 'Nouvo Founisè' })} onClose={onClose}>
       <div className="space-y-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-[#212529]/70">Non <span className="text-red-500">*</span></label>
+          <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Nom ', ht: 'Non ' })}<span className="text-red-500">*</span></label>
           <input autoFocus value={name} onChange={e => setName(e.target.value)}
             placeholder="ex: Distribisyon ABC"
             className={inputClass()} onKeyDown={e => e.key === 'Enter' && handleSave()} />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-[#212529]/70">Telefòn</label>
+          <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Téléphone', ht: 'Telefòn' })}</label>
           <input value={phone} onChange={e => setPhone(e.target.value)}
             placeholder="ex: 50937304541"
             className={inputClass()} />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-[#212529]/70">Email</label>
+          <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Email', ht: 'Imèl' })}</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
             placeholder="ex: contact@abc.com"
             className={inputClass()} />
@@ -272,11 +275,11 @@ function QuickCreateSupplierModal({ ownerId, onCreated, onClose }: QuickCreateSu
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={onClose}
             className="flex-1 rounded-2xl border border-slate-200 py-2.5 text-sm text-[#212529]/60 hover:bg-slate-50 transition">
-            Anile
+            {t({ fr: 'Annuler', ht: 'Anile' })}
           </button>
           <button type="button" onClick={handleSave} disabled={saving || !name.trim()}
             className="flex-1 rounded-2xl bg-[#0056b3] py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-[#0047a1] transition">
-            {saving ? 'Anrejistreman…' : 'Kreye Founisè'}
+            {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: 'Créer Fournisseur', ht: 'Kreye Founisè' })}
           </button>
         </div>
       </div>
@@ -299,10 +302,11 @@ function QuickCreateProductModal({ ownerId, onCreated, onClose }: QuickCreatePro
   const [sellPrice,  setSellPrice] = useState('');
   const [saving,     setSaving]    = useState(false);
   const [err,        setErr]       = useState('');
+  const { t } = useLanguage();
 
   async function handleSave() {
-    if (!name.trim())    { setErr('Non obligatwa.'); return; }
-    if (!category.trim()) { setErr('Kategori obligatwa.'); return; }
+    if (!name.trim())    { setErr(t({ fr: 'Nom obligatoire.', ht: 'Non obligatwa.' })); return; }
+    if (!category.trim()) { setErr(t({ fr: 'Catégorie obligatoire.', ht: 'Kategori obligatwa.' })); return; }
     const pp = parseFloat(buyPrice)  || 0;
     const sp = parseFloat(sellPrice) || 0;
     setSaving(true);
@@ -327,29 +331,29 @@ function QuickCreateProductModal({ ownerId, onCreated, onClose }: QuickCreatePro
   }
 
   return (
-    <ModalWrapper title="Nouvo Pwodui" onClose={onClose}>
+    <ModalWrapper title={t({ fr: 'Nouveau Produit', ht: 'Nouvo Pwodui' })} onClose={onClose}>
       <div className="space-y-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-[#212529]/70">Non pwodui <span className="text-red-500">*</span></label>
+          <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Nom produit ', ht: 'Non pwodui ' })}<span className="text-red-500">*</span></label>
           <input autoFocus value={name} onChange={e => setName(e.target.value)}
             placeholder="ex: Riz 50kg" className={inputClass()} />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-[#212529]/70">Kategori <span className="text-red-500">*</span></label>
+          <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Catégorie ', ht: 'Kategori ' })}<span className="text-red-500">*</span></label>
           <select value={category} onChange={e => setCategory(e.target.value)}
             className={inputClass()}>
-            <option value="">— Chwazi —</option>
+            <option value="">{t({ fr: '— Choisir —', ht: '— Chwazi —' })}</option>
             {PRODUCT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[#212529]/70">Pri acha (HTG)</label>
+            <label className="text-xs font-medium text-[#212529]/70">{t({ fr: "Prix d'achat (HTG)", ht: 'Pri acha (HTG)' })}</label>
             <input type="number" min={0} step={0.01} value={buyPrice} onChange={e => setBuyPrice(e.target.value)}
               placeholder="0.00" className={inputClass()} />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[#212529]/70">Pri vant (HTG)</label>
+            <label className="text-xs font-medium text-[#212529]/70">{t({ fr: "Prix de vente (HTG)", ht: 'Pri vant (HTG)' })}</label>
             <input type="number" min={0} step={0.01} value={sellPrice} onChange={e => setSellPrice(e.target.value)}
               placeholder="0.00" className={inputClass()} />
           </div>
@@ -358,11 +362,11 @@ function QuickCreateProductModal({ ownerId, onCreated, onClose }: QuickCreatePro
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={onClose}
             className="flex-1 rounded-2xl border border-slate-200 py-2.5 text-sm text-[#212529]/60 hover:bg-slate-50 transition">
-            Anile
+            {t({ fr: 'Annuler', ht: 'Anile' })}
           </button>
           <button type="button" onClick={handleSave} disabled={saving || !name.trim() || !category.trim()}
             className="flex-1 rounded-2xl bg-[#0056b3] py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-[#0047a1] transition">
-            {saving ? 'Anrejistreman…' : 'Kreye Pwodui'}
+            {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: 'Créer Produit', ht: 'Kreye Pwodui' })}
           </button>
         </div>
       </div>
@@ -398,6 +402,7 @@ function ModalWrapper({ title, children, onClose }: {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function NewPurchaseForm() {
+  const { t } = useLanguage();
   // Data
   const [suppliers,     setSuppliers]     = useState<SupplierOption[]>([]);
   const [products,      setProducts]      = useState<ProductOption[]>([]);
@@ -479,14 +484,14 @@ export function NewPurchaseForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!supplier)       errs.supplier = 'Chwazi yon founisè.';
-    if (!product)        errs.product  = 'Chwazi yon pwodui.';
-    if (quantity < 1)    errs.quantity  = 'Kantite dwe ≥ 1.';
-    if (unitPrice < 0)   errs.unitPrice = 'Pri pa valab.';
-    if (discountPct < 0 || discountPct > 100) errs.discount = 'Rabè 0–100%.';
+    if (!supplier)       errs.supplier = t({ fr: 'Choisissez un fournisseur.', ht: 'Chwazi yon founisè.' });
+    if (!product)        errs.product  = t({ fr: 'Choisissez un produit.', ht: 'Chwazi yon pwodui.' });
+    if (quantity < 1)    errs.quantity  = t({ fr: 'La quantité doit être ≥ 1.', ht: 'Kantite dwe ≥ 1.' });
+    if (unitPrice < 0)   errs.unitPrice = t({ fr: 'Prix non valide.', ht: 'Pri pa valab.' });
+    if (discountPct < 0 || discountPct > 100) errs.discount = t({ fr: 'Remise 0–100%.', ht: 'Rabè 0–100%.' });
 
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    if (!ownerId) { setSaveErr('Non otantifye.'); return; }
+    if (!ownerId) { setSaveErr(t({ fr: 'Non authentifié.', ht: 'Non otantifye.' })); return; }
 
     // Build metadata for mobile money
     const metadata: Record<string, string> | undefined =
@@ -511,7 +516,7 @@ export function NewPurchaseForm() {
         payment_method:          payStatus === 'Payé' ? payMethod : undefined,
       });
 
-      setSuccess('✓ Acha anrejistre avèk siksè!');
+      setSuccess(t({ fr: '✓ Achat enregistré avec succès!', ht: '✓ Acha anrejistre avèk siksè!' }));
       // Reset form
       setSupplier(null);
       setProduct(null);
@@ -538,13 +543,13 @@ export function NewPurchaseForm() {
         {/* Header */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#0056b3]/70">Achats</p>
-            <h2 className="text-xl font-bold text-[#212529]">Nouvo Acha</h2>
-            <p className="mt-0.5 text-sm text-[#212529]/50">Chwazi founisè, pwodui, kantite, ak metòd peman.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#0056b3]/70">{t({ fr: 'Achats', ht: 'Acha' })}</p>
+            <h2 className="text-xl font-bold text-[#212529]">{t({ fr: 'Nouvel Achat', ht: 'Nouvo Acha' })}</h2>
+            <p className="mt-0.5 text-sm text-[#212529]/50">{t({ fr: 'Choisissez fournisseur, produit, quantité, et méthode de paiement.', ht: 'Chwazi founisè, pwodui, kantite, ak metòd peman.' })}</p>
           </div>
           <div className="flex gap-2">
-            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700">Payé</span>
-            <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700">À Crédit</span>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700">{t({ fr: 'Payé', ht: 'Peye' })}</span>
+            <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700">{t({ fr: 'À Crédit', ht: 'À Kredi' })}</span>
           </div>
         </div>
 
@@ -556,16 +561,16 @@ export function NewPurchaseForm() {
             {/* Supplier */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-[#212529]/80">Founisè <span className="text-red-500">*</span></span>
+                <span className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Fournisseur ', ht: 'Founisè ' })}<span className="text-red-500">*</span></span>
                 <button type="button" onClick={() => setSupplierModal(true)}
-                  title="Kreye nouvo founisè"
+                  title={t({ fr: 'Créer nouveau fournisseur', ht: 'Kreye nouvo founisè' })}
                   className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0056b3]/10 text-[#0056b3] hover:bg-[#0056b3] hover:text-white transition text-sm font-bold">
                   +
                 </button>
               </div>
               <Combobox
                 label=""
-                placeholder="Chwazi yon founisè…"
+                placeholder={t({ fr: 'Choisissez un fournisseur…', ht: 'Chwazi yon founisè…' })}
                 options={suppliers}
                 selected={supplier}
                 onSelect={s => { setSupplier(s); setErrors(e => ({ ...e, supplier: '' })); }}
@@ -583,16 +588,16 @@ export function NewPurchaseForm() {
             {/* Product */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-[#212529]/80">Pwodui <span className="text-red-500">*</span></span>
+                <span className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Produit ', ht: 'Pwodui ' })}<span className="text-red-500">*</span></span>
                 <button type="button" onClick={() => setProductModal(true)}
-                  title="Kreye nouvo pwodui"
+                  title={t({ fr: 'Créer nouveau produit', ht: 'Kreye nouvo pwodui' })}
                   className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0056b3]/10 text-[#0056b3] hover:bg-[#0056b3] hover:text-white transition text-sm font-bold">
                   +
                 </button>
               </div>
               <Combobox
                 label=""
-                placeholder="Chwazi yon pwodui…"
+                placeholder={t({ fr: 'Choisissez un produit…', ht: 'Chwazi yon pwodui…' })}
                 options={products}
                 selected={product}
                 onSelect={p => { setProduct(p); setErrors(e => ({ ...e, product: '' })); }}
@@ -604,7 +609,7 @@ export function NewPurchaseForm() {
                       <p className="text-[11px] text-[#212529]/40">{p.category}</p>
                     </div>
                     <span className={`text-xs font-semibold ${p.stock_quantity < 5 ? 'text-orange-500' : 'text-[#212529]/40'}`}>
-                      Stock: {p.stock_quantity}
+                      {t({ fr: 'Stock: ', ht: 'Stock: ' })}{p.stock_quantity}
                     </span>
                   </div>
                 )}
@@ -616,7 +621,7 @@ export function NewPurchaseForm() {
           {/* ── Quantity + Unit Price + Discount ── */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#212529]/80">Kantite</label>
+              <label className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Quantité', ht: 'Kantite' })}</label>
               <input
                 type="number" min={1} value={quantity}
                 onChange={e => { setQuantity(Math.max(1, Number(e.target.value) || 1)); setErrors(e2 => ({ ...e2, quantity: '' })); }}
@@ -626,7 +631,7 @@ export function NewPurchaseForm() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#212529]/80">Pri inite (HTG)</label>
+              <label className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Prix unitaire (HTG)', ht: 'Pri inite (HTG)' })}</label>
               <input
                 type="number" min={0} step={0.01} value={unitPrice}
                 onChange={e => { setUnitPrice(Number(e.target.value) || 0); setErrors(e2 => ({ ...e2, unitPrice: '' })); }}
@@ -637,7 +642,7 @@ export function NewPurchaseForm() {
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-[#212529]/80">
-                Rabè / Eskonpt (%)
+                {t({ fr: 'Remise / Escompte (%)', ht: 'Rabè / Eskonpt (%)' })}
               </label>
               <div className="relative">
                 <input
@@ -653,7 +658,7 @@ export function NewPurchaseForm() {
 
           {/* ── Payment Status toggle ── */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-[#212529]/80">Estati Peman</label>
+            <label className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Statut du Paiement', ht: 'Estati Peman' })}</label>
             <div className="flex gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
               {(['Payé', 'À Crédit'] as PaymentStatusKey[]).map(s => (
                 <button key={s} type="button" onClick={() => setPayStatus(s)}
@@ -661,7 +666,7 @@ export function NewPurchaseForm() {
                     ${payStatus === s
                       ? s === 'Payé' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white text-[#212529] hover:bg-slate-100'}`}>
-                  {s === 'Payé' ? '✓ Peye' : '⏳ À Crédit'}
+                  {s === 'Payé' ? t({ fr: '✓ Payé', ht: '✓ Peye' }) : t({ fr: '⏳ À Crédit', ht: '⏳ À Kredi' })}
                 </button>
               ))}
             </div>
@@ -670,7 +675,7 @@ export function NewPurchaseForm() {
           {/* ── Payment Method (only when Payé) ── */}
           {payStatus === 'Payé' && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-[#212529]/80">Metòd Peman</label>
+              <label className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Méthode de Paiement', ht: 'Metòd Peman' })}</label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {PAYMENT_METHODS.map(m => (
                   <button
@@ -700,10 +705,10 @@ export function NewPurchaseForm() {
                   <span className="text-lg mt-0.5">ℹ️</span>
                   <div>
                     <p className="text-xs font-semibold text-amber-800">
-                      Peman via {selectedMethod.key}
+                      {t({ fr: 'Paiement via ', ht: 'Peman via ' })}{selectedMethod.key}
                     </p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      Nimewo <span className="font-bold">{selectedMethod.phone}</span> a ap anrejistre nan metadata tranzaksyon an.
+                      {t({ fr: 'Numéro ', ht: 'Nimewo ' })}<span className="font-bold">{selectedMethod.phone}</span> a ap anrejistre nan metadata tranzaksyon an.
                     </p>
                   </div>
                 </div>
@@ -715,21 +720,21 @@ export function NewPurchaseForm() {
           <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5">
             <div className="space-y-2.5">
               <div className="flex justify-between text-sm text-[#212529]/60">
-                <span>Sous-total ({quantity} × {fmt(unitPrice)})</span>
+                <span>{t({ fr: 'Sous-total ', ht: 'Sous-total ' })}({quantity} × {fmt(unitPrice)})</span>
                 <span className="font-medium text-[#212529]">{fmt(subtotal)}</span>
               </div>
               {discountPct > 0 && (
                 <div className="flex justify-between text-sm text-red-600">
-                  <span>Rabè ({discountPct}%)</span>
+                  <span>{t({ fr: 'Remise ', ht: 'Rabè ' })}({discountPct}%)</span>
                   <span className="font-semibold">−{fmt(discountAmt)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center border-t border-slate-200 pt-2.5">
                 <div>
-                  <p className="text-sm font-medium text-[#212529]/60">Total Final</p>
+                  <p className="text-sm font-medium text-[#212529]/60">{t({ fr: 'Total Final', ht: 'Total Final' })}</p>
                   {payStatus === 'Payé' && selectedMethod.phone && (
                     <p className="text-xs text-[#212529]/40 mt-0.5">
-                      Peman: {selectedMethod.key} · {selectedMethod.phone}
+                      {t({ fr: 'Paiement: ', ht: 'Peman: ' })}{selectedMethod.key} · {selectedMethod.phone}
                     </p>
                   )}
                 </div>
@@ -758,7 +763,7 @@ export function NewPurchaseForm() {
               hover:bg-[#0047a1] hover:scale-[1.01] active:scale-[0.99]
               disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
           >
-            {saving ? 'Anrejistreman…' : payStatus === 'À Crédit' ? '⏳ Anrejistre Acha a Kredi' : '✓ Anrejistre Acha'}
+            {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : payStatus === 'À Crédit' ? t({ fr: '⏳ Enregistrer Achat à Crédit', ht: '⏳ Anrejistre Acha a Kredi' }) : t({ fr: '✓ Enregistrer Achat', ht: '✓ Anrejistre Acha' })}
           </button>
 
         </form>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from './LanguageWrapper';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { InvoiceModal } from './InvoiceModal';
@@ -51,19 +52,20 @@ const METHOD_BADGE: Record<string, string> = {
 };
 
 function PaymentBadge({ method, status }: { method: string; status?: string }) {
+  const { t } = useLanguage();
   if (status === 'credit' || status === 'À Crédit') {
     return (
       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-        ⏳ Crédit
+        ⏳ {t({ fr: 'Crédit', ht: 'Kredi' })}
       </span>
     );
   }
-  const label: Record<string, string> = {
-    Cash: 'Espèces', MonCash: 'MonCash', Natcash: 'NatCash', Card: 'Visa', Crédit: 'Crédit',
+  const label: Record<string, { fr: string; ht: string }> = {
+    Cash: { fr: 'Espèces', ht: 'Kach' }, MonCash: { fr: 'MonCash', ht: 'MonCash' }, Natcash: { fr: 'NatCash', ht: 'NatCash' }, Card: { fr: 'Visa', ht: 'Visa' },
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${METHOD_BADGE[method] ?? 'bg-slate-100 text-slate-600'}`}>
-      {label[method] ?? method}
+      {label[method] ? t(label[method]) : method}
     </span>
   );
 }
@@ -90,6 +92,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
   const [sales, setSales]   = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeInvoice, setActiveInvoice] = useState<string | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     async function load() {
@@ -182,7 +185,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
           <div>
             <h2 className="text-xl font-semibold text-[#212529]">Istorik Vant yo</h2>
             <p className="mt-1 text-sm text-[#212529]/60">
-              {loading ? 'Ap chaje…' : `${groups.length} fakti`}
+              {loading ? t({ fr: 'Chargement…', ht: 'Ap chaje…' }) : `${groups.length} fakti`}
             </p>
           </div>
         </div>

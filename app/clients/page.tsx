@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { supabase } from '../../lib/supabaseClient';
 import { upsertClient, deleteClient, markClientCreditPaid } from '../actions/clients';
+import { useLanguage } from '../../components/LanguageWrapper';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ function ClientModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useLanguage();
   const [name,  setName]  = useState(client?.name  ?? '');
   const [phone, setPhone] = useState(client?.phone ?? '');
   const [email, setEmail] = useState(client?.email ?? '');
@@ -110,7 +112,7 @@ function ClientModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setErr('Non kliyan an obligatwa.');
+    if (!name.trim()) return setErr(t({ fr: 'Le nom du client est obligatoire.', ht: 'Non kliyan an obligatwa.' }));
     setSaving(true); setErr('');
     try {
       await upsertClient({ id: client?.id, name, phone: phone || undefined, email: email || undefined });
@@ -126,9 +128,9 @@ function ClientModal({
       <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div>
-            <p className="text-xs uppercase tracking-widest text-[var(--color-muted)]">{client ? 'Modifye' : 'Nouvo Kliyan'}</p>
+            <p className="text-xs uppercase tracking-widest text-[var(--color-muted)]">{client ? t({ fr: 'Modifier', ht: 'Modifye' }) : t({ fr: 'Nouveau Client', ht: 'Nouvo Kliyan' })}</p>
             <h3 className="mt-0.5 text-xl font-semibold text-[#001F3F]">
-              {client ? 'Modifye Kliyan' : 'Ajoute yon Kliyan'}
+              {client ? t({ fr: 'Modifier Client', ht: 'Modifye Kliyan' }) : t({ fr: 'Ajouter un Client', ht: 'Ajoute yon Kliyan' })}
             </h3>
           </div>
           <button onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-white">
@@ -137,24 +139,24 @@ function ClientModal({
         </div>
         <form onSubmit={submit} className="space-y-4 p-6">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Non Kliyan *</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Nom Client *', ht: 'Non Kliyan *' })}</label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Marie Josette Pierre" className={inp} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Telefòn</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Téléphone', ht: 'Telefòn' })}</label>
               <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+509 XXXX-XXXX" className={inp} />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Email</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Email', ht: 'Imèl' })}</label>
               <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="email@example.com" className={inp} />
             </div>
           </div>
           {err && <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-400">{err}</p>}
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">Anile</button>
+            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">{t({ fr: 'Annuler', ht: 'Anile' })}</button>
             <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-[#001F3F] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] disabled:opacity-50">
-              {saving ? 'Anrejistreman…' : client ? 'Sove Chanjman' : 'Ajoute Kliyan'}
+              {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : client ? t({ fr: 'Sauvegarder les modifications', ht: 'Sove Chanjman' }) : t({ fr: 'Ajouter Client', ht: 'Ajoute Kliyan' })}
             </button>
           </div>
         </form>
@@ -166,6 +168,7 @@ function ClientModal({
 // ── DeleteModal ───────────────────────────────────────────────────────────────
 
 function DeleteModal({ client, onClose, onConfirm }: { client: Client; onClose: () => void; onConfirm: () => Promise<void> }) {
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const isDemo = client.id.startsWith('demo-');
   return (
@@ -174,17 +177,17 @@ function DeleteModal({ client, onClose, onConfirm }: { client: Client; onClose: 
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
           <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
         </div>
-        <h3 className="text-lg font-semibold text-[#001F3F]">Efase kliyan?</h3>
+        <h3 className="text-lg font-semibold text-[#001F3F]">{t({ fr: 'Supprimer le client?', ht: 'Efase kliyan?' })}</h3>
         <p className="mt-2 text-sm text-[var(--color-muted)]">
-          <span className="font-medium text-[var(--color-text)]">{client.name}</span> pral efase. Ventes li yo ap rete men san lyen.
+          <span className="font-medium text-[var(--color-text)]">{client.name}</span>{' '}{t({ fr: 'sera supprimé. Ses ventes resteront mais sans lien.', ht: 'pral efase. Ventes li yo ap rete men san lyen.' })}
         </p>
-        {isDemo && <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-400">Sa a se done demo — li pa nan DB reyèl.</p>}
+        {isDemo && <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-400">{t({ fr: 'Ceci sont des données démo — elles ne sont pas dans la DB réelle.', ht: 'Sa a se done demo — li pa nan DB reyèl.' })}</p>}
         <div className="mt-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">Anile</button>
+          <button onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">{t({ fr: 'Annuler', ht: 'Anile' })}</button>
           {!isDemo && (
             <button onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }} disabled={busy}
               className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
-              {busy ? 'Efasman…' : 'Wi, Efase'}
+              {busy ? t({ fr: 'Suppression…', ht: 'Efasman…' }) : t({ fr: 'Oui, Supprimer', ht: 'Wi, Efase' })}
             </button>
           )}
         </div>
@@ -211,6 +214,7 @@ function avatarColor(name: string) {
 // ── Inner page (needs useSearchParams) ───────────────────────────────────────
 
 function ClientsCRMInner() {
+  const { t } = useLanguage();
   const params = useSearchParams();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -320,9 +324,16 @@ function ClientsCRMInner() {
   async function handlePayCredit(creditId: string) {
     setBusyCredit(s => new Set(s).add(creditId));
     try {
-      await markClientCreditPaid(creditId);
-      if (selectedId) await loadDetail(selectedId);
-      await loadClients();
+      if (isDemo || creditId.startsWith('cc-') || creditId.startsWith('demo-')) {
+        setCredits(prev => prev.map(c => c.id === creditId ? { ...c, payment_status: 'Payé' as const } : c));
+        setInvoices(prev => prev.map(inv => inv.payment_status === 'À Crédit' ? { ...inv, payment_status: 'Payé' } : inv));
+        if (selectedId) await loadDetail(selectedId);
+        await loadClients();
+      } else {
+        await markClientCreditPaid(creditId);
+        if (selectedId) await loadDetail(selectedId);
+        await loadClients();
+      }
     } catch (e: any) { alert(e.message); }
     finally { setBusyCredit(s => { const n = new Set(s); n.delete(creditId); return n; }); }
   }
@@ -383,25 +394,25 @@ function ClientsCRMInner() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">CRM</p>
-              <h1 className="mt-0.5 text-xl font-semibold text-[#001F3F]">Kliyan yo</h1>
+              <h1 className="mt-0.5 text-xl font-semibold text-[#001F3F]">{t({ fr: 'Clients', ht: 'Kliyan yo' })}</h1>
             </div>
             <button onClick={() => { setEditClient(null); setShowModal(true); }}
               className="flex items-center gap-1.5 rounded-2xl bg-[#001F3F] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#002D5B] active:scale-95">
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              Ajoute
+              {t({ fr: 'Ajouter', ht: 'Ajoute' })}
             </button>
           </div>
 
           {/* Search */}
           <div className="relative mt-3">
             <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Chèche kliyan…"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t({ fr: 'Rechercher client…', ht: 'Chèche kliyan…' })}
               className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text)] outline-none placeholder:text-slate-600 focus:border-[#001F3F]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
           </div>
 
           {/* Filter tabs */}
           <div className="mt-3 flex gap-1.5">
-            {([['all', 'Tout'], ['vip', '⭐ VIP'], ['debtor', '⚠ Debitè']] as const).map(([k, label]) => (
+            {([['all', t({ fr: 'Tout', ht: 'Tout' })], ['vip', t({ fr: '⭐ VIP', ht: '⭐ VIP' })], ['debtor', t({ fr: '⚠ Débiteurs', ht: '⚠ Debitè' })]] as const).map(([k, label]) => (
               <button key={k} onClick={() => setFilter(k)}
                 className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filter === k ? 'bg-[#001F3F] text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100'}`}>
                 {label}
@@ -414,7 +425,7 @@ function ClientsCRMInner() {
         <div className="flex-1 overflow-y-auto py-2">
           {isDemo && (
             <div className="mx-3 mb-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
-              📊 Données démo — konekte DB pou done reyèl
+              {t({ fr: '📊 Données démo — connectez la DB pour des données réelles', ht: '📊 Données démo — konekte DB pou done reyèl' })}
             </div>
           )}
           {loading ? (
@@ -422,7 +433,7 @@ function ClientsCRMInner() {
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
             </div>
           ) : filteredClients.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--color-muted)]">Okenn kliyan jwenn</p>
+            <p className="py-8 text-center text-sm text-[var(--color-muted)]">{t({ fr: 'Aucun client trouvé', ht: 'Okenn kliyan jwenn' })}</p>
           ) : filteredClients.map(c => (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
               className={`w-full px-4 py-3.5 text-left transition ${selectedId === c.id ? 'bg-[#EAF1F8]' : 'hover:bg-slate-50'}`}>
@@ -436,7 +447,7 @@ function ClientsCRMInner() {
                     <p className="truncate text-sm font-semibold text-[var(--color-text)]">{c.name}</p>
                     {c.isVIP && <span className="shrink-0 text-xs">⭐</span>}
                   </div>
-                  <p className="text-xs text-[var(--color-muted)]">{c.saleCount} vente{c.saleCount !== 1 ? 's' : ''} · {fmt(c.totalPurchases)}</p>
+                  <p className="text-xs text-[var(--color-muted)]">{c.saleCount} {c.saleCount !== 1 ? t({ fr: 'ventes', ht: 'vant' }) : t({ fr: 'vente', ht: 'vant' })} · {fmt(c.totalPurchases)}</p>
                 </div>
                 {c.outstanding_balance > 0 && (
                   <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">
@@ -450,7 +461,7 @@ function ClientsCRMInner() {
 
         {/* List footer */}
         <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-muted)]">
-          {filteredClients.length} kliyan · {filteredClients.filter(c => c.isVIP).length} VIP
+          {filteredClients.length}{' '}{t({ fr: 'clients', ht: 'kliyan' })}{' · '}{filteredClients.filter(c => c.isVIP).length} VIP
         </div>
       </aside>
 
@@ -463,7 +474,7 @@ function ClientsCRMInner() {
             <svg className="mb-4 h-16 w-16 text-slate-200" fill="none" stroke="currentColor" strokeWidth={1} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
             </svg>
-            <p className="text-[var(--color-muted)]">Chwazi yon kliyan pou wè detay li</p>
+            <p className="text-[var(--color-muted)]">{t({ fr: 'Choisissez un client pour voir ses détails', ht: 'Chwazi yon kliyan pou wè detay li' })}</p>
           </div>
         ) : (
           <div className="flex flex-1 flex-col overflow-y-auto">
@@ -473,7 +484,7 @@ function ClientsCRMInner() {
               {/* Back on mobile */}
               <button onClick={() => setSelectedId(null)} className="mr-1 flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs font-medium text-[var(--color-muted)] transition hover:bg-slate-100 md:hidden">
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                Retounen
+                {t({ fr: 'Retour', ht: 'Retounen' })}
               </button>
 
               {/* Avatar + name */}
@@ -484,29 +495,29 @@ function ClientsCRMInner() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold text-[#001F3F]">{selected.name}</h2>
                   {selected.isVIP && (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">⭐ VIP</span>
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">{t({ fr: '⭐ VIP', ht: '⭐ VIP' })}</span>
                   )}
                   {selected.outstanding_balance > 0 && (
-                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">⚠ Dèt</span>
+                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">{t({ fr: '⚠ Dette', ht: '⚠ Dèt' })}</span>
                   )}
                 </div>
                 <p className="truncate text-xs text-[var(--color-muted)]">
-                  Kliyan depi {new Date(selected.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                  {' · '}{daysSince(selected.created_at)} jou
+                  {t({ fr: 'Client depuis', ht: 'Kliyan depi' })} {new Date(selected.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                  {' · '}{daysSince(selected.created_at)} {t({ fr: 'jours', ht: 'jou' })}
                 </p>
               </div>
 
               {/* Actions */}
               <div className="flex shrink-0 items-center gap-1.5">
-                <button onClick={handlePrint} title="Imprimer"
+                <button onClick={handlePrint} title={t({ fr: 'Imprimer', ht: 'Enprime' })}
                   className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 </button>
-                <button onClick={() => { setEditClient(selected); setShowModal(true); }} title="Éditer"
+                <button onClick={() => { setEditClient(selected); setShowModal(true); }} title={t({ fr: 'Modifier', ht: 'Modifye' })}
                   className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 </button>
-                <button onClick={() => setDeleteTarget(selected)} title="Supprimer"
+                <button onClick={() => setDeleteTarget(selected)} title={t({ fr: 'Supprimer', ht: 'Efase' })}
                   className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-red-500/15 hover:text-red-400">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
@@ -518,15 +529,15 @@ function ClientsCRMInner() {
 
               {/* ── Profile ── */}
               <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 backdrop-blur-xl">
-                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Pwofil Kliyan</p>
+                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Profil Client', ht: 'Pwofil Kliyan' })}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { label: 'Telefòn', value: selected.phone ?? '—', icon: '📞' },
-                    { label: 'Email', value: selected.email ?? '—', icon: '✉️' },
-                    { label: 'Enskripsyon', value: new Date(selected.created_at).toLocaleDateString('fr-FR'), icon: '📅' },
-                    { label: 'ID Kliyan', value: selected.id.slice(0, 8) + '…', icon: '🔑' },
+                    { label: t({ fr: 'Téléphone', ht: 'Telefòn' }), value: selected.phone ?? '—', icon: '📞' },
+                    { label: t({ fr: 'Email', ht: 'Imèl' }), value: selected.email ?? '—', icon: '✉️' },
+                    { label: t({ fr: 'Inscription', ht: 'Enskripsyon' }), value: new Date(selected.created_at).toLocaleDateString('fr-FR'), icon: '📅' },
+                    { label: t({ fr: 'ID Client', ht: 'ID Kliyan' }), value: selected.id.slice(0, 8) + '…', icon: '🔑' },
                   ].map(({ label, value, icon }) => (
-                    <div key={label} className="rounded-2xl bg-[var(--color-surface)] p-3">
+                    <div key={label as string} className="rounded-2xl bg-[var(--color-surface)] p-3">
                       <p className="mb-1 text-lg">{icon}</p>
                       <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
                       <p className="mt-0.5 break-all text-sm font-medium text-[var(--color-text)]">{value}</p>
@@ -537,15 +548,15 @@ function ClientsCRMInner() {
 
               {/* ── Analytics cards ── */}
               <section>
-                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Analitik</p>
+                <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Analytique', ht: 'Analitik' })}</p>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: 'Total Acha', value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ventes`, color: 'text-[#001F3F]', bg: 'bg-[#001F3F]/10' },
-                    { label: 'Dèt Aktif', value: fmt(selected.outstanding_balance),   sub: totalDebtActive > 0 ? 'En cours' : 'Aucune', color: totalDebtActive > 0 ? 'text-red-400' : 'text-emerald-400', bg: totalDebtActive > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
-                    { label: 'Mwayèn / Vant', value: selected.saleCount ? fmt(selected.totalPurchases / selected.saleCount) : '—', sub: 'Panier moyen', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-                    { label: 'Estatistik', value: selected.isVIP ? '⭐ VIP' : 'Regilye', sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
+                    { label: t({ fr: 'Total Achats', ht: 'Total Acha' }), value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ${t({ fr: 'ventes', ht: 'vant' })}`, color: 'text-[#001F3F]', bg: 'bg-[#001F3F]/10' },
+                    { label: t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), value: fmt(selected.outstanding_balance), sub: totalDebtActive > 0 ? t({ fr: 'En cours', ht: 'An Kou' }) : t({ fr: 'Aucune', ht: 'Okenn' }), color: totalDebtActive > 0 ? 'text-red-400' : 'text-emerald-400', bg: totalDebtActive > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
+                    { label: t({ fr: 'Moyenne / Vente', ht: 'Mwayèn / Vant' }), value: selected.saleCount ? fmt(selected.totalPurchases / selected.saleCount) : '—', sub: t({ fr: 'Panier moyen', ht: 'Mwayèn' }), color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+                    { label: t({ fr: 'Statistiques', ht: 'Estatistik' }), value: selected.isVIP ? t({ fr: '⭐ VIP', ht: '⭐ VIP' }) : t({ fr: 'Régulier', ht: 'Regilye' }), sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
                   ].map(({ label, value, sub, color, bg }) => (
-                    <div key={label} className={`rounded-[20px] border border-[var(--color-border)] ${bg} p-4 backdrop-blur-xl`}>
+                    <div key={label as string} className={`rounded-[20px] border border-[var(--color-border)] ${bg} p-4 backdrop-blur-xl`}>
                       <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
                       <p className={`mt-1.5 text-xl font-bold ${color}`}>{value}</p>
                       <p className="mt-0.5 text-xs text-[var(--color-muted)]">{sub}</p>
@@ -558,7 +569,7 @@ function ClientsCRMInner() {
               {credits.some(c => c.payment_status === 'À Crédit') && (
                 <section className="rounded-[24px] border border-red-500/20 bg-red-500/5 p-5">
                   <div className="mb-4 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-red-400">⚠ Kreyans an kou</p>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-red-400">{t({ fr: '⚠ Créances en cours', ht: '⚠ Kreyans an kou' })}</p>
                     <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400">{fmt(totalDebtActive)}</span>
                   </div>
                   <div className="space-y-2">
@@ -566,13 +577,13 @@ function ClientsCRMInner() {
                       <div key={cc.id} className="flex items-center justify-between rounded-2xl bg-[var(--color-surface)] px-4 py-3">
                         <div>
                           <p className="font-mono text-xs text-[var(--color-muted)]">{cc.invoice_number ?? '—'}</p>
-                          <p className="text-[11px] text-[var(--color-muted)]">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} jou</p>
+                          <p className="text-[11px] text-[var(--color-muted)]">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} {t({ fr: 'jours', ht: 'jou' })}</p>
                         </div>
                         <div className="flex items-center gap-3">
                           <p className="font-bold text-red-400">{fmt(cc.amount, cc.currency)}</p>
                           <button onClick={() => handlePayCredit(cc.id)} disabled={busyCredit.has(cc.id)}
                             className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50">
-                            {busyCredit.has(cc.id) ? '…' : 'Touche ✓'}
+                            {busyCredit.has(cc.id) ? '…' : `${t({ fr: 'Toucher', ht: 'Touche' })} ✓`}
                           </button>
                         </div>
                       </div>
@@ -585,13 +596,13 @@ function ClientsCRMInner() {
               <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] backdrop-blur-xl">
                 <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
                   <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">
-                    Istorik Tranzaksyon ({invoices.length})
+                    {t({ fr: 'Historique Transactions', ht: 'Istorik Tranzaksyon' })} ({invoices.length})
                   </p>
                   {detailLoad && <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />}
                 </div>
 
                 {invoices.length === 0 ? (
-                  <p className="py-10 text-center text-sm text-[var(--color-muted)]">Okenn tranzaksyon anregistre</p>
+                  <p className="py-10 text-center text-sm text-[var(--color-muted)]">{t({ fr: 'Aucune transaction enregistrée', ht: 'Okenn tranzaksyon anregistre' })}</p>
                 ) : (
                   <div className="divide-y divide-[var(--color-border)]">
                     {invoices.map(inv => (
@@ -606,7 +617,7 @@ function ClientsCRMInner() {
                           <p className="text-[11px] text-[var(--color-muted)]">
                             {new Date(inv.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                             {' · '}{inv.payment_method}
-                            {' · '}{inv.itemCount} atik
+                            {' · '}{inv.itemCount} {t({ fr: 'articles', ht: 'atik' })}
                           </p>
                         </div>
                         {/* Amount + Status */}
@@ -623,9 +634,9 @@ function ClientsCRMInner() {
 
                 {/* History total */}
                 <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
-                  <span className="text-xs text-[var(--color-muted)]">{invoices.length} fakti</span>
+                  <span className="text-xs text-[var(--color-muted)]">{invoices.length} {t({ fr: 'factures', ht: 'fakti' })}</span>
                   <span className="text-sm font-bold text-[#001F3F]">
-                    Total: {fmt(invoices.reduce((s, i) => s + i.total, 0))}
+                    {t({ fr: 'Total: ', ht: 'Total: ' })}{fmt(invoices.reduce((s, i) => s + i.total, 0))}
                   </span>
                 </div>
               </section>
@@ -640,28 +651,28 @@ function ClientsCRMInner() {
         <div id="pp-print" style={{ display: 'none' }}>
           <div style={{ fontFamily: 'sans-serif', color: '#111', padding: 32 }}>
             <div style={{ borderBottom: '2px solid #111', paddingBottom: 16, marginBottom: 24 }}>
-              <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>ProfitPilot — Rapport Client</h1>
-              <p style={{ margin: '4px 0 0', color: '#555', fontSize: 13 }}>Imprimé le {new Date().toLocaleDateString('fr-FR')}</p>
+              <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>{t({ fr: 'ProfitPilot — Rapport Client', ht: 'ProfitPilot — Rapò Kliyan' })}</h1>
+              <p style={{ margin: '4px 0 0', color: '#555', fontSize: 13 }}>{t({ fr: 'Imprimé le ', ht: 'Enprime le ' })}{new Date().toLocaleDateString('fr-FR')}</p>
             </div>
             <h2 style={{ fontSize: 20, marginBottom: 4 }}>{selected.name}</h2>
             <p style={{ color: '#555', fontSize: 13, marginBottom: 4 }}>📞 {selected.phone ?? '—'} &nbsp;·&nbsp; ✉️ {selected.email ?? '—'}</p>
-            <p style={{ color: '#555', fontSize: 13, marginBottom: 24 }}>Kliyan depi {new Date(selected.created_at).toLocaleDateString('fr-FR')}</p>
+            <p style={{ color: '#555', fontSize: 13, marginBottom: 24 }}>{t({ fr: 'Client depuis ', ht: 'Kliyan depi ' })}{new Date(selected.created_at).toLocaleDateString('fr-FR')}</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 32 }}>
-              {[['Total Acha', fmt(selected.totalPurchases)], ['Dèt Aktif', fmt(selected.outstanding_balance)], ['Nòm Ventes', String(selected.saleCount)]].map(([l, v]) => (
-                <div key={l} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16 }}>
+              {[[t({ fr: 'Total Achats', ht: 'Total Acha' }), fmt(selected.totalPurchases)], [t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), fmt(selected.outstanding_balance)], [t({ fr: 'Nombre de Ventes', ht: 'Nòm Ventes' }), String(selected.saleCount)]].map(([l, v]) => (
+                <div key={l as string} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16 }}>
                   <p style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', marginBottom: 4 }}>{l}</p>
                   <p style={{ fontSize: 20, fontWeight: 700 }}>{v}</p>
                 </div>
               ))}
             </div>
 
-            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Istorik Tranzaksyon</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{t({ fr: 'Historique Transactions', ht: 'Istorik Tranzaksyon' })}</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f5f5f5' }}>
-                  {['Dat', 'Nimewo Fakti', 'Metòd', 'Montan', 'Estati'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, textTransform: 'uppercase', color: '#555' }}>{h}</th>
+                  {[t({ fr: 'Date', ht: 'Dat' }), t({ fr: 'Numéro Facture', ht: 'Nimewo Fakti' }), t({ fr: 'Méthode', ht: 'Metòd' }), t({ fr: 'Montant', ht: 'Montan' }), t({ fr: 'Statut', ht: 'Estati' })].map(h => (
+                    <th key={h as string} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, textTransform: 'uppercase', color: '#555' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -677,7 +688,7 @@ function ClientsCRMInner() {
                 ))}
               </tbody>
             </table>
-            <p style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center' }}>ProfitPilot · Rapport généré automatiquement</p>
+            <p style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center' }}>{t({ fr: 'ProfitPilot · Rapport généré automatiquement', ht: 'ProfitPilot · Rapò otomatikman' })}</p>
           </div>
         </div>
       )}

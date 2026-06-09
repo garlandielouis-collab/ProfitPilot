@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { getReportsDataAction, type ReportPeriod } from '../actions/reports';
@@ -239,12 +240,12 @@ function KpiCard({
               color === 'blue'  ? 'text-[#1D4ED8]' : 'text-[#0F172A]';
 
   return (
-    <div className={`rounded-2xl border-2 p-4 ${bg}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">{label}</p>
-      <p className={`text-[22px] font-bold tabular-nums mt-1 ${vc}`}>{value}</p>
-      {sub && <p className="text-[11px] text-[#94A3B8] mt-[2px]">{sub}</p>}
+    <div className={`rounded-xl md:rounded-2xl border-2 p-3 md:p-4 ${bg}`}>
+      <p className="text-[10px] md:text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B] line-clamp-2">{label}</p>
+      <p className={`text-lg md:text-[22px] font-bold tabular-nums mt-1 md:mt-2 break-words ${vc}`}>{value}</p>
+      {sub && <p className="text-[10px] md:text-[11px] text-[#94A3B8] mt-1 md:mt-[2px] line-clamp-1">{sub}</p>}
       {trend && (
-        <p className={`text-[11px] font-semibold mt-1 ${trend.startsWith('+') ? 'text-[#12B981]' : 'text-[#EF4444]'}`}>
+        <p className={`text-[10px] md:text-[11px] font-semibold mt-1 ${trend.startsWith('+') ? 'text-[#12B981]' : 'text-[#EF4444]'}`}>
           {trend}
         </p>
       )}
@@ -296,6 +297,19 @@ function RapportsPage() {
     netProfit: DEMO_EQUITY.resultatNet,
     cashTotal: DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash,
   });
+
+  // ── Lazy print portal — only render ALL 4 reports when user clicks Print ────
+  const [showPrintPortal, setShowPrintPortal] = useState(false);
+  const handleBeforePrint = useCallback(() => {
+    flushSync(() => setShowPrintPortal(true));
+  }, []);
+
+  useEffect(() => {
+    if (!showPrintPortal) return;
+    const onAfterPrint = () => setShowPrintPortal(false);
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => window.removeEventListener('afterprint', onAfterPrint);
+  }, [showPrintPortal]);
 
   // ── Re-fetch every time period or year changes ──────────────────────────────
   useEffect(() => {
@@ -355,45 +369,45 @@ function RapportsPage() {
   return (
     <>
       <main className="min-h-screen bg-[#F1F5F9] no-print">
-        <div className="max-w-[1160px] mx-auto px-4 py-6 space-y-6">
+        <div className="w-full max-w-full lg:max-w-[1160px] mx-auto px-3 md:px-4 py-4 md:py-6 space-y-4 md:space-y-6">
 
           {/* ── Page header ── */}
-          <header className="bg-white rounded-3xl border border-[#E2E8F0] p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#12B981]">
-                  Rapports Financiers
-                </p>
-                {isDemo && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-500">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                    Données démo
-                  </span>
-                )}
+          <header className="bg-white rounded-2xl md:rounded-3xl border border-[#E2E8F0] p-4 md:p-6 flex flex-col gap-4 md:gap-0 md:flex-row md:items-center md:justify-between shadow-sm">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <p className="text-[10px] md:text-[11px] font-semibold uppercase tracking-[0.18em] text-[#12B981]">
+                    {t({ fr: 'Rapports Financiers', ht: 'Rapò Finansye' })}
+                  </p>
+                  {isDemo && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-500 flex-shrink-0">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                      {t({ fr: 'Données démo', ht: 'Done demo' })}
+                    </span>
+                  )}
               </div>
-              <h1 className="text-[26px] font-bold text-[#0F172A] leading-tight">{companyName}</h1>
-              <p className="text-[13px] text-[#64748B] mt-1">
+              <h1 className="text-xl md:text-[26px] font-bold text-[#0F172A] leading-tight break-words">{companyName}</h1>
+              <p className="text-[12px] md:text-[13px] text-[#64748B] mt-1">
                 Exercice {new Date().getFullYear()} · Exprimé en {getCurrencyName(currency)}
               </p>
             </div>
-            <ReportActions reportTitle={reportType} companyName={companyName} />
+            <ReportActions reportTitle={reportType} companyName={companyName} onBeforePrint={handleBeforePrint} />
           </header>
 
           {/* ── KPI strip ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard label="Chiffre d'affaires" value={htg(kpi.caNet, currency)}     sub={`Exercice ${new Date().getFullYear()}`} color="navy"  />
-            <KpiCard label="Marge brute"        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
-            <KpiCard label="Résultat net"        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
-            <KpiCard label="Trésorerie totale"  value={htg(kpi.cashTotal, currency)} sub="Disponible"                             color="blue"  />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+            <KpiCard label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })} value={htg(kpi.caNet, currency)}     sub={`Exercice ${new Date().getFullYear()}`} color="navy"  />
+            <KpiCard label={t({ fr: 'Marge brute', ht: 'Maj brit' })}        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
+            <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
+            <KpiCard label={t({ fr: 'Trésorerie totale', ht: 'Trezoreri total' })}  value={htg(kpi.cashTotal, currency)} sub={t({ fr: 'Disponible', ht: 'Disponib' })}                             color="blue"  />
           </div>
 
           {/* ── Period selector ── */}
           <div className="bg-white rounded-2xl border border-[#E2E8F0] px-5 py-4 shadow-sm">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">
-                  Période d'analyse
-                </p>
+                  <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">
+                    {t({ fr: "Période d'analyse", ht: 'Periyòd analiz' })}
+                  </p>
                 <div className="flex items-center gap-2">
                   {loading && (
                     <svg className="h-4 w-4 animate-spin text-[#12B981]" fill="none" viewBox="0 0 24 24">
@@ -434,11 +448,11 @@ function RapportsPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                   </svg>
-                  <p className="text-[12px] font-medium text-[#64748B]">Chargement des données…</p>
+                  <p className="text-[12px] font-medium text-[#64748B]">{t({ fr: 'Chargement des données…', ht: 'Chajman done yo…' })}</p>
                 </div>
               </div>
             )}
-            <div className="w-full overflow-hidden rounded-2xl shadow-xl" style={{ maxWidth: '210mm' }}>
+            <div className="w-full overflow-x-auto overflow-y-visible rounded-2xl shadow-xl" style={{ maxWidth: '210mm' }}>
               {reportType === 'income'   && <IncomeStatement   meta={meta} data={incomeData}   showPrevious />}
               {reportType === 'balance'  && <BalanceSheet       meta={meta} data={balanceData}  showPrevious />}
               {reportType === 'cashflow' && <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />}
@@ -449,22 +463,24 @@ function RapportsPage() {
           {/* ── Bottom action bar ── */}
           <div className="bg-white rounded-3xl border border-[#E2E8F0] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
             <div>
-              <p className="text-[13px] font-semibold text-[#0F172A]">Télécharger tous les états financiers</p>
-              <p className="text-[11px] text-[#94A3B8] mt-[2px]">PDF A4 · Prêt à l'impression · Qualité comptable</p>
+              <p className="text-[13px] font-semibold text-[#0F172A]">{t({ fr: 'Télécharger tous les états financiers', ht: 'Telechaje tout eta finansye yo' })}</p>
+              <p className="text-[11px] text-[#94A3B8] mt-[2px]">{t({ fr: 'PDF A4 · Prêt à l\'impression · Qualité comptable', ht: 'PDF A4 · Pare pou enprime · Kalite kontab' })}</p>
             </div>
-            <ReportActions reportTitle="Pack complet" companyName={companyName} />
+            <ReportActions reportTitle={t({ fr: 'Pack complet', ht: 'Pake konplè' })} companyName={companyName} onBeforePrint={handleBeforePrint} />
           </div>
 
         </div>
       </main>
 
-      {/* ── Print portal ── */}
-      <div className="print-portal">
-        <IncomeStatement   meta={meta} data={incomeData}   showPrevious />
-        <BalanceSheet       meta={meta} data={balanceData}  showPrevious />
-        <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />
-        <EquityStatement    meta={meta} data={equityData}   />
-      </div>
+      {/* ── Print portal (lazy — only rendered when user clicks Print/PDF) ── */}
+      {showPrintPortal && (
+        <div className="print-portal">
+          <IncomeStatement   meta={meta} data={incomeData}   showPrevious />
+          <BalanceSheet       meta={meta} data={balanceData}  showPrevious />
+          <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />
+          <EquityStatement    meta={meta} data={equityData}   />
+        </div>
+      )}
     </>
   );
 }

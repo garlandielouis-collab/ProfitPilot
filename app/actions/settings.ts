@@ -2,6 +2,7 @@
 
 import { revalidatePath }   from 'next/cache';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
+import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { getBusinessContext } from '../../lib/serverAuth';
 import {
   businessProfileSchema,
@@ -78,6 +79,11 @@ export async function upsertBusinessProfile(raw: BusinessProfileInput) {
 
   revalidatePath('/settings');
   revalidatePath('/dashboard');
+  revalidatePath('/rapports');
+  revalidatePath('/rapports/comptabilite');
+  revalidatePath('/expenses');
+  revalidatePath('/dettes');
+  revalidatePath('/sales');
 }
 
 // ── User Preferences ──────────────────────────────────────────────────────────
@@ -178,6 +184,12 @@ export async function exportUserData() {
 export async function deleteAccount() {
   const { user, supabase } = await getAuthUser();
 
+  // Exiger une ré-authentification récente (protection anti-CSRF/détournement)
+  const { error: recentAuthError } = await supabase.auth.getUser();
+  if (recentAuthError || !user) {
+    throw new Error('Session invalide. Veuillez vous reconnecter.');
+  }
+
   // Cascade-delete owned data in order (foreign keys)
   const tables: Array<{ table: string; col: string }> = [
     { table: 'sales',            col: 'owner_id'  },
@@ -194,14 +206,15 @@ export async function deleteAccount() {
     if (error) console.error(`Error deleting ${table}:`, error.message);
   }
 
-  // Delete the user from Auth via Admin API (requires valid service_role key)
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (serviceKey) {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${user.id}`,
-      { method: 'DELETE', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
-    );
-    if (!res.ok) console.error(`Error deleting auth user: ${res.status} ${await res.text()}`);
+  // Supprimer l'utilisateur Auth via le service client (service_role)
+  try {
+    const svc = getSupabaseService();
+    const { error: deleteErr } = await svc.auth.admin.deleteUser(user.id);
+    if (deleteErr) {
+      console.error(`Error deleting auth user via Admin API: ${deleteErr.message}`);
+    }
+  } catch (e: any) {
+    console.error(`Error deleting auth user: ${e.message}`);
   }
 
   await supabase.auth.signOut();

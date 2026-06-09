@@ -1,8 +1,8 @@
 'use server';
 
-import { getBusinessContext } from '../../lib/serverAuth';
+import { getBusinessContext, getBusinessExchangeRate } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
-import { classifyExpenseCategory, isBankPaymentMethod } from '../../lib/accountingEngine';
+import { classifyExpenseCategory, isBankPaymentMethod, isAssetCategory, classifyAssetCategory, classifyTransaction, CHART_OF_ACCOUNTS, ACCOUNT_CODES as ENGINE_CODES } from '../../lib/accountingEngine';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,40 +32,15 @@ export type JournalEntryPayload = {
   reference_type?: string;      // 'sale' | 'purchase' | 'expense' | 'manual'
   reference_id?:  string;
   currency?:      'HTG' | 'USD';
+  exchangeRate?:  number;
   lines:          JournalEntryLine[];
 };
 
 // ── CLASSIFICATION ENGINE ─────────────────────────────────────────────────────
 // Maps transaction types to account codes (Plan Comptable Haïtien)
+// ACCOUNT_CODES is now in lib/accountingEngine (CHART_OF_ACCOUNTS)
 
-const ACCOUNT_CODES = {
-  CAISSE:           '1110',
-  BANQUE:           '1120',
-  CLIENTS:          '1130',
-  STOCK:            '1140',
-  FOURNITURES_ACT:  '1150',
-  EQUIPEMENTS:      '1210',
-  FOURNISSEURS:     '2110',
-  SALAIRES_PASSIF:  '2120',
-  TAXES_PASSIF:     '2130',
-  EMPRUNTS:         '2200',
-  CAPITAL:          '3100',
-  RETAINED:         '3200',
-  VENTES:           '4100',
-  SERVICES:         '4200',
-  REVENUS_DIVERS:   '4900',
-  ACHATS:           '5100',
-  SALAIRES:         '5200',
-  LOYER:            '5300',
-  FOURNITURES_CH:   '5400',
-  MARKETING:        '5500',
-  INTERNET:         '5600',
-  TRANSPORT:        '5700',
-  INTERETS:         '5800',
-  CHARGES_DIVERSES: '5900',
-} as const;
-
-type AccountCode = typeof ACCOUNT_CODES[keyof typeof ACCOUNT_CODES];
+type AccountCode = string;
 
 // Classify expense category → account code
 // helpers are now imported from lib/accountingEngine
@@ -145,6 +120,7 @@ function generateEntryNumber(): string {
 
 export async function createJournalEntry(payload: JournalEntryPayload): Promise<string> {
   const { supabase, businessId, userId } = await getBusinessContext();
+  const exchangeRate = payload.exchangeRate ?? 1;
 
   // Validate double-entry balance
   const totalDebit  = payload.lines.reduce((s, l) => s + l.debit,  0);
@@ -190,7 +166,7 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
       description:    payload.description,
       status:         'posted',
       currency:       payload.currency ?? 'HTG',
-      exchange_rate:  1,
+      exchange_rate:  exchangeRate,
       total_debit:    totalDebit,
       total_credit:   totalCredit,
       is_auto:        payload.reference_type !== 'manual',
@@ -211,9 +187,9 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
     debit_amount:     l.debit,
     credit_amount:    l.credit,
     currency:         payload.currency ?? 'HTG',
-    exchange_rate:    1,
-    base_debit:       l.debit,
-    base_credit:      l.credit,
+    exchange_rate:    exchangeRate,
+    base_debit:       parseFloat((l.debit * exchangeRate).toFixed(2)),
+    base_credit:      parseFloat((l.credit * exchangeRate).toFixed(2)),
   }));
 
   const { error: linesErr } = await supabase.from('journal_entry_lines').insert(lines);
@@ -234,13 +210,14 @@ export async function recordSaleEntry(params: {
   date: string;
   currency: 'HTG' | 'USD';
   paymentMethod?: string;
+  exchangeRate?: number;
 }): Promise<void> {
   try {
     const debitAccount = params.isCredit
-      ? ACCOUNT_CODES.CLIENTS
+      ? ENGINE_CODES.CLIENTS
       : isBankPaymentMethod(params.paymentMethod)
-        ? ACCOUNT_CODES.BANQUE
-        : ACCOUNT_CODES.CAISSE;
+        ? ENGINE_CODES.BANQUE
+        : ENGINE_CODES.CAISSE;
 
     await createJournalEntry({
       date:           params.date,
@@ -249,15 +226,16 @@ export async function recordSaleEntry(params: {
       reference_type: 'sale',
       reference_id:   params.saleId,
       currency:       params.currency,
+      exchangeRate:   params.exchangeRate,
       lines: [
         {
           account_code: debitAccount,
-          description:  params.isCredit ? 'Vente à crédit — Clients' : `Vente comptant — ${debitAccount === ACCOUNT_CODES.BANQUE ? 'Banque' : 'Caisse'}`,
+          description:  params.isCredit ? 'Vente à crédit — Clients' : `Vente comptant — ${debitAccount === ENGINE_CODES.BANQUE ? 'Banque' : 'Caisse'}`,
           debit:  params.amount,
           credit: 0,
         },
         {
-          account_code: ACCOUNT_CODES.VENTES,
+          account_code: ENGINE_CODES.VENTES,
           description:  `Revenu vente — ${params.invoiceNumber}`,
           debit:  0,
           credit: params.amount,
@@ -279,13 +257,14 @@ export async function recordPurchaseEntry(params: {
   date: string;
   currency: 'HTG' | 'USD';
   paymentMethod?: string;
+  exchangeRate?: number;
 }): Promise<void> {
   try {
     const creditAccount = params.isCredit
-      ? ACCOUNT_CODES.FOURNISSEURS
+      ? ENGINE_CODES.FOURNISSEURS
       : isBankPaymentMethod(params.paymentMethod)
-        ? ACCOUNT_CODES.BANQUE
-        : ACCOUNT_CODES.CAISSE;
+        ? ENGINE_CODES.BANQUE
+        : ENGINE_CODES.CAISSE;
 
     await createJournalEntry({
       date:           params.date,
@@ -294,16 +273,17 @@ export async function recordPurchaseEntry(params: {
       reference_type: 'purchase',
       reference_id:   params.purchaseId,
       currency:       params.currency,
+      exchangeRate:   params.exchangeRate,
       lines: [
         {
-          account_code: ACCOUNT_CODES.ACHATS,
+          account_code: ENGINE_CODES.ACHATS,
           description:  'Achat de marchandises',
           debit:  params.amount,
           credit: 0,
         },
         {
           account_code: creditAccount,
-          description:  params.isCredit ? 'Dette fournisseur' : `Paiement ${creditAccount === ACCOUNT_CODES.BANQUE ? 'Banque' : 'Caisse'}`,
+          description:  params.isCredit ? 'Dette fournisseur' : `Paiement ${creditAccount === ENGINE_CODES.BANQUE ? 'Banque' : 'Caisse'}`,
           debit:  0,
           credit: params.amount,
         },
@@ -320,31 +300,57 @@ export async function recordExpenseEntry(params: {
   description: string;
   amount: number;
   categoryName: string;
+  paymentStatus?: string;   // 'paid' | 'pending' | 'credit'
   date: string;
   currency: 'HTG' | 'USD';
   paymentMethod?: string;
+  exchangeRate?: number;
 }): Promise<void> {
   try {
     const { supabase, businessId } = await getBusinessContext();
 
-    // Idempotence: skip if a journal entry already exists for this expense
+    // Idempotence: if a journal entry already exists (likely from DB trigger with wrong codes),
+    // void it and create a correct one instead of skipping
     const { data: existing } = await supabase
       .from('journal_entries')
-      .select('id, total_debit, total_credit')
+      .select('id, total_debit, total_credit, status')
       .eq('business_id', businessId)
       .eq('reference_type', 'expense')
       .eq('reference_id', params.expenseId)
       .maybeSingle();
 
     if (existing?.id) {
-      // Optionally validate amounts here; skip to avoid duplicate entries
-      return;
+      if (existing.status === 'void') {
+        // Previous entry was already voided (e.g. by deleteExpense) — skip creation
+        return;
+      }
+      // Void the trigger-created entry with wrong codes so we can create the correct one
+      await supabase
+        .from('journal_entries')
+        .update({ status: 'void', voided_reason: 'Remplacé par écriture correcte (app-side)' })
+        .eq('id', existing.id);
     }
 
-    const debitCode  = classifyExpenseCategory(params.categoryName);
-    const creditCode = isBankPaymentMethod(params.paymentMethod)
-      ? ACCOUNT_CODES.BANQUE
-      : ACCOUNT_CODES.CAISSE;
+    // ── DÉBIT: asset account if it's an asset purchase, otherwise expense account ──
+    const debitCode = isAssetCategory(params.categoryName)
+      ? classifyAssetCategory(params.categoryName)
+      : classifyExpenseCategory(params.categoryName);
+
+    const debitName = isAssetCategory(params.categoryName)
+      ? 'Achat actif — capitalisation'
+      : 'Dépense';
+
+    // ── CRÉDIT: Accounts Payable if unpaid, otherwise Cash/Bank ──
+    const isUnpaid = params.paymentStatus === 'credit' || params.paymentStatus === 'pending';
+    const creditCode = isUnpaid
+      ? ENGINE_CODES.FOURNISSEURS  // 2110 — Dette fournisseur
+      : isBankPaymentMethod(params.paymentMethod)
+        ? ENGINE_CODES.BANQUE
+        : ENGINE_CODES.CAISSE;
+
+    const creditName = isUnpaid
+      ? 'Dette fournisseur (à payer)'
+      : 'Paiement';
 
     await createJournalEntry({
       date:           params.date,
@@ -352,9 +358,10 @@ export async function recordExpenseEntry(params: {
       reference_type: 'expense',
       reference_id:   params.expenseId,
       currency:       params.currency,
+      exchangeRate:   params.exchangeRate,
       lines: [
-        { account_code: debitCode,  description: params.description, debit: params.amount, credit: 0 },
-        { account_code: creditCode, description: 'Paiement',           debit: 0,             credit: params.amount },
+        { account_code: debitCode,  description: `${debitName} — ${params.description}`, debit: params.amount, credit: 0 },
+        { account_code: creditCode, description: creditName,                              debit: 0,             credit: params.amount },
       ],
     });
   } catch (e) {
@@ -373,6 +380,7 @@ export type BackfillResult = {
 
 export async function backfillAllJournalEntries(): Promise<BackfillResult> {
   const { supabase, businessId } = await getBusinessContext();
+  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
   const result: BackfillResult = { sales: 0, purchases: 0, expenses: 0, errors: [] };
 
   // ── 1. Ventes ────────────────────────────────────────────────────────────────
@@ -396,8 +404,8 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
     try {
       const isCredit = s.payment_status === 'credit';
       const debitCode = isCredit
-        ? ACCOUNT_CODES.CLIENTS
-        : isBankPaymentMethod(s.payment_method) ? ACCOUNT_CODES.BANQUE : ACCOUNT_CODES.CAISSE;
+        ? ENGINE_CODES.CLIENTS
+        : isBankPaymentMethod(s.payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
       const date = s.sale_date ?? (s.created_at as string).split('T')[0];
       await createJournalEntry({
         date,
@@ -406,9 +414,10 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
         reference_type: 'sale',
         reference_id:   s.id,
         currency:       (s.currency as any) ?? 'HTG',
+        exchangeRate:   (s.currency as any) === 'USD' ? exchangeRate : 1,
         lines: [
           { account_code: debitCode,          description: 'Encaissement / Créance', debit: Number(s.total_amount), credit: 0 },
-          { account_code: ACCOUNT_CODES.VENTES, description: 'Revenu vente',           debit: 0, credit: Number(s.total_amount) },
+          { account_code: ENGINE_CODES.VENTES, description: 'Revenu vente',           debit: 0, credit: Number(s.total_amount) },
         ],
       });
       result.sales++;
@@ -438,8 +447,8 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
     try {
       const isCredit = p.payment_status === 'credit';
       const creditCode = isCredit
-        ? ACCOUNT_CODES.FOURNISSEURS
-        : isBankPaymentMethod(p.payment_method) ? ACCOUNT_CODES.BANQUE : ACCOUNT_CODES.CAISSE;
+        ? ENGINE_CODES.FOURNISSEURS
+        : isBankPaymentMethod(p.payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
       await createJournalEntry({
         date:           p.purchase_date ?? new Date().toISOString().split('T')[0],
         description:    `[Backfill] Acha — ${p.po_number ?? p.id}`,
@@ -447,8 +456,9 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
         reference_type: 'purchase',
         reference_id:   p.id,
         currency:       (p.currency as any) ?? 'HTG',
+        exchangeRate:   (p.currency as any) === 'USD' ? exchangeRate : 1,
         lines: [
-          { account_code: ACCOUNT_CODES.ACHATS, description: 'Achat stock', debit: Number(p.total_amount), credit: 0 },
+          { account_code: ENGINE_CODES.ACHATS, description: 'Achat stock', debit: Number(p.total_amount), credit: 0 },
           { account_code: creditCode,           description: isCredit ? 'Dette fournisseur' : 'Paiement', debit: 0, credit: Number(p.total_amount) },
         ],
       });
@@ -468,11 +478,12 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
 // Reconcile expenses: create journal entries for expenses that have none
 export async function reconcileMissingExpenseEntries(): Promise<number> {
   const { supabase, businessId } = await getBusinessContext();
+  const exchangeRate = await getBusinessExchangeRate(supabase, businessId);
 
   // Get expenses for this business
   const { data: expenses } = await supabase
     .from('expenses')
-    .select('id, description, amount, currency, expense_date, payment_method, expense_categories(name)')
+    .select('id, description, amount, currency, expense_date, payment_method, payment_status, expense_categories(name)')
     .eq('business_id', businessId)
     .is('deleted_at', null);
 
@@ -480,25 +491,19 @@ export async function reconcileMissingExpenseEntries(): Promise<number> {
   for (const e of (expenses ?? [])) {
     const expenseId = (e as any).id;
 
-    const { data: je } = await supabase
-      .from('journal_entries')
-      .select('id')
-      .eq('business_id', businessId)
-      .eq('reference_type', 'expense')
-      .eq('reference_id', expenseId)
-      .maybeSingle();
-
-    if (je?.id) continue;
-
+    // Process all expenses — recordExpenseEntry now voids trigger-created entries
+    // and creates correct ones. This replaces the old skip-if-exists behavior.
     try {
       await recordExpenseEntry({
         expenseId,
         description: (e as any).description ?? 'Dépense',
         amount: parseFloat(String((e as any).amount ?? 0)),
         categoryName: (e as any).expense_categories?.name ?? 'Autre',
+        paymentStatus: (e as any).payment_status ?? 'paid',
         date: (e as any).expense_date ?? new Date().toISOString().split('T')[0],
         currency: ((e as any).currency as any) ?? 'HTG',
         paymentMethod: (e as any).payment_method ?? 'Cash',
+        exchangeRate: ((e as any).currency as any) === 'USD' ? exchangeRate : 1,
       });
       created += 1;
     } catch (err) {
@@ -547,16 +552,35 @@ export async function getJournalEntries(limit = 50) {
       total_debit, total_credit, currency, is_auto,
       journal_entry_lines (
         id, account_id, description, debit_amount, credit_amount,
+        base_debit, base_credit,
         chart_of_accounts ( code, name, account_class )
       )
     `)
     .eq('business_id', businessId)
+    .eq('status', 'posted')
     .order('entry_date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  // Compute HTG-equivalent totals for display (from base_ columns)
+  const rows = (data ?? []).map((entry: any) => {
+    const lines = entry.journal_entry_lines ?? [];
+    const totalDebitBase = lines.reduce(
+      (s: number, l: any) => s + Number(l.base_debit ?? l.debit_amount ?? 0), 0
+    );
+    const totalCreditBase = lines.reduce(
+      (s: number, l: any) => s + Number(l.base_credit ?? l.credit_amount ?? 0), 0
+    );
+    return {
+      ...entry,
+      total_debit_base: parseFloat(totalDebitBase.toFixed(2)),
+      total_credit_base: parseFloat(totalCreditBase.toFixed(2)),
+    };
+  });
+
+  return rows;
 }
 
 export async function getTrialBalance() {
@@ -566,7 +590,7 @@ export async function getTrialBalance() {
   const { data: lines } = await supabase
     .from('journal_entry_lines')
     .select(`
-      account_id, debit_amount, credit_amount,
+      account_id, debit_amount, credit_amount, base_debit, base_credit,
       chart_of_accounts ( code, name, account_class ),
       journal_entries!inner ( business_id, status )
     `)
@@ -580,8 +604,8 @@ export async function getTrialBalance() {
     if (!map[l.account_id]) {
       map[l.account_id] = { code: acc.code, name: acc.name, class: acc.account_class, debit: 0, credit: 0 };
     }
-    map[l.account_id].debit  += Number(l.debit_amount  ?? 0);
-    map[l.account_id].credit += Number(l.credit_amount ?? 0);
+    map[l.account_id].debit  += Number(l.base_debit  ?? l.debit_amount  ?? 0);
+    map[l.account_id].credit += Number(l.base_credit ?? l.credit_amount ?? 0);
   }
 
   const rows = Object.values(map).sort((a, b) => a.code.localeCompare(b.code));
@@ -605,7 +629,7 @@ export async function getIncomeStatement(year: number, month?: number) {
   const { data: lines } = await supabase
     .from('journal_entry_lines')
     .select(`
-      debit_amount, credit_amount,
+      debit_amount, credit_amount, base_debit, base_credit,
       chart_of_accounts ( code, name, account_class ),
       journal_entries!inner ( business_id, status, entry_date )
     `)
@@ -621,8 +645,8 @@ export async function getIncomeStatement(year: number, month?: number) {
   for (const l of lines ?? []) {
     const acc = (l as any).chart_of_accounts;
     if (!acc) continue;
-    const credit = Number(l.credit_amount ?? 0);
-    const debit  = Number(l.debit_amount  ?? 0);
+    const credit = Number(l.base_credit ?? l.credit_amount ?? 0);
+    const debit  = Number(l.base_debit  ?? l.debit_amount  ?? 0);
 
     if (acc.account_class === 'Revenue') {
       const amt = credit - debit; // Revenue has credit normal balance
@@ -650,7 +674,7 @@ export async function getBalanceSheet() {
   const { data: lines } = await supabase
     .from('journal_entry_lines')
     .select(`
-      debit_amount, credit_amount,
+      debit_amount, credit_amount, base_debit, base_credit,
       chart_of_accounts ( code, name, account_class ),
       journal_entries!inner ( business_id, status )
     `)
@@ -664,8 +688,8 @@ export async function getBalanceSheet() {
   for (const l of lines ?? []) {
     const acc   = (l as any).chart_of_accounts;
     if (!acc) continue;
-    const debit  = Number(l.debit_amount  ?? 0);
-    const credit = Number(l.credit_amount ?? 0);
+    const debit  = Number(l.base_debit  ?? l.debit_amount  ?? 0);
+    const credit = Number(l.base_credit ?? l.credit_amount ?? 0);
 
     if (acc.account_class === 'Asset') {
       assets[acc.name]      = (assets[acc.name]      ?? 0) + (debit - credit);

@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from './LanguageWrapper';
 import { Logo } from './Logo';
 import { PilotAIGuide } from './PilotAIGuide';
+import { WelcomeAnimation } from './WelcomeAnimation';
+import { useSubscriptionCheck } from '../hooks/useSubscription';
 
 type NavItem = {
   title: { fr: string; ht: string };
@@ -238,6 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
   const { language, setLanguage, t } = useLanguage();
+  const { isExpired, isPublic: subPublic, checking: subChecking } = useSubscriptionCheck();
   const [user, setUser] = useState<any>(null);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [mobilePreview, setMobilePreview] = useState(false);
@@ -251,11 +254,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let listener: { subscription: { unsubscribe: () => void } } | null = null;
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (!mounted) return;
-      setUser(session?.user ?? null);
-    });
+    try {
+      const sub = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+      });
+      listener = sub.data;
+    } catch (e) {
+      console.warn('[AppShell] onAuthStateChange error:', (e as Error).message);
+    }
 
     const installHandler = (event: Event) => {
       event.preventDefault();
@@ -269,6 +278,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener('beforeinstallprompt', installHandler as EventListener);
     };
   }, []);
+
+  // If an unauthenticated user lands on a protected route like /dashboard,
+  // send them back to the public landing page instead of showing the login UI.
+  useEffect(() => {
+    if (!user && pathname === '/dashboard') {
+      router.replace('/');
+    }
+  }, [user, pathname, router]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -291,16 +308,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isPublicPage) return <>{children}</>;
 
+  if (subChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#001F3F] border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (user && isExpired && !subPublic) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md text-center space-y-6">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100">
+            <svg className="h-8 w-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-[#001F3F]">
+            {t({ fr: 'Période d\'essai terminée', ht: 'Periyòd esè fini' })}
+          </h2>
+          <p className="text-sm text-slate-500">
+            {t({
+              fr: 'Votre période d\'essai de 72 heures est expirée. Souscrivez à un abonnement pour continuer à utiliser ProfitPilot.',
+              ht: 'Periyòd esè 72 èdtan ou fini. Abonne-w pou kontinye itilize ProfitPilot.',
+            })}
+          </p>
+          <Link href="/pricing" className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-6 py-3 text-sm font-semibold text-white hover:bg-[#002D5B]">
+            {t({ fr: 'Voir les abonnements', ht: 'Wè abònman yo' })}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center space-y-4">
-          <p className="text-slate-500">Session expirée. Veuillez vous reconnecter.</p>
+           <p className="text-slate-500">{t({ fr: 'Session expirée. Veuillez vous reconnecter.', ht: 'Sesyon ekspire. Tanpri rekonekte.' })}</p>
           <Link
             href="/auth/login"
             className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-6 py-3 text-sm font-semibold text-white hover:bg-[#002D5B]"
           >
-            Se connecter
+            {t({ fr: 'Se connecter', ht: 'Konekte' })}
           </Link>
         </div>
       </div>
@@ -464,7 +515,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
-                    Déconnexion
+                    {t({ fr: 'Déconnexion', ht: 'Dekoneksyon' })}
                   </button>
                 </>
               ) : (
@@ -473,13 +524,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     href="/auth/login"
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B]"
                   >
-                    Se connecter
+                    {t({ fr: 'Se connecter', ht: 'Konekte' })}
                   </Link>
                   <Link
                     href="/auth/register"
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#001F3F] px-3 py-2.5 text-sm font-semibold text-[#001F3F] transition hover:bg-[#EAF1F8] dark:border-slate-500 dark:text-slate-300 dark:hover:bg-white/5"
                   >
-                    S'inscrire
+                    {t({ fr: 'S\'inscrire', ht: 'Enskri' })}
                   </Link>
                 </>
               )}
@@ -495,6 +546,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Pilot AI Guide ───────────────────────────────── */}
       <PilotAIGuide />
+
+      {/* ── Welcome Animation (first visit only) ──────── */}
+      <WelcomeAnimation />
 
       {/* ── Mobile bottom nav ────────────────────────────── */}
       {!isAuthPage && !isLandingPage && !isOnboardingPage && (

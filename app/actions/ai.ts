@@ -48,6 +48,22 @@ export async function getDashboardV2Action(
     supabase   = ctx.supabase;
   } catch { return EMPTY; }
 
+  // ── Fetch business exchange rate for USD→HTG conversion ──────────────────
+  const { data: biz } = await supabase
+    .from('businesses')
+    .select('exchange_rate, default_currency')
+    .eq('id', businessId)
+    .maybeSingle();
+  const exchangeRate    = Number(biz?.exchange_rate ?? 130);
+  const reportCurrency  = (biz?.default_currency ?? 'HTG') as 'HTG' | 'USD';
+  const toReport = (amount: number, currency: string): number => {
+    const c = (currency ?? 'HTG').toUpperCase();
+    if (c === reportCurrency) return amount;
+    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
+    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
+    return amount;
+  };
+
   let dateFrom: string;
   let dateTo:   string;
   if (mode === 'year') {
@@ -69,6 +85,7 @@ export async function getDashboardV2Action(
       .from('sales')
       .select('id, total_amount, currency, payment_method, payment_status, customer_name, invoice_number, created_at')
       .eq('business_id', businessId)
+      .is('deleted_at', null)
       .gte('created_at', `${dateFrom}T00:00:00`)
       .lte('created_at', `${dateTo}T23:59:59`),
 
@@ -77,14 +94,16 @@ export async function getDashboardV2Action(
       .from('expenses')
       .select('id, amount, currency, payment_method, payment_status, description, expense_date, expense_categories(name)')
       .eq('business_id', businessId)
+      .is('deleted_at', null)
       .gte('expense_date', dateFrom)
       .lte('expense_date', dateTo),
 
-    // purchases: total_amount (not total_purchase_amount)
+    // purchases: total_amount, currency
     supabase
       .from('purchases')
-      .select('id, total_amount, payment_status, purchase_date, supplier_id')
+      .select('id, total_amount, currency, payment_status, purchase_date, supplier_id')
       .eq('business_id', businessId)
+      .is('deleted_at', null)
       .gte('purchase_date', dateFrom)
       .lte('purchase_date', dateTo),
   ]);
@@ -108,8 +127,8 @@ export async function getDashboardV2Action(
       category:       s.customer_name ?? 'Kliyan',
       type:           'Vann',
       payment_method: s.payment_method ?? '—',
-      amount:         Number(s.total_amount),
-      currency:       s.currency ?? 'HTG',
+      amount:         toReport(Number(s.total_amount), s.currency),
+      currency:       reportCurrency,
       source:         'sales',
     });
   }
@@ -123,8 +142,8 @@ export async function getDashboardV2Action(
       category:       catName,
       type:           'Acha',
       payment_method: e.payment_method ?? '—',
-      amount:         Number(e.amount),
-      currency:       e.currency ?? 'HTG',
+      amount:         toReport(Number(e.amount), e.currency),
+      currency:       reportCurrency,
       source:         'expenses',
     });
   }
@@ -137,8 +156,8 @@ export async function getDashboardV2Action(
       category:       'Acha Stock',
       type:           'Dèt',
       payment_method: p.payment_status ?? '—',
-      amount:         Number(p.total_amount),
-      currency:       'HTG',
+      amount:         toReport(Number(p.total_amount), p.currency),
+      currency:       reportCurrency,
       source:         'purchases',
     });
   }
@@ -157,17 +176,17 @@ export async function getDashboardV2Action(
     for (const s of sales) {
       const day = String(new Date(s.created_at).getDate()).padStart(2, '0');
       const b = bucketMap.get(day);
-      if (b) b.cashIn += Number(s.total_amount);
+      if (b) b.cashIn += toReport(Number(s.total_amount), s.currency);
     }
     for (const e of expenses) {
       const day = String(new Date(e.expense_date + 'T00:00:00').getDate()).padStart(2, '0');
       const b = bucketMap.get(day);
-      if (b) b.cashOut += Number(e.amount);
+      if (b) b.cashOut += toReport(Number(e.amount), e.currency);
     }
     for (const p of purchases) {
       const day = String(new Date(p.purchase_date + 'T00:00:00').getDate()).padStart(2, '0');
       const b = bucketMap.get(day);
-      if (b) b.cashOut += Number(p.total_amount);
+      if (b) b.cashOut += toReport(Number(p.total_amount), p.currency);
     }
   } else {
     const startM = mode === 'year' ? 0  : monthFrom;
@@ -178,17 +197,17 @@ export async function getDashboardV2Action(
     for (const s of sales) {
       const m = MONTHS_SHORT[new Date(s.created_at).getMonth()];
       const b = bucketMap.get(m);
-      if (b) b.cashIn += Number(s.total_amount);
+      if (b) b.cashIn += toReport(Number(s.total_amount), s.currency);
     }
     for (const e of expenses) {
       const m = MONTHS_SHORT[new Date(e.expense_date + 'T00:00:00').getMonth()];
       const b = bucketMap.get(m);
-      if (b) b.cashOut += Number(e.amount);
+      if (b) b.cashOut += toReport(Number(e.amount), e.currency);
     }
     for (const p of purchases) {
       const m = MONTHS_SHORT[new Date(p.purchase_date + 'T00:00:00').getMonth()];
       const b = bucketMap.get(m);
-      if (b) b.cashOut += Number(p.total_amount);
+      if (b) b.cashOut += toReport(Number(p.total_amount), p.currency);
     }
   }
 
@@ -197,9 +216,9 @@ export async function getDashboardV2Action(
   }));
 
   // ── Totals ────────────────────────────────────────────────────────────────
-  const cashIn    = sales.reduce((s: number, r: any) => s + Number(r.total_amount), 0);
-  const cashOut   = expenses.reduce((s: number, r: any) => s + Number(r.amount), 0);
-  const debtTotal = purchases.reduce((s: number, r: any) => s + Number(r.total_amount), 0);
+  const cashIn    = sales.reduce((s: number, r: any) => s + toReport(Number(r.total_amount), r.currency), 0);
+  const cashOut   = expenses.reduce((s: number, r: any) => s + toReport(Number(r.amount), r.currency), 0);
+  const debtTotal = purchases.reduce((s: number, r: any) => s + toReport(Number(r.total_amount), r.currency), 0);
 
   return {
     cashflow,
@@ -252,13 +271,13 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
 
   const [salesRes, expRes, prodsRes, purchRes] = await Promise.all([
     supabase.from('sales').select('id, total_amount, customer_name, created_at')
-      .eq('business_id', businessId).gte('created_at', weekStart + 'T00:00:00'),
+      .eq('business_id', businessId).is('deleted_at', null).gte('created_at', weekStart + 'T00:00:00'),
     supabase.from('expenses').select('id, amount, expense_date')
-      .eq('business_id', businessId).gte('expense_date', weekStart),
+      .eq('business_id', businessId).is('deleted_at', null).gte('expense_date', weekStart),
     supabase.from('products').select('id, name, stock_quantity, sale_price, purchase_price, category')
-      .eq('user_id', userId),
+      .eq('business_id', businessId),
     supabase.from('purchases').select('id, total_amount, payment_status, purchase_date')
-      .eq('business_id', businessId).eq('payment_status', 'credit'),
+      .eq('business_id', businessId).is('deleted_at', null).eq('payment_status', 'credit'),
   ]);
 
   const sales    = (salesRes.data  ?? []) as any[];

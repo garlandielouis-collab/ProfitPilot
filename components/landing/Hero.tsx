@@ -3,7 +3,13 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles, TrendingUp, ShoppingCart, AlertCircle, DollarSign } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useLanguage } from '../LanguageWrapper';
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
 
 // ── Animated Dashboard Mockup ─────────────────────────────────────────────────
 
@@ -182,6 +188,24 @@ const fadeUp = {
 
 export function Hero() {
   const { t } = useLanguage();
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === 'accepted') setInstallPrompt(null);
+    }
+  };
 
   return (
     <section className="relative overflow-hidden bg-white px-5 pb-24 pt-20 md:px-10 lg:px-16">
@@ -231,9 +255,23 @@ export function Hero() {
           <motion.p variants={fadeUp} className="max-w-lg text-lg leading-8 text-slate-500">
             {t({
               fr: 'Stock, ventes, dépenses, trésorerie et intelligence artificielle. Tout ce dont vous avez besoin pour développer votre entreprise, enfin réuni au même endroit.',
-              ht: 'Estòk, vant, depans, trezoreri ak entèlijans atifisyèl. Tout sa ou bezwen pou devlope antrepriz ou a, finalman nan yon sèl kote.',
+              ht: 'Estòk, avant, depans, trezoreri ak entèlijans atifisyèl. Tout sa ou bezwen pou devlope antrepriz ou a, finalman nan yon sèl kote.',
             })}
           </motion.p>
+
+          {/* Trial notice */}
+          <motion.div variants={fadeUp}
+            className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-5 py-3">
+            <p className="flex items-center gap-2 text-xs font-medium text-amber-600">
+              <span>🔔</span>
+              <span>
+                {t({
+                  fr: '72 heures d\'essai gratuit — Après connexion, abonnement requis pour continuer.',
+                  ht: '72 èdtan esè gratis — Apre koneksyon, abònman nesesè pou kontinye.',
+                })}
+              </span>
+            </p>
+          </motion.div>
 
           {/* CTAs */}
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
@@ -251,11 +289,20 @@ export function Hero() {
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
             </Link>
             <Link
-              href="/dashboard"
+              href="/auth/login"
               className="inline-flex items-center gap-2 rounded-2xl border border-[#E2E8F0] bg-white px-7 py-4 text-base font-semibold text-[#001f3f] transition hover:border-[#50c878]/40 hover:bg-[#50c878]/5 active:scale-95 shadow-sm"
             >
               {t({ fr: 'Voir la démo', ht: 'Wè demo a' })}
             </Link>
+            {installPrompt && (
+              <button
+                type="button"
+                onClick={handleInstall}
+                className="inline-flex items-center gap-2 rounded-2xl border border-[#50c878]/30 bg-[#50c878]/5 px-7 py-4 text-base font-semibold text-[#50c878] transition hover:bg-[#50c878]/10 active:scale-95 shadow-sm"
+              >
+                {t({ fr: 'Installer l\'app', ht: 'Enstale app la' })}
+              </button>
+            )}
           </motion.div>
 
           {/* Social proof mini */}

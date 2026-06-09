@@ -12,6 +12,7 @@ import {
   Scan, Trash2, DollarSign, UserPlus, ChevronDown,
   FileText, Percent, User,
 } from 'lucide-react';
+import { useLanguage } from './LanguageWrapper';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ type ProductOption = {
   category: string;
   barcode?: string;
   image_url?: string;
+  currency: 'HTG' | 'USD';
 };
 
 type CartItem = {
@@ -67,6 +69,7 @@ const MODE_LABELS: Record<PaymentMode, string> = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void }) {
+  const { t } = useLanguage();
   // Products
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [search, setSearch] = useState('');
@@ -95,6 +98,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   // Submission
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [businessId, setBusinessId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState('Mon Entreprise');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -106,12 +110,13 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
     async function init() {
       const [{ data: userData }, { data: prods }, { data: biz }] = await Promise.all([
         supabase.auth.getUser(),
-        supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,image_url').order('name'),
-        supabase.from('businesses').select('name,exchange_rate').maybeSingle(),
+        supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url').order('name'),
+        supabase.from('businesses').select('id,name,exchange_rate').maybeSingle(),
       ]);
       setOwnerId(userData.user?.id ?? null);
       setProducts((prods ?? []) as ProductOption[]);
       if (biz?.name) setBusinessName(biz.name);
+      if (biz?.id) setBusinessId(biz.id);
       if (biz?.exchange_rate) setExchangeRate(biz.exchange_rate);
     }
 
@@ -122,7 +127,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         const list = await getClients();
         setClients(list);
       } catch (e: any) {
-        setClientsError(e?.message ?? 'Erè chajman kliyan yo');
+        setClientsError(e?.message ?? t({ fr: 'Erreur de chargement des clients', ht: 'Erè chajman kliyan yo' }));
       } finally {
         setClientsLoading(false);
       }
@@ -147,7 +152,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   }, [clients, clientSearch]);
 
   const subtotal = useMemo(() =>
-    cart.reduce((s, i) => s + displayUnitPrice(i.product.sale_price) * i.quantity, 0),
+    cart.reduce((s, i) => s + displayUnitPrice(i.product) * i.quantity, 0),
     [cart, currency, exchangeRate]  // eslint-disable-line react-hooks/exhaustive-deps
   );
 
@@ -165,12 +170,15 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function displayUnitPrice(htgPrice: number) {
-    return currency === 'USD' ? htgPrice / exchangeRate : htgPrice;
+  function displayUnitPrice(product: ProductOption) {
+    if (product.currency === currency) return product.sale_price;
+    if (product.currency === 'USD') return product.sale_price * exchangeRate;
+    return product.sale_price / exchangeRate;
   }
 
   function fmtDisplay(n: number) {
-    return `${currency === 'HTG' ? 'G' : '$'} ${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const sym = currency === 'HTG' ? 'G' : '$';
+    return `${sym} ${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   // ── Cart handlers ──────────────────────────────────────────────────────────
@@ -207,7 +215,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   function handleBarcodeDetected(code: string) {
     const found = products.find(p => p.barcode === code.trim());
-    setScanMessage(found ? `Ajouté: ${found.name}` : `Aucun produit pour ${code}`);
+    setScanMessage(found ? `${t({ fr: 'Ajouté: ', ht: 'Ajoute: ' })}${found.name}` : `${t({ fr: 'Aucun produit pour ', ht: 'Pa gen pwodui pou ' })}${code}`);
     if (found) addToCart(found);
     setScannerOpen(false);
   }
@@ -237,7 +245,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
     e.preventDefault();
     if (!cart.length) return;
     if (isCredit && !selectedClient) {
-      setError('Sélectionnez un client pour une vente à crédit.');
+      setError(t({ fr: 'Sélectionnez un client pour une vente à crédit.', ht: 'Chwazi yon kliyan pou yon vant a kredi.' }));
       return;
     }
 
@@ -245,27 +253,40 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
     setError('');
 
     try {
-      const items: CartItemPayload[] = cart.map(i => ({
-        product_id: i.product.id,
-        product_name: i.product.name,
-        quantity: i.quantity,
-        unit_price: i.product.sale_price, // always HTG in DB; convert display only
-      }));
+      const items = cart.map(i => {
+        const unitPrice = i.product.currency === currency
+          ? i.product.sale_price
+          : i.product.currency === 'USD'
+            ? parseFloat((i.product.sale_price * exchangeRate).toFixed(2))
+            : parseFloat((i.product.sale_price / exchangeRate).toFixed(2));
+        return {
+          product_id: i.product.id,
+          product_name: i.product.name,
+          quantity: i.quantity,
+          unit_price: unitPrice,
+          discount_percent: 0,
+          tax_rate: 0,
+        };
+      });
 
       const dbPaymentMethod = MODE_TO_DB[paymentMode];
 
-      const metadata = undefined;
-
       const result = await createSaleAction({
+        business_id: businessId as string,
         items,
         payment_method: dbPaymentMethod,
-        is_credit: isCredit,
+        payment_status: isCredit ? 'credit' : 'paid',
+        tax_amount: 0,
         currency,
         discount_percent: discountPercent,
         customer_id: selectedClient?.id,
         customer_name: selectedClient?.name ?? undefined,
-        metadata,
       });
+
+      if (!result.success) {
+        setError(result.errors.map(e => e.message).join(', '));
+        return;
+      }
 
       // Build invoice data
       const invoice: InvoiceData = {
@@ -275,10 +296,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         items: cart.map(i => ({
           product_name: i.product.name,
           quantity: i.quantity,
-          unit_price: displayUnitPrice(i.product.sale_price),
+          unit_price: displayUnitPrice(i.product),
         })),
         discountPercent,
-        subtotal: parseFloat((cart.reduce((s, i) => s + displayUnitPrice(i.product.sale_price) * i.quantity, 0)).toFixed(2)),
+        subtotal: parseFloat((cart.reduce((s, i) => s + displayUnitPrice(i.product) * i.quantity, 0)).toFixed(2)),
         discountAmount: result.discountAmount,
         totalAmount: result.totalAmount,
         paymentMethod: paymentMode === 'Crédit' ? 'Cash' : paymentMode,
@@ -295,7 +316,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       setPaymentMode('Espèces');
       onSaleComplete?.();
     } catch (e) {
-      setError((e as Error).message ?? 'Erreur lors de la vente.');
+      setError((e as Error).message ?? t({ fr: 'Erreur lors de la vente.', ht: 'Erè pandan vant la.' }));
     } finally {
       setSubmitting(false);
     }
@@ -311,8 +332,8 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-[#212529]">Catalogue</h2>
-              <p className="mt-1 text-sm text-[#212529]/60">Cliquez sur un produit pour l'ajouter.</p>
+              <h2 className="text-xl font-semibold text-[#212529]">{t({ fr: 'Catalogue', ht: 'Katalòg' })}</h2>
+              <p className="mt-1 text-sm text-[#212529]/60">{t({ fr: "Cliquez sur un produit pour l'ajouter.", ht: 'Klike sou yon pwodui pou ajoute l.' })}</p>
             </div>
           </div>
 
@@ -321,12 +342,12 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher un produit ou catégorie…"
+              placeholder={t({ fr: 'Rechercher un produit ou catégorie…', ht: 'Chèche yon pwodui oswa kategori…' })}
               className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-[#212529] outline-none focus:border-[#0056b3] focus:bg-white"
             />
             <button type="button" onClick={() => { setScanMessage(''); setScannerOpen(true); }}
               className="inline-flex items-center gap-2 rounded-3xl bg-[#0056b3] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0047a1]">
-              <Scan size={15} /> Scan
+              <Scan size={15} /> {t({ fr: 'Scan', ht: 'Eskane' })}
             </button>
           </div>
           {scanMessage && <p className="mb-3 text-xs text-[#0056b3]">{scanMessage}</p>}
@@ -334,7 +355,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
           {/* Products grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {filteredProducts.length === 0 ? (
-              <p className="col-span-full py-8 text-center text-sm text-[#212529]/50">Aucun produit trouvé.</p>
+              <p className="col-span-full py-8 text-center text-sm text-[#212529]/50">{t({ fr: 'Aucun produit trouvé.', ht: 'Pa gen pwodui jwenn.' })}</p>
             ) : filteredProducts.map(p => (
               <div key={p.id} onClick={() => addToCart(p)}
                 className={`cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden transition hover:shadow-md hover:border-[#0056b3]/40 ${p.stock_quantity === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -347,8 +368,11 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                   <p className="truncate text-xs font-semibold text-[#212529]">{p.name}</p>
                   <p className="mt-1 text-[10px] text-[#212529]/50">{p.category}</p>
                   <div className="mt-2 flex items-center justify-between">
-                    <p className="text-xs font-bold text-[#0056b3]">{fmtDisplay(displayUnitPrice(p.sale_price))}</p>
-                    <p className={`text-[10px] font-medium ${p.stock_quantity < 5 ? 'text-orange-500' : 'text-[#212529]/50'}`}>{p.stock_quantity} unités</p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-xs font-bold text-[#0056b3]">{fmtDisplay(displayUnitPrice(p))}</p>
+                      {p.currency === 'USD' && <span className="text-[9px] font-bold text-[#0056b3]/60">USD</span>}
+                    </div>
+                    <p className={`text-[10px] font-medium ${p.stock_quantity < 5 ? 'text-orange-500' : 'text-[#212529]/50'}`}>{p.stock_quantity}{t({ fr: ' unités', ht: ' inite' })}</p>
                   </div>
                 </div>
               </div>
@@ -376,7 +400,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
             {/* Cart items */}
             <div className="max-h-52 overflow-y-auto space-y-2">
               {cart.length === 0
-                ? <p className="rounded-2xl bg-slate-50 py-6 text-center text-xs text-[#212529]/50">Panier vide</p>
+                ? <p className="rounded-2xl bg-slate-50 py-6 text-center text-xs text-[#212529]/50">{t({ fr: 'Panier vide', ht: 'Panye vid' })}</p>
                 : cart.map(item => (
                   <div key={item.product.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
@@ -395,7 +419,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                       <button type="button" onClick={() => updateQty(item.product.id, item.quantity + 1)}
                         className="h-6 w-6 rounded border border-slate-200 text-xs font-bold hover:bg-slate-100">+</button>
                       <p className="ml-auto text-xs font-bold text-[#0056b3]">
-                        {fmtDisplay(displayUnitPrice(item.product.sale_price) * item.quantity)}
+                        {fmtDisplay(displayUnitPrice(item.product) * item.quantity)}
                       </p>
                     </div>
                   </div>
@@ -419,7 +443,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                 <div className="space-y-1 relative">
                   <label className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
                     <User size={12} />
-                    Kliyan {isCredit && <span className="text-red-500">*</span>}
+                    {t({ fr: 'Client ', ht: 'Kliyan ' })}{isCredit && <span className="text-red-500">*</span>}
                   </label>
 
                   {/* Error state */}
@@ -438,12 +462,12 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                     >
                       <span className={selectedClient ? 'font-medium text-[#212529]' : 'text-[#212529]/40'}>
                         {clientsLoading
-                          ? 'Ap chaje kliyan yo…'
+                          ? t({ fr: 'Chargement des clients…', ht: 'Ap chaje kliyan yo…' })
                           : selectedClient
                             ? selectedClient.name
                             : clients.length === 0
-                              ? 'Pa gen kliyan — kreye youn +'
-                              : 'Chwazi yon kliyan…'}
+                              ? t({ fr: 'Aucun client — créez-en un +', ht: 'Pa gen kliyan — kreye youn +' })
+                              : t({ fr: 'Choisissez un client…', ht: 'Chwazi yon kliyan…' })}
                       </span>
                       <ChevronDown size={14} className={clientsLoading ? 'animate-spin opacity-50' : ''} />
                     </button>
@@ -457,7 +481,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                             autoFocus
                             value={clientSearch}
                             onChange={e => setClientSearch(e.target.value)}
-                            placeholder="Chèche kliyan…"
+                            placeholder={t({ fr: 'Chercher client…', ht: 'Chèche kliyan…' })}
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3] focus:bg-white"
                           />
                         </div>
@@ -469,7 +493,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                             <button type="button"
                               onClick={() => { setSelectedClient(null); setClientDropdown(false); }}
                               className="w-full px-3 py-2 text-left text-xs text-[#212529]/50 hover:bg-slate-50">
-                              — Retire kliyan —
+                              {t({ fr: '— Retirer client —', ht: '— Retire kliyan —' })}
                             </button>
                           )}
 
@@ -477,14 +501,14 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                           {filteredClients.length === 0 && !showNewClient && (
                             <div className="px-3 py-4 text-center">
                               <p className="text-xs text-slate-400 mb-2">
-                                {clientSearch ? `Okenn kliyan ak "${clientSearch}"` : 'Pa gen kliyan ankò'}
+                                {clientSearch ? `${t({ fr: 'Aucun client avec ', ht: 'Okenn kliyan ak ' })}"${clientSearch}"` : t({ fr: 'Aucun client encore', ht: 'Pa gen kliyan ankò' })}
                               </p>
                               <button
                                 type="button"
                                 onClick={() => setShowNewClient(true)}
                                 className="inline-flex items-center gap-1 rounded-lg bg-[#0056b3] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0047a1]"
                               >
-                                <UserPlus size={11} /> Kreye premye kliyan ou
+                                <UserPlus size={11} /> {t({ fr: 'Créer votre premier client', ht: 'Kreye premye kliyan ou' })}
                               </button>
                             </div>
                           )}
@@ -517,7 +541,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                               onClick={() => setShowNewClient(true)}
                               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0056b3] hover:underline"
                             >
-                              <UserPlus size={12} /> Nouvo kliyan
+                              <UserPlus size={12} /> {t({ fr: 'Nouveau client', ht: 'Nouvo kliyan' })}
                             </button>
                           ) : (
                             <div className="space-y-2">
@@ -526,7 +550,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                                 value={newClientName}
                                 onChange={e => setNewClientName(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveNewClient(); } }}
-                                placeholder="Non kliyan *"
+                                placeholder={t({ fr: 'Nom client *', ht: 'Non kliyan *' })}
                                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3] focus:bg-white"
                               />
                               <div className="flex gap-2">
@@ -536,14 +560,14 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                                   disabled={!newClientName.trim() || savingClient}
                                   className="flex-1 rounded-xl bg-[#0056b3] py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-[#0047a1]"
                                 >
-                                  {savingClient ? 'Ap kreye…' : 'Kreye'}
+                                  {savingClient ? t({ fr: 'Création…', ht: 'Ap kreye…' }) : t({ fr: 'Créer', ht: 'Kreye' })}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => { setShowNewClient(false); setNewClientName(''); }}
                                   className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
                                 >
-                                  Anile
+                                  {t({ fr: 'Annuler', ht: 'Anile' })}
                                 </button>
                               </div>
                             </div>
@@ -559,7 +583,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                       <span className="text-xs font-semibold text-[#0056b3]">✓ {selectedClient.name}</span>
                       {(selectedClient.outstanding_balance ?? 0) > 0 && (
                         <span className="text-[10px] text-amber-600 font-medium">
-                          Kredi: {formatCurrency(selectedClient.outstanding_balance)}
+                          {t({ fr: 'Crédit: ', ht: 'Kredi: ' })}{formatCurrency(selectedClient.outstanding_balance)}
                         </span>
                       )}
                       <button
@@ -575,14 +599,14 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
                 {/* Payment mode */}
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-[#212529]/70">Metòd Peman</label>
+                  <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Méthode de Paiement', ht: 'Metòd Peman' })}</label>
                   <div className="grid grid-cols-2 gap-1.5">
                     {ALL_MODES.map(mode => (
                       <button key={mode} type="button"
                         onClick={() => setPaymentMode(mode)}
                         className={`rounded-xl py-2.5 px-2 text-xs font-semibold text-center leading-tight transition
                           ${paymentMode === mode ? MODE_COLORS[mode] : 'bg-slate-100 text-[#212529]/70 hover:bg-slate-200'}`}>
-                        {MODE_LABELS[mode]}
+                        {mode === 'Espèces' ? t({ fr: '💵 Espèces', ht: '💵 Kach' }) : mode === 'Crédit' ? t({ fr: '⏳ À Crédit', ht: '⏳ À Kredi' }) : mode === 'Carte Visa' ? t({ fr: '💳 Carte Visa', ht: '💳 Kat Visa' }) : MODE_LABELS[mode]}
                       </button>
                     ))}
                   </div>
@@ -591,24 +615,24 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                 {/* Totals */}
                 <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-1.5">
                   <div className="flex justify-between text-xs text-[#212529]/60">
-                    <span>Sous-total</span>
+                    <span>{t({ fr: 'Sous-total', ht: 'Sous-total' })}</span>
                     <span>{fmtDisplay(subtotal)}</span>
                   </div>
                   {discountPercent > 0 && (
                     <div className="flex justify-between text-xs text-red-500">
-                      <span>Remise ({discountPercent}%)</span>
+                      <span>{t({ fr: 'Remise ', ht: 'Rabè ' })}({discountPercent}%)</span>
                       <span>−{fmtDisplay(discountAmount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t border-slate-200 pt-1.5">
-                    <span className="text-sm font-bold text-[#212529]">Total</span>
+                    <span className="text-sm font-bold text-[#212529]">{t({ fr: 'Total', ht: 'Total' })}</span>
                     <span className="text-xl font-extrabold text-[#0056b3]">{fmtDisplay(total)}</span>
                   </div>
                 </div>
 
                 {isCredit && !selectedClient && (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    ⚠ Un client est requis pour une vente à crédit.
+                    {t({ fr: '⚠ Un client est requis pour une vente à crédit.', ht: '⚠ Yon kliyan obligatwa pou yon vant a kredi.' })}
                   </p>
                 )}
 
@@ -619,7 +643,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                 <button type="submit"
                   disabled={submitting || cart.length === 0 || (isCredit && !selectedClient)}
                   className="w-full rounded-2xl bg-green-600 py-3.5 text-sm font-bold text-white transition hover:bg-green-700 hover:scale-[1.02] active:scale-95 disabled:scale-100 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-lg">
-                  {submitting ? 'Traitement…' : isCredit ? '⏳ Enregistrer à Crédit' : '✓ Encaisser'}
+                  {submitting ? t({ fr: 'Traitement…', ht: 'Tretman…' }) : isCredit ? t({ fr: '⏳ Enregistrer à Crédit', ht: '⏳ Anrejistre a Kredi' }) : t({ fr: '✓ Encaisser', ht: '✓ Enkese' })}
                 </button>
               </>
             )}
@@ -634,15 +658,15 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
             <div className="flex items-center gap-3">
               <span className="text-2xl">✓</span>
               <div>
-                <p className="text-sm font-bold">Vente enregistrée avec succès !</p>
-                <p className="text-xs opacity-80">Facture N° {invoiceData.invoiceNumber}</p>
+                <p className="text-sm font-bold">{t({ fr: 'Vente enregistrée avec succès !', ht: 'Vant anrejistre avèk siksè !' })}</p>
+                <p className="text-xs opacity-80">{t({ fr: 'Facture N° ', ht: 'Fakti N° ' })}{invoiceData.invoiceNumber}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => { /* keep invoiceData to show modal */ }}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-xs font-semibold transition hover:bg-white/30"
                 style={{ display: 'none' }}>
-                <FileText size={13} /> Voir facture
+                <FileText size={13} /> {t({ fr: 'Voir facture', ht: 'Wè fakti' })}
               </button>
             </div>
           </div>

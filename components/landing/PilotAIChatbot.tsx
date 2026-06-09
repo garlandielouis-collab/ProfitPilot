@@ -5,12 +5,13 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { useLanguage } from '../LanguageWrapper';
 
 type Msg = { role: 'bot' | 'user'; text: string };
 
 const BOT = [
   { triggers: ['bonjour','hello','salut','bonjou','alo','hi'],
-    reply: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a?' },
+    reply: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a? 🔔 **Rappel**: Après 72h d\'essai gratuit, vous devrez souscrire à un abonnement pour continuer. Klike sou "Tarifs" pou wè opsyon yo!' },
   { triggers: ['prix','coût','tarif','paye','pri','combien','konbe','abonnement'],
     reply: 'ProfitPilot ofri yon essai gratis 14 jou — san kat kredi. Klike sou "Tarifs" pou wè detay yo! 💰' },
   { triggers: ['feature','fonction','fonksyon','kisa','kapab','offre'],
@@ -30,9 +31,10 @@ function getReply(msg: string) {
 }
 
 export function PilotAIChatbot() {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
-    { role: 'bot', text: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a?' },
+    { role: 'bot', text: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a?\n\n🔔 **Rappel**: Après 72h d\'essai gratuit, vous devrez souscrire à un abonnement pour continuer. Klike sou "Tarifs" pou wè opsyon yo!' },
   ]);
   const [flow, setFlow] = useState<null | 'demo' | 'buyer'>(null);
   const [buyerStep, setBuyerStep] = useState(0);
@@ -65,7 +67,7 @@ export function PilotAIChatbot() {
 
   async function submitSignup() {
     if (!signupEmail.trim() || !signupPassword.trim()) {
-      setSignupStatus('Veuillez renseigner un email et un mot de passe.');
+      setSignupStatus(t({ fr: 'Veuillez renseigner un email et un mot de passe.', ht: 'Tanpri ranpli yon imèl ak yon modpas.' }));
       return;
     }
     setSignupLoading(true);
@@ -84,12 +86,12 @@ export function PilotAIChatbot() {
       return;
     }
 
-    setSignupStatus('Inscription envoyée ! Vérifiez votre email pour confirmer.');
+    setSignupStatus(t({ fr: 'Inscription envoyée ! Vérifiez votre email pour confirmer.', ht: 'Enskripsyon voye ! Tcheke imèl ou pou konfime.' }));
     await trackEvent('pilotai_signup_submitted', { email: signupEmail.trim() });
   }
 
   function handlePageNavigation(path: string, label: string) {
-    setMessages(m => [...m, { role: 'bot', text: `Je vous emmène vers ${label}...` }]);
+    setMessages(m => [...m, { role: 'bot', text: t({ fr: `Je vous emmène vers ${label}...`, ht: `M ap mennen w nan ${label}...` }) }]);
     trackEvent('pilotai_page_navigation', { page: label, path });
     window.location.href = path;
   }
@@ -108,7 +110,7 @@ export function PilotAIChatbot() {
         setTyping(true);
         setTimeout(() => {
           setTyping(false);
-          setMessages(m => [...m, { role: 'bot', text: `Quel est votre secteur ?` }]);
+          setMessages(m => [...m, { role: 'bot', text: t({ fr: 'Quel est votre secteur ?', ht: 'Ki sektè ou ?' }) }]);
         }, 700);
         return;
       }
@@ -118,7 +120,7 @@ export function PilotAIChatbot() {
         setTyping(true);
         setTimeout(() => {
           setTyping(false);
-          setMessages(m => [...m, { role: 'bot', text: `Quel est votre défi prioritaire ?` }]);
+          setMessages(m => [...m, { role: 'bot', text: t({ fr: 'Quel est votre défi prioritaire ?', ht: 'Ki defi prioritè ou ?' }) }]);
         }, 700);
         return;
       }
@@ -131,8 +133,8 @@ export function PilotAIChatbot() {
           setTyping(false);
           setMessages(m => [
             ...m,
-            { role: 'bot', text: `Je configure votre espace de travail...` },
-            { role: 'bot', text: `Bienvenue ${buyerAnswers.name ?? text ?? 'Pilot'} ! Votre espace est prêt. Cliquez sur Continuer pour découvrir votre Dashboard.` },
+            { role: 'bot', text: t({ fr: 'Je configure votre espace de travail...', ht: 'M ap konfigire espas travay ou...' }) },
+            { role: 'bot', text: t({ fr: `Bienvenue ${buyerAnswers.name ?? text ?? 'Pilot'} ! Votre espace est prêt. Cliquez sur Continuer pour découvrir votre Dashboard.`, ht: `Byenveni ${buyerAnswers.name ?? text ?? 'Pilot'} ! Espas ou pare. Klike sou Kontinye pou dekouvri Dashboard ou.` }) },
           ]);
         }, 900);
         trackEvent('pilotai_onboarding_completed', { name: buyerAnswers.name ?? text, sector: buyerAnswers.sector, challenge: text });
@@ -151,11 +153,11 @@ export function PilotAIChatbot() {
   function startDemo() {
     setFlow('demo');
     setGuideStep(null);
-    setMessages(m => [...m, { role: 'bot', text: "Excellent choix. Je charge des données fictives pour vous montrer comment je travaille." }]);
+    setMessages(m => [...m, { role: 'bot', text: t({ fr: 'Excellent choix. Je charge des données fictives pour vous montrer comment je travaille.', ht: 'Ekselan chwa. M ap chaje done fiktif pou montre w kijan m travay.' }) }]);
     setTyping(true);
     setTimeout(() => {
       setTyping(false);
-      setMessages(m => [...m, { role: 'bot', text: "C'est votre cockpit. J'ai détecté une hausse de marge de 15% sur vos produits phares." }]);
+      setMessages(m => [...m, { role: 'bot', text: t({ fr: 'C\'est votre cockpit. J\'ai détecté une hausse de marge de 15% sur vos produits phares.', ht: 'Se kabin ou. M detekte yon ogmantasyon maj 15% sou pwodui prensipal ou yo.' }) }]);
     }, 900);
     trackEvent('pilotai_flow_started', { flow: 'demo' });
   }
@@ -165,15 +167,15 @@ export function PilotAIChatbot() {
     setBuyerStep(0);
     setGuideStep(null);
     setBuyerAnswers({});
-    setMessages(m => [...m, { role: 'bot', text: 'Parfait — commençons. Quel est le nom de votre entreprise ?' }]);
+    setMessages(m => [...m, { role: 'bot', text: t({ fr: 'Parfait — commençons. Quel est le nom de votre entreprise ?', ht: 'Pafè — ann kòmanse. Ki non antrepriz ou ?' }) }]);
     trackEvent('pilotai_flow_started', { flow: 'buyer' });
   }
 
   const guideMessages = [
-    "Dashboard : Voici votre cockpit. J'ai déjà préparé vos alertes de priorité pour vous éviter les pertes de marge.",
-    "Inventaire : Je transforme vos produits en actifs rentables. Ajoutez un produit pour voir ma magie opérer.",
-    "Analyse : Je prédis vos tendances. Votre rapport de marge pour le mois prochain est déjà prêt.",
-    "Paramètres : C'est ici que vous définissez vos seuils d'alerte et gardez le contrôle."
+    t({ fr: 'Dashboard : Voici votre cockpit. J\'ai déjà préparé vos alertes de priorité pour vous éviter les pertes de marge.', ht: 'Dashboard : Men kabin ou. M deja prepare alèt prioritè ou yo pou evite pèt maj yo.' }),
+    t({ fr: 'Inventaire : Je transforme vos produits en actifs rentables. Ajoutez un produit pour voir ma magie opérer.', ht: 'Envantè : M ap transfòme pwodui ou yo en aktif rantab. Ajoute yon pwodui pou wè maji m ap fè a.' }),
+    t({ fr: 'Analyse : Je prédis vos tendances. Votre rapport de marge pour le mois prochain est déjà prêt.', ht: 'Analiz : M ap predi tandans ou yo. Rapò maj ou pou mwa pwochen an deja pare.' }),
+    t({ fr: 'Paramètres : C\'est ici que vous définissez vos seuils d\'alerte et gardez le contrôle.', ht: 'Paramèt : Se isit ou defini nivo alèt ou yo epi kenbe kontwòl la.' }),
   ];
 
   function advanceGuide() {
@@ -187,7 +189,7 @@ export function PilotAIChatbot() {
       if (nextStep === guideMessages.length) {
         const finalMessage: Msg = {
           role: 'bot',
-          text: 'La visite est terminée ! Pour débloquer la puissance totale de mes analyses en temps réel, activez votre essai gratuit.',
+          text: t({ fr: 'La visite est terminée ! Pour débloquer la puissance totale de mes analyses en temps réel, activez votre essai gratuit.', ht: 'Vizit la fini ! Pou débloke tout puisans analiz mwen an tan reyèl, aktive esè gratis ou.' }),
         };
         return [...messages, finalMessage];
       }
@@ -266,7 +268,7 @@ export function PilotAIChatbot() {
                 <p className="text-sm font-semibold text-white">PilotAI</p>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <p className="text-[11px] text-emerald-400">En ligne</p>
+                   <p className="text-[11px] text-emerald-400">{t({ fr: 'En ligne', ht: 'An liy' })}</p>
                 </div>
               </div>
             </div>
@@ -282,14 +284,14 @@ export function PilotAIChatbot() {
                       style={{ width: `${Math.min(100, Math.round((buyerStep / 3) * 100))}%` }}
                     />
                   </div>
-                  <div className="mt-1 text-[11px] text-white/80">Progression: {Math.min(100, Math.round((buyerStep / 3) * 100))}%</div>
+                  <div className="mt-1 text-[11px] text-white/80">{t({ fr: 'Progression', ht: 'Pwogresyon' })}: {Math.min(100, Math.round((buyerStep / 3) * 100))}%</div>
                 </div>
               )}
               {/* Quick choice buttons shown when no flow selected */}
               {flow == null && (
                 <div className="flex gap-2">
-                  <button onClick={startDemo} className="rounded-full bg-blue-500 px-3 py-1 text-xs text-white">Explorer la démo</button>
-                  <button onClick={startBuyer} className="rounded-full bg-emerald-500 px-3 py-1 text-xs text-white">Démarrer mon business</button>
+                  <button onClick={startDemo} className="rounded-full bg-blue-500 px-3 py-1 text-xs text-white">{t({ fr: 'Explorer la démo', ht: 'Eksplore demo a' })}</button>
+                  <button onClick={startBuyer} className="rounded-full bg-emerald-500 px-3 py-1 text-xs text-white">{t({ fr: 'Démarrer mon business', ht: 'Kòmanse biznis mwen' })}</button>
                 </div>
               )}
               {messages.map((msg, i) => (
@@ -345,7 +347,7 @@ export function PilotAIChatbot() {
                     onClick={advanceGuide}
                     className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white"
                   >
-                    Continuer
+                    {t({ fr: 'Continuer', ht: 'Kontinye' })}
                   </button>
                 </div>
               )}
@@ -357,13 +359,13 @@ export function PilotAIChatbot() {
                       onClick={() => handlePageNavigation('/dashboard', 'Dashboard')}
                       className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
                     >
-                      Dashboard
+                      {t({ fr: 'Dashboard', ht: 'Dashboard' })}
                     </button>
                     <button
                       onClick={() => handlePageNavigation('/inventory', 'Inventaire')}
                       className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
                     >
-                      Inventaire
+                      {t({ fr: 'Inventaire', ht: 'Envantè' })}
                     </button>
                   </div>
                   <div className="flex w-full justify-center gap-2">
@@ -371,18 +373,18 @@ export function PilotAIChatbot() {
                       onClick={() => handlePageNavigation('/rapports', 'Analyse')}
                       className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
                     >
-                      Analyse
+                      {t({ fr: 'Analyse', ht: 'Analiz' })}
                     </button>
                     <button
                       onClick={() => handlePageNavigation('/settings', 'Paramètres')}
                       className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
                     >
-                      Paramètres
+                      {t({ fr: 'Paramètres', ht: 'Paramèt' })}
                     </button>
                   </div>
                   <div className="flex w-full justify-center gap-2">
                     <Link href="/auth/register" className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#001f3f]">
-                      Créer un compte
+                      {t({ fr: 'Créer un compte', ht: 'Kreye yon kont' })}
                     </Link>
                     <button
                       onClick={() => {
@@ -391,7 +393,7 @@ export function PilotAIChatbot() {
                       }}
                       className="rounded-full border border-white/20 bg-transparent px-3 py-1 text-xs font-semibold text-white"
                     >
-                      Inscription inline
+                      {t({ fr: 'Inscription inline', ht: 'Enskripsyon inline' })}
                     </button>
                   </div>
                 </div>
@@ -399,19 +401,19 @@ export function PilotAIChatbot() {
 
               {showSignupForm && (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-white">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.3em] text-slate-300">Inscription rapide</p>
+                  <p className="mb-2 text-[11px] uppercase tracking-[0.3em] text-slate-300">{t({ fr: 'Inscription rapide', ht: 'Enskripsyon rapid' })}</p>
                   <input
                     type="email"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
-                    placeholder="Email"
+                    placeholder={t({ fr: 'Email', ht: 'Imèl' })}
                     className="mb-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white outline-none"
                   />
                   <input
                     type="password"
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
-                    placeholder="Mot de passe"
+                    placeholder={t({ fr: 'Mot de passe', ht: 'Modpas' })}
                     className="mb-2 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white outline-none"
                   />
                   <button
@@ -419,7 +421,7 @@ export function PilotAIChatbot() {
                     disabled={signupLoading}
                     className="mb-2 w-full rounded-full bg-emerald-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
                   >
-                    {signupLoading ? 'En cours...' : 'S’inscrire'}
+                    {signupLoading ? t({ fr: 'En cours...', ht: 'Ap chaje...' }) : t({ fr: 'S\'inscrire', ht: 'Enskri' })}
                   </button>
                   {signupStatus && <p className="text-[11px] text-slate-300">{signupStatus}</p>}
                 </div>
@@ -435,7 +437,7 @@ export function PilotAIChatbot() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && send()}
-                placeholder="Poze yon kesyon..."
+                placeholder={t({ fr: 'Posez une question...', ht: 'Poze yon kesyon...' })}
                 className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-blue-500/40"
               />
               <button
@@ -443,7 +445,7 @@ export function PilotAIChatbot() {
                 disabled={!input.trim()}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-90 disabled:opacity-40"
                 style={{ background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)' }}
-                aria-label="Envoyer"
+                aria-label={t({ fr: 'Envoyer', ht: 'Voye' })}
               >
                 <Send size={14} color="white" />
               </button>
