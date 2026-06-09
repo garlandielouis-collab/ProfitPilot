@@ -2,6 +2,5 @@
   "framework": "nextjs",
   "buildCommand": "NODE_OPTIONS=--max-old-space-size=4096 next build",
   "outputDirectory": ".next",
-  "installCommand": "npm install",
-  "nodeVersion": "20.x"
+  "installCommand": "npm install"
 }
