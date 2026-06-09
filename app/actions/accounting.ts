@@ -140,7 +140,7 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
   // Ensure chart of accounts exists
   if (accountIds.some(id => id === null)) {
     // Auto-initialize chart of accounts if missing
-    await supabase.rpc('init_chart_of_accounts', { p_business_id: businessId });
+    await supabase.rpc('fn_seed_chart_of_accounts', { p_business_id: businessId });
     // Retry
     const retryIds = await Promise.all(
       payload.lines.map(l => getAccountId(supabase, businessId, l.account_code))
@@ -526,7 +526,7 @@ export async function getChartOfAccounts(): Promise<ChartAccount[]> {
 
   // Auto-initialize if empty
   if (!data?.length) {
-    await supabase.rpc('init_chart_of_accounts', { p_business_id: businessId });
+    await supabase.rpc('fn_seed_chart_of_accounts', { p_business_id: businessId });
     const retry = await supabase
       .from('chart_of_accounts')
       .select('id,code,name,name_ht,account_class,parent_id,is_active')

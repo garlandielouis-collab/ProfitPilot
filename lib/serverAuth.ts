@@ -27,6 +27,24 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
 
   if (bizErr) throw new Error(bizErr.message);
 
+  // ── Helper: ensure owner is in business_members (needed for RLS on all biz tables) ──
+  async function ensureOwnerMembership(businessId: string) {
+    const { data: existing } = await supabase
+      .from('business_members')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!existing) {
+      await supabase.from('business_members').insert({
+        business_id: businessId,
+        user_id:     user.id,
+        role:        'owner',
+        is_active:   true,
+      });
+    }
+  }
+
   if (!biz) {
     const { data: newBiz, error: createErr } = await supabase
       .from('businesses')
@@ -40,6 +58,7 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       .single();
 
     if (createErr || !newBiz) throw new Error(createErr?.message ?? 'Impossible de créer le business.');
+    await ensureOwnerMembership((newBiz as any).id);
     return {
       supabase,
       userId:          user.id,
@@ -49,6 +68,7 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
     };
   }
 
+  await ensureOwnerMembership((biz as any).id);
   return {
     supabase,
     userId:          user.id,
