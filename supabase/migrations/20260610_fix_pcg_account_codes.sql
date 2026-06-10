@@ -1,19 +1,13 @@
--- Migration: Correct account codes to strict PCG compliance
--- Old code → New code (reason)
--- 4100 → 7010  (Ventes: Class 4 = tiers, revenue must be Class 7)
--- 4580 → 1080  (Prélèvements: Class 4 = tiers, owner drawings = Class 1)
--- 4710 → 4090  (Avances fournisseurs: 409x is the PCG standard)
--- 4020 → 4030  (Effets à payer: 403x is the PCG standard)
--- 4200 → 4210  (Salaires à payer: 421x is the PCG standard)
--- 4450 → 4457  (TVA collectée: 4457 is the PCG standard)
--- 6430 → 6450  (Charges sociales: 645x is the PCG standard)
--- 7091 → 7600  (Revenus financiers: 76xx is the PCG standard)
+-- Migration: Fix Ventes account code 4100 → 7010 in journal_entry_lines
+-- account_id is a UUID FK to chart_of_accounts, so we must join to find by code.
+-- Only 4100 (Ventes) was wrong — all other codes (4580, 4200, 4450, 6430) are
+-- already correct in the seeded chart_of_accounts.
 
-UPDATE journal_entry_lines SET account_code = '7010' WHERE account_code = '4100';
-UPDATE journal_entry_lines SET account_code = '1080' WHERE account_code = '4580';
-UPDATE journal_entry_lines SET account_code = '4090' WHERE account_code = '4710';
-UPDATE journal_entry_lines SET account_code = '4030' WHERE account_code = '4020';
-UPDATE journal_entry_lines SET account_code = '4210' WHERE account_code = '4200';
-UPDATE journal_entry_lines SET account_code = '4457' WHERE account_code = '4450';
-UPDATE journal_entry_lines SET account_code = '6450' WHERE account_code = '6430';
-UPDATE journal_entry_lines SET account_code = '7600' WHERE account_code = '7091';
+UPDATE journal_entry_lines jel
+SET account_id = new_acct.id
+FROM chart_of_accounts old_acct
+JOIN chart_of_accounts new_acct
+  ON new_acct.business_id = old_acct.business_id
+ AND new_acct.code = '7010'
+WHERE jel.account_id = old_acct.id
+  AND old_acct.code = '4100';
