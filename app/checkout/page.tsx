@@ -458,9 +458,11 @@ function CheckoutContent() {
       } = await supabase.auth.getUser();
 
       await createPendingPayment({
-        planKey: plan.key,
-        method: selectedMethod,
-        userId: user?.id ?? 'anonymous',
+        planKey:   plan.key,
+        method:    selectedMethod,
+        userId:    user?.id ?? 'anonymous',
+        userEmail: user?.email ?? undefined,
+        userName:  user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? undefined,
         amountHtg: plan.priceG,
         reference,
       });

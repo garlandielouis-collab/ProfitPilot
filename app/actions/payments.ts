@@ -10,6 +10,8 @@ export type CreatePaymentInput = {
   planKey: string;
   method: PaymentMethod;
   userId: string;
+  userEmail?: string;
+  userName?: string;
   amountHtg: number;
   reference: string;
 };
@@ -38,15 +40,8 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
 
   // ── Send email notification (non-blocking, never fails the payment) ──
   try {
-    const { getSupabaseService } = await import('../../lib/supabaseServiceClient');
-    const adminClient = getSupabaseService();
-    const { data: { user } } = await adminClient.auth.admin.getUserById(input.userId);
-
-    const userEmail = user?.email ?? input.userId;
-    const userName  = user?.user_metadata?.full_name
-                   ?? user?.user_metadata?.name
-                   ?? userEmail.split('@')[0];
-
+    const userEmail  = input.userEmail ?? input.userId;
+    const userName   = input.userName  ?? userEmail.split('@')[0];
     const adminSecret = process.env.ADMIN_APPROVAL_SECRET;
     const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://profitpilot.vercel.app';
     const approveUrl  = adminSecret
