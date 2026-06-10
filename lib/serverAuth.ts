@@ -18,6 +18,7 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
 
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
   if (authErr || !user) throw new Error('Non authentifié.');
+  const userId = user.id;
 
   const { data: biz, error: bizErr } = await supabase
     .from('businesses')
@@ -33,12 +34,12 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       .from('business_members')
       .select('id')
       .eq('business_id', businessId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
     if (!existing) {
       await supabase.from('business_members').insert({
         business_id: businessId,
-        user_id:     user.id,
+        user_id:     userId,
         role:        'owner',
         is_active:   true,
       });
