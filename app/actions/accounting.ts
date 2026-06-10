@@ -53,8 +53,8 @@ async function getAccountId(supabase: any, businessId: string, code: string): Pr
     .select('id')
     .eq('business_id', businessId)
     .eq('code', code)
-    .single();
-  return data?.id ?? null;
+    .limit(1);
+  return (data && data.length > 0) ? data[0].id : null;
 }
 
 async function getOrCreatePeriod(supabase: any, businessId: string, transactionDate: string): Promise<string | null> {
@@ -137,17 +137,38 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
     payload.lines.map(l => getAccountId(supabase, businessId, l.account_code))
   );
 
-  // Ensure chart of accounts exists
+  // Ensure chart of accounts exists — dynamically create any missing accounts
   if (accountIds.some(id => id === null)) {
-    // Auto-initialize chart of accounts if missing
-    await supabase.rpc('fn_seed_chart_of_accounts', { p_business_id: businessId });
+    const missing: { code: string; line: typeof payload.lines[0] }[] = [];
+    for (let i = 0; i < accountIds.length; i++) {
+      if (accountIds[i] === null) {
+        missing.push({ code: payload.lines[i].account_code, line: payload.lines[i] });
+      }
+    }
+    for (const m of missing) {
+      const info = CHART_OF_ACCOUNTS[m.code];
+      const { error: insErr } = await supabase
+        .from('chart_of_accounts')
+        .upsert({
+          business_id:   businessId,
+          code:          m.code,
+          name:          info?.name ?? m.line.description,
+          name_ht:       info?.name_ht ?? m.line.description,
+          account_class: info?.class ?? 'Expense',
+          is_system:     false,
+        }, { onConflict: 'business_id,code', ignoreDuplicates: true });
+      if (insErr) console.error(`[accounting] create account ${m.code} failed:`, insErr.message);
+    }
     // Retry
     const retryIds = await Promise.all(
       payload.lines.map(l => getAccountId(supabase, businessId, l.account_code))
     );
     if (retryIds.some(id => id === null)) {
-      console.warn('[accounting] Some accounts not found, skipping journal entry');
-      return '';
+      const stillMissing = payload.lines
+        .filter((_, i) => retryIds[i] === null)
+        .map(l => l.account_code)
+        .join(', ');
+      throw new Error(`Impossible de trove kont comptab pou kòd sa yo apre kreyasyon: ${stillMissing}.`);
     }
     accountIds.splice(0, accountIds.length, ...retryIds);
   }
@@ -306,67 +327,52 @@ export async function recordExpenseEntry(params: {
   paymentMethod?: string;
   exchangeRate?: number;
 }): Promise<void> {
-  try {
-    const { supabase, businessId } = await getBusinessContext();
+  const { supabase, businessId } = await getBusinessContext();
 
-    // Idempotence: if a journal entry already exists (likely from DB trigger with wrong codes),
-    // void it and create a correct one instead of skipping
-    const { data: existing } = await supabase
-      .from('journal_entries')
-      .select('id, total_debit, total_credit, status')
-      .eq('business_id', businessId)
-      .eq('reference_type', 'expense')
-      .eq('reference_id', params.expenseId)
-      .maybeSingle();
+  // Skip if a non-void journal entry already exists
+  const { data: existing } = await supabase
+    .from('journal_entries')
+    .select('id, status')
+    .eq('business_id', businessId)
+    .eq('reference_type', 'expense')
+    .eq('reference_id', params.expenseId)
+    .maybeSingle();
 
-    if (existing?.id) {
-      if (existing.status === 'void') {
-        // Previous entry was already voided (e.g. by deleteExpense) — skip creation
-        return;
-      }
-      // Void the trigger-created entry with wrong codes so we can create the correct one
-      await supabase
-        .from('journal_entries')
-        .update({ status: 'void', voided_reason: 'Remplacé par écriture correcte (app-side)' })
-        .eq('id', existing.id);
-    }
+  if (existing?.id && existing.status !== 'void') return;
 
-    // ── DÉBIT: asset account if it's an asset purchase, otherwise expense account ──
-    const debitCode = isAssetCategory(params.categoryName)
-      ? classifyAssetCategory(params.categoryName)
-      : classifyExpenseCategory(params.categoryName);
+  // ── DÉBIT: asset account if it's an asset purchase, otherwise expense account ──
+  const debitCode = isAssetCategory(params.categoryName)
+    ? classifyAssetCategory(params.categoryName)
+    : classifyExpenseCategory(params.categoryName);
 
-    const debitName = isAssetCategory(params.categoryName)
-      ? 'Achat actif — capitalisation'
-      : 'Dépense';
+  const debitName = isAssetCategory(params.categoryName)
+    ? 'Achat actif — capitalisation'
+    : 'Dépense';
 
-    // ── CRÉDIT: Accounts Payable if unpaid, otherwise Cash/Bank ──
-    const isUnpaid = params.paymentStatus === 'credit' || params.paymentStatus === 'pending';
-    const creditCode = isUnpaid
-      ? ENGINE_CODES.FOURNISSEURS  // 2110 — Dette fournisseur
-      : isBankPaymentMethod(params.paymentMethod)
-        ? ENGINE_CODES.BANQUE
-        : ENGINE_CODES.CAISSE;
+  // ── CRÉDIT: Accounts Payable if unpaid, otherwise Cash/Bank ──
+  const isUnpaid = params.paymentStatus === 'credit' || params.paymentStatus === 'pending';
+  const creditCode = isUnpaid
+    ? ENGINE_CODES.FOURNISSEURS  // 2110 — Dette fournisseur
+    : isBankPaymentMethod(params.paymentMethod)
+      ? ENGINE_CODES.BANQUE
+      : ENGINE_CODES.CAISSE;
 
-    const creditName = isUnpaid
-      ? 'Dette fournisseur (à payer)'
-      : 'Paiement';
+  const creditName = isUnpaid
+    ? 'Dette fournisseur (à payer)'
+    : 'Paiement';
 
-    await createJournalEntry({
-      date:           params.date,
-      description:    params.description,
-      reference_type: 'expense',
-      reference_id:   params.expenseId,
-      currency:       params.currency,
-      exchangeRate:   params.exchangeRate,
-      lines: [
-        { account_code: debitCode,  description: `${debitName} — ${params.description}`, debit: params.amount, credit: 0 },
-        { account_code: creditCode, description: creditName,                              debit: 0,             credit: params.amount },
-      ],
-    });
-  } catch (e) {
-    console.error('[accounting] recordExpenseEntry error:', (e as Error).message);
-  }
+  await createJournalEntry({
+    date:           params.date,
+    description:    params.description,
+    reference_type: 'expense',
+    reference_id:   params.expenseId,
+    currency:       params.currency,
+    exchangeRate:   params.exchangeRate,
+    lines: [
+      { account_code: debitCode,  description: `${debitName} — ${params.description}`, debit: params.amount, credit: 0 },
+      { account_code: creditCode, description: creditName,                              debit: 0,             credit: params.amount },
+    ],
+  });
 }
 
 // ── BACKFILL: All existing transactions ───────────────────────────────────────
@@ -474,23 +480,147 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
   return result;
 }
 
+// Reconcile sales: create journal entries for sales that have none
+export async function reconcileMissingSaleEntries(): Promise<number> {
+  const { supabase, businessId, exchangeRate } = await getBusinessContext();
+
+  const { data: sales } = await supabase
+    .from('sales')
+    .select('id, invoice_number, total_amount, currency, payment_method, payment_status, sale_date, created_at')
+    .eq('business_id', businessId)
+    .is('deleted_at', null);
+
+  if (!sales?.length) return 0;
+
+  const saleIds = sales.map((s: any) => s.id);
+  const { data: existing } = await supabase
+    .from('journal_entries')
+    .select('reference_id')
+    .eq('business_id', businessId)
+    .eq('reference_type', 'sale')
+    .neq('status', 'void')
+    .in('reference_id', saleIds);
+
+  const alreadyDone = new Set((existing ?? []).map((r: any) => r.reference_id));
+
+  let created = 0;
+  for (const s of sales) {
+    const saleId = (s as any).id;
+    if (alreadyDone.has(saleId)) continue;
+
+    try {
+      const isCredit = (s as any).payment_status === 'credit';
+      const debitCode = isCredit
+        ? ENGINE_CODES.CLIENTS
+        : isBankPaymentMethod((s as any).payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
+      const date = (s as any).sale_date ?? ((s as any).created_at as string).split('T')[0];
+      await createJournalEntry({
+        date,
+        description:    `Vente — ${(s as any).invoice_number ?? saleId}`,
+        reference:      (s as any).invoice_number ?? saleId,
+        reference_type: 'sale',
+        reference_id:   saleId,
+        currency:       ((s as any).currency as any) ?? 'HTG',
+        exchangeRate:   ((s as any).currency as any) === 'USD' ? exchangeRate : 1,
+        lines: [
+          { account_code: debitCode,          description: 'Encaissement / Créance', debit: Number((s as any).total_amount), credit: 0 },
+          { account_code: ENGINE_CODES.VENTES, description: 'Revenu vente',           debit: 0, credit: Number((s as any).total_amount) },
+        ],
+      });
+      created += 1;
+    } catch (err) {
+      console.error('[accounting] reconcileSale failed for', saleId, (err as Error).message);
+    }
+  }
+
+  return created;
+}
+
+// Reconcile purchases: create journal entries for purchases that have none
+export async function reconcileMissingPurchaseEntries(): Promise<number> {
+  const { supabase, businessId, exchangeRate } = await getBusinessContext();
+
+  const { data: purchases } = await supabase
+    .from('purchases')
+    .select('id, po_number, total_amount, currency, payment_method, payment_status, purchase_date')
+    .eq('business_id', businessId)
+    .is('deleted_at', null);
+
+  if (!purchases?.length) return 0;
+
+  const purchaseIds = purchases.map((p: any) => p.id);
+  const { data: existing } = await supabase
+    .from('journal_entries')
+    .select('reference_id')
+    .eq('business_id', businessId)
+    .eq('reference_type', 'purchase')
+    .neq('status', 'void')
+    .in('reference_id', purchaseIds);
+
+  const alreadyDone = new Set((existing ?? []).map((r: any) => r.reference_id));
+
+  let created = 0;
+  for (const p of purchases) {
+    const purchaseId = (p as any).id;
+    if (alreadyDone.has(purchaseId)) continue;
+
+    try {
+      const isCredit = (p as any).payment_status === 'credit';
+      const creditCode = isCredit
+        ? ENGINE_CODES.FOURNISSEURS
+        : isBankPaymentMethod((p as any).payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
+      await createJournalEntry({
+        date:           (p as any).purchase_date ?? new Date().toISOString().split('T')[0],
+        description:    `Achat — ${(p as any).po_number ?? purchaseId}`,
+        reference:      (p as any).po_number ?? purchaseId,
+        reference_type: 'purchase',
+        reference_id:   purchaseId,
+        currency:       ((p as any).currency as any) ?? 'HTG',
+        exchangeRate:   ((p as any).currency as any) === 'USD' ? exchangeRate : 1,
+        lines: [
+          { account_code: ENGINE_CODES.ACHATS, description: 'Achat stock', debit: Number((p as any).total_amount), credit: 0 },
+          { account_code: creditCode,            description: isCredit ? 'Dette fournisseur' : 'Paiement', debit: 0, credit: Number((p as any).total_amount) },
+        ],
+      });
+      created += 1;
+    } catch (err) {
+      console.error('[accounting] reconcilePurchase failed for', purchaseId, (err as Error).message);
+    }
+  }
+
+  return created;
+}
+
 // Reconcile expenses: create journal entries for expenses that have none
 export async function reconcileMissingExpenseEntries(): Promise<number> {
   const { supabase, businessId, exchangeRate } = await getBusinessContext();
 
-  // Get expenses for this business
+  // Get all expenses
   const { data: expenses } = await supabase
     .from('expenses')
     .select('id, description, amount, currency, expense_date, payment_method, payment_status, expense_categories(name)')
     .eq('business_id', businessId)
     .is('deleted_at', null);
 
-  let created = 0;
-  for (const e of (expenses ?? [])) {
-    const expenseId = (e as any).id;
+  if (!expenses?.length) return 0;
 
-    // Process all expenses — recordExpenseEntry now voids trigger-created entries
-    // and creates correct ones. This replaces the old skip-if-exists behavior.
+  // Get expense IDs that already have non-void journal entries
+  const expenseIds = expenses.map((e: any) => e.id);
+  const { data: existing } = await supabase
+    .from('journal_entries')
+    .select('reference_id')
+    .eq('business_id', businessId)
+    .eq('reference_type', 'expense')
+    .neq('status', 'void')
+    .in('reference_id', expenseIds);
+
+  const alreadyDone = new Set((existing ?? []).map((r: any) => r.reference_id));
+
+  let created = 0;
+  for (const e of expenses) {
+    const expenseId = (e as any).id;
+    if (alreadyDone.has(expenseId)) continue;
+
     try {
       await recordExpenseEntry({
         expenseId,
@@ -517,30 +647,42 @@ export async function reconcileMissingExpenseEntries(): Promise<number> {
 export async function getChartOfAccounts(): Promise<ChartAccount[]> {
   const { supabase, businessId } = await getBusinessContext();
 
-  let { data } = await supabase
+  // Cleanup: soft-delete non-system accounts that duplicate a system account's code
+  const { data: allAccounts } = await supabase
+    .from('chart_of_accounts')
+    .select('id,code,is_system')
+    .eq('business_id', businessId)
+    .is('deleted_at', null);
+  if (allAccounts) {
+    const systemCodes = new Set(allAccounts.filter(a => a.is_system).map(a => a.code));
+    const dupIds = allAccounts
+      .filter(a => !a.is_system && systemCodes.has(a.code))
+      .map(a => a.id);
+    if (dupIds.length > 0) {
+      await supabase
+        .from('chart_of_accounts')
+        .update({ deleted_at: new Date().toISOString() })
+        .in('id', dupIds);
+    }
+  }
+
+  const { data } = await supabase
     .from('chart_of_accounts')
     .select('id,code,name,name_ht,account_class,parent_id,is_active')
     .eq('business_id', businessId)
     .is('deleted_at', null)
     .order('code');
 
-  // Auto-initialize if empty
-  if (!data?.length) {
-    await supabase.rpc('fn_seed_chart_of_accounts', { p_business_id: businessId });
-    const retry = await supabase
-      .from('chart_of_accounts')
-      .select('id,code,name,name_ht,account_class,parent_id,is_active')
-      .eq('business_id', businessId)
-      .is('deleted_at', null)
-      .order('code');
-    data = retry.data;
-  }
-
   return (data ?? []) as ChartAccount[];
 }
 
 export async function getJournalEntries(limit = 50) {
   const { supabase, businessId } = await getBusinessContext();
+
+  // Auto-reconcile: create journal entries for missing transactions
+  try { await reconcileMissingSaleEntries(); } catch { /* non-blocking */ }
+  try { await reconcileMissingPurchaseEntries(); } catch { /* non-blocking */ }
+  try { await reconcileMissingExpenseEntries(); } catch { /* non-blocking */ }
 
   const { data, error } = await supabase
     .from('journal_entries')
@@ -709,4 +851,63 @@ export async function getBalanceSheet() {
     totalEquity:      parseFloat(totalEquity.toFixed(2)),
     balanced:         Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 1,
   };
+}
+
+// ── CLEANUP: Remove duplicate journal entries ──────────────────────────────
+
+export async function cleanupDuplicateJournalEntries(): Promise<{ removed: number; kept: number }> {
+  const { supabase, businessId, userId } = await getBusinessContext();
+
+  // Find groups with >1 entry for same (reference_type, reference_id)
+  const { data: entries } = await supabase
+    .from('journal_entries')
+    .select('id, reference_type, reference_id, status, created_at')
+    .eq('business_id', businessId)
+    .neq('reference_type', 'manual')
+    .not('reference_id', 'is', null)
+    .order('created_at', { ascending: true });
+
+  const groups: Record<string, any[]> = {};
+  for (const e of entries ?? []) {
+    const key = `${e.reference_type}:${e.reference_id}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  }
+
+  let removed = 0;
+  let kept = 0;
+
+  for (const [key, group] of Object.entries(groups)) {
+    if (group.length <= 1) continue;
+
+    // Keep the newest non-void entry; void the rest
+    const posted = group.filter((e: any) => e.status === 'posted');
+    const keep = posted.length > 0
+      ? posted.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+      : group.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+    for (const e of group) {
+      if (e.id === keep.id) { kept++; continue; }
+      // Void duplicate entry
+      await supabase
+        .from('journal_entry_lines')
+        .update({ debit_amount: 0, credit_amount: 0, base_debit: 0, base_credit: 0 })
+        .eq('journal_entry_id', e.id);
+      await supabase
+        .from('journal_entries')
+        .update({
+          status: 'void',
+          total_debit: 0,
+          total_credit: 0,
+          voided_by: userId,
+          voided_at: new Date().toISOString(),
+          voided_reason: 'Duplicate automatiquement nettoyé',
+        })
+        .eq('id', e.id);
+      removed++;
+    }
+  }
+
+  revalidatePath('/rapports/comptabilite');
+  return { removed, kept };
 }

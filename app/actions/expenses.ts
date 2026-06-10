@@ -147,12 +147,13 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
         paymentMethod: dbMethod ?? 'Cash',
         exchangeRate: (payload.currency ?? 'HTG') === 'USD' ? exchangeRate : 1,
       });
-    } catch (error) {
-      console.error('[accounting] recordExpenseEntry failed:', (error as Error).message);
+    } catch (err) {
+      console.error('[accounting] recordExpenseEntry failed:', (err as Error).message);
     }
   }
 
   revalidatePath('/expenses');
+  revalidatePath('/rapports/comptabilite');
 }
 
 // ── deleteExpense ─────────────────────────────────────────────────────────────

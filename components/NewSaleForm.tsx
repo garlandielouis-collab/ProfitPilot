@@ -314,6 +314,14 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       setSelectedClient(null);
       setClientSearch('');
       setPaymentMode('Espèces');
+
+      // Reload products to get updated stock quantities
+      const { data: freshProds } = await supabase
+        .from('products')
+        .select('id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url')
+        .order('name');
+      if (freshProds) setProducts(freshProds as ProductOption[]);
+
       onSaleComplete?.();
     } catch (e) {
       setError((e as Error).message ?? t({ fr: 'Erreur lors de la vente.', ht: 'Erè pandan vant la.' }));

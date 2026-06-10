@@ -14,6 +14,7 @@ export type InventoryProduct = {
   stock_quantity: number;
   reorder_point: number | null;
   alert_active: boolean;
+  currency: 'HTG' | 'USD';
 };
 
 export type StockAdjustmentPayload = {
@@ -45,7 +46,7 @@ export async function getInventory(): Promise<InventoryProduct[]> {
   const [prodRes, alertRes] = await Promise.all([
     supabase
       .from('products')
-      .select('id, name, category, purchase_price, sale_price, stock_quantity')
+      .select('id, name, category, purchase_price, sale_price, stock_quantity, currency')
       .eq('user_id', userId)
       .order('name'),
     supabase
@@ -73,6 +74,7 @@ export async function getInventory(): Promise<InventoryProduct[]> {
       stock_quantity: Number(p.stock_quantity),
       reorder_point:  alert?.reorder_point ?? null,
       alert_active:   alert ? !alert.is_resolved && Number(p.stock_quantity) <= (alert.reorder_point ?? 0) : false,
+      currency:       p.currency ?? 'HTG',
     };
   });
 }

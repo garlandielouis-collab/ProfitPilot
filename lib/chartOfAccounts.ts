@@ -387,8 +387,8 @@ export function getTransactionPosting(
     case 'Refund':
       // DEBIT Sales Refunds (contra-revenue), CREDIT Cash
       entries.push({
-        account_code: '4100',
-        account_name: CHART_OF_ACCOUNTS['4100'].name,
+        account_code: '7090R',
+        account_name: CHART_OF_ACCOUNTS['7090R']?.name || 'Retours sur ventes',
         debit: amount,
         credit: 0,
         currency,

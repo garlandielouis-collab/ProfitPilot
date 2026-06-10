@@ -39,6 +39,10 @@ function fmtPrice(n: number, currency: string) {
   return new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' HTG';
 }
 
+function fmtConverted(usdAmount: number, rate: number) {
+  return new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(usdAmount * rate) + ' HTG';
+}
+
 function stockBadge(qty: number, t: (o: { fr: string; ht: string }) => string) {
   if (qty === 0) return { label: t({ fr: 'Épuisé', ht: 'Epuize' }), cls: 'bg-red-100 text-red-600' };
   if (qty <= 5)  return { label: `${qty} ${t({ fr: 'restants', ht: 'rete' })}`, cls: 'bg-amber-100 text-amber-700' };
@@ -415,10 +419,12 @@ function ProductCard({
   product,
   onEdit,
   onDelete,
+  exchangeRate,
 }: {
   product: Product;
   onEdit: () => void;
   onDelete: () => void;
+  exchangeRate: number;
 }) {
   const { t } = useLanguage();
   const margin  = calcMargin(product);
@@ -506,10 +512,16 @@ function ProductCard({
             <p className="text-lg font-bold text-[#1e293b]">
               {fmtPrice(product.sale_price, product.currency)}
             </p>
+            {product.currency === 'USD' && (
+              <p className="text-[10px] text-slate-400">~{fmtConverted(product.sale_price, exchangeRate)}</p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-[10px] text-slate-400 mb-0.5">{t({ fr: "Prix d'achat", ht: 'Pri Acha' })}</p>
             <p className="text-sm text-slate-500">{fmtPrice(product.purchase_price, product.currency)}</p>
+            {product.currency === 'USD' && (
+              <p className="text-[10px] text-slate-400">~{fmtConverted(product.purchase_price, exchangeRate)}</p>
+            )}
           </div>
         </div>
 
@@ -517,7 +529,10 @@ function ProductCard({
         <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
           <span className="text-xs text-slate-400">
             {t({ fr: 'Valeur', ht: 'Valè' })}: <span className="font-medium text-[#1e293b]">{fmtPrice(product.purchase_price * product.stock_quantity, product.currency)}</span>
-              </span>
+            {product.currency === 'USD' && product.stock_quantity > 0 && (
+              <span className="ml-1">(~{fmtConverted(product.purchase_price * product.stock_quantity, exchangeRate)})</span>
+            )}
+          </span>
           <button
             onClick={onEdit}
             className="rounded-lg bg-[#001F3F]/10 px-2.5 py-1 text-xs font-semibold text-[#001F3F] hover:bg-[#001F3F]/20 transition"
@@ -533,7 +548,7 @@ function ProductCard({
 
 // â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export function ProductsClient({ initialProducts, initialUserId }: { initialProducts: Product[]; initialUserId: string }) {
+export function ProductsClient({ initialProducts, initialUserId, exchangeRate = 130 }: { initialProducts: Product[]; initialUserId: string; exchangeRate?: number }) {
   const [products,     setProducts]     = useState<Product[]>(initialProducts);
   const [loading,      setLoading]      = useState(false);
   const [search,       setSearch]       = useState('');
@@ -560,7 +575,8 @@ export function ProductsClient({ initialProducts, initialUserId }: { initialProd
 
   // Computed stats — memoized to avoid O(n) iterations on every render
   const { totalValue, avgMargin, outOfStock, withPhotos, categories } = useMemo(() => {
-    const totalValue  = products.reduce((s, p) => s + p.purchase_price * p.stock_quantity, 0);
+    const toHtg = (p: Product) => p.currency === 'USD' ? p.purchase_price * p.stock_quantity * exchangeRate : p.purchase_price * p.stock_quantity;
+    const totalValue  = products.reduce((s, p) => s + toHtg(p), 0);
     const avgMargin   = products.length
       ? products.reduce((s, p) => s + calcMargin(p), 0) / products.length
       : 0;
@@ -714,6 +730,7 @@ export function ProductsClient({ initialProducts, initialUserId }: { initialProd
                   product={p}
                   onEdit={() => openEdit(p)}
                   onDelete={() => setDeleteTarget(p)}
+                  exchangeRate={exchangeRate}
                 />
               ))}
             </AnimatePresence>

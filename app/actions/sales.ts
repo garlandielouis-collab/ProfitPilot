@@ -59,16 +59,23 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
   const exchangeRate = ctx.exchangeRate;
 
-  // ── 4. Check stock via warehouse_stock ───────────────────────────────────
+  // ── 4. Check stock via warehouse_stock + products fallback ──────────────
   type StockRow = { product_id: string; variant_id: string | null; quantity: number };
   const productIds = [...new Set(data.items.map((i) => i.product_id))];
-  const { data: stockRows, error: stockErr } = await sb
-    .from('warehouse_stock')
-    .select('product_id, variant_id, quantity')
-    .eq('business_id', businessId)
-    .in('product_id', productIds);
+  const [stockResult, prodResult] = await Promise.all([
+    sb.from('warehouse_stock')
+      .select('product_id, variant_id, quantity')
+      .eq('business_id', businessId)
+      .in('product_id', productIds),
+    sb.from('products')
+      .select('id, stock_quantity')
+      .in('id', productIds),
+  ]);
 
-  if (stockErr) return { success: false, errors: [{ field: 'stock', message: stockErr.message }] };
+  if (stockResult.error) return { success: false, errors: [{ field: 'stock', message: stockResult.error.message }] };
+  const stockRows: StockRow[] = stockResult.data ?? [];
+  const prodStockMap: Record<string, number> = {};
+  for (const p of prodResult.data ?? []) prodStockMap[p.id] = p.stock_quantity ?? 0;
 
   for (const item of data.items) {
     let available = 0;
@@ -77,18 +84,19 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
         (r: StockRow) =>
           r.product_id === item.product_id &&
           r.variant_id === item.variant_id &&
-          (!data.warehouse_id || true) // warehouse_id filter would go here
+          (!data.warehouse_id || true)
       );
       available = row?.quantity ?? 0;
     } else {
-      available = (stockRows ?? [])
+      const wsQty = (stockRows ?? [])
         .filter((r: StockRow) => r.product_id === item.product_id)
         .reduce((s: number, r: StockRow) => s + r.quantity, 0);
+      available = wsQty > 0 ? wsQty : (prodStockMap[item.product_id] ?? 0);
     }
     if (available < item.quantity) {
       return {
         success: false,
-        errors: [{ field: `items.${item.product_name}`, message: `Stock insuffisant pour "${item.product_name}" (disponible: ${available})` }],
+        errors: [{ field: `items.${item.product_name}`, message: `Stock insuffisant pou "${item.product_name}" (disponib: ${available})` }],
       };
     }
   }
@@ -121,7 +129,6 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       subtotal_amount:  fmt2(subtotal),
       total_amount:     totalAmount,
       paid_amount:      paidAmount,
-      balance_due:      totalAmount - paidAmount,
       notes:            data.notes ?? null,
       created_by:       userId,
     })
@@ -170,7 +177,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   for (const item of data.items) {
     const cost_price = saleItems.find((si) => si.product_id === item.product_id)?.cost_price ?? 0;
 
-    // Decrement warehouse_stock
+    // Decrement warehouse_stock (if entry exists)
     const matchQty = item.variant_id
       ? sb.from('warehouse_stock').select('quantity').eq('product_id', item.product_id).eq('variant_id', item.variant_id).maybeSingle()
       : null;
@@ -201,7 +208,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       created_by:     userId,
     });
 
-    // Legacy: update products.stock_quantity for backward compat
+    // Update products.stock_quantity
     const { data: legacy } = await sb
       .from('products')
       .select('stock_quantity')
@@ -267,6 +274,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   revalidatePath('/sales');
   revalidatePath('/clients');
   revalidatePath('/dettes');
+  revalidatePath('/rapports/comptabilite');
 
   return {
     success: true,

@@ -10,6 +10,7 @@ import {
   getIncomeStatement,
   createJournalEntry,
   backfillAllJournalEntries,
+  cleanupDuplicateJournalEntries,
   type BackfillResult,
 } from '../../actions/accounting';
 import { classifyTransaction, CHART_OF_ACCOUNTS } from '../../../lib/accountingEngine';
@@ -95,6 +96,10 @@ function ComptabiliteInner() {
   // Backfill
   const [backfilling,   setBackfilling]  = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillResult | null>(null);
+
+  // Cleanup duplicates
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanMsg, setCleanMsg] = useState('');
 
   // Manual entry form
   const [entryDesc,    setEntryDesc]    = useState('');
@@ -205,6 +210,21 @@ function ComptabiliteInner() {
     setBackfilling(false);
   }
 
+  async function handleCleanup() {
+    if (!confirm('Sa ap retire tout ekriti kontab ki an doub pou menm tranzaksyon an. Kontinye?')) return;
+    setCleaning(true);
+    setCleanMsg('');
+    try {
+      const result = await cleanupDuplicateJournalEntries();
+      setCleanMsg(`${result.removed} duplikat retire, ${result.kept} kenbe.`);
+      await loadJournal();
+      if (trialBalance) await loadBalance();
+    } catch (e: any) {
+      setCleanMsg('Erè: ' + e.message);
+    }
+    setCleaning(false);
+  }
+
   // ── AI assist ───────────────────────────────────────────────────────────────
   function handleDescChange(v: string) {
     setEntryDesc(v);
@@ -282,16 +302,31 @@ function ComptabiliteInner() {
           </div>
 
           {/* Backfill button */}
-          <button
-            onClick={handleBackfill}
-            disabled={backfilling}
-            className="inline-flex items-center gap-2 rounded-2xl border border-[#12B981]/30 bg-[#12B981]/10 px-5 py-2.5 text-sm font-semibold text-[#12B981] hover:bg-[#12B981]/20 transition disabled:opacity-50"
-          >
-            {backfilling
-              ? <><RefreshCw size={14} className="animate-spin" /> Backfill en cours…</>
-              : <><RotateCcw size={14} /> Kontabilize tranzaksyon existants</>
-            }
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBackfill}
+              disabled={backfilling}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#12B981]/30 bg-[#12B981]/10 px-5 py-2.5 text-sm font-semibold text-[#12B981] hover:bg-[#12B981]/20 transition disabled:opacity-50"
+            >
+              {backfilling
+                ? <><RefreshCw size={14} className="animate-spin" /> Backfill en cours…</>
+                : <><RotateCcw size={14} /> Kontabilize tranzaksyon existants</>
+              }
+            </button>
+            <button
+              onClick={handleCleanup}
+              disabled={cleaning}
+              className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition disabled:opacity-50"
+            >
+              {cleaning
+                ? <><RefreshCw size={14} className="animate-spin" /> Netwayaj…</>
+                : <>🗑️ Netwaye doublon</>
+              }
+            </button>
+            {cleanMsg && (
+              <span className="text-xs text-slate-500">{cleanMsg}</span>
+            )}
+          </div>
         </div>
 
         {/* Backfill result */}
@@ -886,38 +921,26 @@ function ComptabiliteInner() {
                   {lines.map((line, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-3">
-                        <select
-                          value={line.account_code}
-                          onChange={e => { const nl=[...lines]; nl[i]={...nl[i],account_code:e.target.value}; setLines(nl); }}
-                          className="w-full rounded-xl border border-[#E2E8F0] bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#12B981] focus:bg-white transition"
-                        >
-                          <option value="">Chwazi...</option>
-                          <optgroup label="ACTIFS">
-                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('1')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="PASSIFS">
-                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('2')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="CAPITAUX">
-                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('3')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="REVENUS">
-                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('4')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="CHARGES">
-                            {Object.entries(ACCOUNT_NAMES).filter(([k]) => k.startsWith('6')).map(([k,v]) => (
-                              <option key={k} value={k}>{k} — {t({ fr: v, ht: ACCOUNT_HT[k] || v })}</option>
-                            ))}
-                          </optgroup>
-                        </select>
+                          <select
+                            value={line.account_code}
+                            onChange={e => { const nl=[...lines]; nl[i]={...nl[i],account_code:e.target.value}; setLines(nl); }}
+                            className="w-full rounded-xl border border-[#E2E8F0] bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#12B981] focus:bg-white transition"
+                          >
+                            <option value="">Chwazi...</option>
+                            {(['Asset','Liability','Equity','Revenue','Expense'] as const).map(groupClass => {
+                              const label = { Asset: 'ACTIFS', Liability: 'PASSIFS', Equity: 'CAPITAUX', Revenue: 'REVENUS', Expense: 'CHARGES' }[groupClass];
+                              return (
+                                <optgroup key={groupClass} label={label}>
+                                  {Object.values(CHART_OF_ACCOUNTS)
+                                    .filter(a => a.class === groupClass)
+                                    .map(a => (
+                                      <option key={a.code} value={a.code}>{a.code} — {t({ fr: a.name, ht: a.name_ht || a.name })}</option>
+                                    ))
+                                  }
+                                </optgroup>
+                              );
+                            })}
+                          </select>
                       </div>
                       <div className="col-span-4">
                         <input value={line.description} onChange={e => { const nl=[...lines]; nl[i]={...nl[i],description:e.target.value}; setLines(nl); }}

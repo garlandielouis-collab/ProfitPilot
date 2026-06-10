@@ -184,6 +184,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
   revalidatePath('/purchases');
   revalidatePath('/products');
   revalidatePath('/dettes');
+  revalidatePath('/rapports/comptabilite');
 
   return true;
 }

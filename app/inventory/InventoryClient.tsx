@@ -226,12 +226,18 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
 
 // â”€â”€ main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+function toHtgValue(p: InventoryProduct, rate: number) {
+  return p.currency === 'USD' ? p.purchase_price * p.stock_quantity * rate : p.purchase_price * p.stock_quantity;
+}
+
 export function InventoryClient({
   initialInventory,
   initialMovements,
+  exchangeRate = 130,
 }: {
   initialInventory: InventoryProduct[];
   initialMovements: InventoryMovement[];
+  exchangeRate?: number;
 }) {
   const [inventory, setInventory] = useState<InventoryProduct[]>(initialInventory);
   const [movements, setMovements] = useState<InventoryMovement[]>(initialMovements);
@@ -294,7 +300,7 @@ export function InventoryClient({
 
   // KPIs
   const totalProducts = inventory.length;
-  const totalValue = inventory.reduce((s, p) => s + p.purchase_price * p.stock_quantity, 0);
+  const totalValue = inventory.reduce((s, p) => s + toHtgValue(p, exchangeRate), 0);
   const lowStockCount = inventory.filter(p => p.alert_active).length;
   const outOfStockCount = inventory.filter(p => p.stock_quantity === 0).length;
 
@@ -312,9 +318,9 @@ export function InventoryClient({
   const topByQty = topSold.map(p => ({ name: p.name, qty: p.qty }));
 
   const topByValue = [...inventory]
-    .sort((a, b) => b.purchase_price * b.stock_quantity - a.purchase_price * a.stock_quantity)
+    .sort((a, b) => toHtgValue(b, exchangeRate) - toHtgValue(a, exchangeRate))
     .slice(0, 8)
-    .map(p => ({ name: p.name.length > 12 ? p.name.slice(0, 12) + 'â€¦' : p.name, val: p.purchase_price * p.stock_quantity }));
+    .map(p => ({ name: p.name.length > 12 ? p.name.slice(0, 12) + 'â€¦' : p.name, val: toHtgValue(p, exchangeRate) }));
 
   const kpis = [
     { label: t({ fr: 'Total Produits', ht: 'Total Pwodui' }), value: totalProducts.toString(), icon: Package, color: '#12B981', bg: '#ECFDF5' },
@@ -533,8 +539,9 @@ export function InventoryClient({
                             t({ fr: 'Produit', ht: 'Pwodui' }),
                             t({ fr: 'Catégorie', ht: 'Kategori' }),
                             t({ fr: 'Stock', ht: 'Stock' }),
+                            t({ fr: 'Monnaie', ht: 'Lajan' }),
                             t({ fr: 'Point Réappro', ht: 'Pwen Reòd' }),
-                            t({ fr: 'Valeur', ht: 'Valè' }),
+                            t({ fr: 'Valeur (HTG)', ht: 'Valè (HTG)' }),
                             t({ fr: 'Statut', ht: 'Estati' }),
                             t({ fr: 'Action', ht: 'Aksyon' }),
                           ].map(h => (
@@ -547,7 +554,7 @@ export function InventoryClient({
                       <tbody className="divide-y divide-[#E2E8F0]">
                         {inventory.map((p, i) => {
                           const sl = stockStatus(p, t);
-                          const val = p.purchase_price * p.stock_quantity;
+                          const val = toHtgValue(p, exchangeRate);
                           return (
                             <motion.tr
                               key={p.id}
@@ -565,6 +572,9 @@ export function InventoryClient({
                               <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{p.category ?? 'â€”'}</td>
                               <td className="px-4 py-3 font-semibold" style={{ color: sl.color }}>
                                 {p.stock_quantity}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600 whitespace-nowrap font-medium">
+                                {p.currency ?? 'HTG'}
                               </td>
                               <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                                 {p.reorder_point !== null ? p.reorder_point : 'â€”'}
