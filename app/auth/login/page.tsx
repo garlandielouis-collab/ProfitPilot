@@ -80,6 +80,7 @@ function LoginForm() {
       recordLogin();
       await new Promise(resolve => setTimeout(resolve, 500));
       router.replace('/dashboard');
+      setLoading(false);
 
     } catch (err: any) {
       console.error('[Login] exception:', err);

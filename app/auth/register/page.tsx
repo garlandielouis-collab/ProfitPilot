@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import { Logo } from '../../../components/Logo';
 import { useLanguage } from '../../../components/LanguageWrapper';
+import { recordLogin } from '../../../hooks/useSubscription';
 
 function translateError(msg: string, t: (obj: { fr: string; ht: string }) => string): string {
   const m = msg.toLowerCase();
@@ -22,7 +23,7 @@ function translateError(msg: string, t: (obj: { fr: string; ht: string }) => str
 
 type Step = 'form' | 'check-email' | 'success';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const { t } = useLanguage();
   const router = useRouter();
 
@@ -69,9 +70,10 @@ export default function RegisterPage() {
     // Si Supabase a déjà confirmé l'email (confirmation désactivée dans le dashboard)
     // → la session est active immédiatement
     if (signUpData.session) {
-      // Attendre que les cookies soient sauvegardés avant de rediriger
+      recordLogin();
       await new Promise(resolve => setTimeout(resolve, 500));
       router.replace('/dashboard');
+      setLoading(false);
       return;
     }
 
@@ -309,5 +311,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[#001F3F]" /></div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }
