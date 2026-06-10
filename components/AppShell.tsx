@@ -279,13 +279,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // If an unauthenticated user lands on a protected route like /dashboard,
-  // send them back to the public landing page instead of showing the login UI.
-  useEffect(() => {
-    if (!user && pathname === '/dashboard') {
-      router.replace('/');
-    }
-  }, [user, pathname, router]);
+  // ProtectedRoute gère déjà la redirection si l'utilisateur n'est pas connecté.
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

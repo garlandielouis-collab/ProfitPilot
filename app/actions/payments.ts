@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { sendPaymentNotification } from '../../lib/sendEmail';
@@ -43,7 +43,11 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
     const userEmail  = input.userEmail ?? input.userId;
     const userName   = input.userName  ?? userEmail.split('@')[0];
     const adminSecret = process.env.ADMIN_APPROVAL_SECRET;
-    const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://profitpilot.vercel.app';
+    const appUrl      = process.env.NEXT_PUBLIC_APP_URL
+      ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : undefined)
+      ?? 'http://localhost:3000';
     const approveUrl  = adminSecret
       ? `${appUrl}/api/admin/approve?ref=${encodeURIComponent(input.reference)}&token=${adminSecret}`
       : undefined;
