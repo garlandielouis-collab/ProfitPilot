@@ -448,13 +448,22 @@ function ComptabiliteInner() {
                               </thead>
                               <tbody className="divide-y divide-slate-100">
                                 {(entry.journal_entry_lines ?? []).map((line: any) => (
-                                  <tr key={line.id}>
-                                    <td className="py-1.5">
-                                      <span className="font-mono font-semibold text-[#0F172A]">
-                                        {(line.chart_of_accounts as any)?.code ?? '—'}
-                                      </span>
-                                      <span className="ml-2 text-slate-500">{(line.chart_of_accounts as any)?.name ?? '—'}</span>
-                                    </td>
+                                    <tr key={line.id}>
+                                      <td className="py-1.5">
+                                        <span className="font-mono font-semibold text-[#0F172A]">
+                                          {(line.chart_of_accounts as any)?.code ?? '—'}
+                                        </span>
+                                        <span className="ml-2 text-slate-500">{(line.chart_of_accounts as any)?.name ?? '—'}</span>
+                                        {(line.chart_of_accounts as any)?.account_class && (
+                                          <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${CLASS_COLOR[(line.chart_of_accounts as any).account_class as string] ?? 'bg-slate-100 text-slate-600'}`}>
+                                            {(line.chart_of_accounts as any).account_class === 'Asset' ? 'ACTIF' :
+                                             (line.chart_of_accounts as any).account_class === 'Liability' ? 'PASSIF' :
+                                             (line.chart_of_accounts as any).account_class === 'Equity' ? 'CAP.' :
+                                             (line.chart_of_accounts as any).account_class === 'Revenue' ? 'REV.' :
+                                             (line.chart_of_accounts as any).account_class === 'Expense' ? 'CH.' : ''}
+                                          </span>
+                                        )}
+                                      </td>
                                     <td className="py-1.5 text-slate-500">{line.description}</td>
                                     <td className="py-1.5 text-right font-semibold text-blue-700">
                                       {Number(line.base_debit ?? line.debit_amount) > 0 ? fmtHTG(Number(line.base_debit ?? line.debit_amount)) : '—'}
@@ -933,6 +942,7 @@ function ComptabiliteInner() {
                                 <optgroup key={groupClass} label={label}>
                                   {Object.values(CHART_OF_ACCOUNTS)
                                     .filter(a => a.class === groupClass)
+                                    .sort((a, b) => a.code.localeCompare(b.code))
                                     .map(a => (
                                       <option key={a.code} value={a.code}>{a.code} — {t({ fr: a.name, ht: a.name_ht || a.name })}</option>
                                     ))
