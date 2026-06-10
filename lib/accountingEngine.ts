@@ -27,31 +27,30 @@ export const CHART_OF_ACCOUNTS: Record<string, AccountInfo> = {
   '3700': { code: '3700', name: 'Stock Marchandises',      name_ht: 'Stòk Machandiz',       class: 'Asset',    normalBalance: 'debit' },
   '2100': { code: '2100', name: 'Immobilisations',         name_ht: 'Ekipman',              class: 'Asset',    normalBalance: 'debit' },
   '2800': { code: '2800', name: 'Amortissements cumulés',  name_ht: 'Amòtisman kumile',     class: 'Asset',    normalBalance: 'credit' },
-  '4710': { code: '4710', name: 'Avances et acomptes',     name_ht: 'Avans peye',           class: 'Asset',    normalBalance: 'debit' },
+  '4090': { code: '4090', name: 'Avances versées fournisseurs', name_ht: 'Avans peye founisè', class: 'Asset',    normalBalance: 'debit' },
 
   // ── PASSIFS ───────────────────────────────────────────────────────────────
   '4010': { code: '4010', name: 'Fournisseurs',            name_ht: 'Founisè',              class: 'Liability', normalBalance: 'credit' },
-  '4020': { code: '4020', name: 'Effets à payer',          name_ht: 'Biye peyab',           class: 'Liability', normalBalance: 'credit' },
-  '4200': { code: '4200', name: 'Salaires à Payer',        name_ht: 'Salè pou Peye',        class: 'Liability', normalBalance: 'credit' },
-  '4440': { code: '4440', name: 'Impôts à Payer',          name_ht: 'Taks pou Peye',        class: 'Liability', normalBalance: 'credit' },
-  '4450': { code: '4450', name: 'TVA / TCA collectée',     name_ht: 'TCA kolekte',          class: 'Liability', normalBalance: 'credit' },
-  '1640': { code: '1640', name: 'Emprunts bancaires',      name_ht: 'Prè Bank',             class: 'Liability', normalBalance: 'credit' },
+  '4030': { code: '4030', name: 'Effets à payer',          name_ht: 'Biye peyab',           class: 'Liability', normalBalance: 'credit' },
   '4190': { code: '4190', name: 'Avances clients reçues',  name_ht: 'Avans kliyan',         class: 'Liability', normalBalance: 'credit' },
+  '4210': { code: '4210', name: 'Salaires à Payer',        name_ht: 'Salè pou Peye',        class: 'Liability', normalBalance: 'credit' },
+  '4440': { code: '4440', name: 'Impôts à Payer',          name_ht: 'Taks pou Peye',        class: 'Liability', normalBalance: 'credit' },
+  '4457': { code: '4457', name: 'TVA / TCA collectée',     name_ht: 'TCA kolekte',          class: 'Liability', normalBalance: 'credit' },
+  '1640': { code: '1640', name: 'Emprunts bancaires',      name_ht: 'Prè Bank',             class: 'Liability', normalBalance: 'credit' },
 
   // ── CAPITAUX PROPRES ──────────────────────────────────────────────────────
   '1010': { code: '1010', name: 'Capital social',          name_ht: 'Kapital sosyal',       class: 'Equity',   normalBalance: 'credit' },
   '1070': { code: '1070', name: 'Report à nouveau',        name_ht: 'Rezilta anvan',        class: 'Equity',   normalBalance: 'credit' },
+  '1080': { code: '1080', name: 'Prélèvements propriétaire', name_ht: 'Retrè pwopriyetè',  class: 'Equity',   normalBalance: 'debit' },
   '1300': { code: '1300', name: 'Résultat Net',            name_ht: 'Pwofi ane a',          class: 'Equity',   normalBalance: 'credit' },
-  '4580': { code: '4580', name: 'Prélèvements',            name_ht: 'Prelèvman',            class: 'Equity',   normalBalance: 'debit' },
 
-  // ── REVENUS ───────────────────────────────────────────────────────────────
-  '4100': { code: '4100', name: 'Ventes de marchandises',  name_ht: 'Vant machandiz',       class: 'Revenue',  normalBalance: 'credit' },
-  '7010': { code: '7010', name: 'Ventes (ancien)',         name_ht: 'Vant (ansyen)',         class: 'Revenue',  normalBalance: 'credit' },
+  // ── REVENUS (Classe 7 PCG) ────────────────────────────────────────────────
+  '7010': { code: '7010', name: 'Ventes de marchandises',  name_ht: 'Vant machandiz',       class: 'Revenue',  normalBalance: 'credit' },
   '7020': { code: '7020', name: 'Prestations de services', name_ht: 'Sèvis',               class: 'Revenue',  normalBalance: 'credit' },
   '7090': { code: '7090', name: 'Autres revenus',          name_ht: 'Lòt revni',            class: 'Revenue',  normalBalance: 'credit' },
-  '7091': { code: '7091', name: 'Revenus financiers',      name_ht: 'Revni finansye',       class: 'Revenue',  normalBalance: 'credit' },
+  '7600': { code: '7600', name: 'Revenus financiers',      name_ht: 'Revni finansye',       class: 'Revenue',  normalBalance: 'credit' },
 
-  // ── CHARGES (6xxx PCG-HT) ─────────────────────────────────────────────────
+  // ── CHARGES (Classe 6 PCG) ────────────────────────────────────────────────
   '6010': { code: '6010', name: 'Achats Marchandises',     name_ht: 'Acha Machandiz',       class: 'Expense',  normalBalance: 'debit' },
   '6020': { code: '6020', name: 'Variation de stocks',     name_ht: 'Chanjman stock',       class: 'Expense',  normalBalance: 'debit' },
   '6130': { code: '6130', name: 'Loyer',                   name_ht: 'Lwaye',                class: 'Expense',  normalBalance: 'debit' },
@@ -66,7 +65,7 @@ export const CHART_OF_ACCOUNTS: Record<string, AccountInfo> = {
   '6270': { code: '6270', name: 'Frais Bancaires',         name_ht: 'Frè Bank',             class: 'Expense',  normalBalance: 'debit' },
   '6350': { code: '6350', name: 'Impôts & Taxes',          name_ht: 'Enpo & Taks',          class: 'Expense',  normalBalance: 'debit' },
   '6410': { code: '6410', name: 'Salaires',                name_ht: 'Salè',                 class: 'Expense',  normalBalance: 'debit' },
-  '6430': { code: '6430', name: 'Charges Sociales',        name_ht: 'Chaj Sosyal',          class: 'Expense',  normalBalance: 'debit' },
+  '6450': { code: '6450', name: 'Charges Sociales',        name_ht: 'Chaj Sosyal',          class: 'Expense',  normalBalance: 'debit' },
   '6500': { code: '6500', name: 'Autres Charges',          name_ht: 'Lòt Chaj',             class: 'Expense',  normalBalance: 'debit' },
   '6600': { code: '6600', name: 'Charges Financières',     name_ht: 'Enterè prè',           class: 'Expense',  normalBalance: 'debit' },
   '6810': { code: '6810', name: 'Dotations Amortissement', name_ht: 'Amòtisman',            class: 'Expense',  normalBalance: 'debit' },
@@ -77,7 +76,7 @@ export const ACCOUNT_CODES = {
   BANQUE:           '5110',
   CLIENTS:          '4110',
   STOCK:            '3700',
-  FOURNITURES_ACT:  '4710',
+  FOURNITURES_ACT:  '4090',
   EQUIPEMENTS:      '2100',
   MOBILIER:         '2410',
   VEHICULES:        '2500',
@@ -85,15 +84,15 @@ export const ACCOUNT_CODES = {
   TERRAINS:         '2100',
   AMORT_CUMUL:      '2800',
   FOURNISSEURS:     '4010',
-  SALAIRES_PASSIF:  '4200',
+  SALAIRES_PASSIF:  '4210',
   TAXES_PASSIF:     '4440',
-  DETTES_SOCIALES:  '6430',
+  DETTES_SOCIALES:  '6450',
   EMPRUNTS:         '1640',
   CAPITAL:          '1010',
-  PRELEVEMENTS:     '4580',
+  PRELEVEMENTS:     '1080',
   RESERVES:         '1070',
   RESULTAT:         '1300',
-  VENTES:           '4100',
+  VENTES:           '7010',
   SERVICES:         '7020',
   REVENUS_DIVERS:   '7090',
   ACHATS:           '6010',
@@ -109,7 +108,7 @@ export const ACCOUNT_CODES = {
   BANCAIRE:         '6270',
   IMPOTS:           '6350',
   SALAIRES:         '6410',
-  SOCIALES:         '6430',
+  SOCIALES:         '6450',
   AUTRES_CHARGES:   '6500',
   FRAIS_FIN:        '6600',
   DOT_AMORT:        '6810',
@@ -135,7 +134,7 @@ export const TRANSACTION_RULES: TransactionRule[] = [
   {
     id: 'vente_cash',
     keywords: ['vente', 'vann', 'vant', 'encaissement', 'cash', 'comptant', 'kach'],
-    debit: '5310', credit: '4100',
+    debit: '5310', credit: '7010',
     label: 'Vente comptant — Débit Caisse / Crédit Ventes',
     label_ht: 'Vant kach — Debite Kès / Kredite Vant',
     category: 'Ventes', confidence: 'high',
@@ -143,7 +142,7 @@ export const TRANSACTION_RULES: TransactionRule[] = [
   {
     id: 'vente_credit',
     keywords: ['vente', 'vann', 'crédit', 'kredi', 'client', 'kliyan'],
-    debit: '4110', credit: '4100',
+    debit: '4110', credit: '7010',
     label: 'Vente à crédit — Débit Clients / Crédit Ventes',
     label_ht: 'Vant a kredi — Debite Kliyan / Kredite Vant',
     category: 'Ventes crédit', confidence: 'high',
@@ -335,7 +334,7 @@ export const TRANSACTION_RULES: TransactionRule[] = [
   {
     id: 'charge_sociale',
     keywords: ['social', 'ona', 'ofatma', 'sosyal'],
-    debit: '6430', credit: '5310',
+    debit: '6450', credit: '5310',
     label: 'Charges sociales — Débit Sociales / Crédit Caisse',
     label_ht: 'Chaj sosyal — Debite Sosyal / Kredite Kès',
     category: 'Charges sociales', confidence: 'medium',
@@ -411,7 +410,7 @@ export const TRANSACTION_RULES: TransactionRule[] = [
   {
     id: 'prelevement',
     keywords: ['prélèvement', 'prelevman', 'retrait', 'retrè', 'propriétaire', 'pwopriyetè', 'owner'],
-    debit: '4580', credit: '5310',
+    debit: '1080', credit: '5310',
     label: 'Prélèvement propriétaire — Débit Prélèvements / Crédit Caisse',
     label_ht: 'Retrè pwopriyetè — Debite Retrè / Kredite Kès',
     category: 'Capital', confidence: 'medium',
@@ -658,7 +657,7 @@ export function mapCategoryToAccountCode(category: string): string {
   if (c.includes('impôt') || c.includes('taxe') || c.includes('tca') || c.includes('enpo') || c.includes('tax'))
     return '6350';
   if (c.includes('social') || c.includes('ona') || c.includes('ofatma'))
-    return '6430';
+    return '6450';
   if (c.includes('assurance') || c.includes('asirans'))
     return '6170';
   if (c.includes('amortissement') || c.includes('amòtisman') || c.includes('depreciation'))
