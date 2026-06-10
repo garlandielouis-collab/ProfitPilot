@@ -219,7 +219,7 @@ function ClientsCRMInner() {
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [clients,      setClients]      = useState<Client[]>(MOCK_CLIENTS);
-  const [selectedId,   setSelectedId]   = useState<string | null>(params.get('id') ?? MOCK_CLIENTS[0].id);
+  const [selectedId,   setSelectedId]   = useState<string | null>(params.get('id') ?? null);
   const [isDemo,       setIsDemo]       = useState(true);
   const [loading,      setLoading]      = useState(true);
   const [detailLoad,   setDetailLoad]   = useState(false);

@@ -372,7 +372,10 @@ function AiAssistantPage() {
     if (!text || isStreaming) return;
     if (!activeConvId) { toast.error('Sélectionnez ou créez une conversation'); return; }
     setInput('');
-    send.mutate({ text, weeklySummary: summary });
+    toast('✨ Pilot AI est disponible en version Premium uniquement. Passez à Premium pour accéder à votre conseiller financier intelligent.', {
+      duration: 6000,
+      style: { background: '#001F3F', color: '#fff', borderRadius: '16px' },
+    });
   }, [input, isStreaming, activeConvId, send, summary]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -430,6 +433,22 @@ function AiAssistantPage() {
               {summary ? t({ fr: 'Données chargées', ht: 'Done chaje' }) : t({ fr: 'Chargement…', ht: 'Chajman…' })}
             </span>
           </div>
+        </div>
+
+        {/* Premium banner */}
+        <div className="flex items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-3">
+          <span className="text-lg">✨</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              {t({ fr: 'Fonctionnalité Premium', ht: 'Fonksyonalite Premium' })}
+            </p>
+            <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+              {t({ fr: 'Pilot AI est disponible uniquement en version Premium.', ht: 'Pilot AI disponib sèlman nan vèsyon Premium.' })}
+            </p>
+          </div>
+          <a href="/pricing" className="flex-shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-400">
+            {t({ fr: 'Passer Premium', ht: 'Pase Premium' })}
+          </a>
         </div>
 
         {/* Messages */}
