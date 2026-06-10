@@ -35,6 +35,7 @@ export interface PaymentNotificationData {
   reference:  string;
   method:     string;
   amountHtg:  number;
+  approveUrl?: string;
 }
 
 export async function sendPaymentNotification(data: PaymentNotificationData): Promise<void> {
@@ -117,8 +118,22 @@ export async function sendPaymentNotification(data: PaymentNotificationData): Pr
               </tr>
             </table>
 
-            <p style="margin:0;font-size:13px;color:#94A3B8;text-align:center;">
-              Connectez-vous au tableau de bord Supabase pour approuver ou rejeter ce paiement.
+            <!-- Approve button -->
+            ${data.approveUrl ? `
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+              <tr><td align="center">
+                <a href="${data.approveUrl}"
+                   style="display:inline-block;background:#12B981;color:#ffffff;font-size:15px;font-weight:700;
+                          padding:14px 36px;border-radius:12px;text-decoration:none;letter-spacing:0.02em;">
+                  ✅ Approuver le paiement
+                </a>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 12px;font-size:12px;color:#94A3B8;text-align:center;">
+              Un clic suffit — l'accès est accordé immédiatement.
+            </p>` : ''}
+            <p style="margin:0;font-size:12px;color:#94A3B8;text-align:center;">
+              Ou connectez-vous à Supabase pour gérer manuellement.
             </p>
           </td>
         </tr>

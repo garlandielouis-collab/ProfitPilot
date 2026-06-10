@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 export const LOGIN_TIME_KEY = 'pp_login_time';
 export const SUBSCRIPTION_ACTIVE_KEY = 'pp_subscription_active';
@@ -49,9 +50,39 @@ export function useSubscriptionCheck() {
   const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
-    setIsExpired(checkSubscriptionExpired());
-    setIsSubscribed(isUserSubscribed());
-    setChecking(false);
+    async function check() {
+      // 1. Fast local check first
+      const localExpired    = checkSubscriptionExpired();
+      const localSubscribed = isUserSubscribed();
+      setIsExpired(localExpired);
+      setIsSubscribed(localSubscribed);
+
+      // 2. If not subscribed locally, verify against Supabase (server source of truth)
+      if (!localSubscribed) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const now = new Date().toISOString();
+            const { data: sub } = await supabase
+              .from('subscriptions')
+              .select('id, status, expires_at')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .gte('expires_at', now)
+              .maybeSingle();
+
+            if (sub) {
+              markSubscriptionActive();
+              setIsSubscribed(true);
+              setIsExpired(false);
+            }
+          }
+        } catch { /* non-blocking — local state stays */ }
+      }
+
+      setChecking(false);
+    }
+    check();
   }, []);
 
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname?.startsWith(p));

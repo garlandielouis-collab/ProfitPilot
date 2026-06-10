@@ -47,13 +47,20 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
                    ?? user?.user_metadata?.name
                    ?? userEmail.split('@')[0];
 
+    const adminSecret = process.env.ADMIN_APPROVAL_SECRET;
+    const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://profitpilot.vercel.app';
+    const approveUrl  = adminSecret
+      ? `${appUrl}/api/admin/approve?ref=${encodeURIComponent(input.reference)}&token=${adminSecret}`
+      : undefined;
+
     await sendPaymentNotification({
       userEmail,
       userName,
-      planKey:   input.planKey,
-      reference: input.reference,
-      method:    input.method,
-      amountHtg: input.amountHtg,
+      planKey:    input.planKey,
+      reference:  input.reference,
+      method:     input.method,
+      amountHtg:  input.amountHtg,
+      approveUrl,
     });
   } catch (emailErr) {
     console.error('[ProfitPilot] Failed to send payment notification (non-fatal):', emailErr);
