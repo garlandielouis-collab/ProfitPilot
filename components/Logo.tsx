@@ -22,7 +22,7 @@ export function Logo({ size = 'h-9 w-9', className = '' }: LogoProps) {
 
   return (
     <img
-      src="/profitpilot-logo.png"
+      src="/ProfitPilot-favicon.png"
       alt="ProfitPilot"
       className={`${size} rounded-xl object-contain ${className}`}
       onError={() => setErrored(true)}

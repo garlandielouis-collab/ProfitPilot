@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import { Logo } from '../../../components/Logo';
 import { recordLogin } from '../../../hooks/useSubscription';
@@ -25,9 +25,10 @@ function translateError(msg: string, t: (obj: { fr: string; ht: string }) => str
   return t({ fr: 'Erreur inconnue. Vérifiez la console (F12).', ht: 'Erè enkoni. Tcheke console la (F12).' });
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const { t } = useLanguage();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
@@ -37,6 +38,13 @@ export default function LoginPage() {
   const [emailNeeded, setEmailNeeded] = useState(false);
   const [resendSent,  setResendSent]  = useState(false);
   const [resending,   setResending]   = useState(false);
+
+  useEffect(() => {
+    if (searchParams?.get('error') === 'confirmation_failed') {
+      setError(t({ fr: 'Le lien de confirmation a expiré ou est invalide. Renvoyez un email ci-dessous.', ht: 'Lyen konfimasyon an ekspire oswa envalid. Voye yon imèl ankò anba.' }));
+      setEmailNeeded(true);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -231,5 +239,13 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[#001F3F]" /></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
