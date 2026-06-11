@@ -242,6 +242,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { language, setLanguage, t } = useLanguage();
   const { isExpired, isPublic: subPublic, checking: subChecking } = useSubscriptionCheck();
   const [user, setUser] = useState<any>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [mobilePreview, setMobilePreview] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -260,10 +261,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const sub = supabase.auth.onAuthStateChange((_event: any, session: any) => {
         if (!mounted) return;
         setUser(session?.user ?? null);
+        setAuthLoaded(true);
       });
       listener = sub.data;
     } catch (e) {
       console.warn('[AppShell] onAuthStateChange error:', (e as Error).message);
+      setAuthLoaded(true);
     }
 
     const installHandler = (event: Event) => {
@@ -302,7 +305,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (isPublicPage) return <>{children}</>;
 
-  if (subChecking) {
+  if (subChecking || !authLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#001F3F] border-t-transparent" />
