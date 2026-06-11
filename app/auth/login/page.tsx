@@ -58,16 +58,28 @@ function LoginForm() {
     setLoading(true);
 
     try {
+      console.group('🔍 [LOGIN DIAGNOSTIC]');
+      console.log('1. Email:', email.trim().toLowerCase());
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email:    email.trim().toLowerCase(),
         password,
       });
 
-      console.log('[Login] data:', data);
-      console.log('[Login] error:', authError);
+      console.log('2. signInWithPassword résultat:');
+      console.log('   → error:', authError ? `${authError.message} (status=${authError.status})` : 'null ✅');
+      console.log('   → user exists:', !!data?.user, '| user.id:', data?.user?.id ?? 'null');
+      console.log('   → session exists:', !!data?.session);
+      console.log('   → access_token exists:', !!data?.session?.access_token);
+      console.log('   → refresh_token exists:', !!data?.session?.refresh_token);
+      console.groupEnd();
 
       if (authError) {
-        if (authError.message.toLowerCase().includes('email not confirmed')) {
+        console.warn('[Login] ❌ Erreur auth:', authError.message, 'status:', authError.status);
+        if (
+          authError.message.toLowerCase().includes('email not confirmed') ||
+          authError.message.toLowerCase().includes('email_not_confirmed')
+        ) {
           setEmailNeeded(true);
         } else {
           setError(translateError(authError.message, t));
@@ -76,9 +88,17 @@ function LoginForm() {
         return;
       }
 
-      // Succès - Attendre que les cookies soient sauvegardés avant de rediriger
+      console.log('[Login] ✅ Connexion réussie — navigation vers /dashboard');
+      console.log('[Login] user.id:', data.user?.id);
+      console.log('[Login] session.expires_at:', data.session?.expires_at);
+
+      // Vérifier la session immédiatement après login (preuve que les cookies sont posés)
+      const { data: { session: verif } } = await supabase.auth.getSession();
+      console.log('[Login] 3. Vérif getSession() juste après login:', !!verif, '| user:', verif?.user?.id ?? 'null');
+
+      // Succès - laisser onAuthStateChange propager la session avant de naviguer
       recordLogin();
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       router.replace('/dashboard');
       setLoading(false);
 

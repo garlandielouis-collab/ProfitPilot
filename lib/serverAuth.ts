@@ -17,6 +17,8 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   const supabase = await getSupabaseServer();
 
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
+  if (authErr) console.error('[getBusinessContext] auth.getUser error:', authErr.message);
+  if (!user) console.warn('[getBusinessContext] No authenticated user — session not found server-side');
   if (authErr || !user) throw new Error('Non authentifié.');
   const userId = user.id;
 

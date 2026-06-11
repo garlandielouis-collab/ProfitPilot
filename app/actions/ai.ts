@@ -31,6 +31,7 @@ export type DashboardProduct = {
   sale_price: number;
   purchase_price: number;
   category: string | null;
+  reorder_point: number | null;
 };
 
 export type DashboardV2Data = {
@@ -75,6 +76,7 @@ export async function getDashboardV2Action(
     { data: expRaw },
     { data: purchRaw },
     { data: prodsRaw },
+    { data: alertsRaw },
   ] = await Promise.all([
     supabase
       .from('businesses')
@@ -107,12 +109,22 @@ export async function getDashboardV2Action(
       .select('id, name, stock_quantity, sale_price, purchase_price, category')
       .eq('business_id', businessId)
       .is('deleted_at', null),
+    supabase
+      .from('stock_alerts')
+      .select('product_id, reorder_point')
+      .eq('business_id', businessId),
   ]);
 
   const sales     = (salesRaw  ?? []) as any[];
   const expenses  = (expRaw    ?? []) as any[];
   const purchases = (purchRaw  ?? []) as any[];
-  const products  = (prodsRaw  ?? []) as DashboardProduct[];
+  const alertMap  = new Map<string, number>(
+    (alertsRaw ?? []).map((a: any) => [a.product_id, a.reorder_point])
+  );
+  const products  = ((prodsRaw ?? []) as any[]).map((p) => ({
+    ...p,
+    reorder_point: alertMap.get(p.id) ?? null,
+  })) as DashboardProduct[];
 
   // ── Exchange rate (now from parallel fetch) ────────────────────────────────
   const exchangeRate   = Number((biz as any)?.exchange_rate ?? 130);
