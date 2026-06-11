@@ -571,7 +571,7 @@ function DashboardInner() {
   const [ledger,    setLedger]    = useState<LedgerRow[]>(MOCK_LEDGER);
   const [totals,    setTotals]    = useState({ cashIn: 94400, cashOut: 59400, profit: 35000, debtTotal: 45000 });
   const [userName,  setUserName]  = useState('');
-  const [products,  setProducts]  = useState(MOCK_PRODUCTS);
+  const [products,  setProducts]  = useState<typeof MOCK_PRODUCTS>([]);
   const [showFullLedger, setShowFullLedger] = useState(false);
 
   // ── Table filters ─────────────────────────────────────────────────────────
@@ -609,7 +609,7 @@ function DashboardInner() {
           setCashflow(safeCF(cached.cashflow));
           setLedger(cached.ledger);
           setTotals(cached.totals);
-          if (cached.products?.length) {
+          if (Array.isArray(cached.products)) {
             setProducts(cached.products.map((p: any) => ({
               ...p,
               selling_price: p.sale_price,
@@ -626,8 +626,8 @@ function DashboardInner() {
     try {
       const apiMode = mode === 'mois' ? 'month' : 'range';
       const data = await getDashboardV2Action(apiMode, currentYear, mFrom, mTo);
-      // Always update products from real data, regardless of transaction state
-      if (data.products?.length) {
+      // Always update products from real data — even empty array replaces mock data
+      if (Array.isArray(data.products)) {
         setProducts(data.products.map((p: any) => ({
           ...p,
           selling_price: p.sale_price,
@@ -1362,6 +1362,15 @@ function DashboardInner() {
 
               {/* Product table */}
               <div className="space-y-2.5">
+                {products.length === 0 && !loading && (
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] py-8 text-center">
+                    <span className="text-2xl mb-2">📦</span>
+                    <p className="text-[12px] font-semibold text-[var(--color-text)]">{t({ fr: 'Aucun produit encore', ht: 'Pa gen pwodwi ankò' })}</p>
+                    <Link href="/inventory" className="mt-1 text-[11px] text-[var(--color-muted)] hover:text-[#001F3F] transition">
+                      {t({ fr: 'Ajouter des produits →', ht: 'Ajoute pwodwi →' })}
+                    </Link>
+                  </div>
+                )}
                 {products.slice(0, 5).map((p, i) => (
                   <motion.div
                     key={p.id}
