@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from './LanguageWrapper';
 import { Logo } from './Logo';
@@ -243,6 +243,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { isExpired, isPublic: subPublic, checking: subChecking } = useSubscriptionCheck();
   const [user, setUser] = useState<any>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
+  const authLoadedRef = useRef(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [mobilePreview, setMobilePreview] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -257,15 +258,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     let mounted = true;
     let listener: { subscription: { unsubscribe: () => void } } | null = null;
 
+    // Fallback: if onAuthStateChange never fires (no-op client, env vars missing),
+    // resolve via getSession so the UI never spins forever.
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
+      if (!mounted || authLoadedRef.current) return;
+      setUser(session?.user ?? null);
+      authLoadedRef.current = true;
+      setAuthLoaded(true);
+    }).catch(() => {
+      if (!mounted || authLoadedRef.current) return;
+      authLoadedRef.current = true;
+      setAuthLoaded(true);
+    });
+
     try {
       const sub = supabase.auth.onAuthStateChange((_event: any, session: any) => {
         if (!mounted) return;
         setUser(session?.user ?? null);
+        authLoadedRef.current = true;
         setAuthLoaded(true);
       });
       listener = sub.data;
     } catch (e) {
       console.warn('[AppShell] onAuthStateChange error:', (e as Error).message);
+      authLoadedRef.current = true;
       setAuthLoaded(true);
     }
 
