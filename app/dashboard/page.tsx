@@ -542,6 +542,8 @@ function exportCSV(headers: string[], rows: (string | number)[][], filename: str
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardInner() {
+  console.log('[DASHBOARD] ✅ DashboardInner loaded — component mounted');
+
   const now          = new Date();
   const currentYear  = now.getFullYear();
   const currentMonth = now.getMonth();
@@ -608,7 +610,11 @@ function DashboardInner() {
           setLedger(cached.ledger);
           setTotals(cached.totals);
           if (cached.products?.length) {
-            setProducts(cached.products.map((p: any) => ({ ...p, selling_price: p.sale_price, reorder_point: 5 })));
+            setProducts(cached.products.map((p: any) => ({
+              ...p,
+              selling_price: p.sale_price,
+              reorder_point: p.reorder_point ?? 5,
+            })));
           }
           setLoading(false);
           setLedgerPage(1);
@@ -620,6 +626,15 @@ function DashboardInner() {
     try {
       const apiMode = mode === 'mois' ? 'month' : 'range';
       const data = await getDashboardV2Action(apiMode, currentYear, mFrom, mTo);
+      // Always update products from real data, regardless of transaction state
+      if (data.products?.length) {
+        setProducts(data.products.map((p: any) => ({
+          ...p,
+          selling_price: p.sale_price,
+          reorder_point: p.reorder_point ?? 5,
+        })));
+      }
+
       if (data.ledger.length === 0 && data.totals.cashIn === 0) {
         setIsDemo(true);
         const filtered = filterByRange(MOCK_LEDGER, mFrom, mTo);
@@ -631,10 +646,6 @@ function DashboardInner() {
         setCashflow(safeCF(data.cashflow));
         setLedger(data.ledger);
         setTotals(data.totals);
-        // Merge products from server action (no separate client fetch needed)
-        if (data.products?.length) {
-          setProducts(data.products.map((p: any) => ({ ...p, selling_price: p.sale_price, reorder_point: 5 })));
-        }
         // Persist to cache (5-min TTL)
         try {
           sessionStorage.setItem(cacheKey, JSON.stringify({ ...data, _ts: Date.now() }));
@@ -650,9 +661,12 @@ function DashboardInner() {
     setLedgerPage(1);
   }, [currentYear]);
 
-  // ── Load user name from supabase session (already in memory — fast) ──────────
+  // ── Load user name + diagnostic log ──────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
+      console.log(`[DASHBOARD] pathname: /dashboard`);
+      console.log(`[DASHBOARD] session: ${session?.user?.id ?? 'null — NO SESSION ON DASHBOARD'}`);
+      console.log(`[DASHBOARD] user: ${session?.user?.id ?? 'null'}`);
       const meta = session?.user?.user_metadata;
       setUserName(meta?.full_name ?? meta?.name ?? session?.user?.email?.split('@')[0] ?? 'Entrepreneur');
     });
