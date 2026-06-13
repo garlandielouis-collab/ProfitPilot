@@ -12,8 +12,18 @@ export function getSupabaseService() {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured in .env.local');
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error(
+      `Missing Supabase environment variables:\n` +
+      `  NEXT_PUBLIC_SUPABASE_URL=${!!supabaseUrl}\n` +
+      `  SUPABASE_SERVICE_ROLE_KEY=${!!serviceKey}\n` +
+      `  cwd=${process.cwd()}`
+    );
+  }
+
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     serviceKey,
     {
       auth: {
