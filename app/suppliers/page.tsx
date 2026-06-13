@@ -280,17 +280,21 @@ export default function SuppliersPage() {
       }
 
       setSuppliers(
-        (suppData ?? []).map((s: any) => ({
-          id:                  s.id,
-          name:                s.name,
-          email:               s.email ?? undefined,
-          phone:               s.phone ?? undefined,
-          discount_percent:    Number(s.discount_percent ?? 0),
-          outstanding_balance: Number(s.outstanding_balance ?? 0),
-          total_purchased:     Number(s.total_purchased ?? 0),
-          created_at:          s.created_at,
-          purchases:           purchMap[s.id] ?? [],
-        }))
+        (suppData ?? []).map((s: any) => {
+          const supplierPurchases = purchMap[s.id] ?? [];
+          const computedTotal = supplierPurchases.reduce((sum, p) => sum + p.total_amount, 0);
+          return {
+            id:                  s.id,
+            name:                s.name,
+            email:               s.email ?? undefined,
+            phone:               s.phone ?? undefined,
+            discount_percent:    Number(s.discount_percent ?? 0),
+            outstanding_balance: Number(s.outstanding_balance ?? 0),
+            total_purchased:     computedTotal,
+            created_at:          s.created_at,
+            purchases:           supplierPurchases,
+          };
+        })
       );
     } catch (e: any) {
       console.error('[loadAll suppliers]', e?.message);

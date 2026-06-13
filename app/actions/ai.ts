@@ -51,11 +51,13 @@ export async function getDashboardV2Action(
 ): Promise<DashboardV2Data> {
   const EMPTY = { cashflow: [], ledger: [], totals: { cashIn: 0, cashOut: 0, profit: 0, debtTotal: 0 } };
   let businessId: string;
+  let userId: string;
   let supabase: any;
 
   try {
     const ctx = await getBusinessContext();
     businessId = ctx.businessId;
+    userId     = ctx.userId;
     supabase   = ctx.supabase;
   } catch { return EMPTY; }
 
@@ -107,7 +109,7 @@ export async function getDashboardV2Action(
     supabase
       .from('products')
       .select('id, name, stock_quantity, sale_price, purchase_price, category')
-      .eq('business_id', businessId)
+      .eq('user_id', userId)
       .is('deleted_at', null),
     supabase
       .from('stock_alerts')

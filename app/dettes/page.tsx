@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { supabase } from '../../lib/supabaseClient';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
@@ -883,7 +884,12 @@ function DettesInner() {
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-xs font-bold text-blue-400">
                             {cc.client_name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-[var(--color-text)] text-sm">{cc.client_name}</span>
+                          <Link
+                            href={cc.client_id ? `/clients?highlight=${cc.client_id}` : '/clients'}
+                            className="font-medium text-[var(--color-text)] text-sm hover:text-blue-500 hover:underline transition-colors"
+                          >
+                            {cc.client_name}
+                          </Link>
                         </div>
                       </td>
                       {/* Invoice */}
