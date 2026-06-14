@@ -346,7 +346,7 @@ function DettesInner() {
       // ── Client credits ─────────────────────────────────────────────────────
       const { data: ccRaw } = await supabase
         .from('sales')
-        .select('id,customer_id,customer_name,customer_phone,invoice_number,total_amount,currency,payment_status,created_at')
+        .select('id,customer_id,customer_name,invoice_number,total_amount,currency,payment_status,created_at')
         .eq('business_id', bizId)
         .eq('payment_status', 'credit')
         .order('created_at', { ascending: false });
@@ -357,7 +357,7 @@ function DettesInner() {
           id:             r.id,
           client_id:      r.customer_id ?? null,
           client_name:    r.customer_name ?? '—',
-          client_phone:   r.customer_phone ?? null,
+          client_phone:   null,
           invoice_number: r.invoice_number ?? null,
           amount:         Number(r.total_amount),
           currency:       r.currency ?? 'HTG',

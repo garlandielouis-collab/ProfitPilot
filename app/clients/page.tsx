@@ -291,10 +291,10 @@ function ClientsCRMInner() {
         .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
         .eq('customer_id', clientId)
         .order('created_at', { ascending: false }),
-      supabase.from('customer_transactions')
-        .select('id,reference_id,amount,currency,type,description,created_at')
+      supabase.from('sales')
+        .select('id,invoice_number,total_amount,currency,payment_status,created_at')
         .eq('customer_id', clientId)
-        .eq('type', 'credit')
+        .eq('payment_status', 'credit')
         .order('created_at', { ascending: false }),
     ]);
 
@@ -308,7 +308,7 @@ function ClientsCRMInner() {
     }
     setInvoices(Object.values(invMap).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     setCredits((creditsRes.data ?? []).map((c: any) => ({
-      id: c.id, invoice_number: c.reference_id ?? null, amount: Number(c.amount),
+      id: c.id, invoice_number: c.invoice_number ?? null, amount: Number(c.total_amount),
       currency: c.currency ?? 'HTG', payment_status: 'À Crédit' as const, created_at: c.created_at,
     })));
     setDetailLoad(false);
