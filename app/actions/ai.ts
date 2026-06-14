@@ -109,8 +109,7 @@ export async function getDashboardV2Action(
     supabase
       .from('products')
       .select('id, name, stock_quantity, sale_price, purchase_price, category')
-      .eq('user_id', userId)
-      .is('deleted_at', null),
+      .eq('user_id', userId),
     supabase
       .from('stock_alerts')
       .select('product_id, reorder_point')
