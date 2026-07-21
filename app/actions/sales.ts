@@ -74,19 +74,22 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       .in('id', productIds),
   ]);
 
-  if (stockResult.error) return { success: false, errors: [{ field: 'stock', message: stockResult.error.message }] };
-  const stockRows: StockRow[] = stockResult.data ?? [];
+  // warehouse_stock table may not exist on all deployments — treat as no data rather than blocking
+  const stockRows: StockRow[] = stockResult.error ? [] : (stockResult.data ?? []);
   const prodStockMap: Record<string, number> = {};
   for (const p of prodResult.data ?? []) prodStockMap[p.id] = p.stock_quantity ?? 0;
 
   for (const item of data.items) {
+    const hasWarehouseEntry = (stockRows ?? []).some((r: StockRow) => r.product_id === item.product_id);
+    const productStockSet = prodStockMap[item.product_id] !== undefined && prodStockMap[item.product_id] !== null;
+
+    // Only enforce stock check if stock is explicitly tracked
+    if (!hasWarehouseEntry && !productStockSet) continue;
+
     let available = 0;
     if (item.variant_id) {
       const row = (stockRows ?? []).find(
-        (r: StockRow) =>
-          r.product_id === item.product_id &&
-          r.variant_id === item.variant_id &&
-          (!data.warehouse_id || true)
+        (r: StockRow) => r.product_id === item.product_id && r.variant_id === item.variant_id
       );
       available = row?.quantity ?? 0;
     } else {
