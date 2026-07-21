@@ -244,6 +244,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!cart.length) return;
+    if (!businessId) {
+      setError(t({ fr: 'Entreprise non chargée. Rechargez la page.', ht: 'Antrepriz pa chaje. Recharge paj la.' }));
+      return;
+    }
     if (isCredit && !selectedClient) {
       setError(t({ fr: 'Sélectionnez un client pour une vente à crédit.', ht: 'Chwazi yon kliyan pou yon vant a kredi.' }));
       return;

@@ -6,6 +6,10 @@ import { getSupabaseServer } from './supabaseServerClient';
 import { type Role, type Permission, roleHasPermission, getPermissionsForRole } from './rbac';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validUuid(v: string | null | undefined): string | null {
+  return v && UUID_RE.test(v) ? v : null;
+}
 
 export type BusinessContext = {
   supabase:        Awaited<ReturnType<typeof getSupabaseServer>>;
@@ -29,7 +33,7 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
 
   // Respect active store cookie (multi-store)
   const jar = await cookies();
-  const activeStoreId = jar.get(ACTIVE_STORE_COOKIE)?.value ?? null;
+  const activeStoreId = validUuid(jar.get(ACTIVE_STORE_COOKIE)?.value);
 
   const bizQuery = supabase
     .from('businesses')
@@ -137,6 +141,8 @@ export async function requirePermission(permission: Permission): Promise<Busines
  * Vérifie qu'un utilisateur est membre actif d'un business spécifique.
  */
 export async function verifyBusinessAccess(businessId: string): Promise<BusinessContext> {
+  if (!validUuid(businessId)) throw new Error('ID entreprise invalide.');
+
   const supabase = await getSupabaseServer();
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
   if (authErr || !user) throw new Error('Non authentifié.');

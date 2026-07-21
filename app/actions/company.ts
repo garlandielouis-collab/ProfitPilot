@@ -9,6 +9,9 @@ import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validUuid = (v: string | null | undefined): string | null =>
+  v && UUID_RE.test(v) ? v : null;
 
 export type CompanyInfo = {
   id:              string;
@@ -64,7 +67,7 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
     if (!user) return null;
 
     const jar = await cookies();
-    const activeStoreId = jar.get(ACTIVE_STORE_COOKIE)?.value ?? null;
+    const activeStoreId = validUuid(jar.get(ACTIVE_STORE_COOKIE)?.value);
 
     const [{ data: owned }, { data: memberOf }] = await Promise.all([
       supabase
@@ -141,13 +144,28 @@ export async function listCompanies(): Promise<CompanyRow[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
+  // Get plan to enforce max-store limit
+  const now = new Date().toISOString();
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('plan_key')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .gte('expires_at', now)
+    .order('expires_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const planKey = (sub?.plan_key as string) ?? 'Expert'; // default Expert during trial
+  const maxStores = { 'Ti Machann': 1, 'Business Pilot': 1, 'Expert': 3 }[planKey] ?? 3;
+
   const [{ data: owned }, { data: memberOf }] = await Promise.all([
     supabase
       .from('businesses')
       .select('id, name, sector, default_currency, exchange_rate, logo_url, country, timezone, email, phone, address, tax_id, created_at, archived_at')
       .eq('owner_id', user.id)
       .is('deleted_at', null)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: true })
+      .limit(maxStores),
     supabase
       .from('business_members')
       .select('role, businesses(id, name, sector, default_currency, exchange_rate, logo_url, country, timezone, email, phone, address, tax_id, created_at, archived_at)')
@@ -173,6 +191,7 @@ export async function listCompanies(): Promise<CompanyRow[]> {
   for (const m of (memberOf ?? [])) {
     const b = (m as any).businesses as any;
     if (!b || seen.has(b.id)) continue;
+    if (rows.length >= maxStores) break;
     seen.add(b.id);
     rows.push({
       ...mapBiz(b),

@@ -40,11 +40,7 @@ async function generateInvoiceNumber(supabase: any, businessId: string): Promise
 // ── Main action ───────────────────────────────────────────────────────────────
 
 export async function createSaleAction(input: CreateSaleInput): Promise<CreateSaleResult> {
-  // ── 1. Session + business membership ─────────────────────────────────────
-  const ctx = await verifyBusinessAccess(input.business_id);
-  const { supabase: sb, userId, businessId } = ctx;
-
-  // ── 2. Zod validation ────────────────────────────────────────────────────
+  // ── 1. Zod validation (before any DB call) ───────────────────────────────
   const parsed = createSaleSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -56,6 +52,10 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     };
   }
   const data = parsed.data;
+
+  // ── 2. Session + business membership ─────────────────────────────────────
+  const ctx = await verifyBusinessAccess(data.business_id);
+  const { supabase: sb, userId, businessId } = ctx;
   const today = data.sale_date ?? new Date().toISOString().split('T')[0];
 
   // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
