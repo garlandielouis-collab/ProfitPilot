@@ -141,27 +141,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     });
   }
 
-  // ── 5. Update supplier stats + record transaction ─────────────────────────
-  const { data: supplier } = await supabase
-    .from('suppliers')
-    .select('outstanding_balance, total_purchased')
-    .eq('id', payload.supplier_id)
-    .single();
-
-  const balBefore    = Number(supplier?.outstanding_balance ?? 0);
-  const totalPurch   = Number(supplier?.total_purchased     ?? 0);
-  const newBalance   = dbStatus === 'credit' ? balBefore + total : balBefore;
-  const newTotalPurch = totalPurch + total;
-
-  await supabase
-    .from('suppliers')
-    .update({
-      outstanding_balance: newBalance,
-      total_purchased:     newTotalPurch,
-    })
-    .eq('id', payload.supplier_id);
-
-  // Record supplier transaction
+  // ── 5. Record supplier transaction ───────────────────────────────────────
   await supabase.from('supplier_transactions').insert({
     business_id:      businessId,
     supplier_id:      payload.supplier_id,
@@ -172,8 +152,6 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     description:      `Acha ${payload.product_name} ×${payload.quantity} — ${poNumber}`,
     reference_type:   'purchase',
     reference_id:     purchaseId,
-    balance_before:   balBefore,
-    balance_after:    newBalance,
     created_by:       userId,
   });
 
