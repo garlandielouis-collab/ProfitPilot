@@ -104,6 +104,25 @@ export async function POST(request: NextRequest) {
     return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), { status: 500 });
   }
 
+  // Verify subscription plan
+  const supabase = await getSupabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Non authentifié' }), { status: 401 });
+  }
+  const now = new Date().toISOString();
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('plan_key')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .gte('expires_at', now)
+    .in('plan_key', ['Business Pilot', 'Expert'])
+    .maybeSingle();
+  if (!sub) {
+    return new Response(JSON.stringify({ error: 'Plan Business Pilot ou Expert requis pour Pilot AI' }), { status: 403 });
+  }
+
   let body: {
     userMessage:         string;
     conversationId?:     string;

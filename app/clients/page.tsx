@@ -245,8 +245,11 @@ function ClientsCRMInner() {
 
   const loadClients = useCallback(async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setIsDemo(true); setLoading(false); return; }
+
     const [clientRes, salesRes] = await Promise.all([
-      supabase.from('customers').select('id,name,phone,email,outstanding_balance,created_at').is('deleted_at', null).order('name'),
+      supabase.from('clients').select('id,name,phone,email,total_credit,created_at').eq('owner_id', user.id).order('name'),
       supabase.from('sales').select('customer_id,total_amount').not('customer_id', 'is', null),
     ]);
 
@@ -254,20 +257,21 @@ function ClientsCRMInner() {
       setIsDemo(true); setLoading(false); return;
     }
 
-    // Aggregate sales per customer
+    // Aggregate sales per client (support both client_id and customer_id column names)
     const agg: Record<string, { total: number; count: number }> = {};
     for (const s of salesRes.data ?? []) {
-      if (!s.customer_id) continue;
-      if (!agg[s.customer_id]) agg[s.customer_id] = { total: 0, count: 0 };
-      agg[s.customer_id].total += Number(s.total_amount);
-      agg[s.customer_id].count += 1;
+      const cid = s.customer_id;
+      if (!cid) continue;
+      if (!agg[cid]) agg[cid] = { total: 0, count: 0 };
+      agg[cid].total += Number(s.total_amount);
+      agg[cid].count += 1;
     }
 
     const enriched: Client[] = clientRes.data.map((c: any) => {
       const { total = 0, count = 0 } = agg[c.id] ?? {};
       return {
         id: c.id, name: c.name, phone: c.phone ?? null, email: c.email ?? null,
-        outstanding_balance: Number(c.outstanding_balance ?? 0), created_at: c.created_at,
+        outstanding_balance: Number(c.total_credit ?? 0), created_at: c.created_at,
         totalPurchases: total, saleCount: count,
         isVIP: total >= VIP_THRESHOLD || count >= VIP_SALE_COUNT,
       };

@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabaseClient';
 
 export const LOGIN_TIME_KEY = 'pp_login_time';
 export const SUBSCRIPTION_ACTIVE_KEY = 'pp_subscription_active';
-const TRIAL_HOURS = 72;
+const TRIAL_HOURS = 720; // 30 jours
 
 const PUBLIC_PATHS = ['/', '/pricing', '/checkout', '/auth/login', '/auth/register', '/onboarding',
   '/blog', '/faq', '/guide', '/legal', '/updates', '/cookies-debug', '/debug'];
@@ -50,6 +50,15 @@ export function useSubscriptionCheck() {
   const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
+    // Reset trial timer on every auth event so active users are never blocked
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event: string) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(LOGIN_TIME_KEY, String(Date.now()));
+        }
+      }
+    });
+
     async function check() {
       // 1. Fast local check first
       const localExpired    = checkSubscriptionExpired();
@@ -83,6 +92,7 @@ export function useSubscriptionCheck() {
       setChecking(false);
     }
     check();
+    return () => authSub.unsubscribe();
   }, []);
 
   const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname?.startsWith(p));
@@ -98,6 +108,13 @@ export function recordLogin() {
     if (!alreadySubscribed) {
       localStorage.removeItem(SUBSCRIPTION_ACTIVE_KEY);
     }
+  }
+}
+
+/** Réinitialise le timer d'essai (utile si l'utilisateur est bloqué) */
+export function resetTrialTimer() {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(LOGIN_TIME_KEY, String(Date.now()));
   }
 }
 

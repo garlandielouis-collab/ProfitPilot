@@ -1,9 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { QueryProvider }  from './QueryProvider';
-import { ThemeProvider }  from './ThemeProvider';
-import { ToastProvider }  from './ToastProvider';
+import { QueryProvider }   from './QueryProvider';
+import { ThemeProvider }   from './ThemeProvider';
+import { ToastProvider }   from './ToastProvider';
+import { CompanyProvider } from '../../contexts/CompanyContext';
 import { useAutoExchangeRateRefresh } from '../../hooks/useExchangeRate';
 
 function AutoRateRefresher() {
@@ -15,9 +16,11 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryProvider>
       <ThemeProvider>
-        <ToastProvider />
-        <AutoRateRefresher />
-        {children}
+        <CompanyProvider>
+          <ToastProvider />
+          <AutoRateRefresher />
+          {children}
+        </CompanyProvider>
       </ThemeProvider>
     </QueryProvider>
   );

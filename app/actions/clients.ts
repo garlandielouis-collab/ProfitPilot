@@ -2,6 +2,8 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '../../lib/activityLog';
+import { notify } from '../../lib/notify';
 
 export type Client = {
   id: string;
@@ -12,17 +14,16 @@ export type Client = {
 };
 
 export async function getClients(): Promise<Client[]> {
-  const { supabase, businessId } = await getBusinessContext();
+  const { supabase, userId } = await getBusinessContext();
 
   const { data, error } = await supabase
-    .from('customers')
-    .select('id,name,phone,email,outstanding_balance')
-    .eq('business_id', businessId)
-    .is('deleted_at', null)
+    .from('clients')
+    .select('id,name,phone,email,total_credit')
+    .eq('owner_id', userId)
     .order('name', { ascending: true });
 
   if (error) { console.error('[getClients]', error.message); return []; }
-  return (data ?? []) as Client[];
+  return (data ?? []).map((r: any) => ({ ...r, outstanding_balance: r.total_credit ?? 0 })) as Client[];
 }
 
 export async function upsertClient(payload: {
@@ -34,57 +35,65 @@ export async function upsertClient(payload: {
   const { supabase, businessId, userId } = await getBusinessContext();
 
   const record = {
-    name:        payload.name.trim(),
-    phone:       payload.phone?.trim() || null,
-    email:       payload.email?.trim() || null,
-    business_id: businessId,
-    created_by:  userId,
+    name:  payload.name.trim(),
+    phone: payload.phone?.trim() || null,
+    email: payload.email?.trim() || null,
   };
 
   if (payload.id) {
     const { data, error } = await supabase
-      .from('customers')
+      .from('clients')
       .update({ name: record.name, phone: record.phone, email: record.email })
       .eq('id', payload.id)
-      .eq('business_id', businessId)
-      .select('id,name,phone,email,outstanding_balance')
+      .eq('owner_id', userId)
+      .select('id,name,phone,email,total_credit')
       .single();
     if (error) throw new Error(error.message);
-    return data as Client;
+    void logActivity({ action: 'update', entity: 'client', entityId: payload.id, newValues: record });
+    return { ...data, outstanding_balance: data.total_credit ?? 0 } as Client;
   }
 
   const { data, error } = await supabase
-    .from('customers')
-    .insert({ ...record, outstanding_balance: 0 })
-    .select('id,name,phone,email,outstanding_balance')
+    .from('clients')
+    .insert({ name: record.name, phone: record.phone, email: record.email, owner_id: userId, total_credit: 0 })
+    .select('id,name,phone,email,total_credit')
     .single();
   if (error) throw new Error(error.message);
-  return data as Client;
+  void logActivity({ action: 'create', entity: 'client', entityId: data.id, newValues: { name: record.name } });
+  void notify({
+    companyId: businessId, triggeredBy: userId,
+    type: 'client_created',
+    title: `Nouveau client — ${record.name}`,
+    body: record.phone ? `Tél : ${record.phone}` : undefined,
+    entity: 'client', entityId: data.id,
+    data: { name: record.name, phone: record.phone },
+  });
+  return { ...data, outstanding_balance: data.total_credit ?? 0 } as Client;
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
-  const { supabase, businessId } = await getBusinessContext();
+  const { supabase, userId } = await getBusinessContext();
 
-  // Soft delete
   const { error } = await supabase
-    .from('customers')
-    .update({ deleted_at: new Date().toISOString() })
+    .from('clients')
+    .delete()
     .eq('id', clientId)
-    .eq('business_id', businessId);
+    .eq('owner_id', userId);
 
   if (error) throw new Error(error.message);
+  void logActivity({ action: 'delete', entity: 'client', entityId: clientId });
   revalidatePath('/clients');
 }
 
 async function reduceCustomerBalance(supabase: any, customerId: string, amount: number) {
   const { data: cust } = await supabase
-    .from('customers')
-    .select('outstanding_balance')
+    .from('clients')
+    .select('total_credit')
     .eq('id', customerId)
     .single();
   if (cust) {
-    const newBalance = Math.max(0, (cust.outstanding_balance ?? 0) - amount);
-    await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', customerId);
+    const newBalance = Math.max(0, (cust.total_credit ?? 0) - amount);
+    await supabase.from('clients').update({ total_credit: newBalance }).eq('id', customerId);
   }
 }
 

@@ -7,6 +7,7 @@ import { supabase } from '../../../lib/supabaseClient';
 import { Logo } from '../../../components/Logo';
 import { recordLogin } from '../../../hooks/useSubscription';
 import { useLanguage } from '../../../components/LanguageWrapper';
+import { recordLoginSession } from '../../actions/security';
 
 function translateError(msg: string, t: (obj: { fr: string; ht: string }) => string): string {
   const m = (msg ?? '').toLowerCase();
@@ -98,6 +99,7 @@ function LoginForm() {
 
       // Succès - laisser onAuthStateChange propager la session avant de naviguer
       recordLogin();
+      void recordLoginSession();
       await new Promise(resolve => setTimeout(resolve, 300));
       router.replace('/dashboard');
       setLoading(false);

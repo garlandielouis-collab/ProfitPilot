@@ -63,9 +63,10 @@ export default function PricingPage() {
       features:    [
         { fr: 'Tout Ti Machann', ht: 'Tout Ti Machann' },
         { fr: 'Dashboard avancé', ht: 'Dashboard avanse' },
-        { fr: "Gestion d'équipe", ht: 'Jesyon ekip' },
+        { fr: "Gestion d'équipe (employés)", ht: 'Jesyon ekip (anplwaye)' },
         { fr: 'Rapports détaillés', ht: 'Rapò detaye' },
-        { fr: 'Analyses IA', ht: 'Analiz IA' },
+        { fr: 'Analyses IA (Pilot AI)', ht: 'Analiz IA (Pilot AI)' },
+        { fr: 'Boutique en ligne', ht: 'Boutik anliy' },
       ],
       highlight: { fr: 'Populaire', ht: 'Popilè' },
       popular: true,
@@ -76,6 +77,7 @@ export default function PricingPage() {
       description: { fr: 'La solution complète avec support prioritaire et automatisation.', ht: 'Solisyon konplè ak sipò prioritè ak otomatizasyon.' },
       features:    [
         { fr: 'Tout Business Pilot', ht: 'Tout Business Pilot' },
+        { fr: '3 entreprises maximum', ht: '3 antrepriz maksimòm' },
         { fr: 'Support prioritaire 24/7', ht: 'Sipò prioritè 24/7' },
         { fr: 'Analyses avancées', ht: 'Analiz avanse' },
         { fr: 'Automatisation', ht: 'Otomatizasyon' },
@@ -117,7 +119,7 @@ export default function PricingPage() {
         {trialExpired && (
           <div className="mt-6 mx-auto max-w-lg rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
             <p className="text-sm text-amber-600 dark:text-amber-400">
-              🔔 {t({ fr: 'Votre période d\'essai de 72h est terminée. Choisissez un plan pour continuer.', ht: 'Periyòd esè 72h ou fini. Chwazi yon plan pou kontinye.' })}
+              🔔 {t({ fr: 'Votre période d\'essai est terminée. Choisissez un plan pour continuer.', ht: 'Periyòd esè ou fini. Chwazi yon plan pou kontinye.' })}
             </p>
           </div>
         )}
@@ -129,7 +131,7 @@ export default function PricingPage() {
               onClick={activateFreeTrial}
               className="w-full rounded-xl bg-[#50C878] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#3daa62] transition"
             >
-              🚀 {t({ fr: 'Activer mon essai gratuit 72h', ht: 'Aktive esè gratis 72h mwen' })}
+              🚀 {t({ fr: 'Activer mon essai gratuit 30 jours', ht: 'Aktive esè gratis 30 jou mwen' })}
             </button>
           </div>
         )}

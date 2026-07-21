@@ -5,7 +5,6 @@ const nextConfig = {
   // ── URL aliases / redirects ───────────────────────────────────
   async redirects() {
     return [
-      // French/Creole short names → real routes
       { source: '/parametres',    destination: '/settings',              permanent: true },
       { source: '/stocks',        destination: '/inventory',             permanent: true },
       { source: '/ventes',        destination: '/sales',                 permanent: true },
@@ -18,7 +17,6 @@ const nextConfig = {
       { source: '/pilot',         destination: '/ai-assistant',          permanent: true },
     ];
   },
-
 
   // ── Compression gzip/brotli ───────────────────────────────────
   compress: true,
@@ -36,10 +34,10 @@ const nextConfig = {
     ],
   },
 
-  // ── Turbopack (Next 16 default) ───────────────────────────────
+  // ── Turbopack ─────────────────────────────────────────────────
   turbopack: {},
 
-  // ── Tree-shaking des grosses librairies ───────────────────────
+  // ── Tree-shaking + bundle splitting ──────────────────────────
   experimental: {
     optimizePackageImports: [
       'recharts',
@@ -50,6 +48,10 @@ const nextConfig = {
       '@radix-ui/react-select',
       '@radix-ui/react-tabs',
       'react-markdown',
+      '@supabase/supabase-js',
+      '@supabase/ssr',
+      'sonner',
+      'date-fns',
     ],
   },
 };
