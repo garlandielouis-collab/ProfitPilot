@@ -111,7 +111,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       const [{ data: userData }, { data: prods }, { data: biz }] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url').order('name'),
-        supabase.from('businesses').select('id,name,exchange_rate').maybeSingle(),
+        supabase.from('businesses').select('id,name,exchange_rate').order('created_at', { ascending: true }).limit(1).maybeSingle(),
       ]);
       setOwnerId(userData.user?.id ?? null);
       setProducts((prods ?? []) as ProductOption[]);
