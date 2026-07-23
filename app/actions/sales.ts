@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { verifyBusinessAccess, getBusinessContext } from '../../lib/serverAuth';
 import { createSaleSchema, type CreateSaleInput } from '../../lib/validations';
 import { recordSaleEntry } from './accounting';
+import { logActivity } from '../../lib/activityLog';
+import { notify } from '../../lib/notify';
 
 // ── Types (backward compat pour le UI) ────────────────────────────────────────
 
@@ -38,11 +40,7 @@ async function generateInvoiceNumber(supabase: any, businessId: string): Promise
 // ── Main action ───────────────────────────────────────────────────────────────
 
 export async function createSaleAction(input: CreateSaleInput): Promise<CreateSaleResult> {
-  // ── 1. Session + business membership ─────────────────────────────────────
-  const ctx = await verifyBusinessAccess(input.business_id);
-  const { supabase: sb, userId, businessId } = ctx;
-
-  // ── 2. Zod validation ────────────────────────────────────────────────────
+  // ── 1. Zod validation (before any DB call) ───────────────────────────────
   const parsed = createSaleSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -54,6 +52,10 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     };
   }
   const data = parsed.data;
+
+  // ── 2. Session + business membership ─────────────────────────────────────
+  const ctx = await verifyBusinessAccess(data.business_id);
+  const { supabase: sb, userId, businessId } = ctx;
   const today = data.sale_date ?? new Date().toISOString().split('T')[0];
 
   // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
@@ -72,19 +74,22 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       .in('id', productIds),
   ]);
 
-  if (stockResult.error) return { success: false, errors: [{ field: 'stock', message: stockResult.error.message }] };
-  const stockRows: StockRow[] = stockResult.data ?? [];
+  // warehouse_stock table may not exist on all deployments — treat as no data rather than blocking
+  const stockRows: StockRow[] = stockResult.error ? [] : (stockResult.data ?? []);
   const prodStockMap: Record<string, number> = {};
   for (const p of prodResult.data ?? []) prodStockMap[p.id] = p.stock_quantity ?? 0;
 
   for (const item of data.items) {
+    const hasWarehouseEntry = (stockRows ?? []).some((r: StockRow) => r.product_id === item.product_id);
+    const productStockSet = prodStockMap[item.product_id] !== undefined && prodStockMap[item.product_id] !== null;
+
+    // Only enforce stock check if stock is explicitly tracked
+    if (!hasWarehouseEntry && !productStockSet) continue;
+
     let available = 0;
     if (item.variant_id) {
       const row = (stockRows ?? []).find(
-        (r: StockRow) =>
-          r.product_id === item.product_id &&
-          r.variant_id === item.variant_id &&
-          (!data.warehouse_id || true)
+        (r: StockRow) => r.product_id === item.product_id && r.variant_id === item.variant_id
       );
       available = row?.quantity ?? 0;
     } else {
@@ -137,6 +142,15 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
 
   if (sErr) return { success: false, errors: [{ field: 'sale', message: sErr.message }] };
   const saleId = saleRow.id;
+  void logActivity({ action: 'create', entity: 'sale', entityId: invoiceNumber, newValues: { invoice: invoiceNumber, total: totalAmount, customer: data.customer_name, payment: data.payment_method } });
+  void notify({
+    companyId: businessId, triggeredBy: userId,
+    type: data.payment_status === 'paid' ? 'invoice_paid' : 'sale_created',
+    title: data.payment_status === 'paid' ? `Facture payée — ${invoiceNumber}` : `Nouvelle vente — ${invoiceNumber}`,
+    body: data.customer_name ? `Client : ${data.customer_name} · Montant : ${totalAmount.toLocaleString('fr-FR')} ${data.currency}` : `Montant : ${totalAmount.toLocaleString('fr-FR')} ${data.currency}`,
+    entity: 'sale', entityId: invoiceNumber,
+    data: { invoice: invoiceNumber, total: totalAmount, currency: data.currency, customer: data.customer_name },
+  });
 
   // ── 7. Insert sale_items ─────────────────────────────────────────────────
   const multiplier = 1 - data.discount_percent / 100;
@@ -215,44 +229,39 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       .eq('id', item.product_id)
       .maybeSingle();
     if (legacy) {
+      const newQtyLegacy = Math.max(0, legacy.stock_quantity - item.quantity);
       await sb
         .from('products')
-        .update({ stock_quantity: Math.max(0, legacy.stock_quantity - item.quantity) })
+        .update({ stock_quantity: newQtyLegacy })
         .eq('id', item.product_id);
+      const LOW_STOCK_THRESHOLD = 5;
+      if (newQtyLegacy <= LOW_STOCK_THRESHOLD) {
+        void notify({
+          companyId: businessId, triggeredBy: userId,
+          type: 'stock_low',
+          title: `Stock faible — ${item.product_name}`,
+          body: `Il reste ${newQtyLegacy} unité${newQtyLegacy !== 1 ? 's' : ''} en stock.`,
+          entity: 'product', entityId: item.product_id,
+          data: { product: item.product_name, quantity: newQtyLegacy },
+        });
+      }
     }
   }
 
-  // ── 9. Credit sale: customer_transaction + outstanding_balance ───────────
+  // ── 9. Credit sale: update client total_credit ───────────────────────────
   const isCredit = data.payment_status === 'credit';
-  if (isCredit && data.customer_id) {
-    const { data: cust } = await sb
-      .from('customers')
-      .select('outstanding_balance')
-      .eq('id', data.customer_id)
-      .single();
+  const clientId = data.customer_id ?? null;
+  if (isCredit && clientId) {
+    const { data: clt } = await sb
+      .from('clients')
+      .select('total_credit')
+      .eq('id', clientId)
+      .maybeSingle();
 
-    const balanceBefore = cust?.outstanding_balance ?? 0;
-    const balanceAfter = fmt2(balanceBefore + totalAmount);
-
-    await sb.from('customer_transactions').insert({
-      business_id:      businessId,
-      customer_id:      data.customer_id,
-      transaction_date: today,
-      type:             'sale',
-      amount:           totalAmount,
-      currency:         data.currency,
-      description:      `Vente à crédit — ${invoiceNumber}`,
-      reference_type:   'sale',
-      reference_id:     saleId,
-      balance_before:   balanceBefore,
-      balance_after:    balanceAfter,
-      created_by:       userId,
-    });
-
-    await sb
-      .from('customers')
-      .update({ outstanding_balance: balanceAfter, total_purchases: sb.rpc('increment', { x: totalAmount }) })
-      .eq('id', data.customer_id);
+    if (clt) {
+      const newCredit = fmt2((clt.total_credit ?? 0) + totalAmount);
+      await sb.from('clients').update({ total_credit: newCredit }).eq('id', clientId);
+    }
   }
 
   // ── 10. Journal entry (non-bloquant) ─────────────────────────────────────
@@ -387,8 +396,7 @@ export async function getSalesAction(limit = 50) {
     .select(`
       id, invoice_number, customer_id, customer_name,
       total_amount, currency, payment_method, payment_status,
-      discount_percent, sale_date, created_at,
-      customers ( id, name, phone )
+      discount_percent, sale_date, created_at
     `)
     .eq('business_id', businessId)
     .order('created_at', { ascending: false })

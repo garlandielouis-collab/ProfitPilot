@@ -25,7 +25,12 @@ async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Pro
       }
     }
   }
-  throw lastErr ?? new Error('fetch failed');
+  // Return a synthetic error response instead of throwing so Supabase auth
+  // handles it gracefully (as a failed request) rather than an unhandled rejection.
+  return new Response(
+    JSON.stringify({ error: 'network_error', message: lastErr?.message ?? 'fetch failed' }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 export const supabase = isBrowser && supabaseUrl && supabaseKey

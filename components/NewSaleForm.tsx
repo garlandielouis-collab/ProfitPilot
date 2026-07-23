@@ -111,7 +111,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       const [{ data: userData }, { data: prods }, { data: biz }] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url').order('name'),
-        supabase.from('businesses').select('id,name,exchange_rate').maybeSingle(),
+        supabase.from('businesses').select('id,name,exchange_rate').order('created_at', { ascending: true }).limit(1).maybeSingle(),
       ]);
       setOwnerId(userData.user?.id ?? null);
       setProducts((prods ?? []) as ProductOption[]);
@@ -244,6 +244,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!cart.length) return;
+    if (!businessId) {
+      setError(t({ fr: 'Entreprise non chargée. Rechargez la page.', ht: 'Antrepriz pa chaje. Recharge paj la.' }));
+      return;
+    }
     if (isCredit && !selectedClient) {
       setError(t({ fr: 'Sélectionnez un client pour une vente à crédit.', ht: 'Chwazi yon kliyan pou yon vant a kredi.' }));
       return;
@@ -438,10 +442,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
               <>
                 {/* Discount */}
                 <div className="space-y-1">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
+                  <label htmlFor="sale-discount" className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
                     <Percent size={12} /> Remise (%)
                   </label>
-                  <input type="number" min={0} max={100} step={0.5}
+                  <input id="sale-discount" type="number" min={0} max={100} step={0.5}
                     value={discountPercent}
                     onChange={e => setDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-[#212529] outline-none focus:border-[#0056b3] focus:bg-white" />
@@ -449,10 +453,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
                 {/* Client selector */}
                 <div className="space-y-1 relative">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
                     <User size={12} />
                     {t({ fr: 'Client ', ht: 'Kliyan ' })}{isCredit && <span className="text-red-500">*</span>}
-                  </label>
+                  </span>
 
                   {/* Error state */}
                   {clientsError && (
@@ -607,7 +611,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
                 {/* Payment mode */}
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Méthode de Paiement', ht: 'Metòd Peman' })}</label>
+                  <span className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Méthode de Paiement', ht: 'Metòd Peman' })}</span>
                   <div className="grid grid-cols-2 gap-1.5">
                     {ALL_MODES.map(mode => (
                       <button key={mode} type="button"

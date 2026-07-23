@@ -3,6 +3,8 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { recordExpenseEntry } from './accounting';
+import { logActivity } from '../../lib/activityLog';
+import { notify } from '../../lib/notify';
 import { mapCategoryToAccountCode } from '../../lib/accountingEngine';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
       .eq('id', payload.id)
       .eq('business_id', businessId);
     if (error) throw new Error(error.message);
+    void logActivity({ action: 'update', entity: 'expense', entityId: payload.id, newValues: { description: payload.description, amount: payload.amount, category: payload.category } });
     try {
       await recordExpenseEntry({
         expenseId: payload.id,
@@ -134,6 +137,15 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
       .select('id')
       .single();
     if (error) throw new Error(error.message);
+    void logActivity({ action: 'create', entity: 'expense', entityId: created.id, newValues: { description: payload.description, amount: payload.amount, category: payload.category } });
+    void notify({
+      companyId: businessId, triggeredBy: userId,
+      type: 'expense_created',
+      title: `Nouvelle dépense — ${payload.category}`,
+      body: `${payload.description} · ${payload.amount.toLocaleString('fr-FR')} ${payload.currency}`,
+      entity: 'expense', entityId: created.id,
+      data: { description: payload.description, amount: payload.amount, currency: payload.currency, category: payload.category },
+    });
 
     try {
       await recordExpenseEntry({
@@ -203,6 +215,7 @@ export async function deleteExpense(expenseId: string): Promise<void> {
     .eq('business_id', businessId);
 
   if (error) throw new Error(error.message);
+  void logActivity({ action: 'delete', entity: 'expense', entityId: expenseId });
   revalidatePath('/expenses');
   revalidatePath('/rapports/comptabilite');
   revalidatePath('/rapports');

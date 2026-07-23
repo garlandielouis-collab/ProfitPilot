@@ -17,6 +17,7 @@ import {
 import {
   getDashboardV2Action,
   type CashflowPoint,
+  type DashboardExtra,
   type LedgerRow,
 } from '../actions/ai';
 import { supabase } from '../../lib/supabaseClient';
@@ -237,18 +238,19 @@ interface KPICardProps {
   icon: React.ReactNode;
   loading?: boolean;
   index?: number;
+  href?: string;
 }
 
-function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, loading, index = 0 }: KPICardProps) {
+function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, loading, index = 0, href }: KPICardProps) {
   const { t } = useLanguage();
-  return (
+  const inner = (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: index * 0.04, ease: 'easeOut' }}
-      className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]
+      className={`relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]
                  p-5 flex flex-col gap-3 group
-                 hover:border-slate-300 hover:bg-slate-50 transition-all duration-300"
+                 hover:border-slate-300 hover:bg-slate-50 transition-all duration-300${href ? ' cursor-pointer' : ''}`}
     >
       {/* Ambient glow */}
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-35"
@@ -294,6 +296,8 @@ function KPICard({ label, value, sub, trend, color, sparkData, sparkId, icon, lo
       </div>
     </motion.div>
   );
+  if (href) return <Link href={href}>{inner}</Link>;
+  return inner;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -553,10 +557,6 @@ function DashboardInner() {
   const searchParams  = useSearchParams();
   const showWelcome   = searchParams.get('welcome') === '1';
   const [companyName, setCompanyName] = useState(t({ fr: 'votre entreprise', ht: 'antrepriz ou a' }));
-  useEffect(() => {
-    const stored = localStorage.getItem('pp_company');
-    if (stored) setCompanyName(stored);
-  }, []);
 
   // ── Period state ─────────────────────────────────────────────────────────────
   const [periodMode,       setPeriodMode]       = useState<PeriodMode>('mois');
@@ -570,9 +570,10 @@ function DashboardInner() {
   const [cashflow,  setCashflow]  = useState<CashflowPoint[]>(MOCK_CASHFLOW);
   const [ledger,    setLedger]    = useState<LedgerRow[]>(MOCK_LEDGER);
   const [totals,    setTotals]    = useState({ cashIn: 94400, cashOut: 59400, profit: 35000, debtTotal: 45000 });
+  const [extra,     setExtra]     = useState<DashboardExtra | null>(null);
   const [userName,  setUserName]  = useState('');
   const [products,  setProducts]  = useState<typeof MOCK_PRODUCTS>([]);
-  const [showFullLedger, setShowFullLedger] = useState(false);
+
 
   // ── Table filters ─────────────────────────────────────────────────────────
   const [ledgerSearch, setLedgerSearch] = useState('');
@@ -633,6 +634,11 @@ function DashboardInner() {
           selling_price: p.sale_price,
           reorder_point: p.reorder_point ?? 5,
         })));
+      }
+
+      if (data.extra) {
+        setExtra(data.extra);
+        if (data.extra.companyName) setCompanyName(data.extra.companyName);
       }
 
       if (data.ledger.length === 0 && data.totals.cashIn === 0) {
@@ -818,6 +824,16 @@ function DashboardInner() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2 }}
               >
+                {/* Active company badge */}
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#001F3F]/15 bg-[#001F3F]/5 px-3 py-1.5">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#001F3F]/70">
+                    {companyName || t({ fr: 'Entreprise active', ht: 'Antrepriz aktif' })}
+                  </span>
+                  <Link href="/entreprises" className="ml-1 text-[10px] font-semibold text-slate-400 hover:text-[#001F3F] transition">
+                    {t({ fr: 'Changer →', ht: 'Chanje →' })}
+                  </Link>
+                </div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-emerald-400/70">
                   {t({ fr: 'ProfitPilot · Tableau de bord', ht: 'ProfitPilot · Tablo debò' })}
                 </p>
@@ -926,14 +942,14 @@ function DashboardInner() {
         {/* 3. KPI CARDS                                                     */}
         {/* ──────────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard index={0} label={t({ fr: 'Revenus du mois', ht: 'Revni mwa a' })} value={loading ? t({ fr: '…', ht: '…' }) : fmt(totals.cashIn)}
+          <KPICard index={0} href="/sales" label={t({ fr: 'Revenus du mois', ht: 'Revni mwa a' })} value={loading ? t({ fr: '…', ht: '…' }) : fmt(totals.cashIn)}
             sub={t({ fr: 'Total des ventes', ht: 'Total lavant yo' })} trend={null} color={C.blue}
             sparkData={spRevenue} sparkId="rev" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12"/>
             </svg>}
           />
-          <KPICard index={1} label={t({ fr: 'Profit net', ht: 'Pwofi nèt' })} value={loading ? '…' : fmt(totals.profit)}
+          <KPICard index={1} href="/rapports" label={t({ fr: 'Profit net', ht: 'Pwofi nèt' })} value={loading ? '…' : fmt(totals.profit)}
             sub={loading ? '' : `${t({ fr: 'Marge', ht: 'Maj' })} ${marginPct.toFixed(1)}%`}
             trend={null} color={totals.profit >= 0 ? C.emerald : C.red}
             sparkData={spProfit} sparkId="pft" loading={loading}
@@ -941,14 +957,14 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
             </svg>}
           />
-          <KPICard index={2} label={t({ fr: 'Dépenses', ht: 'Depans' })} value={loading ? '…' : fmt(totals.cashOut)}
+          <KPICard index={2} href="/expenses" label={t({ fr: 'Dépenses', ht: 'Depans' })} value={loading ? '…' : fmt(totals.cashOut)}
             sub={t({ fr: 'Achats + charges', ht: 'Acha + chaj' })} trend={null} color={C.red}
             sparkData={spExpenses} sparkId="exp" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6"/>
             </svg>}
           />
-          <KPICard index={3} label={t({ fr: 'Trésorerie', ht: 'Lajan kach' })} value={loading ? '…' : fmt(Math.max(0, totals.profit))}
+          <KPICard index={3} href="/rapports" label={t({ fr: 'Trésorerie', ht: 'Lajan kach' })} value={loading ? '…' : fmt(Math.max(0, totals.profit))}
             sub={t({ fr: 'Solde disponible', ht: 'Sòd disponib' })} trend={null}
             color={totals.profit >= 0 ? C.cyan : C.red}
             sparkData={spCashflow} sparkId="cf" loading={loading}
@@ -956,7 +972,7 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
             </svg>}
           />
-          <KPICard index={4} label={t({ fr: 'Dettes fournisseurs', ht: 'Dèt founisè' })} value={loading ? '…' : fmt(totals.debtTotal)}
+          <KPICard index={4} href="/dettes" label={t({ fr: 'Dettes fournisseurs', ht: 'Dèt founisè' })} value={loading ? '…' : fmt(totals.debtTotal)}
             sub={t({ fr: 'À crédit', ht: 'Ak kredi' })} trend={null} color={C.amber}
             sparkData={Array.from({length:12},(_,i)=>totals.debtTotal*(0.5+Math.sin(i)*0.3))}
             sparkId="dbt" loading={loading}
@@ -964,7 +980,7 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>}
           />
-          <KPICard index={5} label={t({ fr: 'Produits en rupture', ht: 'Pwodwi fini nan stock' })} value={String(outOfStockCount)}
+          <KPICard index={5} href="/inventory" label={t({ fr: 'Produits en rupture', ht: 'Pwodwi fini nan stock' })} value={String(outOfStockCount)}
             sub={t({ fr: `${lowStockCount} en stock bas`, ht: `${lowStockCount} stock ba` })} trend={null}
             color={outOfStockCount > 0 ? C.red : C.emerald}
             sparkData={Array.from({length:12},(_,i)=>Math.max(0,outOfStockCount+Math.sin(i)*1.5))}
@@ -973,7 +989,7 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
             </svg>}
           />
-          <KPICard index={6} label={t({ fr: 'Transactions', ht: 'Transaksyon' })} value={loading ? '…' : String(ledger.length)}
+          <KPICard index={6} href="/sales" label={t({ fr: 'Transactions', ht: 'Transaksyon' })} value={loading ? '…' : String(ledger.length)}
             sub={t({ fr: `${salesRows.length} ventes · ${expensesRows.length} dépenses`, ht: `${salesRows.length} vant · ${expensesRows.length} depans` })}
             trend={null} color={C.purple}
             sparkData={Array.from({length:12},(_,i)=>4+Math.sin(i*0.7)*3+Math.random()*2)}
@@ -982,12 +998,69 @@ function DashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
             </svg>}
           />
-          <KPICard index={7} label={t({ fr: 'Valeur stock total', ht: 'Valè stock total' })} value={fmtK(totalStockValue) + ' HTG'}
+          <KPICard index={7} href="/inventory" label={t({ fr: 'Valeur stock total', ht: 'Valè stock total' })} value={fmtK(totalStockValue) + ' HTG'}
             sub={t({ fr: `${products.length} produits`, ht: `${products.length} pwodwi` })} trend={null} color={C.pink}
             sparkData={Array.from({length:12},(_,i)=>totalStockValue*(0.8+Math.sin(i*0.5)*0.2))}
             sparkId="sv" loading={loading}
             icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+            </svg>}
+          />
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────────── */}
+        {/* 3b. KPI CARDS — ENTREPRISE ACTIVE                                */}
+        {/* ──────────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Ventes du jour */}
+          <KPICard index={0} href="/sales"
+            label={t({ fr: 'Ventes du jour', ht: 'Vant jodi a' })}
+            value={loading || !extra ? '…' : fmt(extra.todaySalesTotal, extra.currency)}
+            sub={loading || !extra ? '' : t({ fr: `${extra.todaySalesCount} transaction${extra.todaySalesCount !== 1 ? 's' : ''}`, ht: `${extra.todaySalesCount} transaksyon` })}
+            trend={null} color={C.emerald}
+            sparkData={Array.from({length:12},(_,i)=>Math.max(0,(extra?.todaySalesTotal??0)*(0.6+Math.sin(i*0.8)*0.4)))}
+            sparkId="today" loading={loading}
+            icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+              <circle cx="12" cy="12" r="4" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}/>
+            </svg>}
+          />
+          {/* Clients */}
+          <KPICard index={1} href="/clients"
+            label={t({ fr: 'Clients', ht: 'Kliyan' })}
+            value={loading || !extra ? '…' : String(extra.clientsCount)}
+            sub={t({ fr: 'Base clients totale', ht: 'Baz kliyan total' })}
+            trend={null} color={C.blue}
+            sparkData={Array.from({length:12},(_,i)=>Math.max(1,(extra?.clientsCount??0)*(0.7+Math.sin(i*0.5)*0.3)))}
+            sparkId="cli" loading={loading}
+            icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+              <circle cx="9" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}/>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>}
+          />
+          {/* Produits */}
+          <KPICard index={2} href="/products"
+            label={t({ fr: 'Produits actifs', ht: 'Pwodwi aktif' })}
+            value={loading || !extra ? '…' : String(extra.productsCount)}
+            sub={t({ fr: `${outOfStockCount} en rupture`, ht: `${outOfStockCount} fini` })}
+            trend={null} color={C.purple}
+            sparkData={Array.from({length:12},(_,i)=>Math.max(1,(extra?.productsCount??0)*(0.8+Math.sin(i*0.6)*0.2)))}
+            sparkId="prod" loading={loading}
+            icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+            </svg>}
+          />
+          {/* Factures totales */}
+          <KPICard index={3} href="/sales"
+            label={t({ fr: 'Factures totales', ht: 'Fakti total' })}
+            value={loading || !extra ? '…' : String(extra.invoicesCount)}
+            sub={t({ fr: 'Toutes périodes confondues', ht: 'Tout peryòd yo' })}
+            trend={null} color={C.amber}
+            sparkData={Array.from({length:12},(_,i)=>Math.max(1,(extra?.invoicesCount??0)*(0.6+Math.sin(i*0.4)*0.4)))}
+            sparkId="inv" loading={loading}
+            icon={<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>}
           />
         </div>
@@ -1372,13 +1445,13 @@ function DashboardInner() {
                   </div>
                 )}
                 {products.slice(0, 5).map((p, i) => (
+                  <Link key={p.id} href="/products">
                   <motion.div
-                    key={p.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5 + i * 0.08 }}
                     className="flex items-center gap-3 rounded-xl border border-[var(--color-border)]
-                               bg-[var(--color-surface)] px-3.5 py-2.5 hover:bg-slate-50 transition-colors"
+                               bg-[var(--color-surface)] px-3.5 py-2.5 hover:bg-slate-50 transition-colors cursor-pointer"
                   >
                     <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm
                                      ${p.stock_quantity === 0 ? 'bg-red-100' : p.stock_quantity <= (p.reorder_point ?? 0) ? 'bg-amber-100' : 'bg-emerald-100'}`}>
@@ -1390,6 +1463,7 @@ function DashboardInner() {
                     </div>
                     <StockBar qty={p.stock_quantity} reorder={p.reorder_point ?? 0} outOfStockT={t({ fr: 'Épuisé', ht: 'Epuize' })} lowT={t({ fr: 'bas', ht: 'ba' })} />
                   </motion.div>
+                  </Link>
                 ))}
               </div>
 
@@ -1414,10 +1488,10 @@ function DashboardInner() {
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-400/70">{t({ fr: 'Activité', ht: 'Aktivite' })}</p>
                   <h3 className="mt-0.5 font-bold text-[#001F3F] text-base">{t({ fr: 'Transactions Récentes', ht: 'Transaksyon Resan' })}</h3>
                 </div>
-                <button onClick={() => setShowFullLedger(v => !v)}
+                <Link href="/sales"
                   className="text-[11px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition">
-                  {showFullLedger ? t({ fr: 'Réduire', ht: 'Redui' }) : t({ fr: 'Tout voir', ht: 'Wè tout' })} →
-                </button>
+                  {t({ fr: 'Tout voir', ht: 'Wè tout' })} →
+                </Link>
               </div>
 
               <div className="space-y-2">
@@ -1425,14 +1499,15 @@ function DashboardInner() {
                   ? Array.from({length:5}).map((_,i) => (
                       <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--color-surface)]" />
                     ))
-                  : recentLedger.slice(0, showFullLedger ? 10 : 6).map((row, i) => (
+                  : recentLedger.slice(0, 8).map((row, i) => (
+                      <Link key={row.id}
+                        href={row.source === 'sales' ? '/sales' : row.source === 'purchases' ? '/purchases' : '/expenses'}>
                       <motion.div
-                        key={row.id}
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.5 + i * 0.07 }}
                         className="flex items-center gap-3 rounded-xl border border-[var(--color-border)]
-                                   bg-[var(--color-surface)] px-3.5 py-2.5 hover:bg-slate-50 transition-colors"
+                                   bg-[var(--color-surface)] px-3.5 py-2.5 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         {/* Icon */}
                         <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm
@@ -1456,6 +1531,7 @@ function DashboardInner() {
                           {row.type === 'Vann' ? '+' : '−'}{fmtK(row.amount)}
                         </span>
                       </motion.div>
+                      </Link>
                     ))
                 }
               </div>

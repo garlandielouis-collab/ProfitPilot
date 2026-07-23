@@ -34,11 +34,22 @@ export type DashboardProduct = {
   reorder_point: number | null;
 };
 
+export type DashboardExtra = {
+  clientsCount:    number;
+  productsCount:   number;
+  invoicesCount:   number;
+  todaySalesTotal: number;
+  todaySalesCount: number;
+  companyName:     string;
+  currency:        string;
+};
+
 export type DashboardV2Data = {
   cashflow: CashflowPoint[];
   ledger: LedgerRow[];
   totals: { cashIn: number; cashOut: number; profit: number; debtTotal: number };
   products?: DashboardProduct[];
+  extra?: DashboardExtra;
 };
 
 // ── getDashboardV2Action ──────────────────────────────────────────────────────
@@ -72,6 +83,8 @@ export async function getDashboardV2Action(
   }
 
   // ── Parallel fetch — all data in one network round ────────────────────────
+  const todayISO = new Date().toISOString().split('T')[0];
+
   const [
     { data: biz },
     { data: salesRaw },
@@ -79,10 +92,13 @@ export async function getDashboardV2Action(
     { data: purchRaw },
     { data: prodsRaw },
     { data: alertsRaw },
+    { count: clientsCount },
+    { count: invoicesCount },
+    { data: todaySalesRaw },
   ] = await Promise.all([
     supabase
       .from('businesses')
-      .select('exchange_rate, default_currency')
+      .select('name, exchange_rate, default_currency')
       .eq('id', businessId)
       .maybeSingle(),
     supabase
@@ -109,11 +125,28 @@ export async function getDashboardV2Action(
     supabase
       .from('products')
       .select('id, name, stock_quantity, sale_price, purchase_price, category')
-      .eq('user_id', userId),
+      .eq('business_id', businessId),
     supabase
       .from('stock_alerts')
       .select('product_id, reorder_point')
       .eq('business_id', businessId),
+    supabase
+      .from('clients')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .is('deleted_at', null),
+    supabase
+      .from('sales')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .is('deleted_at', null),
+    supabase
+      .from('sales')
+      .select('id, total_amount, currency')
+      .eq('business_id', businessId)
+      .is('deleted_at', null)
+      .gte('created_at', `${todayISO}T00:00:00`)
+      .lte('created_at', `${todayISO}T23:59:59`),
   ]);
 
   const sales     = (salesRaw  ?? []) as any[];
@@ -246,11 +279,25 @@ export async function getDashboardV2Action(
   const cashOut   = expenses.reduce((s: number, r: any) => s + toReport(Number(r.amount), r.currency), 0);
   const debtTotal = purchases.reduce((s: number, r: any) => s + toReport(Number(r.total_amount), r.currency), 0);
 
+  const todaySales = (todaySalesRaw ?? []) as any[];
+  const todaySalesTotal = todaySales.reduce(
+    (s: number, r: any) => s + toReport(Number(r.total_amount), r.currency), 0
+  );
+
   return {
     cashflow,
     ledger,
     totals: { cashIn, cashOut, profit: cashIn - cashOut, debtTotal },
     products,
+    extra: {
+      clientsCount:    clientsCount ?? 0,
+      productsCount:   (prodsRaw ?? []).length,
+      invoicesCount:   invoicesCount ?? 0,
+      todaySalesTotal,
+      todaySalesCount: todaySales.length,
+      companyName:     (biz as any)?.name ?? '',
+      currency:        reportCurrency,
+    },
   };
 }
 

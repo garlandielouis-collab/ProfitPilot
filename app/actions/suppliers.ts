@@ -86,22 +86,7 @@ export async function markPurchasePaid(purchaseId: string): Promise<void> {
 
   if (updErr) throw new Error(updErr.message);
 
-  // 3. Update supplier outstanding_balance
-  const { data: supplier } = await supabase
-    .from('suppliers')
-    .select('outstanding_balance, name')
-    .eq('id', purchase.supplier_id)
-    .single();
-
-  const balBefore  = Number(supplier?.outstanding_balance ?? 0);
-  const balAfter   = Math.max(0, balBefore - total);
-
-  await supabase
-    .from('suppliers')
-    .update({ outstanding_balance: balAfter })
-    .eq('id', purchase.supplier_id);
-
-  // 4. Record supplier transaction
+  // 3. Record supplier payment transaction
   await supabase.from('supplier_transactions').insert({
     business_id:      businessId,
     supplier_id:      purchase.supplier_id,
@@ -112,8 +97,6 @@ export async function markPurchasePaid(purchaseId: string): Promise<void> {
     description:      `Règleman dèt — acha #${purchaseId.slice(0, 8)}`,
     reference_type:   'purchase',
     reference_id:     purchaseId,
-    balance_before:   balBefore,
-    balance_after:    balAfter,
     created_by:       userId,
   });
 
