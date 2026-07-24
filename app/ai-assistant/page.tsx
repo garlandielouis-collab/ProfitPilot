@@ -18,6 +18,7 @@ import { useConversations }        from '../../hooks/useConversations';
 import { useMessages }             from '../../hooks/useMessages';
 import { getWeeklySummaryAction }  from '../actions/ai';
 import { useLanguage }            from '../../components/LanguageWrapper';
+import { usePlan }                 from '../../hooks/usePlan';
 import { cn }                      from '../../lib/utils';
 import type { Conversation }       from '../actions/conversations';
 
@@ -343,6 +344,8 @@ function AiAssistantPage() {
   const { query: msgQuery, send, cancel } = useMessages(activeConvId);
   const messages    = msgQuery.data ?? [];
   const isStreaming = send.isPending;
+  const plan        = usePlan();
+  const hasAI       = plan.can('ai_assistant');
 
   // auth
   useEffect(() => {
@@ -371,12 +374,16 @@ function AiAssistantPage() {
     const text = input.trim();
     if (!text || isStreaming) return;
     if (!activeConvId) { toast.error('Sélectionnez ou créez une conversation'); return; }
+    if (!hasAI) {
+      toast('✨ Pilot AI est disponible en version Business Pilot ou Expert. Passez à Premium pour accéder à votre conseiller financier intelligent.', {
+        duration: 6000,
+        style: { background: '#001F3F', color: '#fff', borderRadius: '16px' },
+      });
+      return;
+    }
     setInput('');
-    toast('✨ Pilot AI est disponible en version Premium uniquement. Passez à Premium pour accéder à votre conseiller financier intelligent.', {
-      duration: 6000,
-      style: { background: '#001F3F', color: '#fff', borderRadius: '16px' },
-    });
-  }, [input, isStreaming, activeConvId, send, summary]);
+    send.mutate({ text, weeklySummary: summary });
+  }, [input, isStreaming, activeConvId, hasAI, send, summary]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -435,21 +442,23 @@ function AiAssistantPage() {
           </div>
         </div>
 
-        {/* Premium banner */}
-        <div className="flex items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-3">
-          <span className="text-lg">✨</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-              {t({ fr: 'Fonctionnalité Premium', ht: 'Fonksyonalite Premium' })}
-            </p>
-            <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
-              {t({ fr: 'Pilot AI est disponible uniquement en version Premium.', ht: 'Pilot AI disponib sèlman nan vèsyon Premium.' })}
-            </p>
+        {/* Upsell banner — visible seulement sans plan AI */}
+        {!plan.loading && !hasAI && (
+          <div className="flex items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-3">
+            <span className="text-lg">✨</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                {t({ fr: 'Fonctionnalité Business Pilot / Expert', ht: 'Fonksyonalite Business Pilot / Expert' })}
+              </p>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                {t({ fr: 'Pilot AI est disponible en plan Business Pilot ou Expert.', ht: 'Pilot AI disponib nan plan Business Pilot oswa Expert.' })}
+              </p>
+            </div>
+            <a href="/pricing" className="flex-shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-400">
+              {t({ fr: 'Passer Premium', ht: 'Pase Premium' })}
+            </a>
           </div>
-          <a href="/pricing" className="flex-shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-400">
-            {t({ fr: 'Passer Premium', ht: 'Pase Premium' })}
-          </a>
-        </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">

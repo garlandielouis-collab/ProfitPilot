@@ -246,7 +246,7 @@ export default function SuppliersPage() {
       // 1. Fetch suppliers with their running totals
       const { data: suppData } = await supabase
         .from('suppliers')
-        .select('id,name,email,phone,discount_percent,outstanding_balance,total_purchased,created_at')
+        .select('id,name,email,phone,discount_percent,created_at')
         .is('deleted_at', null)
         .order('name');
 
@@ -289,7 +289,7 @@ export default function SuppliersPage() {
             email:               s.email ?? undefined,
             phone:               s.phone ?? undefined,
             discount_percent:    Number(s.discount_percent ?? 0),
-            outstanding_balance: Number(s.outstanding_balance ?? 0),
+            outstanding_balance: supplierPurchases.filter(p => p.payment_status !== 'paid').reduce((sum, p) => sum + p.total_amount, 0),
             total_purchased:     computedTotal,
             created_at:          s.created_at,
             purchases:           supplierPurchases,

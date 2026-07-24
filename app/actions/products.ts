@@ -2,6 +2,7 @@
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { revalidatePath } from 'next/cache';
+import { logActivity } from '../../lib/activityLog';
 
 export type ProductPayload = {
   name: string;
@@ -59,6 +60,7 @@ export async function createProductAction(payload: ProductPayload): Promise<stri
   }).select('id').single();
 
   if (error) throw new Error(error.message);
+  void logActivity({ action: 'create', entity: 'product', entityId: data.id, newValues: { name: payload.name, sale_price: payload.sale_price } });
   revalidatePath('/products');
   return data.id;
 }
@@ -82,6 +84,7 @@ export async function updateProductAction(id: string, payload: ProductPayload): 
     .eq('user_id', userId);
 
   if (error) throw new Error(error.message);
+  void logActivity({ action: 'update', entity: 'product', entityId: id, newValues: { name: payload.name, sale_price: payload.sale_price, stock_quantity: payload.stock_quantity } });
   revalidatePath('/products');
 }
 
@@ -95,5 +98,6 @@ export async function deleteProductAction(id: string): Promise<void> {
     .eq('user_id', userId);
 
   if (error) throw new Error(error.message);
+  void logActivity({ action: 'delete', entity: 'product', entityId: id });
   revalidatePath('/products');
 }

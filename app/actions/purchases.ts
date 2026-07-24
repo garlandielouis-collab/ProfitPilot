@@ -3,6 +3,8 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { recordPurchaseEntry } from './accounting';
+import { logActivity } from '../../lib/activityLog';
+import { notify } from '../../lib/notify';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,6 +83,15 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
 
   if (pErr) throw new Error(pErr.message);
   const purchaseId = purchaseRow.id;
+  void logActivity({ action: 'create', entity: 'purchase', entityId: purchaseId, newValues: { product_name: payload.product_name, total: total, status: dbStatus } });
+  void notify({
+    companyId: businessId, triggeredBy: userId,
+    type: 'purchase_created',
+    title: `Nouvel achat — ${payload.product_name}`,
+    body: `Qté : ${payload.quantity} · Montant : ${total.toLocaleString('fr-FR')} ${currency}`,
+    entity: 'purchase', entityId: purchaseId,
+    data: { product: payload.product_name, quantity: payload.quantity, total, currency },
+  });
 
   // ── 2. Insert purchase_item ────────────────────────────────────────────────
   const { error: iErr } = await supabase
@@ -130,27 +141,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     });
   }
 
-  // ── 5. Update supplier stats + record transaction ─────────────────────────
-  const { data: supplier } = await supabase
-    .from('suppliers')
-    .select('outstanding_balance, total_purchased')
-    .eq('id', payload.supplier_id)
-    .single();
-
-  const balBefore    = Number(supplier?.outstanding_balance ?? 0);
-  const totalPurch   = Number(supplier?.total_purchased     ?? 0);
-  const newBalance   = dbStatus === 'credit' ? balBefore + total : balBefore;
-  const newTotalPurch = totalPurch + total;
-
-  await supabase
-    .from('suppliers')
-    .update({
-      outstanding_balance: newBalance,
-      total_purchased:     newTotalPurch,
-    })
-    .eq('id', payload.supplier_id);
-
-  // Record supplier transaction
+  // ── 5. Record supplier transaction ───────────────────────────────────────
   await supabase.from('supplier_transactions').insert({
     business_id:      businessId,
     supplier_id:      payload.supplier_id,
@@ -161,8 +152,6 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     description:      `Acha ${payload.product_name} ×${payload.quantity} — ${poNumber}`,
     reference_type:   'purchase',
     reference_id:     purchaseId,
-    balance_before:   balBefore,
-    balance_after:    newBalance,
     created_by:       userId,
   });
 
