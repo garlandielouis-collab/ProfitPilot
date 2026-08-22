@@ -27,3 +27,4 @@ Thumbs.db
 # Build / debug output accidentellement redirigé vers un fichier
 next-build-output*.txt
 tmp/
+APPLY_PENDING_MIGRATIONS.sql
