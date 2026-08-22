@@ -8,6 +8,8 @@ const MIGRATION_FILES = [
   'supabase/migrations/20260603_add_converted_amount_columns.sql',
   'supabase/migrations/20260605_add_expense_exchange_rate.sql',
   'supabase/migrations/20260606_add_products_currency.sql',
+  'supabase/migrations/20260726_add_business_id_to_clients_and_nullable_warehouse.sql',
+  'supabase/migrations/20260726_backfill_clients_and_invmov.sql',
 ];
 
 function isProduction(): boolean {

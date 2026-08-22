@@ -1026,7 +1026,7 @@ function DashboardInner() {
             </svg>}
           />
           {/* Clients */}
-          <KPICard index={1} href="/clients"
+          <KPICard index={1} href="/customers"
             label={t({ fr: 'Clients', ht: 'Kliyan' })}
             value={loading || !extra ? '…' : String(extra.clientsCount)}
             sub={t({ fr: 'Base clients totale', ht: 'Baz kliyan total' })}
@@ -1435,6 +1435,10 @@ function DashboardInner() {
 
               {/* Product table */}
               <div className="space-y-2.5">
+                {loading && products.length === 0 &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--color-surface)]" />
+                  ))}
                 {products.length === 0 && !loading && (
                   <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] py-8 text-center">
                     <span className="text-2xl mb-2">📦</span>

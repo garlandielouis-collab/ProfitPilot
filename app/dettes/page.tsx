@@ -6,7 +6,7 @@ import { useLanguage } from '../../components/LanguageWrapper';
 import { supabase } from '../../lib/supabaseClient';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { recordDebtPayment } from '../actions/debts';
-import { markClientCreditPaid } from '../actions/clients';
+import { markCustomerCreditPaid } from '../actions/customers';
 import { markExpensePaid } from '../actions/expenses';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -97,21 +97,6 @@ function waLink(phone: string | null, message: string): string | null {
   return `https://wa.me/${e164}?text=${encodeURIComponent(message)}`;
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_DEBTS: SupplierDebt[] = [
-  { id:'sd1', supplier_id:'s1', supplier_name:'Distribisyon ABC',   supplier_phone:'47123456', product_name:'Riz 50kg', quantity:10, amount:55000, currency:'HTG', purchase_date:'2026-04-10', due_date:'2026-05-10', days_overdue:42, payment_status:'À Crédit', etat:'Critique' },
-  { id:'sd2', supplier_id:'s2', supplier_name:'Boutik Santé Plus',  supplier_phone:'36987654', product_name:'Savon Detèjan', quantity:50, amount:18000, currency:'HTG', purchase_date:'2026-05-01', due_date:'2026-05-31', days_overdue:21, payment_status:'À Crédit', etat:'Atansyon' },
-  { id:'sd3', supplier_id:'s3', supplier_name:'Agri Depou Nò',      supplier_phone:null,       product_name:'Maïs Moulu', quantity:20, amount:12000, currency:'HTG', purchase_date:'2026-05-15', due_date:'2026-06-14', days_overdue:7,  payment_status:'À Crédit', etat:'Nòmal' },
-  { id:'sd4', supplier_id:'s1', supplier_name:'Distribisyon ABC',   supplier_phone:'47123456', product_name:'Farin Blé', quantity:15, amount:22500, currency:'HTG', purchase_date:'2026-04-05', due_date:'2026-05-05', days_overdue:47, payment_status:'Payé',    etat:'Nòmal' },
-];
-
-const MOCK_CREDITS: ClientCredit[] = [
-  { id:'cc1', client_id:'c1', client_name:'Marie Joseph',    client_phone:'34561234', invoice_number:'PP-2026-100123', amount:8500,  currency:'HTG', payment_status:'À Crédit', created_at:'2026-04-08T10:00:00', due_date:'2026-05-08', days_since:44, etat:'Critique' },
-  { id:'cc2', client_id:'c2', client_name:'Jean Pierre',     client_phone:'47009988', invoice_number:'PP-2026-100456', amount:4200,  currency:'HTG', payment_status:'À Crédit', created_at:'2026-05-05T10:00:00', due_date:'2026-06-04', days_since:17, etat:'Atansyon' },
-  { id:'cc3', client_id:'c3', client_name:'Claudette René',  client_phone:null,        invoice_number:'PP-2026-100789', amount:11000, currency:'HTG', payment_status:'À Crédit', created_at:'2026-05-16T10:00:00', due_date:'2026-06-15', days_since:6,  etat:'Nòmal' },
-  { id:'cc4', client_id:'c4', client_name:'Robert Alexis',   client_phone:'32001122', invoice_number:'PP-2026-100321', amount:6750,  currency:'HTG', payment_status:'Payé',    created_at:'2026-05-01T10:00:00', due_date:'2026-05-31', days_since:21, etat:'Nòmal' },
-];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -212,10 +197,9 @@ function SectionTitle({ color, label, count }: { color: string; label: string; c
 
 function DettesInner() {
   const { t } = useLanguage();
-  const [supplierDebts,  setSupplierDebts]  = useState<SupplierDebt[]>(MOCK_DEBTS);
-  const [clientCredits,  setClientCredits]  = useState<ClientCredit[]>(MOCK_CREDITS);
+  const [supplierDebts,  setSupplierDebts]  = useState<SupplierDebt[]>([]);
+  const [clientCredits,  setClientCredits]  = useState<ClientCredit[]>([]);
   const [loading,        setLoading]        = useState(true);
-  const [isDemo,         setIsDemo]         = useState(false);
   const [userId,         setUserId]         = useState<string | null>(null);
 
   // ── Filters ─────────────────────────────────────────────────────────────────
@@ -239,6 +223,12 @@ function DettesInner() {
   const getBusinessId = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
+    const cookieMatch = typeof document !== 'undefined' ? document.cookie.match(/(?:^|; )pp_active_store=([0-9a-fA-F-]{36})/) : null;
+    const activeStore = cookieMatch ? cookieMatch[1] : null;
+    if (activeStore) {
+      const { data: activeBiz } = await supabase.from('businesses').select('id, exchange_rate').eq('id', activeStore).maybeSingle();
+      if (activeBiz) { setBusinessId(activeBiz.id); setExchangeRate(Number(activeBiz.exchange_rate ?? 130)); return activeBiz.id; }
+    }
     const { data: biz } = await supabase
       .from('businesses')
       .select('id, exchange_rate')
@@ -248,6 +238,12 @@ function DettesInner() {
       setBusinessId(biz.id);
       setExchangeRate(Number(biz.exchange_rate ?? 130));
       return biz.id;
+    }
+    // Fallback: check membership
+    const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user.id).eq('is_active', true).maybeSingle();
+    if (member?.business_id) {
+      const { data: mb } = await supabase.from('businesses').select('id, exchange_rate').eq('id', member.business_id).maybeSingle();
+      if (mb) { setBusinessId(mb.id); setExchangeRate(Number(mb.exchange_rate ?? 130)); return mb.id; }
     }
     return null;
   }, []);
@@ -394,16 +390,13 @@ function DettesInner() {
         };
       });
 
-      // Only show demo if all lists are truly empty after successful fetch
-      const hasReal = debtsData.length > 0 || creditsData.length > 0 || expensesData.length > 0;
-      setIsDemo(!hasReal);
-      setSupplierDebts(hasReal ? debtsData : MOCK_DEBTS);
-      setClientCredits(hasReal ? creditsData : MOCK_CREDITS);
+      setSupplierDebts(debtsData);
+      setClientCredits(creditsData);
       setExpenseDebts(expensesData);
     } catch (e: any) {
       console.error('[dettes] loadAll error:', e?.message);
       // Do NOT fall back to demo silently — show empty so user knows
-      setIsDemo(false);
+      setExpenseDebts([]);
       setSupplierDebts([]);
       setClientCredits([]);
     } finally {
@@ -426,7 +419,7 @@ function DettesInner() {
   async function handlePayCredit(creditId: string) {
     setPayingId(creditId);
     try {
-      await markClientCreditPaid(creditId);
+      await markCustomerCreditPaid(creditId);
       await loadAll();
     } catch { alert('Erè pandan mak kòm peye.'); }
     setPayingId(null);
@@ -490,12 +483,7 @@ function DettesInner() {
             <h1 className="mt-1 text-2xl font-bold md:text-3xl">{t({ fr: 'Gestion Crédit Actif', ht: 'Jesyon Kredi Aktif' })}</h1>
             <p className="text-sm text-[var(--color-muted)] mt-0.5">{t({ fr: 'Dettes Fournisseurs · Créances Clients', ht: 'Dèt Founisè · Kreyans Kliyan' })}</p>
           </div>
-          {isDemo && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              {t({ fr: 'Données démo', ht: 'Done demo' })}
-            </span>
-          )}
+          {/* no demo data badge; page now renders only real fetched records */}
         </div>
 
         {/* ── Stat Cards ──────────────────────────────────────────────────────── */}
@@ -885,7 +873,7 @@ function DettesInner() {
                             {cc.client_name.charAt(0).toUpperCase()}
                           </div>
                           <Link
-                            href={cc.client_id ? `/clients?highlight=${cc.client_id}` : '/clients'}
+                            href={cc.client_id ? `/customers?highlight=${cc.client_id}` : '/customers'}
                             className="font-medium text-[var(--color-text)] text-sm hover:text-blue-500 hover:underline transition-colors"
                           >
                             {cc.client_name}

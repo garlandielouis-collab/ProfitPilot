@@ -24,26 +24,87 @@ export type BusinessContext = {
 // cache() deduplicates within a single server request.
 export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   const supabase = await getSupabaseServer();
-
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr) console.error('[getBusinessContext] auth.getUser error:', authErr.message);
-  if (!user) console.warn('[getBusinessContext] No authenticated user');
-  if (authErr || !user) throw new Error('Non authentifié.');
+  let user;
+  // Robust getUser with a small retry on transient failures/timeouts
+  let attempts = 0;
+  while (attempts < 2) {
+    attempts += 1;
+    try {
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (authErr) {
+        console.error(`[getBusinessContext] auth.getUser error (attempt ${attempts}):`, authErr.message);
+        user = null;
+      } else {
+        user = authData?.user ?? null;
+      }
+      if (user) break;
+    } catch (err) {
+      console.error(`[getBusinessContext] auth.getUser threw (attempt ${attempts}):`, (err as Error).message);
+      user = null;
+    }
+    // short backoff
+    if (!user && attempts < 2) await new Promise((r) => setTimeout(r, 150));
+  }
+  if (!user) throw new Error('Non authentifié.');
   const userId = user.id;
 
   // Respect active store cookie (multi-store)
   const jar = await cookies();
   const activeStoreId = validUuid(jar.get(ACTIVE_STORE_COOKIE)?.value);
 
-  const bizQuery = supabase
-    .from('businesses')
-    .select('id, exchange_rate, default_currency');
+  async function getActiveStoreBusiness(storeId: string) {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('id, owner_id, exchange_rate, default_currency')
+      .eq('id', storeId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    if (data.owner_id === userId) return data;
+    const { data: member } = await supabase
+      .from('business_members')
+      .select('id')
+      .eq('business_id', storeId)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .maybeSingle();
+    return member ? data : null;
+  }
 
-  const { data: biz, error: bizErr } = activeStoreId
-    ? await bizQuery.eq('id', activeStoreId).eq('owner_id', userId).maybeSingle()
-    : await bizQuery.eq('owner_id', userId).maybeSingle();
+  async function getOwnedBusiness() {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('id, owner_id, exchange_rate, default_currency')
+      .eq('owner_id', userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
 
-  if (bizErr) throw new Error(bizErr.message);
+  async function getMemberBusiness() {
+    const { data, error } = await supabase
+      .from('business_members')
+      .select('businesses (id, owner_id, exchange_rate, default_currency)')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.businesses ?? null;
+  }
+
+  let biz = null;
+  if (activeStoreId) {
+    biz = await getActiveStoreBusiness(activeStoreId);
+  }
+  if (!biz) {
+    biz = await getOwnedBusiness();
+  }
+  if (!biz) {
+    biz = await getMemberBusiness();
+  }
 
   async function ensureOwnerMembership(businessId: string) {
     const { data: existing } = await supabase

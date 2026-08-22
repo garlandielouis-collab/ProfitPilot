@@ -4,7 +4,8 @@ const fs   = require('fs');
 const path = require('path');
 
 const currentWorktree = path.basename(path.resolve(__dirname, '..'));
-const worktreesDir    = path.resolve(__dirname, '..', '..', '..', '.claude', 'worktrees');
+// Worktrees live in <repo>/.claude/worktrees — one level up from scripts/, not three.
+const worktreesDir    = path.resolve(__dirname, '..', '.claude', 'worktrees');
 
 // Check free disk space (Windows)
 function getFreeBytesWindows() {
@@ -18,7 +19,9 @@ function getFreeBytesWindows() {
   }
 }
 
-const FREE_THRESHOLD_GB = 2; // clean if below 2 GB free
+// A single .next cache here can reach ~2.7 GB, so trigger well before the disk
+// is actually tight — at 2 GB the build can already fail mid-write.
+const FREE_THRESHOLD_GB = 6; // clean if below 6 GB free
 
 try {
   const freeBytes = getFreeBytesWindows();

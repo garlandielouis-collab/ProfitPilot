@@ -28,6 +28,12 @@ function fmt2(n: number): number {
   return parseFloat(n.toFixed(2));
 }
 
+async function rollbackSale(supabase: any, saleId: string) {
+  await supabase.from('customer_transactions').delete().eq('sale_id', saleId);
+  await supabase.from('sale_items').delete().eq('sale_id', saleId);
+  await supabase.from('sales').delete().eq('id', saleId);
+}
+
 async function generateInvoiceNumber(supabase: any, businessId: string): Promise<string> {
   const year = new Date().getFullYear();
   const { count } = await supabase
@@ -52,6 +58,13 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     };
   }
   const data = parsed.data;
+
+  if (data.payment_status === 'credit' && !data.customer_id) {
+    return {
+      success: false,
+      errors: [{ field: 'customer_id', message: 'Client requis pour les ventes à crédit.' }],
+    };
+  }
 
   // ── 2. Session + business membership ─────────────────────────────────────
   const ctx = await verifyBusinessAccess(data.business_id);
@@ -184,83 +197,126 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     }
   }
 
+  // Fall back to the product's own cost when the line carries no variant. Without
+  // this, cost_price stayed 0 for every variant-less product: the COGS entry was
+  // skipped and gross margin came out equal to revenue.
+  const missingCost = saleItems.filter((si) => si.cost_price === 0 && si.product_id);
+  if (missingCost.length > 0) {
+    const { data: prods } = await sb
+      .from('products')
+      .select('id, purchase_price')
+      .in('id', missingCost.map((si) => si.product_id));
+    const prodCost = new Map((prods ?? []).map((p: any) => [p.id, Number(p.purchase_price ?? 0)]));
+    for (const si of missingCost) si.cost_price = prodCost.get(si.product_id) ?? 0;
+  }
+
   const { error: siErr } = await sb.from('sale_items').insert(saleItems);
-  if (siErr) return { success: false, errors: [{ field: 'sale_items', message: siErr.message }] };
+  if (siErr) {
+    await rollbackSale(sb, saleId);
+    return { success: false, errors: [{ field: 'sale_items', message: siErr.message }] };
+  }
 
   // ── 8. Decrement warehouse_stock + inventory_movements ───────────────────
-  for (const item of data.items) {
-    const cost_price = saleItems.find((si) => si.product_id === item.product_id)?.cost_price ?? 0;
+  try {
+    for (const item of data.items) {
+      const cost_price = saleItems.find((si) => si.product_id === item.product_id)?.cost_price ?? 0;
 
-    // Decrement warehouse_stock (if entry exists)
-    const matchQty = item.variant_id
-      ? sb.from('warehouse_stock').select('quantity').eq('product_id', item.product_id).eq('variant_id', item.variant_id).maybeSingle()
-      : null;
+      // Decrement warehouse_stock (if entry exists)
+      const matchQty = item.variant_id
+        ? sb.from('warehouse_stock').select('quantity').eq('business_id', businessId).eq('product_id', item.product_id).eq('variant_id', item.variant_id).maybeSingle()
+        : null;
 
-    const stockRow = matchQty ? (await matchQty).data : null;
-    if (stockRow) {
-      const newQty = Math.max(0, stockRow.quantity - item.quantity);
-      const upd: any = { quantity: newQty };
-      if (data.warehouse_id) upd.warehouse_id = data.warehouse_id;
-      await sb.from('warehouse_stock').update(upd).eq('product_id', item.product_id);
-      if (item.variant_id) await sb.from('warehouse_stock').update(upd).eq('variant_id', item.variant_id);
-    }
+      const stockRow = matchQty ? (await matchQty).data : null;
+      if (stockRow) {
+        const newQty = Math.max(0, stockRow.quantity - item.quantity);
+        const upd: any = { quantity: newQty };
+        if (data.warehouse_id) upd.warehouse_id = data.warehouse_id;
+        await sb.from('warehouse_stock').update(upd).eq('business_id', businessId).eq('product_id', item.product_id).eq('variant_id', item.variant_id);
+      }
 
-    // Insert inventory_movement
-    await sb.from('inventory_movements').insert({
-      business_id:    businessId,
-      warehouse_id:   data.warehouse_id ?? (stockRow ? undefined : null),
-      product_id:     item.product_id,
-      variant_id:     item.variant_id ?? null,
-      movement_type:  'sale_out',
-      quantity:       item.quantity,
-      unit_cost:      cost_price,
-      total_cost:     fmt2(cost_price * item.quantity),
-      currency:       data.currency,
-      reference_type: 'sale',
-      reference_id:   saleId,
-      notes:          `Vente — ${invoiceNumber}`,
-      created_by:     userId,
-    });
+      // Insert inventory_movement
+      await sb.from('inventory_movements').insert({
+        business_id:    businessId,
+        warehouse_id:   data.warehouse_id ?? (stockRow ? undefined : null),
+        product_id:     item.product_id,
+        variant_id:     item.variant_id ?? null,
+        movement_type:  'sale_out',
+        quantity:       item.quantity,
+        unit_cost:      cost_price,
+        total_cost:     fmt2(cost_price * item.quantity),
+        currency:       data.currency,
+        reference_type: 'sale',
+        reference_id:   saleId,
+        notes:          `Vente — ${invoiceNumber}`,
+        created_by:     userId,
+      });
 
-    // Update products.stock_quantity
-    const { data: legacy } = await sb
-      .from('products')
-      .select('stock_quantity')
-      .eq('id', item.product_id)
-      .maybeSingle();
-    if (legacy) {
-      const newQtyLegacy = Math.max(0, legacy.stock_quantity - item.quantity);
-      await sb
+      // Update products.stock_quantity
+      const { data: legacy, error: legacyErr } = await sb
         .from('products')
-        .update({ stock_quantity: newQtyLegacy })
-        .eq('id', item.product_id);
-      const LOW_STOCK_THRESHOLD = 5;
-      if (newQtyLegacy <= LOW_STOCK_THRESHOLD) {
-        void notify({
-          companyId: businessId, triggeredBy: userId,
-          type: 'stock_low',
-          title: `Stock faible — ${item.product_name}`,
-          body: `Il reste ${newQtyLegacy} unité${newQtyLegacy !== 1 ? 's' : ''} en stock.`,
-          entity: 'product', entityId: item.product_id,
-          data: { product: item.product_name, quantity: newQtyLegacy },
-        });
+        .select('stock_quantity')
+        .eq('id', item.product_id)
+        .maybeSingle();
+      if (legacyErr) throw new Error(legacyErr.message);
+      if (legacy) {
+        const newQtyLegacy = Math.max(0, legacy.stock_quantity - item.quantity);
+        const { error: stockErr } = await sb
+          .from('products')
+          .update({ stock_quantity: newQtyLegacy })
+          .eq('id', item.product_id);
+        if (stockErr) throw new Error(stockErr.message);
+        const LOW_STOCK_THRESHOLD = 5;
+        if (newQtyLegacy <= LOW_STOCK_THRESHOLD) {
+          void notify({
+            companyId: businessId, triggeredBy: userId,
+            type: 'stock_low',
+            title: `Stock faible — ${item.product_name}`,
+            body: `Il reste ${newQtyLegacy} unité${newQtyLegacy !== 1 ? 's' : ''} en stock.`,
+            entity: 'product', entityId: item.product_id,
+            data: { product: item.product_name, quantity: newQtyLegacy },
+          });
+        }
       }
     }
+  } catch (err: any) {
+    await rollbackSale(sb, saleId);
+    return { success: false, errors: [{ field: 'sale', message: err?.message ?? 'Erreur lors de la mise à jour des stocks.' }] };
   }
 
   // ── 9. Credit sale: update client total_credit ───────────────────────────
   const isCredit = data.payment_status === 'credit';
   const clientId = data.customer_id ?? null;
   if (isCredit && clientId) {
-    const { data: clt } = await sb
-      .from('clients')
+    // Some deployments may not have migrated the legacy `total_credit` column
+    // into `customers`. Be defensive: if the column is missing, skip the
+    // update (don't fail the sale) and log a warning so the migration can be
+    // applied later. If any other DB error occurs, rollback as before.
+    const { data: clt, error: cltErr } = await sb
+      .from('customers')
       .select('total_credit')
       .eq('id', clientId)
-      .maybeSingle();
+      .single();
 
-    if (clt) {
+    if (cltErr) {
+      const msg = cltErr.message ?? String(cltErr);
+      if (msg.includes("column \"total_credit\" does not exist") || msg.includes('column "total_credit" does not exist')) {
+        console.warn('[sales] customers.total_credit missing — skipping client credit update');
+      } else {
+        await rollbackSale(sb, saleId);
+        return { success: false, errors: [{ field: 'client', message: cltErr.message }] };
+      }
+    } else {
       const newCredit = fmt2((clt.total_credit ?? 0) + totalAmount);
-      await sb.from('clients').update({ total_credit: newCredit }).eq('id', clientId);
+      const { error: creditErr } = await sb.from('customers').update({ total_credit: newCredit }).eq('id', clientId);
+      if (creditErr) {
+        const msg = creditErr.message ?? String(creditErr);
+        if (msg.includes("column \"total_credit\" does not exist") || msg.includes('column "total_credit" does not exist')) {
+          console.warn('[sales] customers.total_credit missing during update — skipped');
+        } else {
+          await rollbackSale(sb, saleId);
+          return { success: false, errors: [{ field: 'client', message: creditErr.message }] };
+        }
+      }
     }
   }
 
@@ -281,7 +337,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   }
 
   revalidatePath('/sales');
-  revalidatePath('/clients');
+  revalidatePath('/customers');
   revalidatePath('/dettes');
   revalidatePath('/rapports/comptabilite');
 

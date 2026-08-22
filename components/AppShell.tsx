@@ -180,7 +180,7 @@ const navSections: NavSection[] = [
     label: { fr: 'Commerce', ht: 'Komès' },
     items: [
       { title: { fr: 'Ventes', ht: 'Vant' }, href: '/sales', icon: <IconSales /> },
-      { title: { fr: 'Clients', ht: 'Kliyan' }, href: '/clients', icon: <IconClients /> },
+      { title: { fr: 'Clients', ht: 'Kliyan' }, href: '/customers', icon: <IconClients /> },
       { title: { fr: 'Produits', ht: 'Pwodwi' }, href: '/products', icon: <IconProducts /> },
       { title: { fr: 'Inventaire', ht: 'Envantè' }, href: '/inventory', icon: <IconInventory /> },
       { title: { fr: 'Achats', ht: 'Acha' }, href: '/purchases', icon: <IconPurchases /> },

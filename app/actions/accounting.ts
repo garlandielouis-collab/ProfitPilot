@@ -25,12 +25,19 @@ export type JournalEntryLine = {
   credit: number;
 };
 
+/** Where a document sits in its lifecycle. A document yields one entry per event. */
+export type JournalEventType = 'created' | 'payment' | 'cogs' | 'reversal' | 'adjustment';
+
 export type JournalEntryPayload = {
   date:           string;       // YYYY-MM-DD
   description:    string;
   reference?:     string;
   reference_type?: string;      // 'sale' | 'purchase' | 'expense' | 'manual'
   reference_id?:  string;
+  event_type?:    JournalEventType;  // defaults to 'created'
+  reversal_of?:   string;
+  /** Settlements only — which instalment this entry clears. See PostingContext. */
+  settlement_id?: string;
   currency?:      'HTG' | 'USD';
   exchangeRate?:  number;
   lines:          JournalEntryLine[];
@@ -60,16 +67,29 @@ async function getAccountId(supabase: any, businessId: string, code: string): Pr
 async function getOrCreatePeriod(supabase: any, businessId: string, transactionDate: string): Promise<string | null> {
   // Use the transaction date to find or create the matching accounting period.
   const effectiveDate = new Date(transactionDate).toISOString().split('T')[0];
+  // Look up WITHOUT filtering on is_closed. Filtering it out made a closed
+  // period invisible, so the code below tried to INSERT a second period with
+  // the same start_date — a unique-violation that surfaced as an opaque posting
+  // failure instead of the real reason.
   const { data: existing } = await supabase
     .from('accounting_periods')
-    .select('id')
+    .select('id, is_closed, name')
     .eq('business_id', businessId)
     .lte('start_date', effectiveDate)
     .gte('end_date', effectiveDate)
-    .eq('is_closed', false)
     .maybeSingle();
 
-  if (existing) return existing.id;
+  if (existing) {
+    // A closed period is closed: its statements are published. Backdating into
+    // it would silently restate them. The correction belongs in an open period.
+    if (existing.is_closed) {
+      throw new Error(
+        `Peryòd "${existing.name}" fèmen — ou pa ka poste yon ekriti nan dat ${effectiveDate}. ` +
+        `Itilize yon dat nan yon peryòd ouvè, oswa reouvri peryòd la.`,
+      );
+    }
+    return existing.id;
+  }
 
   // Get or create fiscal year that covers the transaction date.
   const year = new Date(transactionDate).getFullYear();
@@ -111,9 +131,33 @@ async function getOrCreatePeriod(supabase: any, businessId: string, transactionD
   return period?.id ?? null;
 }
 
-function generateEntryNumber(): string {
-  const d = new Date();
-  return `JE-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${Math.floor(Math.random()*9000)+1000}`;
+/**
+ * Numérotation des pièces : laissée à la base.
+ *
+ * La colonne entry_number porte DEFAULT fn_generate_ref('JE'), qui tire sur une
+ * séquence Postgres — donc strictement unique. La version JS tirait 4 chiffres
+ * au hasard sur une contrainte UNIQUE (business_id, entry_number) : par le
+ * paradoxe des anniversaires, une collision devenait probable dès ~100 écritures
+ * dans la même journée, et se manifestait comme un échec de comptabilisation
+ * incompréhensible. On n'envoie donc plus la colonne du tout.
+ */
+
+/**
+ * Classe comptable déduite du code, quand un compte doit être créé à la volée.
+ * Le plan (CHART_OF_ACCOUNTS) reste l'autorité ; ceci n'est qu'un filet.
+ * Sans lui, tout code inconnu tombait en 'Expense' — un véhicule à 900 000 HTG
+ * atterrissait dans les charges et n'en ressortait jamais.
+ */
+function inferAccountClass(code: string): AccountClass {
+  switch (code[0]) {
+    case '2': return 'Asset';      // immobilisations
+    case '3': return 'Asset';      // stocks
+    case '5': return 'Asset';      // trésorerie
+    case '7': return 'Revenue';    // produits
+    case '6': return 'Expense';    // charges
+    case '1': return 'Equity';     // capitaux (les dettes financières 16xx sont au plan)
+    default:  return 'Liability';  // classe 4 — tiers : le passif est le défaut prudent
+  }
 }
 
 // ── CORE: Create Journal Entry ────────────────────────────────────────────────
@@ -147,6 +191,12 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
     }
     for (const m of missing) {
       const info = CHART_OF_ACCOUNTS[m.code];
+      if (!info) {
+        console.warn(
+          `[accounting] compte ${m.code} absent du plan CHART_OF_ACCOUNTS — ` +
+          `créé par déduction (classe ${inferAccountClass(m.code)}). Ajoutez-le au plan.`,
+        );
+      }
       const { error: insErr } = await supabase
         .from('chart_of_accounts')
         .upsert({
@@ -154,7 +204,7 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
           code:          m.code,
           name:          info?.name ?? m.line.description,
           name_ht:       info?.name_ht ?? m.line.description,
-          account_class: info?.class ?? 'Expense',
+          account_class: info?.class ?? inferAccountClass(m.code),
           is_system:     false,
         }, { onConflict: 'business_id,code', ignoreDuplicates: true });
       if (insErr) console.error(`[accounting] create account ${m.code} failed:`, insErr.message);
@@ -174,16 +224,20 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
   }
 
   // Create journal entry header
+  const eventType = payload.event_type ?? 'created';
   const { data: entry, error: jeErr } = await supabase
     .from('journal_entries')
     .insert({
       business_id:    businessId,
       period_id:      periodId,
-      entry_number:   generateEntryNumber(),
+      // entry_number : laissé à DEFAULT fn_generate_ref('JE') — voir plus haut.
       entry_date:     payload.date,
       reference:      payload.reference ?? null,
       reference_type: payload.reference_type ?? 'manual',
       reference_id:   payload.reference_id ?? null,
+      event_type:     eventType,
+      reversal_of:    payload.reversal_of ?? null,
+      settlement_id:  payload.settlement_id ?? null,
       description:    payload.description,
       status:         'posted',
       currency:       payload.currency ?? 'HTG',
@@ -196,7 +250,30 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
     .select('id')
     .single();
 
-  if (jeErr) throw new Error(jeErr.message);
+  if (jeErr) {
+    // 23505 = unique_violation on uq_je_document_event: this (document, event) is
+    // already posted. Idempotent by construction — return the existing entry
+    // instead of creating a duplicate.
+    if ((jeErr as any).code === '23505' && payload.reference_id) {
+      let q = supabase
+        .from('journal_entries')
+        .select('id')
+        .eq('business_id', businessId)
+        .eq('reference_type', payload.reference_type ?? 'manual')
+        .eq('reference_id', payload.reference_id)
+        .eq('event_type', eventType)
+        .neq('status', 'void');
+      // Must mirror uq_je_document_event exactly — settlement_id included, or a
+      // 2nd instalment would resolve to the 1st one's entry and look like a
+      // successful post.
+      q = payload.settlement_id
+        ? q.eq('settlement_id', payload.settlement_id)
+        : q.is('settlement_id', null);
+      const { data: existing } = await q.maybeSingle();
+      if (existing?.id) return existing.id;
+    }
+    throw new Error(jeErr.message);
+  }
   const entryId = entry.id;
 
   // Create journal entry lines
@@ -220,7 +297,339 @@ export async function createJournalEntry(payload: JournalEntryPayload): Promise<
   return entryId;
 }
 
+// ── POSTING RULES ─────────────────────────────────────────────────────────────
+// One declarative rule per (document, event). Adding a lifecycle event means
+// adding a row here, not writing another record*Entry function.
+//
+// Inventory method: PERPETUAL. A purchase capitalises into 3700 Stock (asset);
+// the charge is recognised at sale time via the `cogs` event (6030 / 3700).
+// That is what makes gross margin exact in real time.
+
+export type PostingContext = {
+  amount:        number;
+  date:          string;
+  currency:      'HTG' | 'USD';
+  exchangeRate?: number;
+  /** Document settles later — hits the client/supplier account instead of cash. */
+  isCredit?:     boolean;
+  paymentMethod?: string;
+  /** Expenses only — drives which charge (or asset) account is debited. */
+  categoryName?: string;
+  /** Invoice / PO number or free label, used in the entry description. */
+  label?:        string;
+  reference?:    string;
+  /**
+   * Settlements only — id of the instalment row being cleared (customer_transactions,
+   * supplier_transactions…). It is what makes N partial payments on one document
+   * distinct in the idempotency key; omit it and only the first one ever posts.
+   */
+  settlementId?: string;
+};
+
+type PostingRule = {
+  debit:       (c: PostingContext) => string;
+  credit:      (c: PostingContext) => string;
+  describe:    (c: PostingContext) => string;
+  debitLabel:  (c: PostingContext) => string;
+  creditLabel: (c: PostingContext) => string;
+};
+
+/** Cash-side account: bank-like payment methods land in 5110, everything else in 5310. */
+const cashAccount = (c: PostingContext): string =>
+  isBankPaymentMethod(c.paymentMethod) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
+
+const cashLabel = (c: PostingContext): string =>
+  isBankPaymentMethod(c.paymentMethod) ? 'Banque' : 'Caisse';
+
+/** Expense debit side: capitalise real assets, otherwise book a charge. */
+const expenseDebit = (c: PostingContext): string =>
+  isAssetCategory(c.categoryName ?? '')
+    ? classifyAssetCategory(c.categoryName ?? '')
+    : classifyExpenseCategory(c.categoryName ?? '');
+
+export const POSTING_RULES: Record<string, PostingRule> = {
+  // ── VENTES ────────────────────────────────────────────────────────────────
+  'sale.created': {
+    debit:       c => (c.isCredit ? ENGINE_CODES.CLIENTS : cashAccount(c)),
+    credit:      () => ENGINE_CODES.VENTES,
+    describe:    c => `Vente — Facture ${c.label ?? ''}`.trim(),
+    debitLabel:  c => (c.isCredit ? 'Vente à crédit — Clients' : `Vente comptant — ${cashLabel(c)}`),
+    creditLabel: c => `Revenu vente — ${c.label ?? ''}`.trim(),
+  },
+  // Sortie de stock constatée en charge (inventaire permanent).
+  'sale.cogs': {
+    debit:       () => ENGINE_CODES.COUT_VENTES,
+    credit:      () => ENGINE_CODES.STOCK,
+    describe:    c => `Coût marchandises vendues — ${c.label ?? ''}`.trim(),
+    debitLabel:  () => 'Coût des marchandises vendues',
+    creditLabel: () => 'Sortie de stock',
+  },
+  // Le client règle sa dette : la créance 4110 s'éteint, la caisse entre.
+  'sale.payment': {
+    debit:       c => cashAccount(c),
+    credit:      () => ENGINE_CODES.CLIENTS,
+    describe:    c => `Règlement client — ${c.label ?? ''}`.trim(),
+    debitLabel:  c => `Encaissement — ${cashLabel(c)}`,
+    creditLabel: () => 'Extinction créance client',
+  },
+
+  // Règlement reçu d'un client SANS facture rattachée (règlement de compte,
+  // acompte, versement global sur plusieurs factures). Même écriture que
+  // sale.payment, mais accrochée au client. Sans cette règle, l'argent entrait
+  // en caisse réelle sans jamais entrer au journal : la caisse comptable
+  // divergeait de la caisse physique, et la créance client restait au bilan.
+  'customer.payment': {
+    debit:       c => cashAccount(c),
+    credit:      () => ENGINE_CODES.CLIENTS,
+    describe:    c => `Règlement client — ${c.label ?? ''}`.trim(),
+    debitLabel:  c => `Encaissement — ${cashLabel(c)}`,
+    creditLabel: () => 'Extinction créance client',
+  },
+
+  // ── ACHATS ────────────────────────────────────────────────────────────────
+  'purchase.created': {
+    debit:       () => ENGINE_CODES.STOCK,
+    credit:      c => (c.isCredit ? ENGINE_CODES.FOURNISSEURS : cashAccount(c)),
+    describe:    c => `Achat — ${c.label ?? ''}`.trim(),
+    debitLabel:  () => 'Entrée en stock',
+    creditLabel: c => (c.isCredit ? 'Dette fournisseur' : `Paiement ${cashLabel(c)}`),
+  },
+  // Nous réglons le fournisseur : la dette 4010 s'éteint, la caisse sort.
+  'purchase.payment': {
+    debit:       () => ENGINE_CODES.FOURNISSEURS,
+    credit:      c => cashAccount(c),
+    describe:    c => `Règlement fournisseur — ${c.label ?? ''}`.trim(),
+    debitLabel:  () => 'Extinction dette fournisseur',
+    creditLabel: c => `Décaissement — ${cashLabel(c)}`,
+  },
+
+  // ── DÉPENSES ──────────────────────────────────────────────────────────────
+  'expense.created': {
+    debit:       c => expenseDebit(c),
+    credit:      c => (c.isCredit ? ENGINE_CODES.FOURNISSEURS : cashAccount(c)),
+    describe:    c => c.label ?? 'Dépense',
+    debitLabel:  c => `${isAssetCategory(c.categoryName ?? '') ? 'Achat actif — capitalisation' : 'Dépense'} — ${c.label ?? ''}`.trim(),
+    creditLabel: c => (c.isCredit ? 'Dette fournisseur (à payer)' : 'Paiement'),
+  },
+  'expense.payment': {
+    debit:       () => ENGINE_CODES.FOURNISSEURS,
+    credit:      c => cashAccount(c),
+    describe:    c => `Règlement dépense — ${c.label ?? ''}`.trim(),
+    debitLabel:  () => 'Extinction dette fournisseur',
+    creditLabel: c => `Décaissement — ${cashLabel(c)}`,
+  },
+};
+
+// ── FAILURE LOG ───────────────────────────────────────────────────────────────
+// Posting stays non-blocking: a journal failure must never refuse a sale. But it
+// must not vanish either — every failure is recorded so the UI can surface it.
+
+async function recordPostingFailure(
+  refType: string, refId: string, event: JournalEventType, message: string, ctx: PostingContext,
+): Promise<void> {
+  try {
+    const { supabase, businessId } = await getBusinessContext();
+    // onConflict cannot name an expression index (uq_jpf_open uses COALESCE), so
+    // resolve the open row ourselves. Two failed instalments must stay separate.
+    let q = supabase
+      .from('journal_posting_failures')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('reference_type', refType)
+      .eq('reference_id', refId)
+      .eq('event_type', event)
+      .is('resolved_at', null);
+    q = ctx.settlementId ? q.eq('settlement_id', ctx.settlementId) : q.is('settlement_id', null);
+    const { data: open } = await q.maybeSingle();
+
+    const row = {
+      business_id:    businessId,
+      reference_type: refType,
+      reference_id:   refId,
+      event_type:     event,
+      settlement_id:  ctx.settlementId ?? null,
+      error_message:  message,
+      payload:        ctx as any,
+      updated_at:     new Date().toISOString(),
+    };
+
+    if (open?.id) {
+      await supabase.from('journal_posting_failures').update(row).eq('id', open.id);
+    } else {
+      await supabase.from('journal_posting_failures').insert(row);
+    }
+  } catch (e) {
+    console.error('[accounting] could not record posting failure:', (e as Error).message);
+  }
+}
+
+async function clearPostingFailure(
+  refType: string, refId: string, event: JournalEventType, settlementId?: string,
+): Promise<void> {
+  try {
+    const { supabase, businessId } = await getBusinessContext();
+    let q = supabase
+      .from('journal_posting_failures')
+      .update({ resolved_at: new Date().toISOString() })
+      .eq('business_id', businessId)
+      .eq('reference_type', refType)
+      .eq('reference_id', refId)
+      .eq('event_type', event)
+      .is('resolved_at', null);
+    // Resolve only the instalment that just succeeded — clearing them all would
+    // hide instalments that are still broken.
+    q = settlementId ? q.eq('settlement_id', settlementId) : q.is('settlement_id', null);
+    await q;
+  } catch { /* best-effort */ }
+}
+
+// ── CORE: post one business event ─────────────────────────────────────────────
+/**
+ * Posts the double entry for one (document, event) pair.
+ * Never throws — a journal failure must not roll back the business transaction.
+ * Returns the entry id, or null if nothing was posted.
+ */
+export async function postEvent(
+  refType: string,
+  event: JournalEventType,
+  refId: string,
+  ctx: PostingContext,
+): Promise<string | null> {
+  const rule = POSTING_RULES[`${refType}.${event}`];
+  if (!rule) {
+    console.error(`[accounting] no posting rule for ${refType}.${event}`);
+    return null;
+  }
+
+  // A zero-amount entry carries no information and would only add noise.
+  const amount = Number(ctx.amount);
+  if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return null;
+
+  try {
+    const entryId = await createJournalEntry({
+      date:           ctx.date,
+      description:    rule.describe(ctx),
+      reference:      ctx.reference ?? ctx.label,
+      reference_type: refType,
+      reference_id:   refId,
+      event_type:     event,
+      settlement_id:  ctx.settlementId,
+      currency:       ctx.currency,
+      exchangeRate:   ctx.exchangeRate,
+      lines: [
+        { account_code: rule.debit(ctx),  description: rule.debitLabel(ctx),  debit: amount, credit: 0 },
+        { account_code: rule.credit(ctx), description: rule.creditLabel(ctx), debit: 0,      credit: amount },
+      ],
+    });
+    await clearPostingFailure(refType, refId, event, ctx.settlementId);
+    return entryId;
+  } catch (e) {
+    const msg = (e as Error).message;
+    console.error(`[accounting] ${refType}.${event} posting failed:`, msg);
+    await recordPostingFailure(refType, refId, event, msg, ctx);
+    return null;
+  }
+}
+
+// ── REVERSAL ──────────────────────────────────────────────────────────────────
+/**
+ * Corrects a document by posting mirror-image counter-entries, then marking the
+ * originals void. Never mutates a posted entry's amounts — that would destroy
+ * the audit trail and silently change past financial statements.
+ */
+export async function reverseDocumentEntries(
+  refType: string, refId: string, reason: string,
+  /**
+   * Restreint la contre-passation à certains événements. Sert à la MODIFICATION
+   * d'un document : on annule et re-poste son écriture de création sans toucher
+   * aux règlements déjà encaissés, qui eux n'ont pas changé.
+   * Non renseigné = tout le cycle de vie (cas de l'annulation du document).
+   */
+  opts?: { events?: JournalEventType[] },
+): Promise<number> {
+  const { supabase, businessId, userId } = await getBusinessContext();
+
+  let query = supabase
+    .from('journal_entries')
+    .select('id, entry_date, description, currency, exchange_rate, event_type, reference, settlement_id')
+    .eq('business_id', businessId)
+    .eq('reference_type', refType)
+    .eq('reference_id', refId)
+    .neq('status', 'void');
+
+  if (opts?.events?.length) query = query.in('event_type', opts.events);
+
+  const { data: entries } = await query;
+
+  let reversed = 0;
+
+  for (const je of entries ?? []) {
+    const { data: lines } = await supabase
+      .from('journal_entry_lines')
+      .select('account_id, description, debit_amount, credit_amount')
+      .eq('journal_entry_id', je.id);
+
+    if (!lines?.length) continue;
+
+    // Resolve account ids back to codes so createJournalEntry can re-map them.
+    const { data: accounts } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code')
+      .in('id', lines.map((l: any) => l.account_id));
+    const codeById = new Map((accounts ?? []).map((a: any) => [a.id, a.code]));
+
+    try {
+      // Mark the original void FIRST: the partial unique index excludes void
+      // rows, which frees the (document, event) slot for the counter-entry.
+      await supabase
+        .from('journal_entries')
+        .update({
+          status:        'void',
+          voided_by:     userId,
+          voided_at:     new Date().toISOString(),
+          voided_reason: reason,
+        })
+        .eq('id', je.id);
+
+      const reversalId = await createJournalEntry({
+        date:           je.entry_date,
+        description:    `ANNULATION — ${je.description}`,
+        reference:      je.reference ?? undefined,
+        reference_type: refType,
+        reference_id:   refId,
+        event_type:     'reversal',
+        reversal_of:    je.id,
+        // Carried over so a reversal stays traceable to the instalment it cancels.
+        settlement_id:  (je as any).settlement_id ?? undefined,
+        currency:       (je.currency ?? 'HTG') as 'HTG' | 'USD',
+        exchangeRate:   Number(je.exchange_rate ?? 1),
+        // Debit ↔ credit swapped: the two entries now sum to zero.
+        lines: lines.map((l: any) => ({
+          account_code: codeById.get(l.account_id) ?? '',
+          description:  `Annulation — ${l.description ?? ''}`.trim(),
+          debit:        Number(l.credit_amount ?? 0),
+          credit:       Number(l.debit_amount ?? 0),
+        })).filter((l: any) => l.account_code),
+      });
+
+      await supabase
+        .from('journal_entries')
+        .update({ reversal_of: reversalId })
+        .eq('id', je.id);
+
+      reversed++;
+    } catch (e) {
+      console.error('[accounting] reversal failed for entry', je.id, (e as Error).message);
+    }
+  }
+
+  revalidatePath('/rapports');
+  revalidatePath('/rapports/comptabilite');
+  return reversed;
+}
+
 // ── TRANSACTION HOOKS ─────────────────────────────────────────────────────────
+// Thin wrappers kept for the existing call sites; all logic lives in POSTING_RULES.
 
 // Called after a sale is created
 export async function recordSaleEntry(params: {
@@ -233,39 +642,46 @@ export async function recordSaleEntry(params: {
   paymentMethod?: string;
   exchangeRate?: number;
 }): Promise<void> {
-  try {
-    const debitAccount = params.isCredit
-      ? ENGINE_CODES.CLIENTS
-      : isBankPaymentMethod(params.paymentMethod)
-        ? ENGINE_CODES.BANQUE
-        : ENGINE_CODES.CAISSE;
+  const ctx: PostingContext = {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    isCredit:      params.isCredit,
+    paymentMethod: params.paymentMethod,
+    label:         params.invoiceNumber,
+    reference:     params.invoiceNumber,
+  };
 
-    await createJournalEntry({
-      date:           params.date,
-      description:    `Vente — Fakti ${params.invoiceNumber}`,
-      reference:      params.invoiceNumber,
-      reference_type: 'sale',
-      reference_id:   params.saleId,
-      currency:       params.currency,
-      exchangeRate:   params.exchangeRate,
-      lines: [
-        {
-          account_code: debitAccount,
-          description:  params.isCredit ? 'Vente à crédit — Clients' : `Vente comptant — ${debitAccount === ENGINE_CODES.BANQUE ? 'Banque' : 'Caisse'}`,
-          debit:  params.amount,
-          credit: 0,
-        },
-        {
-          account_code: ENGINE_CODES.VENTES,
-          description:  `Revenu vente — ${params.invoiceNumber}`,
-          debit:  0,
-          credit: params.amount,
-        },
-      ],
-    });
+  await postEvent('sale', 'created', params.saleId, ctx);
+
+  // Perpetual inventory: recognise the stock outflow as a charge at sale time.
+  await recordSaleCogs(params.saleId, ctx);
+}
+
+/**
+ * Posts the COGS leg of a sale from the cost actually captured on its lines.
+ * Skipped when the sale carries no cost data — a 0 HTG entry would be noise,
+ * and guessing a cost would silently falsify gross margin.
+ */
+export async function recordSaleCogs(saleId: string, ctx: PostingContext): Promise<void> {
+  try {
+    const { supabase, businessId } = await getBusinessContext();
+    const { data: items } = await supabase
+      .from('sale_items')
+      .select('quantity, cost_price')
+      .eq('business_id', businessId)
+      .eq('sale_id', saleId);
+
+    const cogs = (items ?? []).reduce(
+      (sum: number, it: any) => sum + Number(it.quantity ?? 0) * Number(it.cost_price ?? 0),
+      0,
+    );
+    if (cogs < 0.01) return;
+
+    await postEvent('sale', 'cogs', saleId, { ...ctx, amount: parseFloat(cogs.toFixed(2)) });
   } catch (e) {
-    console.error('[accounting] recordSaleEntry error:', (e as Error).message);
-    // Non-blocking — don't fail the sale
+    console.error('[accounting] recordSaleCogs error:', (e as Error).message);
   }
 }
 
@@ -280,39 +696,16 @@ export async function recordPurchaseEntry(params: {
   paymentMethod?: string;
   exchangeRate?: number;
 }): Promise<void> {
-  try {
-    const creditAccount = params.isCredit
-      ? ENGINE_CODES.FOURNISSEURS
-      : isBankPaymentMethod(params.paymentMethod)
-        ? ENGINE_CODES.BANQUE
-        : ENGINE_CODES.CAISSE;
-
-    await createJournalEntry({
-      date:           params.date,
-      description:    `Achat — ${params.poNumber}`,
-      reference:      params.poNumber,
-      reference_type: 'purchase',
-      reference_id:   params.purchaseId,
-      currency:       params.currency,
-      exchangeRate:   params.exchangeRate,
-      lines: [
-        {
-          account_code: ENGINE_CODES.ACHATS,
-          description:  'Achat de marchandises',
-          debit:  params.amount,
-          credit: 0,
-        },
-        {
-          account_code: creditAccount,
-          description:  params.isCredit ? 'Dette fournisseur' : `Paiement ${creditAccount === ENGINE_CODES.BANQUE ? 'Banque' : 'Caisse'}`,
-          debit:  0,
-          credit: params.amount,
-        },
-      ],
-    });
-  } catch (e) {
-    console.error('[accounting] recordPurchaseEntry error:', (e as Error).message);
-  }
+  await postEvent('purchase', 'created', params.purchaseId, {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    isCredit:      params.isCredit,
+    paymentMethod: params.paymentMethod,
+    label:         params.poNumber,
+    reference:     params.poNumber,
+  });
 }
 
 // Called after an expense is created
@@ -327,52 +720,146 @@ export async function recordExpenseEntry(params: {
   paymentMethod?: string;
   exchangeRate?: number;
 }): Promise<void> {
-  const { supabase, businessId } = await getBusinessContext();
-
-  // Skip if a non-void journal entry already exists
-  const { data: existing } = await supabase
-    .from('journal_entries')
-    .select('id, status')
-    .eq('business_id', businessId)
-    .eq('reference_type', 'expense')
-    .eq('reference_id', params.expenseId)
-    .maybeSingle();
-
-  if (existing?.id && existing.status !== 'void') return;
-
-  // ── DÉBIT: asset account if it's an asset purchase, otherwise expense account ──
-  const debitCode = isAssetCategory(params.categoryName)
-    ? classifyAssetCategory(params.categoryName)
-    : classifyExpenseCategory(params.categoryName);
-
-  const debitName = isAssetCategory(params.categoryName)
-    ? 'Achat actif — capitalisation'
-    : 'Dépense';
-
-  // ── CRÉDIT: Accounts Payable if unpaid, otherwise Cash/Bank ──
+  // No pre-flight duplicate SELECT: uq_je_document_event makes this idempotent,
+  // and the old check broke as soon as a document carried more than one event.
   const isUnpaid = params.paymentStatus === 'credit' || params.paymentStatus === 'pending';
-  const creditCode = isUnpaid
-    ? ENGINE_CODES.FOURNISSEURS  // 2110 — Dette fournisseur
-    : isBankPaymentMethod(params.paymentMethod)
-      ? ENGINE_CODES.BANQUE
-      : ENGINE_CODES.CAISSE;
 
-  const creditName = isUnpaid
-    ? 'Dette fournisseur (à payer)'
-    : 'Paiement';
-
-  await createJournalEntry({
-    date:           params.date,
-    description:    params.description,
-    reference_type: 'expense',
-    reference_id:   params.expenseId,
-    currency:       params.currency,
-    exchangeRate:   params.exchangeRate,
-    lines: [
-      { account_code: debitCode,  description: `${debitName} — ${params.description}`, debit: params.amount, credit: 0 },
-      { account_code: creditCode, description: creditName,                              debit: 0,             credit: params.amount },
-    ],
+  await postEvent('expense', 'created', params.expenseId, {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    isCredit:      isUnpaid,
+    paymentMethod: params.paymentMethod,
+    categoryName:  params.categoryName,
+    label:         params.description,
   });
+}
+
+// ── SETTLEMENT HOOKS — the events that were missing entirely ──────────────────
+
+// `settlementId` is what lets a document take several instalments: it is part of
+// the idempotency key, so each payment row gets its own entry. Pass the id of the
+// row that records the payment (customer_transactions, supplier_transactions…).
+// Omitting it caps the document at ONE settlement entry for its whole life.
+
+/** A customer pays down a credit sale: cash in, receivable 4110 extinguished. */
+export async function recordSalePaymentEntry(params: {
+  saleId: string;
+  amount: number;
+  date: string;
+  currency: 'HTG' | 'USD';
+  paymentMethod?: string;
+  exchangeRate?: number;
+  label?: string;
+  settlementId?: string;
+}): Promise<void> {
+  await postEvent('sale', 'payment', params.saleId, {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    paymentMethod: params.paymentMethod,
+    label:         params.label,
+    settlementId:  params.settlementId,
+  });
+}
+
+/**
+ * A customer settles their account without pointing at one invoice.
+ * `customerId` is the document the entry hangs on; `settlementId` (the
+ * customer_transactions row) is what keeps successive payments distinct.
+ */
+export async function recordCustomerPaymentEntry(params: {
+  customerId: string;
+  amount: number;
+  date: string;
+  currency: 'HTG' | 'USD';
+  paymentMethod?: string;
+  exchangeRate?: number;
+  label?: string;
+  settlementId?: string;
+}): Promise<void> {
+  await postEvent('customer', 'payment', params.customerId, {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    paymentMethod: params.paymentMethod,
+    label:         params.label,
+    settlementId:  params.settlementId,
+  });
+}
+
+/** We pay a supplier: payable 4010 extinguished, cash out. */
+export async function recordPurchasePaymentEntry(params: {
+  purchaseId: string;
+  amount: number;
+  date: string;
+  currency: 'HTG' | 'USD';
+  paymentMethod?: string;
+  exchangeRate?: number;
+  label?: string;
+  settlementId?: string;
+}): Promise<void> {
+  await postEvent('purchase', 'payment', params.purchaseId, {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    paymentMethod: params.paymentMethod,
+    label:         params.label,
+    settlementId:  params.settlementId,
+  });
+}
+
+/** An expense booked on credit gets settled. */
+export async function recordExpensePaymentEntry(params: {
+  expenseId: string;
+  amount: number;
+  date: string;
+  currency: 'HTG' | 'USD';
+  paymentMethod?: string;
+  exchangeRate?: number;
+  label?: string;
+  settlementId?: string;
+}): Promise<void> {
+  await postEvent('expense', 'payment', params.expenseId, {
+    amount:        params.amount,
+    date:          params.date,
+    currency:      params.currency,
+    exchangeRate:  params.exchangeRate,
+    paymentMethod: params.paymentMethod,
+    label:         params.label,
+    settlementId:  params.settlementId,
+  });
+}
+
+// ── POSTING FAILURES — surfaced in /rapports/comptabilite ─────────────────────
+
+export type PostingFailure = {
+  id:             string;
+  reference_type: string;
+  reference_id:   string;
+  event_type:     string;
+  error_message:  string;
+  created_at:     string;
+};
+
+export async function getPostingFailures(): Promise<PostingFailure[]> {
+  try {
+    const { supabase, businessId } = await getBusinessContext();
+    const { data } = await supabase
+      .from('journal_posting_failures')
+      .select('id, reference_type, reference_id, event_type, error_message, created_at')
+      .eq('business_id', businessId)
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    return (data ?? []) as PostingFailure[];
+  } catch {
+    return [];
+  }
 }
 
 // ── BACKFILL: All existing transactions ───────────────────────────────────────
@@ -385,99 +872,43 @@ export type BackfillResult = {
 };
 
 export async function backfillAllJournalEntries(): Promise<BackfillResult> {
-  const { supabase, businessId, exchangeRate } = await getBusinessContext();
   const result: BackfillResult = { sales: 0, purchases: 0, expenses: 0, errors: [] };
 
-  // ── 1. Ventes ────────────────────────────────────────────────────────────────
-  const { data: sales } = await supabase
-    .from('sales')
-    .select('id, invoice_number, total_amount, currency, payment_method, payment_status, sale_date, created_at')
-    .eq('business_id', businessId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true });
+  // Delegates to the reconcilers rather than re-deriving account codes here.
+  // The old version hardcoded its own debit/credit pairs, which meant backfill
+  // and live posting could — and did — drift into two different sets of rules.
+  try { result.sales = await reconcileMissingSaleEntries(); }
+  catch (e) { result.errors.push(`Ventes: ${(e as Error).message}`); }
 
-  for (const s of sales ?? []) {
-    const { data: existing } = await supabase
-      .from('journal_entries')
-      .select('id')
-      .eq('business_id', businessId)
-      .eq('reference_type', 'sale')
-      .eq('reference_id', s.id)
-      .maybeSingle();
-    if (existing?.id) continue;
+  try { result.purchases = await reconcileMissingPurchaseEntries(); }
+  catch (e) { result.errors.push(`Achats: ${(e as Error).message}`); }
 
-    try {
-      const isCredit = s.payment_status === 'credit';
-      const debitCode = isCredit
-        ? ENGINE_CODES.CLIENTS
-        : isBankPaymentMethod(s.payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
-      const date = s.sale_date ?? (s.created_at as string).split('T')[0];
-      await createJournalEntry({
-        date,
-        description:    `[Backfill] Vente — ${s.invoice_number ?? s.id}`,
-        reference:      s.invoice_number ?? s.id,
-        reference_type: 'sale',
-        reference_id:   s.id,
-        currency:       (s.currency as any) ?? 'HTG',
-        exchangeRate:   (s.currency as any) === 'USD' ? exchangeRate : 1,
-        lines: [
-          { account_code: debitCode,          description: 'Encaissement / Créance', debit: Number(s.total_amount), credit: 0 },
-          { account_code: ENGINE_CODES.VENTES, description: 'Revenu vente',           debit: 0, credit: Number(s.total_amount) },
-        ],
-      });
-      result.sales++;
-    } catch (e: any) {
-      result.errors.push(`Vente ${s.id}: ${e.message}`);
-    }
-  }
-
-  // ── 2. Achats ────────────────────────────────────────────────────────────────
-  const { data: purchases } = await supabase
-    .from('purchases')
-    .select('id, po_number, total_amount, currency, payment_method, payment_status, purchase_date')
-    .eq('business_id', businessId)
-    .is('deleted_at', null)
-    .order('purchase_date', { ascending: true });
-
-  for (const p of purchases ?? []) {
-    const { data: existing } = await supabase
-      .from('journal_entries')
-      .select('id')
-      .eq('business_id', businessId)
-      .eq('reference_type', 'purchase')
-      .eq('reference_id', p.id)
-      .maybeSingle();
-    if (existing?.id) continue;
-
-    try {
-      const isCredit = p.payment_status === 'credit';
-      const creditCode = isCredit
-        ? ENGINE_CODES.FOURNISSEURS
-        : isBankPaymentMethod(p.payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
-      await createJournalEntry({
-        date:           p.purchase_date ?? new Date().toISOString().split('T')[0],
-        description:    `[Backfill] Acha — ${p.po_number ?? p.id}`,
-        reference:      p.po_number ?? p.id,
-        reference_type: 'purchase',
-        reference_id:   p.id,
-        currency:       (p.currency as any) ?? 'HTG',
-        exchangeRate:   (p.currency as any) === 'USD' ? exchangeRate : 1,
-        lines: [
-          { account_code: ENGINE_CODES.ACHATS, description: 'Achat stock', debit: Number(p.total_amount), credit: 0 },
-          { account_code: creditCode,           description: isCredit ? 'Dette fournisseur' : 'Paiement', debit: 0, credit: Number(p.total_amount) },
-        ],
-      });
-      result.purchases++;
-    } catch (e: any) {
-      result.errors.push(`Acha ${p.id}: ${(e as Error).message}`);
-    }
-  }
-
-  // ── 3. Dépenses ─────────────────────────────────────────────────────────────
-  result.expenses = await reconcileMissingExpenseEntries();
+  try { result.expenses = await reconcileMissingExpenseEntries(); }
+  catch (e) { result.errors.push(`Dépenses: ${(e as Error).message}`); }
 
   revalidatePath('/rapports/comptabilite');
   return result;
+}
+
+/**
+ * Documents that already carry a non-void entry for a given event.
+ * Event-aware on purpose: a document now legitimately has several entries
+ * (created, cogs, payment), so keying dedup on reference_id alone would
+ * wrongly treat a settled sale as fully posted.
+ */
+async function postedDocumentIds(
+  supabase: any, businessId: string, refType: string, event: JournalEventType, ids: string[],
+): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const { data } = await supabase
+    .from('journal_entries')
+    .select('reference_id')
+    .eq('business_id', businessId)
+    .eq('reference_type', refType)
+    .eq('event_type', event)
+    .neq('status', 'void')
+    .in('reference_id', ids);
+  return new Set((data ?? []).map((r: any) => r.reference_id));
 }
 
 // Reconcile sales: create journal entries for sales that have none
@@ -493,43 +924,28 @@ export async function reconcileMissingSaleEntries(): Promise<number> {
   if (!sales?.length) return 0;
 
   const saleIds = sales.map((s: any) => s.id);
-  const { data: existing } = await supabase
-    .from('journal_entries')
-    .select('reference_id')
-    .eq('business_id', businessId)
-    .eq('reference_type', 'sale')
-    .neq('status', 'void')
-    .in('reference_id', saleIds);
-
-  const alreadyDone = new Set((existing ?? []).map((r: any) => r.reference_id));
+  const doneCreated = await postedDocumentIds(supabase, businessId, 'sale', 'created', saleIds);
+  const doneCogs    = await postedDocumentIds(supabase, businessId, 'sale', 'cogs',    saleIds);
 
   let created = 0;
   for (const s of sales) {
     const saleId = (s as any).id;
-    if (alreadyDone.has(saleId)) continue;
+    const ctx: PostingContext = {
+      amount:        Number((s as any).total_amount),
+      date:          (s as any).sale_date ?? ((s as any).created_at as string).split('T')[0],
+      currency:      (((s as any).currency as any) ?? 'HTG') as 'HTG' | 'USD',
+      exchangeRate:  ((s as any).currency as any) === 'USD' ? exchangeRate : 1,
+      isCredit:      (s as any).payment_status === 'credit',
+      paymentMethod: (s as any).payment_method ?? undefined,
+      label:         (s as any).invoice_number ?? saleId,
+    };
 
-    try {
-      const isCredit = (s as any).payment_status === 'credit';
-      const debitCode = isCredit
-        ? ENGINE_CODES.CLIENTS
-        : isBankPaymentMethod((s as any).payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
-      const date = (s as any).sale_date ?? ((s as any).created_at as string).split('T')[0];
-      await createJournalEntry({
-        date,
-        description:    `Vente — ${(s as any).invoice_number ?? saleId}`,
-        reference:      (s as any).invoice_number ?? saleId,
-        reference_type: 'sale',
-        reference_id:   saleId,
-        currency:       ((s as any).currency as any) ?? 'HTG',
-        exchangeRate:   ((s as any).currency as any) === 'USD' ? exchangeRate : 1,
-        lines: [
-          { account_code: debitCode,          description: 'Encaissement / Créance', debit: Number((s as any).total_amount), credit: 0 },
-          { account_code: ENGINE_CODES.VENTES, description: 'Revenu vente',           debit: 0, credit: Number((s as any).total_amount) },
-        ],
-      });
-      created += 1;
-    } catch (err) {
-      console.error('[accounting] reconcileSale failed for', saleId, (err as Error).message);
+    if (!doneCreated.has(saleId)) {
+      if (await postEvent('sale', 'created', saleId, ctx)) created += 1;
+    }
+    // Perpetual inventory: a sale without its COGS leg overstates gross margin.
+    if (!doneCogs.has(saleId)) {
+      await recordSaleCogs(saleId, ctx);
     }
   }
 
@@ -549,43 +965,23 @@ export async function reconcileMissingPurchaseEntries(): Promise<number> {
   if (!purchases?.length) return 0;
 
   const purchaseIds = purchases.map((p: any) => p.id);
-  const { data: existing } = await supabase
-    .from('journal_entries')
-    .select('reference_id')
-    .eq('business_id', businessId)
-    .eq('reference_type', 'purchase')
-    .neq('status', 'void')
-    .in('reference_id', purchaseIds);
-
-  const alreadyDone = new Set((existing ?? []).map((r: any) => r.reference_id));
+  const alreadyDone = await postedDocumentIds(supabase, businessId, 'purchase', 'created', purchaseIds);
 
   let created = 0;
   for (const p of purchases) {
     const purchaseId = (p as any).id;
     if (alreadyDone.has(purchaseId)) continue;
 
-    try {
-      const isCredit = (p as any).payment_status === 'credit';
-      const creditCode = isCredit
-        ? ENGINE_CODES.FOURNISSEURS
-        : isBankPaymentMethod((p as any).payment_method) ? ENGINE_CODES.BANQUE : ENGINE_CODES.CAISSE;
-      await createJournalEntry({
-        date:           (p as any).purchase_date ?? new Date().toISOString().split('T')[0],
-        description:    `Achat — ${(p as any).po_number ?? purchaseId}`,
-        reference:      (p as any).po_number ?? purchaseId,
-        reference_type: 'purchase',
-        reference_id:   purchaseId,
-        currency:       ((p as any).currency as any) ?? 'HTG',
-        exchangeRate:   ((p as any).currency as any) === 'USD' ? exchangeRate : 1,
-        lines: [
-          { account_code: ENGINE_CODES.ACHATS, description: 'Achat stock', debit: Number((p as any).total_amount), credit: 0 },
-          { account_code: creditCode,            description: isCredit ? 'Dette fournisseur' : 'Paiement', debit: 0, credit: Number((p as any).total_amount) },
-        ],
-      });
-      created += 1;
-    } catch (err) {
-      console.error('[accounting] reconcilePurchase failed for', purchaseId, (err as Error).message);
-    }
+    const posted = await postEvent('purchase', 'created', purchaseId, {
+      amount:        Number((p as any).total_amount),
+      date:          (p as any).purchase_date ?? new Date().toISOString().split('T')[0],
+      currency:      (((p as any).currency as any) ?? 'HTG') as 'HTG' | 'USD',
+      exchangeRate:  ((p as any).currency as any) === 'USD' ? exchangeRate : 1,
+      isCredit:      (p as any).payment_status === 'credit',
+      paymentMethod: (p as any).payment_method ?? undefined,
+      label:         (p as any).po_number ?? purchaseId,
+    });
+    if (posted) created += 1;
   }
 
   return created;
@@ -606,15 +1002,7 @@ export async function reconcileMissingExpenseEntries(): Promise<number> {
 
   // Get expense IDs that already have non-void journal entries
   const expenseIds = expenses.map((e: any) => e.id);
-  const { data: existing } = await supabase
-    .from('journal_entries')
-    .select('reference_id')
-    .eq('business_id', businessId)
-    .eq('reference_type', 'expense')
-    .neq('status', 'void')
-    .in('reference_id', expenseIds);
-
-  const alreadyDone = new Set((existing ?? []).map((r: any) => r.reference_id));
+  const alreadyDone = await postedDocumentIds(supabase, businessId, 'expense', 'created', expenseIds);
 
   let created = 0;
   for (const e of expenses) {
@@ -679,11 +1067,11 @@ export async function getChartOfAccounts(): Promise<ChartAccount[]> {
 export async function getJournalEntries(limit = 50) {
   const { supabase, businessId } = await getBusinessContext();
 
-  // Auto-reconcile: create journal entries for missing transactions
-  try { await reconcileMissingSaleEntries(); } catch { /* non-blocking */ }
-  try { await reconcileMissingPurchaseEntries(); } catch { /* non-blocking */ }
-  try { await reconcileMissingExpenseEntries(); } catch { /* non-blocking */ }
-
+  // Pas de réconciliation ici. Lire le journal ne doit pas l'écrire : ces trois
+  // appels balayaient TOUTES les ventes, achats et dépenses de l'entreprise à
+  // chaque affichage de la page, et postaient hors transaction. Les nouvelles
+  // transactions se comptabilisent maintenant à leur création ; la reprise de
+  // l'historique reste explicite (bouton « Rekonsilye » → backfillAllJournalEntries).
   const { data, error } = await supabase
     .from('journal_entries')
     .select(`
@@ -788,8 +1176,11 @@ export async function getIncomeStatement(year: number, month?: number) {
     const credit = Number(l.base_credit ?? l.credit_amount ?? 0);
     const debit  = Number(l.base_debit  ?? l.debit_amount  ?? 0);
 
-    if (acc.account_class === 'Revenue') {
-      const amt = credit - debit; // Revenue has credit normal balance
+    if (acc.account_class === 'Revenue' || acc.account_class === 'ContraRevenue') {
+      // Un contra-produit (7090R Retours sur ventes) a un solde DÉBITEUR : la
+      // même formule le rend naturellement négatif, donc il vient en déduction
+      // du chiffre d'affaires au lieu de gonfler les charges.
+      const amt = credit - debit;
       revenues[acc.name] = (revenues[acc.name] ?? 0) + amt;
       totalRevenue += amt;
     } else if (acc.account_class === 'Expense') {
@@ -824,6 +1215,8 @@ export async function getBalanceSheet() {
   const assets: Record<string, number>      = {};
   const liabilities: Record<string, number> = {};
   const equity: Record<string, number>      = {};
+  // Résultat non encore affecté : produits − charges depuis l'ouverture.
+  let runningResult = 0;
 
   for (const l of lines ?? []) {
     const acc   = (l as any).chart_of_accounts;
@@ -837,7 +1230,20 @@ export async function getBalanceSheet() {
       liabilities[acc.name] = (liabilities[acc.name] ?? 0) + (credit - debit);
     } else if (acc.account_class === 'Equity') {
       equity[acc.name]      = (equity[acc.name]      ?? 0) + (credit - debit);
+    } else if (acc.account_class === 'Revenue' || acc.account_class === 'ContraRevenue') {
+      runningResult += credit - debit;
+    } else if (acc.account_class === 'Expense') {
+      runningResult -= debit - credit;
     }
+  }
+
+  // Sans écriture de clôture, les classes 6 et 7 restent ouvertes : le bénéfice
+  // vit hors du bilan et Actif ≠ Passif + Capitaux, de l'exact montant du
+  // résultat. On le présente donc comme une ligne de capitaux propres, ce qui
+  // est aussi sa vraie nature comptable tant qu'il n'est pas affecté.
+  if (Math.abs(runningResult) >= 0.01) {
+    const label = "Résultat de l'exercice (non affecté)";
+    equity[label] = (equity[label] ?? 0) + parseFloat(runningResult.toFixed(2));
   }
 
   const totalAssets      = Object.values(assets).reduce((s, v) => s + v, 0);
@@ -858,18 +1264,31 @@ export async function getBalanceSheet() {
 export async function cleanupDuplicateJournalEntries(): Promise<{ removed: number; kept: number }> {
   const { supabase, businessId, userId } = await getBusinessContext();
 
-  // Find groups with >1 entry for same (reference_type, reference_id)
+  // Ne considère que les écritures POSTÉES : une écriture déjà annulée n'est pas
+  // un doublon, et la contre-passer une seconde fois casserait le lien
+  // reversal_of.
   const { data: entries } = await supabase
     .from('journal_entries')
-    .select('id, reference_type, reference_id, status, created_at')
+    .select('id, reference_type, reference_id, event_type, settlement_id, status, created_at')
     .eq('business_id', businessId)
     .neq('reference_type', 'manual')
     .not('reference_id', 'is', null)
+    .eq('status', 'posted')
     .order('created_at', { ascending: true });
 
+  // La clé de groupement doit être EXACTEMENT celle de uq_je_document_event.
+  // Grouper sur (reference_type, reference_id) seul — ce que faisait cette
+  // fonction — était juste tant qu'un document n'avait qu'une écriture. Depuis
+  // l'event sourcing, une vente en porte légitimement plusieurs (created, cogs,
+  // puis un payment par versement) : ce nettoyage annulait le COGS et tous les
+  // encaissements sauf le dernier, et vidait leurs lignes. Il détruisait le
+  // journal au lieu de le nettoyer.
   const groups: Record<string, any[]> = {};
   for (const e of entries ?? []) {
-    const key = `${e.reference_type}:${e.reference_id}`;
+    // Les contre-écritures sont hors index d'unicité : un document annulé en
+    // produit une par écriture d'origine. Ce ne sont jamais des doublons.
+    if (e.event_type === 'reversal') continue;
+    const key = `${e.reference_type}:${e.reference_id}:${e.event_type ?? 'created'}:${e.settlement_id ?? '-'}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(e);
   }
@@ -888,17 +1307,13 @@ export async function cleanupDuplicateJournalEntries(): Promise<{ removed: numbe
 
     for (const e of group) {
       if (e.id === keep.id) { kept++; continue; }
-      // Void duplicate entry
-      await supabase
-        .from('journal_entry_lines')
-        .update({ debit_amount: 0, credit_amount: 0, base_debit: 0, base_credit: 0 })
-        .eq('journal_entry_id', e.id);
+      // On ne touche PAS aux lignes : une écriture annulée garde ses montants,
+      // c'est ce qui rend l'annulation auditable. Le statut 'void' l'exclut déjà
+      // de la balance, du bilan et du compte de résultat.
       await supabase
         .from('journal_entries')
         .update({
           status: 'void',
-          total_debit: 0,
-          total_credit: 0,
           voided_by: userId,
           voided_at: new Date().toISOString(),
           voided_reason: 'Duplicate automatiquement nettoyé',

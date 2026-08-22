@@ -21,7 +21,7 @@ export const QK = {
   sales:           (uid: string, page: number) => ['sales', uid, page]         as const,
   invoice:         (num: string)       => ['invoice', num]                     as const,
   clientHistory:   (clientId: string)  => ['client-history', clientId]         as const,
-  clients:         (uid: string)       => ['clients', uid]                     as const,
+  customers:       (uid: string)       => ['customers', uid]                   as const,
 
   // ── Products ───────────────────────────────────────────────────────────────
   products:        (uid: string)       => ['products', uid]                    as const,

@@ -520,6 +520,7 @@ export function NewPurchaseForm() {
       // Reset form
       setSupplier(null);
       setProduct(null);
+      setWarehouse(null);
       setQuantity(1);
       setUnitPrice(0);
       setDiscountPct(0);
@@ -532,7 +533,7 @@ export function NewPurchaseForm() {
     setSaving(false);
   }
 
-  const canSubmit = !!supplier && !!product && quantity >= 1 && !saving;
+  const canSubmit = !!supplier && !!product && !!warehouse && quantity >= 1 && !saving;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -654,6 +655,26 @@ export function NewPurchaseForm() {
               </div>
               {errors.discount && <p className="text-xs text-red-500">{errors.discount}</p>}
             </div>
+          </div>
+
+          {/* ── Warehouse selector ── */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Entrepôt', ht: 'Depo' })}<span className="text-red-500">*</span></label>
+            <select
+              value={warehouse?.id ?? ''}
+              onChange={e => {
+                const selected = warehouses.find(w => w.id === e.target.value) ?? null;
+                setWarehouse(selected);
+                setErrors(err => ({ ...err, warehouse: '' }));
+              }}
+              className={inputClass(errors.warehouse)}
+            >
+              <option value="">{t({ fr: 'Choisissez un entrepôt…', ht: 'Chwazi yon depo…' })}</option>
+              {warehouses.map(w => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+            {errors.warehouse && <p className="text-xs text-red-500">{errors.warehouse}</p>}
           </div>
 
           {/* ── Payment Status toggle ── */}

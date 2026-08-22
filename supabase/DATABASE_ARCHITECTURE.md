@@ -1,4 +1,4 @@
-# ProfitPilot — Architecture Base de Données
+he# ProfitPilot — Architecture Base de Données
 > PostgreSQL 15+ · Supabase · Multi-tenant SaaS · Fintech ERP Grade
 
 ---

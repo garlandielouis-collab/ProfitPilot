@@ -45,9 +45,17 @@ export function InvoiceTemplate({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="/profitpilot-logo.png"
+              src="/ProfitPilot-logo.png"
               alt="ProfitPilot"
               className="h-12 w-12 rounded-2xl object-contain"
+              onError={(e) => {
+                const el = e.currentTarget;
+                el.style.display = 'none';
+                const fallback = document.createElement('div');
+                fallback.className = 'flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-white font-bold';
+                fallback.textContent = 'PP';
+                el.parentNode?.insertBefore(fallback, el.nextSibling);
+              }}
             />
             <div>
               <h1 className="text-2xl font-bold text-primary">ProfitPilot</h1>

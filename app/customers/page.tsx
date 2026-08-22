@@ -4,7 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useSearchParams } from 'next/navigation';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { supabase } from '../../lib/supabaseClient';
-import { upsertClient, deleteClient, markClientCreditPaid } from '../actions/clients';
+import { useAuth } from '../../lib/useAuth';
+import { upsertCustomer, deleteCustomer, markCustomerCreditPaid } from '../actions/customers';
 import { useLanguage } from '../../components/LanguageWrapper';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ function ClientModal({
     if (!name.trim()) return setErr(t({ fr: 'Le nom du client est obligatoire.', ht: 'Non kliyan an obligatwa.' }));
     setSaving(true); setErr('');
     try {
-      await upsertClient({ id: client?.id, name, phone: phone || undefined, email: email || undefined });
+      await upsertCustomer({ id: client?.id, name, phone: phone || undefined, email: email || undefined });
       onSaved(); onClose();
     } catch (e: any) { setErr(e.message); }
     setSaving(false);
@@ -233,6 +234,7 @@ function ClientsCRMInner() {
   const [showModal,    setShowModal]    = useState(false);
   const [editClient,   setEditClient]   = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const { user } = useAuth();
 
   // filters
   const [search,       setSearch]       = useState('');
@@ -243,21 +245,88 @@ function ClientsCRMInner() {
 
   // ── Load all clients ───────────────────────────────────────────────────────
 
-  const loadClients = useCallback(async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setIsDemo(true); setLoading(false); return; }
+  function getActiveStoreId(): string | null {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.match(/(?:^|; )pp_active_store=([0-9a-fA-F-]{36})/);
+    return match ? match[1] : null;
+  }
 
-    const [clientRes, salesRes] = await Promise.all([
-      supabase.from('clients').select('id,name,phone,email,total_credit,created_at').eq('owner_id', user.id).order('name'),
-      supabase.from('sales').select('customer_id,total_amount').not('customer_id', 'is', null),
-    ]);
-
-    if (clientRes.error || !clientRes.data?.length) {
-      setIsDemo(true); setLoading(false); return;
+  async function resolveBusinessId(userId: string): Promise<string | null> {
+    const activeStoreId = getActiveStoreId();
+    if (activeStoreId) {
+      const { data: activeBiz } = await supabase
+        .from('businesses')
+        .select('id, owner_id')
+        .eq('id', activeStoreId)
+        .maybeSingle();
+      if (activeBiz?.owner_id === userId) return activeBiz.id;
+      const { data: membership } = await supabase
+        .from('business_members')
+        .select('business_id')
+        .eq('business_id', activeStoreId)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (membership?.business_id) return membership.business_id;
     }
 
-    // Aggregate sales per client (support both client_id and customer_id column names)
+    const { data: ownedBiz } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('owner_id', userId)
+      .maybeSingle();
+    if (ownedBiz?.id) return ownedBiz.id;
+
+    const { data: memberBiz } = await supabase
+      .from('business_members')
+      .select('business_id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle();
+    return memberBiz?.business_id ?? null;
+  }
+
+  const loadClients = useCallback(async () => {
+    if (user === undefined) return;
+    setLoading(true);
+    if (!user) {
+      setIsDemo(false);
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+
+    const businessId = await resolveBusinessId(user.id);
+
+    const clientQuery = supabase.from('customers').select('id,first_name,last_name,phone,email,created_at');
+    if (businessId) {
+      clientQuery.eq('business_id', businessId);
+    } else {
+      // If no business ID, no customers to show
+      setClients([]);
+      setIsDemo(false);
+      setLoading(false);
+      return;
+    }
+
+    const [clientRes, salesRes] = await Promise.all([
+      clientQuery.order('first_name'),
+      businessId
+        ? supabase.from('sales').select('customer_id,total_amount').eq('business_id', businessId).not('customer_id', 'is', null)
+        : supabase.from('sales').select('customer_id,total_amount').not('customer_id', 'is', null),
+    ]);
+
+    if (clientRes.error) {
+      console.error('[clients] loadClients error:', clientRes.error.message);
+      setIsDemo(false);
+      setLoading(false);
+      return;
+    }
+
+    const clientsData = clientRes.data ?? [];
     const agg: Record<string, { total: number; count: number }> = {};
     for (const s of salesRes.data ?? []) {
       const cid = s.customer_id;
@@ -267,11 +336,12 @@ function ClientsCRMInner() {
       agg[cid].count += 1;
     }
 
-    const enriched: Client[] = clientRes.data.map((c: any) => {
+    const enriched: Client[] = clientsData.map((c: any) => {
+      const name = `${c.first_name} ${c.last_name}`.trim();
       const { total = 0, count = 0 } = agg[c.id] ?? {};
       return {
-        id: c.id, name: c.name, phone: c.phone ?? null, email: c.email ?? null,
-        outstanding_balance: Number(c.total_credit ?? 0), created_at: c.created_at,
+        id: c.id, name: name, phone: c.phone ?? null, email: c.email ?? null,
+        outstanding_balance: 0, created_at: c.created_at,
         totalPurchases: total, saleCount: count,
         isVIP: total >= VIP_THRESHOLD || count >= VIP_SALE_COUNT,
       };
@@ -281,7 +351,7 @@ function ClientsCRMInner() {
     setIsDemo(false);
     if (!selectedId && enriched.length > 0) setSelectedId(enriched[0].id);
     setLoading(false);
-  }, [selectedId]);
+  }, [selectedId, user]);
 
   // ── Load client detail ─────────────────────────────────────────────────────
 
@@ -290,14 +360,18 @@ function ClientsCRMInner() {
       setInvoices(MOCK_INVOICES); setCredits(MOCK_CREDITS); return;
     }
     setDetailLoad(true);
+    const userResult = await supabase.auth.getUser();
+    const businessId = userResult.data?.user ? await resolveBusinessId(userResult.data.user.id) : null;
     const [salesRes, creditsRes] = await Promise.all([
       supabase.from('sales')
         .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
         .eq('customer_id', clientId)
+        .if(businessId != null, (query: any) => query.eq('business_id', businessId))
         .order('created_at', { ascending: false }),
       supabase.from('sales')
         .select('id,invoice_number,total_amount,currency,payment_status,created_at')
         .eq('customer_id', clientId)
+        .if(businessId != null, (query: any) => query.eq('business_id', businessId))
         .eq('payment_status', 'credit')
         .order('created_at', { ascending: false }),
     ]);
@@ -334,7 +408,7 @@ function ClientsCRMInner() {
         if (selectedId) await loadDetail(selectedId);
         await loadClients();
       } else {
-        await markClientCreditPaid(creditId);
+        await markCustomerCreditPaid(creditId);
         if (selectedId) await loadDetail(selectedId);
         await loadClients();
       }
@@ -344,7 +418,7 @@ function ClientsCRMInner() {
 
   async function handleDeleteConfirm(client: Client) {
     try {
-      await deleteClient(client.id);
+      await deleteCustomer(client.id);
       setDeleteTarget(null);
       if (selectedId === client.id) setSelectedId(null);
       await loadClients();

@@ -55,7 +55,7 @@ const PAGE_GUIDES: Record<string, GuideMessage> = {
     text: 'Je suis ici ! Posez-moi n\'importe quelle question sur votre business. Je peux analyser vos marges, prédire vos besoins en stock, et vous conseiller sur votre croissance.',
     inactivityTip: 'Essayez : "Ki pwodui ki pi ranntab mwen?" ou "Poukisa profit mwen bese?"',
   },
-  '/clients': {
+  '/customers': {
     text: 'Votre CRM clients. Je suis les achats, les crédits, et le comportement de chaque client pour vous aider à fidéliser les meilleurs.',
     action: { label: 'Gérer les fournisseurs →', href: '/suppliers' },
   },

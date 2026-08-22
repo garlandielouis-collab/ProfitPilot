@@ -12,7 +12,7 @@ export type ActivityAction =
 export type ActivityEntity =
   | 'sale' | 'product' | 'client' | 'expense' | 'purchase'
   | 'supplier' | 'employee' | 'company' | 'store' | 'order'
-  | 'role' | 'invitation' | 'payment' | 'debt';
+  | 'role' | 'invitation' | 'payment' | 'debt' | 'customer';
 
 export type LogInput = {
   action:     ActivityAction;

@@ -60,7 +60,7 @@ export async function getDashboardV2Action(
   monthFrom: number = 0,
   monthTo: number = monthFrom,
 ): Promise<DashboardV2Data> {
-  const EMPTY = { cashflow: [], ledger: [], totals: { cashIn: 0, cashOut: 0, profit: 0, debtTotal: 0 } };
+  const EMPTY = { cashflow: [], ledger: [], totals: { cashIn: 0, cashOut: 0, profit: 0, debtTotal: 0 }, products: [] };
   let businessId: string;
   let userId: string;
   let supabase: any;
@@ -122,16 +122,18 @@ export async function getDashboardV2Action(
       .is('deleted_at', null)
       .gte('purchase_date', dateFrom)
       .lte('purchase_date', dateTo),
+    // products are scoped by user_id; low_stock_alerts by business_id (see getInventory)
     supabase
       .from('products')
       .select('id, name, stock_quantity, sale_price, purchase_price, category')
-      .eq('business_id', businessId),
+      .eq('user_id', userId)
+      .order('name'),
     supabase
-      .from('stock_alerts')
+      .from('low_stock_alerts')
       .select('product_id, reorder_point')
       .eq('business_id', businessId),
     supabase
-      .from('clients')
+      .from('customers')
       .select('id', { count: 'exact', head: true })
       .eq('business_id', businessId)
       .is('deleted_at', null),

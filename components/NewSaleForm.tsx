@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createSaleAction, type CartItemPayload } from '../app/actions/sales';
-import { getClients, upsertClient, type Client } from '../app/actions/clients';
+import { getCustomers, upsertCustomer, type Customer } from '../app/actions/customers';
 import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
 import { Button } from './Button';
@@ -86,10 +86,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   const [exchangeRate, setExchangeRate] = useState(1);
 
   // CRM
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<Customer[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
   const [clientsError, setClientsError] = useState('');
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [clientDropdown, setClientDropdown] = useState(false);
   const [newClientName, setNewClientName] = useState('');
@@ -124,7 +124,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       setClientsLoading(true);
       setClientsError('');
       try {
-        const list = await getClients();
+        const list = await getCustomers();
         setClients(list);
       } catch (e: any) {
         setClientsError(e?.message ?? t({ fr: 'Erreur de chargement des clients', ht: 'Erè chajman kliyan yo' }));
@@ -226,7 +226,8 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
     if (!newClientName.trim()) return;
     setSavingClient(true);
     try {
-      const created = await upsertClient({ name: newClientName });
+      // Ensure upsertClient attaches business_id server-side; reuse created client
+      const created = await upsertCustomer({ name: newClientName });
       setClients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedClient(created);
       setShowNewClient(false);
@@ -536,11 +537,6 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                               }`}
                             >
                               <span className="font-medium truncate">{c.name}</span>
-                              {(c.outstanding_balance ?? 0) > 0 && (
-                                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                                  {formatCurrency(c.outstanding_balance)}
-                                </span>
-                              )}
                             </button>
                           ))}
                         </div>
@@ -593,11 +589,6 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                   {selectedClient && (
                     <div className="flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2">
                       <span className="text-xs font-semibold text-[#0056b3]">✓ {selectedClient.name}</span>
-                      {(selectedClient.outstanding_balance ?? 0) > 0 && (
-                        <span className="text-[10px] text-amber-600 font-medium">
-                          {t({ fr: 'Crédit: ', ht: 'Kredi: ' })}{formatCurrency(selectedClient.outstanding_balance)}
-                        </span>
-                      )}
                       <button
                         type="button"
                         onClick={() => setSelectedClient(null)}

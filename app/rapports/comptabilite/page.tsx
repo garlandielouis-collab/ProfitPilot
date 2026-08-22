@@ -11,7 +11,9 @@ import {
   createJournalEntry,
   backfillAllJournalEntries,
   cleanupDuplicateJournalEntries,
+  getPostingFailures,
   type BackfillResult,
+  type PostingFailure,
 } from '../../actions/accounting';
 import { classifyTransaction, CHART_OF_ACCOUNTS } from '../../../lib/accountingEngine';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -101,6 +103,9 @@ function ComptabiliteInner() {
   const [cleaning, setCleaning] = useState(false);
   const [cleanMsg, setCleanMsg] = useState('');
 
+  // Transactions whose journal entry failed to post
+  const [failures, setFailures] = useState<PostingFailure[]>([]);
+
   // Manual entry form
   const [entryDesc,    setEntryDesc]    = useState('');
   const [aiSuggestion, setAiSuggestion] = useState<ReturnType<typeof aiClassify> | null>(null);
@@ -189,7 +194,17 @@ function ComptabiliteInner() {
     setBilanLoad(false);
   }, []);
 
+  // ── Posting failures ────────────────────────────────────────────────────────
+  // Journal posting is deliberately non-blocking (a ledger error must never
+  // refuse a sale) — so drift has to be made visible here instead.
+  const loadFailures = useCallback(async () => {
+    try {
+      setFailures(await getPostingFailures());
+    } catch { setFailures([]); }
+  }, []);
+
   useEffect(() => { loadJournal(); }, [loadJournal]);
+  useEffect(() => { loadFailures(); }, [loadFailures]);
   useEffect(() => { if (tab === 'balance' && !trialBalance) loadBalance(); }, [tab]);
   useEffect(() => { if (tab === 'ledger' && !ledgerData.length) loadLedger(); }, [tab]);
   useEffect(() => { if (tab === 'bilan' && !balanceSheet) loadBilan(); }, [tab]);
@@ -328,6 +343,46 @@ function ComptabiliteInner() {
             )}
           </div>
         </div>
+
+        {/* Posting failures — drift between transactions and the journal */}
+        <AnimatePresence>
+          {failures.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-semibold text-[#0F172A]">
+                      {failures.length} tranzaksyon pa kontabilize
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Ekriti sa yo echwe. Jounal la pa dakò ak tranzaksyon yo — klike Rekonsilye.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => { await handleBackfill(); await loadFailures(); }}
+                  disabled={backfilling}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-2 text-xs
+                             font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50">
+                  <RefreshCw size={13} className={backfilling ? 'animate-spin' : ''} /> Rekonsilye
+                </button>
+              </div>
+              <div className="mt-3 space-y-1">
+                {failures.slice(0, 5).map(f => (
+                  <p key={f.id} className="truncate text-xs text-amber-800">
+                    <span className="font-mono font-semibold">{f.reference_type}.{f.event_type}</span>
+                    {' — '}{f.error_message}
+                  </p>
+                ))}
+                {failures.length > 5 && (
+                  <p className="text-xs text-amber-700">+ {failures.length - 5} lòt…</p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Backfill result */}
         <AnimatePresence>

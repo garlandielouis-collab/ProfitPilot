@@ -2,7 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
-import { recordExpenseEntry } from './accounting';
+import { recordExpenseEntry, recordExpensePaymentEntry, reverseDocumentEntries } from './accounting';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { mapCategoryToAccountCode } from '../../lib/accountingEngine';
@@ -108,6 +108,15 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
   };
 
   if (payload.id) {
+    // Ce qui existait AVANT la modification : sans ça, impossible de savoir si
+    // l'écriture comptable doit être refaite.
+    const { data: before } = await supabase
+      .from('expenses')
+      .select('amount, currency, expense_date, payment_status, payment_method, category_id')
+      .eq('id', payload.id)
+      .eq('business_id', businessId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('expenses')
       .update(fields)
@@ -115,6 +124,30 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
       .eq('business_id', businessId);
     if (error) throw new Error(error.message);
     void logActivity({ action: 'update', entity: 'expense', entityId: payload.id, newValues: { description: payload.description, amount: payload.amount, category: payload.category } });
+
+    // Une modification qui touche le montant, la devise, la date, la catégorie
+    // ou le mode de règlement change l'écriture. Or re-poster ne suffit PAS :
+    // uq_je_document_event rend le second post idempotent, il ne fait rien et
+    // le journal garde silencieusement l'ancien montant. Il faut donc
+    // contre-passer l'écriture de création, puis en poster une neuve.
+    // Les règlements déjà encaissés ne sont pas touchés (events: ['created']).
+    const accountingChanged = !before || (
+      Number(before.amount)            !== Number(payload.amount) ||
+      (before.currency       ?? 'HTG') !== (payload.currency ?? 'HTG') ||
+      (before.expense_date   ?? '')    !== payload.date ||
+      (before.payment_status ?? '')    !== finalStatus ||
+      (before.payment_method ?? null)  !== dbMethod ||
+      (before.category_id    ?? null)  !== categoryId
+    );
+
+    if (accountingChanged) {
+      try {
+        await reverseDocumentEntries('expense', payload.id, 'Dépense modifiée', { events: ['created'] });
+      } catch (err) {
+        console.error('[accounting] reversal on expense update failed:', (err as Error).message);
+      }
+    }
+
     try {
       await recordExpenseEntry({
         expenseId: payload.id,
@@ -171,43 +204,14 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
 // ── deleteExpense ─────────────────────────────────────────────────────────────
 
 export async function deleteExpense(expenseId: string): Promise<void> {
-  const { supabase, businessId, userId } = await getBusinessContext();
+  const { supabase, businessId } = await getBusinessContext();
 
-  // 1. Find ALL journal entries for this expense (original + any old ANNULATION reversal)
-  const { data: entries } = await supabase
-    .from('journal_entries')
-    .select('id')
-    .eq('business_id', businessId)
-    .eq('reference_type', 'expense')
-    .eq('reference_id', expenseId);
+  // Post counter-entries instead of zeroing the original lines in place.
+  // Rewriting a posted entry's amounts destroys the audit trail and silently
+  // restates already-published financial statements.
+  await reverseDocumentEntries('expense', expenseId, 'Dépense annulée');
 
-  for (const je of entries ?? []) {
-    // 2. Zero out all journal entry lines
-    await supabase
-      .from('journal_entry_lines')
-      .update({
-        debit_amount: 0,
-        credit_amount: 0,
-        base_debit: 0,
-        base_credit: 0,
-      })
-      .eq('journal_entry_id', je.id);
-
-    // 3. Mark entry as void and zero its totals
-    await supabase
-      .from('journal_entries')
-      .update({
-        status: 'void',
-        total_debit: 0,
-        total_credit: 0,
-        voided_by: userId,
-        voided_at: new Date().toISOString(),
-        voided_reason: 'Dépense annulée',
-      })
-      .eq('id', je.id);
-  }
-
-  // 5. Soft-delete the expense
+  // Soft-delete the expense
   const { error } = await supabase
     .from('expenses')
     .update({ deleted_at: new Date().toISOString() })
@@ -226,14 +230,40 @@ export async function deleteExpense(expenseId: string): Promise<void> {
 
 export async function markExpensePaid(expenseId: string): Promise<void> {
   const { supabase, businessId } = await getBusinessContext();
+
+  // Read the amount before updating — the settlement entry needs it.
+  const { data: expense } = await supabase
+    .from('expenses')
+    .select('amount, currency, payment_method, payment_status, description, exchange_rate')
+    .eq('id', expenseId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from('expenses')
     .update({ payment_status: 'paid' })
     .eq('id', expenseId)
     .eq('business_id', businessId);
   if (error) throw new Error(error.message);
+
+  // Only a previously-unpaid expense carries a payable to extinguish. One booked
+  // as paid already credited cash at creation — posting again would double-count.
+  const wasUnpaid = expense?.payment_status === 'credit' || expense?.payment_status === 'pending';
+  if (expense && wasUnpaid) {
+    await recordExpensePaymentEntry({
+      expenseId,
+      amount:        Number(expense.amount),
+      date:          new Date().toISOString().split('T')[0],
+      currency:      (expense.currency ?? 'HTG') as 'HTG' | 'USD',
+      paymentMethod: expense.payment_method ?? undefined,
+      exchangeRate:  expense.currency === 'USD' ? Number(expense.exchange_rate ?? 1) : 1,
+      label:         expense.description ?? undefined,
+    });
+  }
+
   revalidatePath('/expenses');
   revalidatePath('/dettes');
+  revalidatePath('/rapports/comptabilite');
 }
 
 // ── getExpenses ───────────────────────────────────────────────────────────────

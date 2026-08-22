@@ -20,7 +20,15 @@ export type SavePurchasePayload = {
   payment_method?:         string;
   currency?:               'HTG' | 'USD';
   metadata?:               Record<string, string>;
+  warehouse_id:            string;
 };
+
+async function rollbackPurchase(supabase: any, purchaseId: string) {
+  await supabase.from('supplier_transactions').delete().eq('reference_type', 'purchase').eq('reference_id', purchaseId);
+  await supabase.from('inventory_movements').delete().eq('reference_type', 'purchase').eq('reference_id', purchaseId);
+  await supabase.from('purchase_items').delete().eq('purchase_id', purchaseId);
+  await supabase.from('purchases').delete().eq('id', purchaseId);
+}
 
 // ── savePurchase ──────────────────────────────────────────────────────────────
 
@@ -119,30 +127,69 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     .eq('id', payload.product_id)
     .single();
 
-  if (product) {
+  if (!product) {
+    await rollbackPurchase(supabase, purchaseId);
+    throw new Error('Produit introuvable.');
+  }
+
+  const originalStock = product.stock_quantity;
+  const { error: stockErr } = await supabase
+    .from('products')
+    .update({ stock_quantity: originalStock + payload.quantity })
+    .eq('id', payload.product_id);
+
+  if (stockErr) {
+    await rollbackPurchase(supabase, purchaseId);
+    throw new Error(stockErr.message);
+  }
+
+  let warehouseId = payload.warehouse_id ?? null;
+  if (!warehouseId) {
+    const { data: warehouses, error: whErr } = await supabase
+      .from('warehouses')
+      .select('id')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (whErr) {
+      await rollbackPurchase(supabase, purchaseId);
+      throw new Error('Impossible de récupérer l’entrepôt par défaut.');
+    }
+
+    warehouseId = warehouses?.[0]?.id ?? null;
+    if (!warehouseId) {
+      await rollbackPurchase(supabase, purchaseId);
+      throw new Error('Aucun entrepôt trouvé pour ce commerce. Veuillez en créer un avant d’enregistrer un achat.');
+    }
+  }
+
+  const { error: invErr } = await supabase.from('inventory_movements').insert({
+    business_id:    businessId,
+    warehouse_id:   warehouseId,
+    product_id:     payload.product_id,
+    movement_type:  'purchase_in',
+    quantity:       payload.quantity,
+    unit_cost:      payload.purchase_price_per_unit,
+    total_cost:     total,
+    currency,
+    reference_type: 'purchase',
+    reference_id:   purchaseId,
+    notes:          `Acha — ${poNumber}`,
+    created_by:     userId,
+  });
+
+  if (invErr) {
     await supabase
       .from('products')
-      .update({ stock_quantity: product.stock_quantity + payload.quantity })
+      .update({ stock_quantity: originalStock })
       .eq('id', payload.product_id);
-
-    // Record inventory movement
-    await supabase.from('inventory_movements').insert({
-      business_id:    businessId,
-      product_id:     payload.product_id,
-      movement_type:  'purchase_in',
-      quantity:       payload.quantity,
-      unit_cost:      payload.purchase_price_per_unit,
-      total_cost:     total,
-      currency,
-      reference_type: 'purchase',
-      reference_id:   purchaseId,
-      notes:          `Acha — ${poNumber}`,
-      created_by:     userId,
-    });
+    await rollbackPurchase(supabase, purchaseId);
+    throw new Error(invErr.message);
   }
 
   // ── 5. Record supplier transaction ───────────────────────────────────────
-  await supabase.from('supplier_transactions').insert({
+  const { error: txErr } = await supabase.from('supplier_transactions').insert({
     business_id:      businessId,
     supplier_id:      payload.supplier_id,
     transaction_date: new Date().toISOString(),
@@ -154,6 +201,15 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     reference_id:     purchaseId,
     created_by:       userId,
   });
+
+  if (txErr) {
+    await supabase
+      .from('products')
+      .update({ stock_quantity: originalStock })
+      .eq('id', payload.product_id);
+    await rollbackPurchase(supabase, purchaseId);
+    throw new Error(txErr.message);
+  }
 
   try {
     await recordPurchaseEntry({

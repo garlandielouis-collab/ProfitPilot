@@ -1,6 +1,7 @@
 'use server';
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { recordPurchasePaymentEntry } from './accounting';
 import { revalidatePath } from 'next/cache';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -87,20 +88,36 @@ export async function markPurchasePaid(purchaseId: string): Promise<void> {
   if (updErr) throw new Error(updErr.message);
 
   // 3. Record supplier payment transaction
-  await supabase.from('supplier_transactions').insert({
-    business_id:      businessId,
-    supplier_id:      purchase.supplier_id,
-    transaction_date: new Date().toISOString(),
-    type:             'payment',
-    amount:           total,
-    currency:         purchase.currency ?? 'HTG',
-    description:      `Règleman dèt — acha #${purchaseId.slice(0, 8)}`,
-    reference_type:   'purchase',
-    reference_id:     purchaseId,
-    created_by:       userId,
+  const { data: payment } = await supabase
+    .from('supplier_transactions')
+    .insert({
+      business_id:      businessId,
+      supplier_id:      purchase.supplier_id,
+      transaction_date: new Date().toISOString(),
+      type:             'payment',
+      amount:           total,
+      currency:         purchase.currency ?? 'HTG',
+      description:      `Règleman dèt — acha #${purchaseId.slice(0, 8)}`,
+      reference_type:   'purchase',
+      reference_id:     purchaseId,
+      created_by:       userId,
+    })
+    .select('id')
+    .maybeSingle();
+
+  // 4. Journal: extinguish the payable (4010) against cash. Without this the
+  //    supplier debt stayed on the balance sheet forever after being paid.
+  await recordPurchasePaymentEntry({
+    purchaseId,
+    amount:       total,
+    date:         new Date().toISOString().split('T')[0],
+    currency:     (purchase.currency ?? 'HTG') as 'HTG' | 'USD',
+    label:        `Acha #${purchaseId.slice(0, 8)}`,
+    settlementId: payment?.id,
   });
 
   revalidatePath('/suppliers');
   revalidatePath('/dettes');
   revalidatePath('/purchases');
+  revalidatePath('/rapports/comptabilite');
 }

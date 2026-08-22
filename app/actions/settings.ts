@@ -196,7 +196,7 @@ export async function deleteAccount() {
     { table: 'expenses',         col: 'owner_id'  },
     { table: 'purchases',        col: 'owner_id'  },
     { table: 'products',         col: 'user_id'   },
-    { table: 'clients',          col: 'owner_id'  },
+    { table: 'customers',        col: 'owner_id'  },
     { table: 'user_preferences', col: 'user_id'   },
     { table: 'businesses',       col: 'owner_id'  },
   ];

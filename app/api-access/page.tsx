@@ -10,7 +10,7 @@ import Link from 'next/link';
 const ENDPOINTS = [
   { method: 'GET',    path: '/api/v1/sales',    desc: { fr: 'Lister toutes les ventes', ht: 'Liste tout vant yo' } },
   { method: 'GET',    path: '/api/v1/products', desc: { fr: 'Lister tous les produits', ht: 'Liste tout pwodwi yo' } },
-  { method: 'GET',    path: '/api/v1/clients',  desc: { fr: 'Lister tous les clients',  ht: 'Liste tout kliyan yo' } },
+  { method: 'GET',    path: '/api/v1/customers',  desc: { fr: 'Lister tous les clients',  ht: 'Liste tout kliyan yo' } },
   { method: 'POST',   path: '/api/v1/sales',    desc: { fr: 'Créer une vente',           ht: 'Kreye yon vant' } },
   { method: 'GET',    path: '/api/v1/reports',  desc: { fr: 'Rapport financier',          ht: 'Rapò finansye' } },
 ];

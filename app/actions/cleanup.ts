@@ -11,7 +11,7 @@ type CleanupResult = {
 
 const OWNER_TABLES = [
   'businesses',
-  'clients',
+  'customers',
   'sales',
   'expenses',
   'purchases',
