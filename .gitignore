@@ -28,3 +28,5 @@ Thumbs.db
 next-build-output*.txt
 tmp/
 APPLY_PENDING_MIGRATIONS.sql
+tall
+witch main
