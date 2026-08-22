@@ -1,0 +1,11 @@
+* [33m20d78b0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mintegrate/claude-claude-beautiful-varahamihira-207b79-1784758735[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m, [m[1;32mintegrate/claude-beautiful[m[33m, [m[1;32mbackup/main-before-claude-1784758735[m[33m, [m[1;32mbackup/main-before-claude[m[33m)[m Apply Claude Code changes
+[31m|[m * [33mc4fe599[m[33m ([m[1;32mclaude/trusting-hawking-be91aa[m[33m)[m fix: allow sales when stock is untracked, handle missing warehouse_stock table
+[31m|[m * [33m9faa2c7[m fix: compute supplier outstanding_balance from purchases (column absent from DB)
+[31m|[m * [33mc1f6166[m fix(a11y): associate form labels with inputs in NewSaleForm
+[31m|[m * [33m9764b99[m fix: remove non-existent column refs from customers/suppliers actions
+[31m|[m * [33m5f6244e[m fix: businesses query in NewSaleForm fails with multiple rows
+[31m|[m * [33mf0e2641[m fix: prevent uuid 'null' errors and enforce plan business limits
+[31m|[m * [33mbed38de[m feat: premium features, analytics, plan gating, bug fixes & cleanup
+[31m|[m[31m/[m  
+* [33m476eec7[m[33m ([m[1;32mclaude/ux-psychology-design-5cd762[m[33m, [m[1;32mclaude/cool-visvesvaraya-bd961a[m[33m)[m fix: credit sales now appear in dettes and clients pages
+* [33m1a0c0c4[m fix: remove deleted_at filter on products query in dashboard (column does not exist)

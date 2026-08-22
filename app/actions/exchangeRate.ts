@@ -2,6 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
+import { computeMargin } from '../../lib/margin';
 
 /** Fetch live USD→HTG rate from public APIs. Returns null on failure. */
 async function fetchLiveRate(): Promise<number | null> {
@@ -179,4 +180,99 @@ export async function forceRefreshAndRecalculate(): Promise<{
   revalidatePath('/sales');
 
   return { newRate: liveRate, expensesUpdated, salesUpdated };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Alerte de variation du taux — Diagnostic 1
+//
+// Rafraîchit le taux via fn_record_exchange_rate() (qui historise et calcule la
+// variation), puis évalue l'impact sur la marge des produits achetés en USD.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RateAlert = {
+  rate: number;
+  previousRate: number | null;
+  variationPercent: number;
+  /** Seuil configuré sur l'entreprise (%). */
+  threshold: number;
+  /** Vrai si la variation dépasse le seuil : il faut prévenir le marchand. */
+  shouldAlert: boolean;
+  /** Produits en USD dont la marge passe sous zéro au nouveau taux. */
+  productsAtLoss: Array<{ id: string; name: string; marginPercent: number }>;
+};
+
+/**
+ * Rafraîchit le taux et retourne l'alerte à afficher.
+ * À appeler au chargement du dashboard (une fois par jour suffit).
+ */
+export async function refreshRateWithAlert(): Promise<RateAlert | null> {
+  const liveRate = await fetchLiveRate();
+  if (!liveRate) return null;
+
+  const { supabase, businessId, userId, defaultCurrency } = await getBusinessContext();
+
+  const { data: biz } = await supabase
+    .from('businesses')
+    .select('exchange_rate, rate_alert_threshold')
+    .eq('id', businessId)
+    .maybeSingle();
+
+  const previousRate = biz?.exchange_rate != null ? Number(biz.exchange_rate) : null;
+  const threshold    = Number(biz?.rate_alert_threshold ?? 3);
+
+  // fn_record_exchange_rate historise + met à jour businesses.exchange_rate
+  const { error: rpcErr } = await supabase.rpc('fn_record_exchange_rate', {
+    p_business_id: businessId,
+    p_rate:        liveRate,
+    p_source:      'api',
+  });
+  if (rpcErr) {
+    // Repli : au minimum, on garde le taux à jour
+    await supabase.from('businesses').update({ exchange_rate: liveRate }).eq('id', businessId);
+  }
+
+  const variationPercent =
+    previousRate && previousRate > 0
+      ? Math.round(((liveRate - previousRate) / previousRate) * 1000) / 10
+      : 0;
+
+  // Impact concret : quels produits importés deviennent non rentables ?
+  const productsAtLoss: RateAlert['productsAtLoss'] = [];
+  if (Math.abs(variationPercent) >= threshold) {
+    const { data: usdProducts } = await supabase
+      .from('products')
+      .select('id, name, purchase_price, sale_price, currency, delivery_cost, packaging_cost, other_cost, commission_percent')
+      .eq('user_id', userId)
+      .eq('currency', 'USD');
+
+    for (const p of usdProducts ?? []) {
+      const margin = computeMargin({
+        purchasePrice:     Number(p.purchase_price ?? 0),
+        costCurrency:      'USD',
+        deliveryCost:      Number(p.delivery_cost ?? 0),
+        packagingCost:     Number(p.packaging_cost ?? 0),
+        otherCost:         Number(p.other_cost ?? 0),
+        commissionPercent: Number(p.commission_percent ?? 0),
+        salePrice:         Number(p.sale_price ?? 0),
+        saleCurrency:      'USD',
+        exchangeRate:      liveRate,
+        displayCurrency:   (defaultCurrency as 'HTG' | 'USD') ?? 'HTG',
+      });
+      if (margin.marginPercent < 10) {
+        productsAtLoss.push({ id: p.id, name: p.name, marginPercent: margin.marginPercent });
+      }
+    }
+  }
+
+  revalidatePath('/dashboard');
+  revalidatePath('/products');
+
+  return {
+    rate:         liveRate,
+    previousRate,
+    variationPercent,
+    threshold,
+    shouldAlert:  Math.abs(variationPercent) >= threshold,
+    productsAtLoss: productsAtLoss.slice(0, 5),
+  };
 }
