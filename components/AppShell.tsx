@@ -192,6 +192,7 @@ const navSections: NavSection[] = [
     items: [
       { title: { fr: 'Dépenses', ht: 'Depans' }, href: '/expenses', icon: <IconExpenses /> },
       { title: { fr: 'Dettes', ht: 'Dèt' }, href: '/dettes', icon: <IconDebts /> },
+      { title: { fr: 'Créances', ht: 'Kredi kliyan' }, href: '/creances', icon: <IconDebts /> },
       { title: { fr: 'Comptabilité', ht: 'Kontablite' }, href: '/rapports/comptabilite', icon: <IconAccounting /> },
       { title: { fr: 'Rapports', ht: 'Rapò' }, href: '/rapports', icon: <IconReports /> },
     ],

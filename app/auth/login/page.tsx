@@ -19,8 +19,16 @@ function translateError(msg: string, t: (obj: { fr: string; ht: string }) => str
     return t({ fr: 'Trop de tentatives. Attendez 1-2 minutes et réessayez.', ht: 'Twòp tantativ. Tann 1-2 minit epi reesyek.' });
   if (m.includes('user not found'))
     return t({ fr: 'Aucun compte trouvé avec cet email.', ht: 'Pa gen kont jwenn ak imèl sa a.' });
-  if (m.includes('network') || m.includes('fetch'))
+  // Backend injoignable ≠ internet coupé : le remède n'est pas le même.
+  if (m.includes('supabase_unreachable') || m.includes('injoignable'))
+    return t({
+      fr: 'Serveur ProfitPilot injoignable. Votre connexion fonctionne, mais le backend ne répond pas — contactez le support.',
+      ht: 'Sèvè ProfitPilot pa reponn. Koneksyon ou bon, men backend la pa disponib — kontakte sipò a.',
+    });
+  if (m.includes('pas de connexion internet') || m.includes('network') || m.includes('fetch'))
     return t({ fr: 'Erreur réseau. Vérifiez votre connexion internet.', ht: 'Erè rezo. Tcheke koneksyon entènèt ou.' });
+  if (m.includes('trop de temps'))
+    return t({ fr: 'Le serveur met trop de temps à répondre. Réessayez.', ht: 'Sèvè a pran twòp tan. Reeseye.' });
   if (m.includes('supabase client not available'))
     return t({ fr: 'Configuration manquante. Vérifiez les variables NEXT_PUBLIC_SUPABASE_*.', ht: 'Konfigirasyon manke. Tcheke varyab NEXT_PUBLIC_SUPABASE_*.' });
   return t({ fr: 'Erreur inconnue. Vérifiez la console (F12).', ht: 'Erè enkoni. Tcheke console la (F12).' });

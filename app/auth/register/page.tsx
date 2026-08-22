@@ -18,6 +18,11 @@ function translateError(msg: string, t: (obj: { fr: string; ht: string }) => str
     return t({ fr: 'Adresse email invalide.', ht: 'Adrès imèl enválid.' });
   if (m.includes('too many requests') || m.includes('rate limit'))
     return t({ fr: 'Trop de tentatives. Attendez quelques minutes.', ht: 'Twòp tantativ. Tann kèk minit.' });
+  if (m.includes('supabase_unreachable') || m.includes('injoignable'))
+    return t({
+      fr: 'Serveur ProfitPilot injoignable. Votre connexion fonctionne, mais le backend ne répond pas — contactez le support.',
+      ht: 'Sèvè ProfitPilot pa reponn. Koneksyon ou bon, men backend la pa disponib — kontakte sipò a.',
+    });
   return msg;
 }
 

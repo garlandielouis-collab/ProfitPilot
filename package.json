@@ -11,7 +11,8 @@
     "dev": "next dev",
     "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
     "start": "next start",
-    "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit"
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
+    "check:supabase": "node scripts/check-supabase.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",

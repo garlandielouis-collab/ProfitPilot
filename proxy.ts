@@ -1,5 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createBoundedFetch } from './lib/supabaseFetch';
+
+// Sans délai maximal, une résolution DNS impossible fait attendre le
+// middleware ~25 s AVANT chaque page. 5 s suffisent largement ici.
+const boundedFetch = createBoundedFetch({ timeoutMs: 5_000, retries: 0 });
 
 const publicRoutes = [
   '/',
@@ -40,6 +45,7 @@ export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request: { headers: request.headers } });
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
+    global: { fetch: boundedFetch },
     cookies: {
       getAll() { return request.cookies.getAll(); },
       setAll(cookiesToSet) {
