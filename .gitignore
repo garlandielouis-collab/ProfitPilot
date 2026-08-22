@@ -23,3 +23,7 @@ tmp_patch.txt
 .DS_Store
 Thumbs.db
 .env*
+
+# Build / debug output accidentellement redirigé vers un fichier
+next-build-output*.txt
+tmp/

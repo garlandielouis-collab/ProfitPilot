@@ -1,3 +1,13 @@
+// Storage images live on the Supabase project host. Derive it from the env var so
+// swapping projects does not silently break next/image with an "un-configured host".
+const supabaseHost = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+  } catch {
+    return null;
+  }
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -25,13 +35,15 @@ const nextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 3600,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'mmrqfrshuroiirhmwywy.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
-    ],
+    remotePatterns: supabaseHost
+      ? [
+          {
+            protocol: 'https',
+            hostname: supabaseHost,
+            pathname: '/storage/v1/object/public/**',
+          },
+        ]
+      : [],
   },
 
   // ── Turbopack ─────────────────────────────────────────────────
