@@ -19,11 +19,14 @@ import { refreshRateWithAlert, type RateAlert } from '../../app/actions/exchange
 const STORAGE_KEY = 'pp_rate_alert_check';
 const ONE_DAY_MS  = 24 * 3600 * 1000;
 
-export function RateAlertBanner() {
-  const [alert, setAlert]     = useState<RateAlert | null>(null);
+export function RateAlertBanner({ initial }: { initial?: RateAlert | null }) {
+  const [alert, setAlert]     = useState<RateAlert | null>(initial ?? null);
   const [dismissed, setDismiss] = useState(false);
 
   useEffect(() => {
+    // Déjà servi par le lot de la bande de pilotage : rien à aller chercher.
+    if (initial !== undefined) return;
+
     let cancelled = false;
 
     // Le résultat est mis en cache : un rechargement de page ne doit ni
@@ -50,7 +53,7 @@ export function RateAlertBanner() {
       .catch(() => { /* offre sans alerte taux, ou hors ligne : on reste muet */ });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [initial]);
 
   if (!alert || dismissed) return null;
 

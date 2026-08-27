@@ -12,6 +12,8 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { assertFeature, hasFeature } from '../../lib/entitlements';
+import { refreshRateWithAlert, type RateAlert } from './exchangeRate';
+import { getGoalProgress, type GoalProgress } from './goals';
 import { computeHealthScore, type HealthResult } from '../../lib/healthScore';
 import { generateInsights, type Insight } from '../../lib/insights';
 import { buildWeeklyDigest, buildWhatsAppLink } from '../../lib/whatsappReport';
@@ -556,5 +558,55 @@ export async function getCreditFile(months = 12): Promise<CreditFile> {
         .reduce((s: number, r: any) => s + num(r.balance_due), 0),
     },
     healthScore: health?.score != null ? num(health.score) : null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bande de pilotage — un seul aller-retour
+//
+// Le dashboard déclenchait six server actions au montage (tableau, score,
+// alerte taux, objectif, comparaison, recommandations). Next.js met les server
+// actions d'un même client en file : elles partaient donc les unes APRÈS les
+// autres, et chacune refaisait `auth.getUser()` — un appel réseau vers l'API
+// Auth de Supabase, pas une lecture locale — puis relisait l'entreprise et le
+// rôle. Sur une connexion mobile haïtienne, c'est plusieurs secondes d'écran
+// vide avant le moindre chiffre.
+//
+// Ici tout se joue dans une seule requête : un seul contexte, et les lectures
+// en parallèle via `Promise.allSettled`. « allSettled » et non « all » parce
+// qu'un bloc auquel l'offre ne donne pas droit ne doit pas faire disparaître
+// les autres — c'est la règle que portait déjà `<PilotageBand/>`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PilotageBundle = {
+  rateAlert:  RateAlert | null;
+  goals:      GoalProgress[];
+  comparison: MonthComparison | null;
+  insights:   Insight[];
+  health:     HealthSnapshot | null;
+};
+
+export async function getPilotageBundle(insightLimit = 5): Promise<PilotageBundle> {
+  // Réchauffe le contexte une fois : les appels suivants tapent le cache de
+  // requête au lieu de refaire l'authentification chacun de leur côté.
+  await getBusinessContext();
+
+  const [rate, goals, comparison, insights, health] = await Promise.allSettled([
+    refreshRateWithAlert(),
+    getGoalProgress(),
+    getMonthComparison(),
+    getInsights(insightLimit),
+    getHealthScore(),
+  ]);
+
+  const value = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
+    r.status === 'fulfilled' ? r.value : fallback;
+
+  return {
+    rateAlert:  value(rate, null),
+    goals:      value(goals, []),
+    comparison: value(comparison, null),
+    insights:   value(insights, []),
+    health:     value(health, null),
   };
 }

@@ -66,10 +66,21 @@ export function useSubscriptionCheck() {
       setIsExpired(localExpired);
       setIsSubscribed(localSubscribed);
 
+      // L'écran n'est retenu que si l'état local dit « expiré » : dans ce cas
+      // seulement, il faut l'avis du serveur avant de dresser un mur payant, au
+      // risque sinon de bloquer un client à jour. Dans tous les autres cas
+      // l'application s'affiche tout de suite et la vérification se poursuit
+      // derrière — elle ne peut que débloquer, jamais bloquer.
+      if (!localExpired) setChecking(false);
+
       // 2. If not subscribed locally, verify against Supabase (server source of truth)
       if (!localSubscribed) {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
+          // `getSession()` lit le jeton déjà en mémoire ; `getUser()` appelait
+          // l'API Auth par le réseau à chaque chargement de page, avant même
+          // que le moindre écran ne s'affiche.
+          const { data: { session } } = await supabase.auth.getSession();
+          const user = session?.user ?? null;
           if (user) {
             const now = new Date().toISOString();
             const { data: sub } = await supabase

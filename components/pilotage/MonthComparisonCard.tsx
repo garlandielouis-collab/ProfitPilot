@@ -38,18 +38,24 @@ const ROWS = [
   { key: 'netProfit'   as const, label: 'Pwofi nèt' },
 ];
 
-export function MonthComparisonCard() {
-  const [data, setData]       = useState<MonthComparison | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * `initial` évite un aller-retour : quand la carte est rendue dans la bande de
+ * pilotage, les données arrivent déjà avec le lot commun. Sans la prop, le
+ * composant reste autonome et va les chercher lui-même.
+ */
+export function MonthComparisonCard({ initial }: { initial?: MonthComparison | null }) {
+  const [data, setData]       = useState<MonthComparison | null>(initial ?? null);
+  const [loading, setLoading] = useState(initial === undefined);
 
   useEffect(() => {
+    if (initial !== undefined) return;
     let cancelled = false;
     getMonthComparison()
       .then((res) => { if (!cancelled) setData(res); })
       .catch(() => { /* offre sans comparaison mensuelle */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [initial]);
 
   if (loading) {
     return (

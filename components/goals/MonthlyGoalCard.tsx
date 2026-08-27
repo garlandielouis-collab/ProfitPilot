@@ -18,9 +18,22 @@ const fmt = (n: number, currency: string, metric: GoalMetric): string =>
     ? new Intl.NumberFormat('fr-HT').format(Math.round(n))
     : `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
 
-export function MonthlyGoalCard({ metric = 'revenue' as GoalMetric }: { metric?: GoalMetric }) {
-  const [goal, setGoal]       = useState<GoalProgress | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * `initial` porte la liste complète des objectifs déjà chargée par la bande de
+ * pilotage ; la carte y pioche sa métrique. `load()` reste utilisé après une
+ * sauvegarde, où il faut de toute façon relire le réalisé.
+ */
+export function MonthlyGoalCard({
+  metric = 'revenue' as GoalMetric,
+  initial,
+}: {
+  metric?: GoalMetric;
+  initial?: GoalProgress[];
+}) {
+  const [goal, setGoal]       = useState<GoalProgress | null>(
+    initial ? initial.find((g) => g.metric === metric) ?? null : null,
+  );
+  const [loading, setLoading] = useState(initial === undefined);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState('');
   const [saving, setSaving]   = useState(false);
@@ -36,7 +49,10 @@ export function MonthlyGoalCard({ metric = 'revenue' as GoalMetric }: { metric?:
     }
   }, [metric]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (initial !== undefined) return;
+    void load();
+  }, [load, initial]);
 
   async function save() {
     const target = Number(draft);

@@ -7,6 +7,7 @@
 // l'offre. Même logique pour les permissions RBAC via `assertPermission()`.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { cache } from 'react';
 import { getSupabaseServer } from './supabaseServerClient';
 import { getBusinessContext } from './serverAuth';
 import { normalizePlanKey, getPlanLabel, type PlanKey } from './plans';
@@ -40,16 +41,32 @@ export class FeatureLockedError extends Error {
   }
 }
 
-/** Offre active de l'utilisateur courant (clé technique normalisée). */
-export async function getActivePlanKey(): Promise<PlanKey | null> {
-  const supabase = await getSupabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+/**
+ * Offre active de l'utilisateur courant (clé technique normalisée).
+ *
+ * `cache()` dédoublonne dans une même requête serveur. Sans lui, une action qui
+ * appelle `assertFeature()` puis `assertPermission()` — ou deux gardes de suite
+ * — refaisait `auth.getUser()`, qui est un **aller-retour réseau** vers l'API
+ * Auth de Supabase, pas une lecture locale. C'était le coût caché du gating.
+ */
+export const getActivePlanKey = cache(async (): Promise<PlanKey | null> => {
+  // L'identité vient de `getBusinessContext()`, lui aussi memoïsé sur la
+  // requête : toute action payante l'appelle de toute façon. Refaire ici un
+  // `auth.getUser()` doublait l'aller-retour vers l'API Auth pour rien.
+  let userId: string;
+  let supabase: Awaited<ReturnType<typeof getSupabaseServer>>;
+  try {
+    const ctx = await getBusinessContext();
+    userId   = ctx.userId;
+    supabase = ctx.supabase;
+  } catch {
+    return null;   // non authentifié : aucune offre
+  }
 
   const { data: sub } = await supabase
     .from('subscriptions')
     .select('plan_key')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('status', 'active')
     .gte('expires_at', new Date().toISOString())
     .order('expires_at', { ascending: false })
@@ -57,7 +74,7 @@ export async function getActivePlanKey(): Promise<PlanKey | null> {
     .maybeSingle();
 
   return normalizePlanKey(sub?.plan_key as string | undefined) ?? TRIAL_FALLBACK_PLAN;
-}
+});
 
 /** `true` si l'offre active donne accès à la fonctionnalité. */
 export async function hasFeature(feature: Feature): Promise<boolean> {

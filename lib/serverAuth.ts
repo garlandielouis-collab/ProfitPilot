@@ -106,14 +106,30 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
     biz = await getMemberBusiness();
   }
 
-  async function ensureOwnerMembership(businessId: string) {
-    const { data: existing } = await supabase
+  /**
+   * Appartenance et rôle en UNE lecture.
+   *
+   * Le chemin précédent en faisait trois, à chaque server action : vérifier la
+   * ligne `business_members`, puis redemander à `businesses` si l'utilisateur
+   * en est propriétaire, puis relire `business_members` pour le rôle. Or
+   * `owner_id` est déjà là — l'entreprise vient d'être lue avec — et la même
+   * ligne de membre répond aux deux autres questions.
+   *
+   * La ligne de propriétaire reste créée si elle manque : les politiques RLS
+   * s'appuient sur `business_members`, sans elle le propriétaire perdrait
+   * l'accès à ses propres données.
+   */
+  async function resolveMembership(businessId: string, ownerId: string | undefined): Promise<Role> {
+    const isOwner = ownerId === userId;
+
+    const { data: member } = await supabase
       .from('business_members')
-      .select('id')
+      .select('id, role, is_active')
       .eq('business_id', businessId)
       .eq('user_id', userId)
       .maybeSingle();
-    if (!existing) {
+
+    if (!member && isOwner) {
       await supabase.from('business_members').insert({
         business_id: businessId,
         user_id:     userId,
@@ -121,27 +137,9 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
         is_active:   true,
       });
     }
-  }
 
-  async function getRoleForBusiness(businessId: string): Promise<Role> {
-    // Owner of this business → always 'owner'
-    const { data: ownership } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', businessId)
-      .eq('owner_id', userId)
-      .maybeSingle();
-    if (ownership) return 'owner';
-
-    // Otherwise get role from business_members
-    const { data: member } = await supabase
-      .from('business_members')
-      .select('role')
-      .eq('business_id', businessId)
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .maybeSingle();
-    return (member?.role as Role) ?? 'viewer';
+    if (isOwner) return 'owner';
+    return member?.is_active ? ((member.role as Role) ?? 'viewer') : 'viewer';
   }
 
   if (!biz) {
@@ -158,13 +156,12 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
 
     if (createErr || !newBiz) throw new Error(createErr?.message ?? 'Impossible de créer le business.');
     const id = (newBiz as any).id as string;
-    await ensureOwnerMembership(id);
+    await resolveMembership(id, userId);   // entreprise qu'on vient de créer : propriétaire
     return buildContext(supabase, userId, id, newBiz as any, 'owner');
   }
 
   const id = (biz as any).id as string;
-  await ensureOwnerMembership(id);
-  const role = await getRoleForBusiness(id);
+  const role = await resolveMembership(id, (biz as any).owner_id);
   return buildContext(supabase, userId, id, biz as any, role);
 });
 

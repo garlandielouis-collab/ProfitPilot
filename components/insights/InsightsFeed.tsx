@@ -39,16 +39,18 @@ const STYLE: Record<
   },
 };
 
-export function InsightsFeed({ limit = 5 }: { limit?: number }) {
-  const [items, setItems]     = useState<Insight[]>([]);
-  const [loading, setLoading] = useState(true);
+/** `initial` : voir `<MonthComparisonCard/>` — évite un aller-retour de plus. */
+export function InsightsFeed({ limit = 5, initial }: { limit?: number; initial?: Insight[] }) {
+  const [items, setItems]     = useState<Insight[]>(initial ?? []);
+  const [loading, setLoading] = useState(initial === undefined);
 
   useEffect(() => {
+    if (initial !== undefined) return;
     getInsights(limit)
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [limit]);
+  }, [limit, initial]);
 
   if (loading) {
     return (

@@ -370,7 +370,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     try {
       const sub = supabase.auth.onAuthStateChange((event: any, session: any) => {
         if (!mounted) return;
-        console.log('[AppShell] onAuthStateChange:', event, 'user:', session?.user?.id ?? null);
         setUser(session?.user ?? null);
         authLoadedRef.current = true;
         setAuthLoaded(true);
@@ -431,15 +430,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (isPublicPage) return <>{children}</>;
 
   if (subChecking || !authLoaded) {
-    console.log(`[APPSHELL] waiting — subChecking=${subChecking} authLoaded=${authLoaded} pathname=${pathname}`);
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#001F3F] border-t-transparent" />
       </div>
     );
   }
-
-  console.log(`[APPSHELL] rendered — user=${user?.id ?? 'null'} isExpired=${isExpired} subPublic=${subPublic} pathname=${pathname}`);
 
   if (user && isExpired && !subPublic) {
     return (
@@ -468,7 +464,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    console.log('[REDIRECT] source: AppShell | destination: /auth/login | reason: authLoaded=true but user=null');
     if (typeof window !== 'undefined') {
       window.location.replace('/auth/login');
     }

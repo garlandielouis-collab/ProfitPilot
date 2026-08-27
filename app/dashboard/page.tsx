@@ -22,7 +22,7 @@ import {
 } from '../actions/ai';
 import { supabase } from '../../lib/supabaseClient';
 import { PilotageBand } from '../../components/pilotage/PilotageBand';
-import { getHealthScore, type HealthSnapshot } from '../actions/pilotage';
+import { getPilotageBundle, type HealthSnapshot, type PilotageBundle } from '../actions/pilotage';
 import type { HealthResult } from '../../lib/healthScore';
 import { QuickSaleForm } from '../../components/sales/QuickSaleForm';
 
@@ -534,8 +534,6 @@ function exportCSV(headers: string[], rows: (string | number)[][], filename: str
 // ─────────────────────────────────────────────────────────────────────────────
 
 function DashboardInner() {
-  console.log('[DASHBOARD] ✅ DashboardInner loaded — component mounted');
-
   const now          = new Date();
   const currentYear  = now.getFullYear();
   const currentMonth = now.getMonth();
@@ -568,6 +566,7 @@ function DashboardInner() {
   const [products,  setProducts]  = useState<DashboardProduct[]>([]);
   const [showQuickSale, setShowQuickSale] = useState(false);
   const [health,    setHealth]    = useState<HealthSnapshot | null>(null);
+  const [pilotage,  setPilotage]  = useState<PilotageBundle | null>(null);
 
 
   // ── Table filters ─────────────────────────────────────────────────────────
@@ -663,9 +662,6 @@ function DashboardInner() {
   // ── Load user name + diagnostic log ──────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }: any) => {
-      console.log(`[DASHBOARD] pathname: /dashboard`);
-      console.log(`[DASHBOARD] session: ${session?.user?.id ?? 'null — NO SESSION ON DASHBOARD'}`);
-      console.log(`[DASHBOARD] user: ${session?.user?.id ?? 'null'}`);
       const meta = session?.user?.user_metadata;
       setUserName(meta?.full_name ?? meta?.name ?? session?.user?.email?.split('@')[0] ?? 'Entrepreneur');
     });
@@ -675,13 +671,26 @@ function DashboardInner() {
     load(periodMode, monthRange[0], monthRange[1]);
   }, [periodMode, monthRange[0], monthRange[1], load]);
 
-  // Score de santé officiel (Bonus 3). Silencieux en cas d'échec : l'offre du
-  // marchand peut ne pas y donner droit, ce n'est pas une erreur à afficher.
+  // Lot de pilotage : score de santé (Bonus 3) pour la jauge ci-dessous, et
+  // les quatre blocs de <PilotageBand/>. Un seul aller-retour pour les cinq :
+  // l'écran en déclenchait autant de séparés, mis en file par Next.js.
+  // Silencieux en cas d'échec : l'offre du marchand peut ne pas donner droit à
+  // tel ou tel bloc, ce n'est pas une erreur à afficher.
   useEffect(() => {
     let cancelled = false;
-    getHealthScore()
-      .then(res => { if (!cancelled) setHealth(res); })
-      .catch(() => { /* offre sans score de santé */ });
+    getPilotageBundle(5)
+      .then(res => {
+        if (cancelled) return;
+        setPilotage(res);
+        setHealth(res.health);
+      })
+      .catch(() => {
+        // Un lot vide plutôt que rien : sans lui, la bande resterait sur son
+        // squelette de chargement pour toujours.
+        if (!cancelled) {
+          setPilotage({ rateAlert: null, goals: [], comparison: null, insights: [], health: null });
+        }
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -965,7 +974,7 @@ function DashboardInner() {
         {/*     recommandations. Diagnostics 1, 7, 9 + Bonus 3 et 7.          */}
         {/* ──────────────────────────────────────────────────────────────── */}
         <div className="mb-6">
-          <PilotageBand />
+          <PilotageBand initial={pilotage} />
         </div>
 
         {/* ──────────────────────────────────────────────────────────────── */}
