@@ -4,8 +4,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
-import { planMaxStores } from '../../lib/planFeatures';
-import type { PlanKey } from '../../lib/plans';
+import { assertStoreAvailable } from '../../lib/entitlements';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 
@@ -62,31 +61,11 @@ export async function createStore(name: string) {
 
   if (!name.trim()) throw new Error('Le nom de la boutique est requis');
 
-  // ── Vérifier la limite d'entreprises du plan ─────────────────
-  const [{ count }, { data: sub }] = await Promise.all([
-    supabase
-      .from('businesses')
-      .select('id', { count: 'exact', head: true })
-      .eq('owner_id', user.id)
-      .is('deleted_at', null)
-      .is('archived_at', null),
-    supabase
-      .from('subscriptions')
-      .select('plan_key')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle(),
-  ]);
-
-  const planKey = (sub?.plan_key as PlanKey) ?? 'Ti Machann';
-  const maxStores = planMaxStores(planKey);
-  const current = count ?? 0;
-
-  if (current >= maxStores) {
-    throw new Error(
-      `Limite atteinte : votre plan "${planKey}" permet ${maxStores} entreprise${maxStores > 1 ? 's' : ''} maximum. Vous en avez déjà ${current}.`
-    );
-  }
+  // Le quota passe par `lib/entitlements` : la lecture de l'offre y tient
+  // compte de l'expiration et du repli d'essai. Le calcul local qui vivait ici
+  // ignorait `expires_at` et retombait sur « Ti Machann », donc un même compte
+  // pouvait se voir refuser une boutique ici et l'obtenir ailleurs.
+  await assertStoreAvailable(user.id);
 
   const { data, error } = await supabase
     .from('businesses')

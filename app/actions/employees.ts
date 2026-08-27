@@ -2,6 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
+import { assertFeature, assertSeatAvailable, hasFeature } from '../../lib/entitlements';
 import { notify } from '../../lib/notify';
 
 export type EmployeeRole = 'owner' | 'manager' | 'cashier' | 'viewer';
@@ -76,6 +77,23 @@ export async function inviteEmployee(email: string, role: EmployeeRole = 'cashie
 
   if (!email.trim() || !email.includes('@')) throw new Error('Email invalide');
 
+  // Trois verrous distincts, alignés sur le tableau des offres (Diagnostic 8) :
+  //
+  //   `employees`         (Kwasans) — droit d'ajouter des mains supplémentaires
+  //   PLAN_MAX_MEMBERS               — combien : 1 / 3 / 25
+  //   `multi_user_roles`  (Elit)    — droit de choisir un rôle précis
+  //
+  // Gater l'invitation sur `multi_user_roles` rendrait les 3 sièges de Kwasans
+  // inutilisables. Vérifié avant tout envoi d'email : une invitation partie ne
+  // se rattrape pas.
+  await assertFeature('employees');
+  await assertSeatAvailable(businessId);
+
+  // Sans l'offre Elit, le nouvel arrivant entre avec le rôle par défaut : c'est
+  // la différenciation fine des rôles qui est vendue, pas la délégation.
+  const grantedRole: EmployeeRole =
+    (await hasFeature('multi_user_roles')) ? role : 'cashier';
+
   const svc = getSupabaseService();
 
   // Get the business name for the invite email
@@ -98,7 +116,7 @@ export async function inviteEmployee(email: string, role: EmployeeRole = 'cashie
     const { data: invited, error: invErr } = await svc.auth.admin.inviteUserByEmail(email.trim(), {
       data: {
         invited_to_business: businessId,
-        invited_role:        role,
+        invited_role:        grantedRole,
         business_name:       biz?.name ?? 'ProfitPilot',
       },
       redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://profitpilot.app'}/auth/callback?type=invite`,
@@ -113,7 +131,7 @@ export async function inviteEmployee(email: string, role: EmployeeRole = 'cashie
     .upsert({
       business_id: businessId,
       user_id:     invitedUserId,
-      role,
+      role:        grantedRole,
       is_active:   true,
     }, { onConflict: 'business_id,user_id' });
 
@@ -123,12 +141,12 @@ export async function inviteEmployee(email: string, role: EmployeeRole = 'cashie
     companyId: businessId, triggeredBy: userId,
     type: 'employee_created',
     title: `Nouvel employé invité`,
-    body: `${email} — rôle : ${role}`,
+    body: `${email} — rôle : ${grantedRole}`,
     entity: 'employee', entityId: invitedUserId,
-    data: { email, role },
+    data: { email, role: grantedRole },
   });
 
-  return { email, role };
+  return { email, role: grantedRole };
 }
 
 export async function updateEmployeeRole(memberId: string, role: EmployeeRole) {
@@ -142,6 +160,8 @@ export async function updateEmployeeRole(memberId: string, role: EmployeeRole) {
     .maybeSingle();
 
   if (!me || me.role !== 'owner') throw new Error('Seul le propriétaire peut modifier les rôles');
+
+  await assertFeature('multi_user_roles');
 
   const { error } = await supabase
     .from('business_members')

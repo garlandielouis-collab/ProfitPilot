@@ -2,6 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
+import { hasFeature } from '../../lib/entitlements';
 
 // ── Dashboard v2 types ────────────────────────────────────────────────────────
 
@@ -61,6 +62,12 @@ export async function getDashboardV2Action(
   monthTo: number = monthFrom,
 ): Promise<DashboardV2Data> {
   const EMPTY = { cashflow: [], ledger: [], totals: { cashIn: 0, cashOut: 0, profit: 0, debtTotal: 0 }, products: [] };
+
+  // Gating serveur : le masquage côté client ne protège rien d'un appel direct.
+  // Une lecture non couverte par l'offre renvoie du vide plutôt que de lever —
+  // le dashboard reste affichable, il est simplement sans chiffres.
+  if (!(await hasFeature('basic_dashboard'))) return EMPTY;
+
   let businessId: string;
   let userId: string;
   let supabase: any;
@@ -331,6 +338,9 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
     productsSold: 0, criticalStockItems: 0, topProducts: [],
     lowStockProducts: [], totalDebts: 0, overdueDebts: 0, cashAvailable: 0,
   };
+
+  // Le résumé hebdomadaire alimente le contexte de Pilot AI : même offre.
+  if (!(await hasFeature('ai_assistant'))) return EMPTY;
 
   let businessId: string, userId: string, supabase: any;
   try {

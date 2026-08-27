@@ -10,7 +10,13 @@
 import { getSupabaseServer } from './supabaseServerClient';
 import { getBusinessContext } from './serverAuth';
 import { normalizePlanKey, getPlanLabel, type PlanKey } from './plans';
-import { planHasFeature, requiredPlanFor, type Feature } from './planFeatures';
+import {
+  planHasFeature,
+  planMaxMembers,
+  planMaxStores,
+  requiredPlanFor,
+  type Feature,
+} from './planFeatures';
 import { roleHasPermission, type Permission } from './rbac';
 
 /**
@@ -81,4 +87,92 @@ export async function assertAccess(
 ): Promise<void> {
   await assertFeature(feature);
   if (permission) await assertPermission(permission);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quotas d'offre — sièges et entreprises
+//
+// « Le business dépend d'une seule personne » (Diagnostic 8) se règle en
+// ajoutant des membres ; c'est aussi ce qui distingue les offres. Le compte se
+// fait donc côté serveur, sur la même source que `getActivePlanKey()`, sinon
+// deux endroits du code répondent différemment à « combien de sièges ? ».
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class PlanLimitError extends Error {
+  constructor(
+    public readonly limit: number,
+    public readonly current: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'PlanLimitError';
+  }
+}
+
+/**
+ * Sièges déjà occupés dans l'entreprise (propriétaire inclus) + invitations en
+ * attente : une invitation non acceptée réserve un siège, sinon on peut inviter
+ * dix personnes sur une offre à trois places.
+ */
+export async function countBusinessSeats(businessId: string): Promise<number> {
+  const supabase = await getSupabaseServer();
+
+  const [{ count: members }, { count: pending }] = await Promise.all([
+    supabase
+      .from('business_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    supabase
+      .from('employee_invitations')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', businessId)
+      .is('accepted_at', null),
+  ]);
+
+  return (members ?? 0) + (pending ?? 0);
+}
+
+/**
+ * Lève une `PlanLimitError` si ajouter un membre dépasserait l'offre.
+ * À appeler avant toute invitation ou ajout de membre.
+ */
+export async function assertSeatAvailable(businessId: string): Promise<void> {
+  const planKey = await getActivePlanKey();
+  const max     = planMaxMembers(planKey);
+  const current = await countBusinessSeats(businessId);
+
+  if (current < max) return;
+
+  throw new PlanLimitError(
+    max,
+    current,
+    max <= 1
+      ? `L'offre ${getPlanLabel(planKey)} est mono-utilisateur. Passez à Kwasans pour ajouter votre première personne.`
+      : `Limite atteinte : l'offre ${getPlanLabel(planKey)} couvre ${max} membres (sièges occupés : ${current}).`,
+  );
+}
+
+/** Même logique pour les entreprises/boutiques détenues par un propriétaire. */
+export async function assertStoreAvailable(ownerId: string): Promise<void> {
+  const supabase = await getSupabaseServer();
+  const planKey  = await getActivePlanKey();
+  const max      = planMaxStores(planKey);
+
+  const { count } = await supabase
+    .from('businesses')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', ownerId)
+    .is('deleted_at', null)
+    .is('archived_at', null);
+
+  const current = count ?? 0;
+  if (current < max) return;
+
+  throw new PlanLimitError(
+    max,
+    current,
+    `Limite atteinte : l'offre ${getPlanLabel(planKey)} permet ${max} entreprise${max > 1 ? 's' : ''} (vous en avez ${current}).`,
+  );
 }

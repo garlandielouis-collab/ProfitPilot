@@ -3,6 +3,7 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { sendInvitationEmail } from '../../lib/email';
+import { assertFeature, assertSeatAvailable } from '../../lib/entitlements';
 import { notify } from '../../lib/notify';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
@@ -26,6 +27,11 @@ export async function sendHrInvitation({
   lastName:    string;
 }): Promise<InvitationResult> {
   const { supabase, businessId, userId } = await getBusinessContext();
+
+  // Même porte que `inviteEmployee` : ce chemin RH crée aussi un siège, et
+  // sans ce contrôle il suffisait de passer par là pour ignorer l'offre.
+  await assertFeature('employees');
+  await assertSeatAvailable(businessId);
 
   // Get business name + inviter name
   const [{ data: biz }, { data: { user: inviter } }] = await Promise.all([

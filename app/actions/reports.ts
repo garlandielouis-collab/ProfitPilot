@@ -1,6 +1,7 @@
 'use server';
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { hasFeature } from '../../lib/entitlements';
 import { isAssetCategory } from '../../lib/accountingEngine';
 import type { IncomeStatementData } from '../../components/reports/IncomeStatement';
 import type { BalanceSheetData }     from '../../components/reports/BalanceSheet';
@@ -133,6 +134,10 @@ export async function getReportsDataAction(
   period: ReportPeriod = 'FY',
   year: number = new Date().getFullYear(),
 ): Promise<ReportsData> {
+  // États financiers complets = offre Kwasans et plus. Sans l'offre, la page
+  // retombe sur son jeu de démonstration au lieu de servir de vrais chiffres.
+  if (!(await hasFeature('advanced_reports'))) return emptyReports();
+
   let supabase: any, businessId: string, userId: string;
   try {
     const ctx = await getBusinessContext();

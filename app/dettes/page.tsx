@@ -39,8 +39,10 @@ type ClientCredit = {
   currency: string;
   payment_status: 'À Crédit' | 'Payé';
   created_at: string;
-  due_date: string;        // created_at + 30 days
-  days_since: number;
+  /** Échéance stockée sur la vente (modifiable depuis /creances), pas déduite. */
+  due_date: string | null;
+  /** Jours de retard : négatif tant que l'échéance n'est pas atteinte. */
+  days_overdue: number;
   etat: EtatCritique;
 };
 
@@ -60,6 +62,20 @@ type ExpenseDebt = {
 type FilterStatus = 'all' | 'unpaid' | 'paid';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Traduit le statut calculé par `v_receivables` dans le vocabulaire de l'écran.
+ * Le seuil « critique » reste celui de la vue (échéance dépassée de 30 jours),
+ * pour que /dettes et /creances ne classent jamais la même créance autrement.
+ */
+function etatFromReceivableStatus(status: string | null): EtatCritique {
+  switch (status) {
+    case 'critical':             return 'Critique';
+    case 'overdue':
+    case 'due_soon':             return 'Atansyon';
+    default:                     return 'Nòmal';
+  }
+}
 
 function computeEtat(days: number, paid: boolean): EtatCritique {
   if (paid) return 'Nòmal';
@@ -340,30 +356,34 @@ function DettesInner() {
       });
 
       // ── Client credits ─────────────────────────────────────────────────────
+      // Source unique : `v_receivables`, la même vue que l'écran /creances.
+      // Elle porte l'échéance réellement stockée (le marchand peut la déplacer),
+      // le solde restant dû après paiements partiels, et le statut calculé en
+      // base. L'ancien calcul local — total_amount et created_at + 30 jours —
+      // affichait la dette entière d'un client qui avait déjà payé la moitié,
+      // et une échéance que /creances contredisait.
       const { data: ccRaw } = await supabase
-        .from('sales')
-        .select('id,customer_id,customer_name,invoice_number,total_amount,currency,payment_status,created_at')
+        .from('v_receivables')
+        .select('sale_id,customer_id,customer_name,customer_phone,invoice_number,balance_due,currency,sale_date,due_date,days_overdue,status')
         .eq('business_id', bizId)
-        .eq('payment_status', 'credit')
-        .order('created_at', { ascending: false });
+        .order('due_date', { ascending: true, nullsFirst: false });
 
-      const creditsData: ClientCredit[] = (ccRaw ?? []).map((r: any) => {
-        const days = Math.floor((today.getTime() - new Date(r.created_at).getTime()) / 86_400_000);
-        return {
-          id:             r.id,
+      const creditsData: ClientCredit[] = (ccRaw ?? [])
+        .filter((r: any) => Number(r.balance_due ?? 0) > 0)
+        .map((r: any) => ({
+          id:             r.sale_id,
           client_id:      r.customer_id ?? null,
           client_name:    r.customer_name ?? '—',
-          client_phone:   null,
+          client_phone:   r.customer_phone ?? null,
           invoice_number: r.invoice_number ?? null,
-          amount:         Number(r.total_amount),
+          amount:         Number(r.balance_due),
           currency:       r.currency ?? 'HTG',
           payment_status: 'À Crédit' as const,
-          created_at:     r.created_at,
-          due_date:       addDays(r.created_at.split('T')[0], 30),
-          days_since:     days,
-          etat:           computeEtat(days, false),
-        };
-      });
+          created_at:     r.sale_date,
+          due_date:       r.due_date ?? null,
+          days_overdue:   Number(r.days_overdue ?? 0),
+          etat:           etatFromReceivableStatus(r.status),
+        }));
 
       // ── Expense debts ─────────────────────────────────────────────────────
       const { data: expRaw } = await supabase
@@ -506,7 +526,7 @@ function DettesInner() {
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
           />
           <StatCard label={t({ fr: 'Créances Critiques', ht: 'Kreyans Critique' })} value={`${critCredits} ${t({ fr: 'clients', ht: 'kliyan' })}`}
-            sub={critCredits > 0 ? t({ fr: '+30 jours sans paiement', ht: '+30 jou san peman' }) : t({ fr: 'Tout en règle', ht: 'Tout an règ' })}
+            sub={critCredits > 0 ? t({ fr: '+30 jours après échéance', ht: '+30 jou apre echeyans' }) : t({ fr: 'Tout en règle', ht: 'Tout an règ' })}
             accent="text-red-400" glow="bg-red-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
           />
@@ -891,10 +911,14 @@ function DettesInner() {
                       {/* Dat échéance */}
                       <td className="px-4 py-3 whitespace-nowrap text-xs">
                         <span className={cc.etat === 'Critique' ? 'text-red-400 font-semibold' : cc.etat === 'Atansyon' ? 'text-orange-400' : 'text-[var(--color-muted)]'}>
-                          {fmtDate(cc.due_date)}
+                          {cc.due_date ? fmtDate(cc.due_date) : '—'}
                         </span>
-                        {cc.payment_status === 'À Crédit' && (
-                          <span className="ml-1.5 text-[var(--color-muted)]">({cc.days_since}j)</span>
+                        {cc.payment_status === 'À Crédit' && cc.due_date && (
+                          <span className="ml-1.5 text-[var(--color-muted)]">
+                            {cc.days_overdue > 0
+                              ? t({ fr: `(${cc.days_overdue}j de retard)`, ht: `(${cc.days_overdue}j an reta)` })
+                              : t({ fr: `(dans ${-cc.days_overdue}j)`,     ht: `(nan ${-cc.days_overdue}j)` })}
+                          </span>
                         )}
                       </td>
                       {/* Montan */}

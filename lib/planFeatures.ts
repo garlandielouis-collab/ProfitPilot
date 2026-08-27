@@ -134,3 +134,14 @@ export function featuresForPlan(planKey: PlanKey | string | null | undefined): F
   const key = normalizePlanKey(typeof planKey === 'string' ? planKey : planKey ?? null);
   return key ? [...PLAN_FEATURES[key]] : [];
 }
+
+/**
+ * Offres qui incluent la fonctionnalité — utile là où le filtre doit se faire
+ * en base (`.in('plan_key', …)`) plutôt qu'en mémoire, sans recopier la liste
+ * des offres dans la requête et la laisser diverger du registre.
+ */
+export function plansWithFeature(feature: Feature): PlanKey[] {
+  return (Object.keys(PLAN_FEATURES) as PlanKey[]).filter((key) =>
+    PLAN_FEATURES[key].includes(feature),
+  );
+}

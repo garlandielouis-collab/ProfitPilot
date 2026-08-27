@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { streamText } from 'ai';
 import { getSupabaseServer } from '../../../../lib/supabaseServerClient';
+import { plansWithFeature } from '../../../../lib/planFeatures';
+import { getPlanLabel } from '../../../../lib/plans';
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -110,6 +112,11 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return new Response(JSON.stringify({ error: 'Non authentifié' }), { status: 401 });
   }
+  // Les offres autorisées viennent du registre, pas d'une liste recopiée ici :
+  // ajouter Pilot AI à une offre ne doit se faire qu'à un seul endroit.
+  //
+  // Contrairement aux lectures, on exige un abonnement réellement actif et non
+  // le repli d'essai : chaque appel consomme des jetons facturés.
   const now = new Date().toISOString();
   const { data: sub } = await supabase
     .from('subscriptions')
@@ -117,10 +124,11 @@ export async function POST(request: NextRequest) {
     .eq('user_id', user.id)
     .eq('status', 'active')
     .gte('expires_at', now)
-    .in('plan_key', ['Business Pilot', 'Expert'])
+    .in('plan_key', plansWithFeature('ai_assistant'))
     .maybeSingle();
   if (!sub) {
-    return new Response(JSON.stringify({ error: 'Plan Business Pilot ou Expert requis pour Pilot AI' }), { status: 403 });
+    const required = plansWithFeature('ai_assistant').map(getPlanLabel).join(' ou ');
+    return new Response(JSON.stringify({ error: `Offre ${required} requise pour Pilot AI` }), { status: 403 });
   }
 
   let body: {
