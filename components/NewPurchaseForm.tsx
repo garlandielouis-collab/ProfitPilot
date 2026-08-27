@@ -27,6 +27,11 @@ type ProductOption = {
   category: string;
 };
 
+type WarehouseOption = {
+  id: string;
+  name: string;
+};
+
 type PaymentStatusKey = 'Payé' | 'À Crédit';
 
 type PaymentMethodKey = 'Moncash' | 'Natcash' | 'Carte Visa' | 'Espèces';
@@ -406,11 +411,13 @@ export function NewPurchaseForm() {
   // Data
   const [suppliers,     setSuppliers]     = useState<SupplierOption[]>([]);
   const [products,      setProducts]      = useState<ProductOption[]>([]);
+  const [warehouses,    setWarehouses]    = useState<WarehouseOption[]>([]);
   const [ownerId,       setOwnerId]       = useState<string | null>(null);
 
   // Form state
   const [supplier,      setSupplier]      = useState<SupplierOption | null>(null);
   const [product,       setProduct]       = useState<ProductOption | null>(null);
+  const [warehouse,     setWarehouse]     = useState<WarehouseOption | null>(null);
   const [quantity,      setQuantity]      = useState(1);
   const [unitPrice,     setUnitPrice]     = useState(0);
   const [discountPct,   setDiscountPct]   = useState(0);
@@ -433,13 +440,23 @@ export function NewPurchaseForm() {
 
   useEffect(() => {
     async function load() {
-      const [suppRes, prodRes, userRes] = await Promise.all([
+      const [suppRes, prodRes, whRes, userRes] = await Promise.all([
         supabase.from('suppliers').select('id,name,phone,email,discount_percent').order('name'),
         supabase.from('products').select('id,name,purchase_price,stock_quantity,category').order('name'),
+        // Tous les comptes n'ont pas d'entrepôt (ni même la table) : l'absence
+        // se traite comme une liste vide, le serveur retombe alors sur
+        // l'entrepôt par défaut du commerce.
+        supabase.from('warehouses').select('id,name').order('created_at'),
         supabase.auth.getUser(),
       ]);
       setSuppliers((suppRes.data ?? []) as SupplierOption[]);
       setProducts((prodRes.data ?? []) as ProductOption[]);
+
+      const whList = (whRes.data ?? []) as WarehouseOption[];
+      setWarehouses(whList);
+      // Présélectionner évite de faire choisir là où il n'y a rien à choisir.
+      if (whList.length > 0) setWarehouse((w) => w ?? whList[0]);
+
       setOwnerId(userRes.data.user?.id ?? null);
     }
     load();
@@ -514,6 +531,7 @@ export function NewPurchaseForm() {
         discount_percent:        discountPct,
         payment_status:          payStatus,
         payment_method:          payStatus === 'Payé' ? payMethod : undefined,
+        warehouse_id:            warehouse?.id,
       });
 
       setSuccess(t({ fr: '✓ Achat enregistré avec succès!', ht: '✓ Acha anrejistre avèk siksè!' }));
@@ -533,7 +551,11 @@ export function NewPurchaseForm() {
     setSaving(false);
   }
 
-  const canSubmit = !!supplier && !!product && !!warehouse && quantity >= 1 && !saving;
+  // L'entrepôt n'est exigé que s'il y a réellement un choix à faire : sans
+  // entrepôt configuré, le serveur utilise celui par défaut du commerce.
+  const canSubmit =
+    !!supplier && !!product && quantity >= 1 && !saving &&
+    (warehouses.length === 0 || !!warehouse);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -659,7 +681,10 @@ export function NewPurchaseForm() {
 
           {/* ── Warehouse selector ── */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-[#212529]/80">{t({ fr: 'Entrepôt', ht: 'Depo' })}<span className="text-red-500">*</span></label>
+            <label className="text-sm font-medium text-[#212529]/80">
+              {t({ fr: 'Entrepôt', ht: 'Depo' })}
+              {warehouses.length > 0 && <span className="text-red-500">*</span>}
+            </label>
             <select
               value={warehouse?.id ?? ''}
               onChange={e => {

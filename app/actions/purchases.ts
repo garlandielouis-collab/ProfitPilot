@@ -20,7 +20,8 @@ export type SavePurchasePayload = {
   payment_method?:         string;
   currency?:               'HTG' | 'USD';
   metadata?:               Record<string, string>;
-  warehouse_id:            string;
+  /** Optionnel : à défaut, l'entrepôt le plus ancien du commerce est utilisé. */
+  warehouse_id?:           string;
 };
 
 async function rollbackPurchase(supabase: any, purchaseId: string) {

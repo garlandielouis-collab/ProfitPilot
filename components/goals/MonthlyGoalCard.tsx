@@ -10,10 +10,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Target } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  getGoalProgress, upsertGoal, GOAL_LABELS,
-  type GoalMetric, type GoalProgress,
-} from '../../app/actions/goals';
+import { getGoalProgress, upsertGoal, type GoalProgress } from '../../app/actions/goals';
+import { GOAL_LABELS, type GoalMetric } from '../../lib/goals';
 
 const fmt = (n: number, currency: string, metric: GoalMetric): string =>
   metric === 'customers' || metric === 'sales_count'

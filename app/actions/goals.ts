@@ -11,7 +11,11 @@ import { revalidatePath } from 'next/cache';
 import { getBusinessContext } from '../../lib/serverAuth';
 import { assertFeature } from '../../lib/entitlements';
 
-export type GoalMetric = 'revenue' | 'margin' | 'customers' | 'sales_count';
+import type { GoalMetric } from '../../lib/goals';
+
+// Ré-export de type uniquement : effacé à la compilation, donc compatible avec
+// la contrainte « `'use server'` n'exporte que des fonctions asynchrones ».
+export type { GoalMetric };
 
 export type Goal = {
   id: string;
@@ -33,13 +37,6 @@ export type GoalProgress = Goal & {
   dailyPaceNeeded: number;
   /** `true` si le rythme actuel projette une atteinte de l'objectif. */
   onTrack: boolean;
-};
-
-export const GOAL_LABELS: Record<GoalMetric, string> = {
-  revenue:     'Chiffre d’affaires',
-  margin:      'Marge',
-  customers:   'Clients',
-  sales_count: 'Nombre de ventes',
 };
 
 /** Premier jour du mois d'une date (défaut : aujourd'hui), en YYYY-MM-DD. */

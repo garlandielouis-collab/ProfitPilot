@@ -17,6 +17,10 @@ export interface ReportMeta {
   preparedBy?: string;
   approvedBy?: string;
   reportDate?: string;
+  /** Exercice couvert par l'état — sert aux en-têtes de colonnes. */
+  currentYear?: number;
+  /** Exercice de comparaison ; par défaut `currentYear - 1`. */
+  previousYear?: number;
 }
 
 interface ReportLayoutProps {
@@ -176,18 +180,37 @@ export function SectionHeader({
 // Column Headers (for the data table)
 // ─────────────────────────────────────────────────────────────────
 
-export function ColumnHeaders({ showPrevious = true }: { showPrevious?: boolean }) {
+/**
+ * En-têtes de colonnes des états financiers.
+ *
+ * L'exercice et la devise sont des paramètres, pas des constantes : ces états
+ * partent chez une banque ou une institution de microfinance (bonus 5), et un
+ * état daté 2025 alors qu'il couvre 2026 est un document non recevable.
+ */
+export function ColumnHeaders({
+  showPrevious = true,
+  currency = 'HTG',
+  currentYear = new Date().getFullYear(),
+  previousYear,
+}: {
+  showPrevious?: boolean;
+  currency?: string;
+  currentYear?: number;
+  previousYear?: number;
+}) {
+  const prevYear = previousYear ?? currentYear - 1;
+
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b-2 border-[#0F172A] bg-white">
       <div className="flex-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">
         Libellé
       </div>
       <div className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0F172A]">
-        2025 (HTG)
+        {currentYear} ({currency})
       </div>
       {showPrevious && (
         <div className="w-28 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#94A3B8]">
-          2024 (HTG)
+          {prevYear} ({currency})
         </div>
       )}
     </div>

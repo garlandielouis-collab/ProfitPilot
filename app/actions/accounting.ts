@@ -347,7 +347,16 @@ const expenseDebit = (c: PostingContext): string =>
     ? classifyAssetCategory(c.categoryName ?? '')
     : classifyExpenseCategory(c.categoryName ?? '');
 
-export const POSTING_RULES: Record<string, PostingRule> = {
+/**
+ * Table de correspondance événement → écriture comptable.
+ *
+ * Volontairement **non exportée** : un fichier `'use server'` ne peut exposer
+ * que des fonctions asynchrones, et Next refuse le build sinon. Rien hors de ce
+ * module ne s'en sert ; si un jour c'est nécessaire, la table doit descendre
+ * dans `lib/accountingEngine.ts` avec le reste des règles métier, pas être
+ * réexportée d'ici.
+ */
+const POSTING_RULES: Record<string, PostingRule> = {
   // ── VENTES ────────────────────────────────────────────────────────────────
   'sale.created': {
     debit:       c => (c.isCredit ? ENGINE_CODES.CLIENTS : cashAccount(c)),
