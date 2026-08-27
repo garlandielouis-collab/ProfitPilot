@@ -4,7 +4,14 @@ Guide technique d'intégration du document stratégique produit dans le code exi
 Pour chaque module : **ce qui existait déjà**, **ce qui a été ajouté**, **comment le brancher**.
 
 Migration SQL : [`supabase/migrations/20260821_profitpilot_features.sql`](supabase/migrations/20260821_profitpilot_features.sql)
-Statut typecheck : `npm run typecheck` ✅
+Statut typecheck : `npm run typecheck` ✅ (0 erreur)
+
+**État : les 9 diagnostics et les 7 bonus sont implémentés et branchés.** Restent ouverts, hors périmètre du document produit :
+
+- l'envoi WhatsApp **automatique** (API WhatsApp Business) — aujourd'hui le digest hebdomadaire produit un lien `wa.me` à envoyer en un tap ;
+- le découpage de `app/dashboard/page.tsx` (§2) ;
+- `TRIAL_FALLBACK_PLAN` à passer de `'Expert'` à `null` au lancement commercial (§5) ;
+- la refonte SQL de `forceRefreshAndRecalculate()` (§1).
 
 ---
 
@@ -30,7 +37,19 @@ Statut typecheck : `npm run typecheck` ✅
 | UI | [`components/pricing/PriceSimulator.tsx`](components/pricing/PriceSimulator.tsx) | « Et si j'augmentais mes prix ? » |
 | UI | [`components/goals/MonthlyGoalCard.tsx`](components/goals/MonthlyGoalCard.tsx) | Objectif du mois |
 | UI | [`components/insights/InsightsFeed.tsx`](components/insights/InsightsFeed.tsx) | Recommandations |
+| Domaine | [`lib/offlineQueue.ts`](lib/offlineQueue.ts) | File IndexedDB des ventes hors-ligne + clé d'idempotence |
+| Domaine | [`lib/expenseScope.ts`](lib/expenseScope.ts) | Libellés et couleurs business / personnel / mixte |
+| Infra | [`lib/cronAuth.ts`](lib/cronAuth.ts) | Authentification des routes cron |
+| UI | [`components/pilotage/PilotageBand.tsx`](components/pilotage/PilotageBand.tsx) | Bande de pilotage du dashboard (alerte taux, objectif, MoM, insights) |
+| UI | [`components/profitability/ProfitabilityTable.tsx`](components/profitability/ProfitabilityTable.tsx) | Classement des produits par marge générée |
+| UI | [`components/credit/CreditFileReport.tsx`](components/credit/CreditFileReport.tsx) | Dossier crédit imprimable (`react-to-print`) |
+| UI | [`components/reports/WeeklyDigestCard.tsx`](components/reports/WeeklyDigestCard.tsx) | Digest hebdo + envoi WhatsApp en un tap |
+| UI | [`components/offline/OfflineSalesSync.tsx`](components/offline/OfflineSalesSync.tsx) | Rejeu de la file hors-ligne au retour du réseau |
 | Page | [`app/creances/page.tsx`](app/creances/page.tsx) | Écran Créances (ajouté à la nav Finances) |
+| Page | [`app/rentabilite/page.tsx`](app/rentabilite/page.tsx) | Classement des produits par rentabilité |
+| Page | [`app/rapports/credit/page.tsx`](app/rapports/credit/page.tsx) | Dossier crédit / microfinance |
+| Cron | [`app/api/cron/daily/route.ts`](app/api/cron/daily/route.ts) | Relances de créances + alertes de stock bas |
+| Cron | [`app/api/cron/weekly-digest/route.ts`](app/api/cron/weekly-digest/route.ts) | Rapport hebdomadaire du dimanche |
 
 **Charte** : navy `#001F3F` (structure, en-têtes, actions principales), émeraude `#50C878` (gain, validation, progression), rouge/ambre réservés aux alertes. Aucune couleur nouvelle : ce sont déjà `theme.config.ts`.
 
@@ -80,9 +99,9 @@ Recalcul à chaque frappe, frais annexes repliés par défaut, prix conseillé a
 
 **Alerte taux** — `refreshRateWithAlert()` retourne `{ variationPercent, shouldAlert, productsAtLoss[] }`.
 
-### À brancher
-1. Dans le formulaire produit (`app/products/ProductsClient.tsx`) : ajouter les 4 champs de frais + `<MarginCalculator initial={...} onApplyPrice={...} />`.
-2. Dans le dashboard : appeler `refreshRateWithAlert()` au montage (1×/jour) et afficher un bandeau si `shouldAlert`.
+### Branché ✅
+1. `app/products/ProductsClient.tsx` porte les champs de frais annexes et le `<MarginCalculator />`, avec application du prix conseillé en un clic.
+2. `<RateAlertBanner />` (dans `<PilotageBand />`) appelle `refreshRateWithAlert()` et affiche le bandeau quand `shouldAlert`.
 
 ### Amélioration proposée sur l'existant
 `forceRefreshAndRecalculate()` boucle en `await` séquentiel sur chaque dépense/vente puis sur chaque ligne d'écriture → O(n) allers-retours réseau. À remplacer par une fonction SQL `UPDATE … FROM` unique, ou un `rpc()` qui fait le recalcul côté base. Gain : de plusieurs secondes à quelques millisecondes sur un compte chargé.
@@ -102,10 +121,10 @@ Recalcul à chaque frappe, frais annexes repliés par défaut, prix conseillé a
 <QuickSaleForm onSaved={() => refetchDashboard()} />
 ```
 
-### Améliorations proposées sur l'existant
-1. **Dashboard** : les `MOCK_CASHFLOW` / `MOCK_LEDGER` / `MOCK_PRODUCTS` servent de repli quand la requête ne renvoie rien — un compte vide affiche donc de fausses ventes. Remplacer par un état vide explicite (« Enregistrez votre première vente ») : la confiance dans les chiffres est le cœur du produit.
-2. **Découper `app/dashboard/page.tsx`** en sections (`<CashflowSection/>`, `<LedgerSection/>`, `<HealthSection/>`) : à 1 780 lignes, chaque modification est risquée.
-3. **Score de santé** : `computeHealthScore()` du dashboard est local et duplique la logique. Utiliser `lib/healthScore.ts` (4 piliers, commentaires en langage marchand) et `getHealthScore()` pour l'historisation.
+### Améliorations sur l'existant
+1. ✅ **Dashboard** : les `MOCK_CASHFLOW` / `MOCK_LEDGER` / `MOCK_PRODUCTS` ont été retirés. Un compte vide affichait de fausses ventes — sur un produit dont l'argument est « enfin des chiffres vrais », c'était le pire repli possible.
+2. ✅ **Score de santé** : le dashboard consomme `getHealthScore()` (`lib/healthScore.ts`, 4 piliers, historisé). Le `computeHealthScore()` local ne sert plus que de repli tant que le serveur n'a pas répondu.
+3. ⏳ **Découper `app/dashboard/page.tsx`** en sections (`<CashflowSection/>`, `<LedgerSection/>`, `<HealthSection/>`) : le fichier reste long et chaque modification y est risquée. Seule amélioration structurelle encore ouverte sur cet écran.
 
 ---
 
@@ -140,9 +159,9 @@ prepareReceivableReminder(saleId);              // message + lien wa.me + journa
 
 **UI** — `<ReceivablesPanel />` sur `/creances` : statut coloré, échéance éditable en ligne, bouton « Relancer » (WhatsApp) et « Payé ».
 
-### À brancher
-- Faire pointer la section « créances clients » de `/dettes` vers `v_receivables` pour supprimer le calcul d'échéance en JS, ou rediriger vers `/creances`.
-- Le rappel automatique (« l'app prévient le marchand ») : cron quotidien → `listReceivables()` → `notify()` pour les statuts `due_soon` / `overdue`. La table `notifications` existe déjà.
+### Branché ✅
+- La section « créances clients » de `/dettes` lit désormais `v_receivables`. Elle affiche le **solde restant dû** (`balance_due`) et l'**échéance stockée**, au lieu du montant total et d'un `created_at + 30 j` calculé en JS. Deux conséquences concrètes : un client ayant payé la moitié n'apparaît plus comme devant la totalité, et un paiement partiel (`payment_status = 'partial'`) ne disparaît plus de l'écran — l'ancien filtre `payment_status = 'credit'` le faisait sortir de la liste.
+- Rappel automatique : `/api/cron/daily` (11 h UTC) parcourt `v_receivables` et notifie les statuts `due_soon` / `overdue` / `critical`, avec au plus **une relance par créance et par jour** (`last_reminder_at`).
 
 ---
 
@@ -169,8 +188,8 @@ SUM(amount * business_share_pct / 100) FILTER (WHERE scope <> 'personal') AS bus
 SUM(amount)                            FILTER (WHERE scope  = 'personal') AS personal_expenses
 ```
 
-### À brancher
-Dans `ExpensesPage`, ajouter un sélecteur à deux boutons (Business / Personnel) + un curseur `business_share_pct` visible seulement si `mixed`. Puis passer `scope` dans `ExpensePayload` → `upsertExpense`.
+### Branché ✅
+`components/ExpensesPage.tsx` porte le sélecteur Business / Personnel / Mixte et le curseur `business_share_pct` (visible uniquement en `mixed`) ; `scope` transite par `ExpensePayload` → `upsertExpense` (`lib/expenseScope.ts` centralise libellés et couleurs).
 
 ---
 
@@ -194,7 +213,39 @@ export async function getProductProfitability() {
 }
 ```
 
-> ⚠️ Point de sécurité : avant cet ajout, le gating n'existait qu'en UI. Un appel direct de server action contournait l'offre. Toutes les nouvelles actions appellent `assertFeature()` ; il reste à en équiper les actions payantes existantes (`app/actions/ai.ts`, `reports.ts`, `stores.ts`, `employees.ts`).
+> ⚠️ Point de sécurité : avant cet ajout, le gating n'existait qu'en UI. Un appel direct de server action contournait l'offre.
+
+**Actions existantes désormais équipées** ✅
+
+| Action | Garde | Comportement hors offre |
+|---|---|---|
+| `ai.getDashboardV2Action` | `hasFeature('basic_dashboard')` | renvoie vide |
+| `ai.getWeeklySummaryAction` | `hasFeature('ai_assistant')` | renvoie vide |
+| `reports.getReportsDataAction` | `hasFeature('advanced_reports')` | renvoie `emptyReports()` |
+| `api/ai/chat` | abonnement actif ∈ `plansWithFeature('ai_assistant')` | `403` |
+| `employees.inviteEmployee` | `assertFeature('employees')` + `assertSeatAvailable()` | lève |
+| `employees.updateEmployeeRole` | `assertFeature('multi_user_roles')` | lève |
+| `invitations.sendHrInvitation` | `assertFeature('employees')` + `assertSeatAvailable()` | lève |
+| `stores.createStore` | `assertStoreAvailable()` | lève |
+
+Deux régimes volontairement distincts :
+
+- **Lectures** → `hasFeature()`, qui renvoie un résultat vide. Une offre incomplète ne doit pas casser une page : l'écran s'affiche, simplement sans chiffres, et le `FeatureGate` client porte l'upsell.
+- **Écritures et appels facturés** → `assertFeature()` / `assert*Available()`, qui lèvent. `api/ai/chat` va plus loin et exige un abonnement **réellement actif**, sans le repli d'essai : chaque appel consomme des jetons payants.
+
+**Trois verrous distincts sur la délégation** (Diagnostic 8), à ne pas confondre :
+
+| Verrou | Offre | Ce qu'il autorise |
+|---|---|---|
+| `employees` | Kwasans | ajouter des mains supplémentaires |
+| `PLAN_MAX_MEMBERS` | 1 / 3 / 25 | **combien** de sièges |
+| `multi_user_roles` | Elit | choisir un **rôle précis** plutôt que le rôle par défaut |
+
+Gater l'invitation elle-même sur `multi_user_roles` rendrait les 3 sièges de Kwasans inutilisables : sur Kwasans on invite, l'arrivant entre en `cashier` ; c'est la différenciation fine des rôles qui est vendue avec Elit, pas la délégation.
+
+**Quotas** — `PLAN_MAX_MEMBERS` était déclaré mais jamais vérifié : toute offre pouvait inviter sans limite. `assertSeatAvailable()` compte les membres actifs **et les invitations en attente** (sinon dix invitations tiennent dans trois sièges) et s'applique aux deux chemins d'invitation. `createStore` a perdu son calcul local, qui ignorait `expires_at` et retombait sur « Ti Machann » — le même compte pouvait donc se voir refuser une boutique ici et l'obtenir ailleurs.
+
+`api/ai/chat` ne recopie plus la liste des offres autorisées : `plansWithFeature('ai_assistant')` la dérive du registre, pour qu'ajouter Pilot AI à une offre reste une modification à un seul endroit.
 
 4. **Limites d'équipe** — `PLAN_MAX_MEMBERS` (1 / 3 / 25) à vérifier dans `app/actions/invitations.ts`.
 
@@ -242,36 +293,56 @@ const [goal] = await getGoalProgress();
 
 | # | Bonus | Implémentation | Reste à faire |
 |---|---|---|---|
-| 1 | Rapport hebdo WhatsApp | `buildWeeklyReport()` → texte + `wa.me`, journalisé dans `report_deliveries` | Cron dimanche 19 h + API WhatsApp Business pour l'envoi automatique |
-| 2 | Simulateur de prix | `simulateProductPrice()` + `<PriceSimulator />`, 3 niveaux d'élasticité | Brancher sur la fiche produit |
-| 3 | Score de santé | `lib/healthScore.ts` + `getHealthScore()` (snapshot mensuel) + `getHealthHistory()` | Remplacer le score local du dashboard |
-| 4 | Mode hors-ligne | `next-pwa` déjà configuré + `components/RegisterSW.tsx` | File d'attente des ventes hors-ligne (IndexedDB) puis rejeu à la reconnexion — voir §9 |
-| 5 | Export crédit / microfinance | `getCreditFile(12)` : 12 mois de CA/marge, hors dépenses personnelles, + score | Rendu PDF via `react-to-print` (déjà en dépendance) |
-| 6 | Alerte de stock bas | Table `low_stock_alerts` existante + `products.reorder_point` ajouté + insight `low-stock-*` | Trigger SQL sur `warehouse_stock` → `notifications` |
-| 7 | Comparaison mois/mois | `v_monthly_kpis` + `getMonthComparison()` : MoM **et** YoY | Graphe comparatif dans `/analytics` |
+| 1 | Rapport hebdo WhatsApp | `buildWeeklyReport()` → texte + `wa.me`, journalisé dans `report_deliveries` · cron dimanche 23 h UTC (`/api/cron/weekly-digest`) · `<WeeklyDigestCard />` sur `/rapports` | API WhatsApp Business pour l'envoi **automatique** (aujourd'hui : lien `wa.me` en un tap) |
+| 2 | Simulateur de prix | `simulateProductPrice()` + `<PriceSimulator />` sur la fiche produit (`ProductsClient`) | — |
+| 3 | Score de santé | `lib/healthScore.ts` + `getHealthScore()` (snapshot mensuel) + `getHealthHistory()` · le dashboard consomme le score serveur | — |
+| 4 | Mode hors-ligne | `lib/offlineQueue.ts` (IndexedDB) + `<OfflineSalesSync />` monté dans `app/layout.tsx` · rejeu idempotent via `sales.metadata->>client_ref` | — |
+| 5 | Export crédit / microfinance | `getCreditFile(12)` + `<CreditFileReport />` sur `/rapports/credit`, impression PDF via `react-to-print` | — |
+| 6 | Alerte de stock bas | `products.reorder_point` + cron quotidien `/api/cron/daily` → `notifications`, désactivable par `businesses.low_stock_alerts_enabled` | — |
+| 7 | Comparaison mois/mois | `v_monthly_kpis` + `getMonthComparison()` (MoM **et** YoY) + `<MonthComparisonCard />` dans la bande de pilotage du dashboard | — |
 
 ### §9 — File d'attente hors-ligne (bonus 4)
 
-Le PWA sert déjà les assets hors-ligne, mais une vente saisie sans réseau est perdue. Schéma recommandé :
+Le PWA servait déjà les assets hors-ligne, mais une vente saisie sans réseau était perdue. Implémenté ✅ :
 
-```ts
-// 1. Échec réseau → on met en file dans IndexedDB
-await queueSale(payload);                    // idb: store 'pending_sales'
-// 2. Au retour du réseau
-window.addEventListener('online', flushQueue);
-// 3. flushQueue() rejoue createSaleAction() dans l'ordre,
-//    avec une clé d'idempotence (uuid client) stockée dans sales.metadata
-//    pour qu'un double rejeu ne crée pas deux ventes.
+| Pièce | Rôle |
+|---|---|
+| [`lib/offlineQueue.ts`](lib/offlineQueue.ts) | File IndexedDB (`pending_sales`), clé primaire = `clientRef` |
+| [`components/sales/QuickSaleForm.tsx`](components/sales/QuickSaleForm.tsx) | Génère `clientRef` **avant** l'appel ; si `navigator.onLine === false`, met en file au lieu d'échouer |
+| [`components/offline/OfflineSalesSync.tsx`](components/offline/OfflineSalesSync.tsx) | Monté dans `app/layout.tsx` ; rejoue la file sur l'événement `online` |
+| [`app/actions/sales.ts`](app/actions/sales.ts) | Reconnaît `metadata->>client_ref` et renvoie la vente existante au lieu d'en créer une seconde |
+
+La clé d'idempotence est le point critique : sans elle, un rejeu partiel gonfle le chiffre d'affaires — exactement le chiffre auquel le marchand doit pouvoir se fier. `crypto.randomUUID()` n'existant pas sur tous les WebView Android, `newClientRef()` porte un repli.
+
+---
+
+### §9 bis — Fuite multi-tenant sur les vues (corrigée)
+
+Migration : [`supabase/migrations/20260826_views_security_invoker.sql`](supabase/migrations/20260826_views_security_invoker.sql)
+
+Une vue PostgreSQL s'exécute par défaut avec les droits de son **propriétaire**, pas de celui qui l'interroge. Créées par le rôle `postgres` puis ouvertes par `GRANT SELECT … TO authenticated`, les trois vues du module contournaient donc la RLS de `sales`, `products` et `expenses`.
+
+Conséquence : n'importe quel utilisateur connecté pouvait lire les créances, les marges et les KPI de **tous** les commerces en changeant le filtre `business_id` — les server actions filtrent bien par entreprise, mais rien n'oblige un appelant à passer par elles.
+
+```sql
+ALTER VIEW v_receivables           SET (security_invoker = on);
+ALTER VIEW v_product_profitability SET (security_invoker = on);
+ALTER VIEW v_monthly_kpis          SET (security_invoker = on);
 ```
-La clé d'idempotence est le point critique : sans elle, un rejeu partiel duplique le chiffre d'affaires.
+
+La RLS déjà en place sur les tables suffit alors : aucune politique supplémentaire n'est nécessaire. Le cron continue de fonctionner, il interroge les vues avec le `service_role`, qui n'est pas soumis à la RLS.
+
+> À vérifier après application : `SELECT * FROM v_receivables;` depuis un compte de test ne doit renvoyer que ses propres lignes.
 
 ---
 
 ## 10. Ordre d'application
 
 ```bash
-# 1. Migration (Supabase SQL Editor ou CLI)
-supabase db push        # ou copier/coller 20260821_profitpilot_features.sql
+# 1. Migrations (Supabase SQL Editor ou CLI), dans cet ordre
+#    20260821_profitpilot_features.sql   — tables, colonnes, vues, RLS
+#    20260826_views_security_invoker.sql — RLS de l'appelant sur les vues
+supabase db push
 
 # 2. Vérifier
 npm run typecheck
@@ -304,7 +375,12 @@ v_monthly_kpis ──┬─ app/actions/goals.ts ──── MonthlyGoalCard
                  └─ lib/insights.ts ───────── InsightsFeed
                                     └─ lib/whatsappReport.ts ─ digest hebdo
 
-v_receivables ──── app/actions/receivables.ts ─ ReceivablesPanel (/creances)
+v_receivables ──┬─ app/actions/receivables.ts ─ ReceivablesPanel (/creances)
+                 ├─ app/dettes/page.tsx (section « créances clients »)
+                 └─ app/api/cron/daily ─── notify() (relances + stock bas)
+
+lib/offlineQueue.ts ─┬─ QuickSaleForm (mise en file)
+                     └─ OfflineSalesSync ─ createSaleAction (rejeu idempotent)
 
 lib/plans.ts ─ lib/planFeatures.ts ─ lib/entitlements.ts (serveur)
                                    └─ CompanyContext ─ PermissionGate (client)
