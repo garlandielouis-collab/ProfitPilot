@@ -11,11 +11,13 @@ import { revalidatePath } from 'next/cache';
 import { getBusinessContext } from '../../lib/serverAuth';
 import { assertFeature } from '../../lib/entitlements';
 
+// `GoalMetric` n'est volontairement PAS ré-exporté d'ici. Le chargeur de
+// server actions dresse la liste des exports AVANT l'effacement des types : il
+// prenait `export type { GoalMetric }` pour une action et produisait
+// `registerServerReference(GoalMetric, …)` sur un identifiant qui n'existe pas
+// à l'exécution — ReferenceError au chargement du module. Les consommateurs
+// importent le type depuis `lib/goals`, qui en est la source.
 import type { GoalMetric } from '../../lib/goals';
-
-// Ré-export de type uniquement : effacé à la compilation, donc compatible avec
-// la contrainte « `'use server'` n'exporte que des fonctions asynchrones ».
-export type { GoalMetric };
 
 export type Goal = {
   id: string;
