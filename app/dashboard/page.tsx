@@ -21,6 +21,10 @@ import {
   type LedgerRow,
 } from '../actions/ai';
 import { supabase } from '../../lib/supabaseClient';
+import { PilotageBand } from '../../components/pilotage/PilotageBand';
+import { getHealthScore, type HealthSnapshot } from '../actions/pilotage';
+import type { HealthResult } from '../../lib/healthScore';
+import { QuickSaleForm } from '../../components/sales/QuickSaleForm';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PERIOD CONFIG
@@ -70,36 +74,20 @@ const C = {
 // MOCK DATA (demo fallback)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MOCK_CASHFLOW: CashflowPoint[] = Array.from({ length: 30 }, (_, i) => {
-  const cashIn  = Math.round(4200 + Math.sin(i * 0.35) * 7000 + Math.random() * 2500);
-  const cashOut = Math.round(2100 + Math.sin(i * 0.22) * 3500 + Math.random() * 1800);
-  return { label: String(i + 1).padStart(2, '0'), cashIn, cashOut, profit: cashIn - cashOut };
-});
-
-const MOCK_LEDGER: LedgerRow[] = [
-  { id:'d1',  date:'2026-05-20', description:'Vant – Marie Joseph',  category:'Marie Joseph',  type:'Vann', payment_method:'Cash',     amount:12500, currency:'HTG', source:'sales'    },
-  { id:'d2',  date:'2026-05-19', description:'Achte Stock Boutik',    category:'Stock',         type:'Acha', payment_method:'MonCash',  amount:8200,  currency:'HTG', source:'expenses' },
-  { id:'d3',  date:'2026-05-18', description:'Loye Biwo',             category:'Loyer',         type:'Acha', payment_method:'Espèces',  amount:15000, currency:'HTG', source:'expenses' },
-  { id:'d4',  date:'2026-05-17', description:'Achte – Founisè ABC',   category:'Acha Stock',    type:'Dèt',  payment_method:'À Crédit', amount:45000, currency:'HTG', source:'purchases'},
-  { id:'d5',  date:'2026-05-16', description:'Vant – Jean Pierre',    category:'Jean Pierre',   type:'Vann', payment_method:'Card',     amount:7800,  currency:'HTG', source:'sales'    },
-  { id:'d6',  date:'2026-05-15', description:'Salè Anplwaye',         category:'Salaire',       type:'Acha', payment_method:'Cash',     amount:18000, currency:'HTG', source:'expenses' },
-  { id:'d7',  date:'2026-05-14', description:'Vant – Claudette R.',   category:'Claudette R.',  type:'Vann', payment_method:'MonCash',  amount:9300,  currency:'HTG', source:'sales'    },
-  { id:'d8',  date:'2026-05-13', description:'Electricite',           category:'Services',      type:'Acha', payment_method:'Espèces',  amount:3200,  currency:'HTG', source:'expenses' },
-  { id:'d9',  date:'2026-04-12', description:'Vant – Robert A.',      category:'Robert A.',     type:'Vann', payment_method:'Cash',     amount:6400,  currency:'HTG', source:'sales'    },
-  { id:'d10', date:'2026-04-10', description:'Achte Ingrédients',     category:'Stock',         type:'Acha', payment_method:'Espèces',  amount:11000, currency:'HTG', source:'expenses' },
-];
-
-const MOCK_PRODUCTS = [
-  { id:'pr1', name:'Parfum Luxe',        stock_quantity:3,  reorder_point:10, selling_price:2500, category:'Cosmétiques' },
-  { id:'pr2', name:'Robe Soirée',        stock_quantity:0,  reorder_point:5,  selling_price:8500, category:'Mode'        },
-  { id:'pr3', name:'Crème Hydratante',   stock_quantity:15, reorder_point:20, selling_price:1200, category:'Cosmétiques' },
-  { id:'pr4', name:'Sac à Main Luxe',    stock_quantity:8,  reorder_point:5,  selling_price:5500, category:'Accessoires' },
-  { id:'pr5', name:'Stiletto Classique', stock_quantity:2,  reorder_point:8,  selling_price:4800, category:'Chaussures'  },
-];
+type DashboardProduct = {
+  id: string;
+  name: string;
+  stock_quantity: number;
+  reorder_point: number;
+  selling_price: number;
+  category: string | null;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+
+const EMPTY_TOTALS = { cashIn: 0, cashOut: 0, profit: 0, debtTotal: 0 };
 
 const fmt = (n: number, cur = 'HTG') =>
   new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ' + cur;
@@ -111,14 +99,6 @@ const fmtK = (n: number) =>
 
 const fmtDate = (iso: string) =>
   new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
-
-function filterByRange(data: LedgerRow[], from: number, to: number): LedgerRow[] {
-  return data.filter(r => {
-    if (!r?.date) return false;
-    const m = new Date(r.date + 'T00:00:00').getMonth();
-    return m >= from && m <= to;
-  });
-}
 
 function safeCF(pts: CashflowPoint[]): CashflowPoint[] {
   return (pts ?? []).map(p => ({
@@ -159,6 +139,14 @@ function computeHealthScore(cashIn: number, cashOut: number, profit: number, deb
 // ─────────────────────────────────────────────────────────────────────────────
 // SVG HEALTH GAUGE
 // ─────────────────────────────────────────────────────────────────────────────
+
+const HEALTH_GRADE_LABEL: Record<HealthResult['grade'], string> = {
+  excellent: 'EKSELAN',
+  solide:    'SOLID',
+  correct:   'KORÈK',
+  fragile:   'FRAJIL',
+  critique:  'KRITIK',
+};
 
 function HealthGauge({ score, label }: { score: number; label: string }) {
   const r = 72, cx = 100, cy = 108, sw = 11;
@@ -566,13 +554,20 @@ function DashboardInner() {
 
   // ── Data state ───────────────────────────────────────────────────────────────
   const [loading,   setLoading]   = useState(true);
-  const [isDemo,    setIsDemo]    = useState(false);
-  const [cashflow,  setCashflow]  = useState<CashflowPoint[]>(MOCK_CASHFLOW);
-  const [ledger,    setLedger]    = useState<LedgerRow[]>(MOCK_LEDGER);
-  const [totals,    setTotals]    = useState({ cashIn: 94400, cashOut: 59400, profit: 35000, debtTotal: 45000 });
+  // `isEmpty` remplace l'ancien mode démo : rien à afficher n'est un état
+  // légitime, pas une occasion d'inventer des ventes.
+  const [isEmpty,   setIsEmpty]   = useState(false);
+  // Aucune donnée de démonstration au démarrage : la promesse du produit est
+  // que les chiffres affichés sont VRAIS. Un compte vide affiche donc zéro,
+  // et une invitation à enregistrer la première vente — pas de fausses ventes.
+  const [cashflow,  setCashflow]  = useState<CashflowPoint[]>([]);
+  const [ledger,    setLedger]    = useState<LedgerRow[]>([]);
+  const [totals,    setTotals]    = useState(EMPTY_TOTALS);
   const [extra,     setExtra]     = useState<DashboardExtra | null>(null);
   const [userName,  setUserName]  = useState('');
-  const [products,  setProducts]  = useState<typeof MOCK_PRODUCTS>([]);
+  const [products,  setProducts]  = useState<DashboardProduct[]>([]);
+  const [showQuickSale, setShowQuickSale] = useState(false);
+  const [health,    setHealth]    = useState<HealthSnapshot | null>(null);
 
 
   // ── Table filters ─────────────────────────────────────────────────────────
@@ -606,7 +601,7 @@ function DashboardInner() {
       if (raw) {
         const cached = JSON.parse(raw);
         if (cached.ledger.length > 0 || cached.totals.cashIn > 0) {
-          setIsDemo(false);
+          setIsEmpty(false);
           setCashflow(safeCF(cached.cashflow));
           setLedger(cached.ledger);
           setTotals(cached.totals);
@@ -642,13 +637,12 @@ function DashboardInner() {
       }
 
       if (data.ledger.length === 0 && data.totals.cashIn === 0) {
-        setIsDemo(true);
-        const filtered = filterByRange(MOCK_LEDGER, mFrom, mTo);
-        setCashflow(safeCF(MOCK_CASHFLOW));
-        setLedger(filtered.length ? filtered : MOCK_LEDGER);
-        setTotals({ cashIn: 94400, cashOut: 59400, profit: 35000, debtTotal: 45000 });
+        setIsEmpty(true);
+        setCashflow([]);
+        setLedger([]);
+        setTotals(EMPTY_TOTALS);
       } else {
-        setIsDemo(false);
+        setIsEmpty(false);
         setCashflow(safeCF(data.cashflow));
         setLedger(data.ledger);
         setTotals(data.totals);
@@ -658,10 +652,9 @@ function DashboardInner() {
         } catch { /* storage full */ }
       }
     } catch {
-      setIsDemo(true);
-      setCashflow(safeCF(MOCK_CASHFLOW));
-      setLedger(MOCK_LEDGER);
-      setTotals({ cashIn: 94400, cashOut: 59400, profit: 35000, debtTotal: 45000 });
+      // Réseau coupé ou requête en échec : on ne remplace pas les chiffres du
+      // marchand par des chiffres inventés. On garde ce qu'on avait.
+      setIsEmpty(true);
     }
     setLoading(false);
     setLedgerPage(1);
@@ -682,10 +675,26 @@ function DashboardInner() {
     load(periodMode, monthRange[0], monthRange[1]);
   }, [periodMode, monthRange[0], monthRange[1], load]);
 
+  // Score de santé officiel (Bonus 3). Silencieux en cas d'échec : l'offre du
+  // marchand peut ne pas y donner droit, ce n'est pas une erreur à afficher.
+  useEffect(() => {
+    let cancelled = false;
+    getHealthScore()
+      .then(res => { if (!cancelled) setHealth(res); })
+      .catch(() => { /* offre sans score de santé */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // ── Derived data ─────────────────────────────────────────────────────────────
   const marginPct = totals.cashIn > 0 ? (totals.profit / totals.cashIn) * 100 : 0;
-  const healthScore = computeHealthScore(totals.cashIn, totals.cashOut, totals.profit, totals.debtTotal);
-  const healthLabel = healthScore >= 70 ? t({ fr: 'EXCELLENT', ht: 'EKSELAN' }) : healthScore >= 40 ? t({ fr: 'MOYEN', ht: 'MOYEN' }) : t({ fr: 'FAIBLE', ht: 'FÈB' });
+
+  // Le score officiel vient du serveur (lib/healthScore : 4 piliers, historisé).
+  // Le calcul local reste comme repli le temps de la réponse — mais il ne doit
+  // jamais afficher un chiffre différent une fois le serveur arrivé.
+  const healthScore = health ? health.score : computeHealthScore(totals.cashIn, totals.cashOut, totals.profit, totals.debtTotal);
+  const healthLabel = health
+    ? HEALTH_GRADE_LABEL[health.grade]
+    : healthScore >= 70 ? t({ fr: 'EXCELLENT', ht: 'EKSELAN' }) : healthScore >= 40 ? t({ fr: 'MOYEN', ht: 'MOYEN' }) : t({ fr: 'FAIBLE', ht: 'FÈB' });
 
   const bilanRows = useMemo(() => {
     const map = new Map<string, { idx: number; rev: number; dep: number }>();
@@ -794,12 +803,24 @@ function DashboardInner() {
   }, [marginPct, totals, salesRows, outOfStockCount]);
 
   // Health score breakdown
-  const healthFactors = [
-    { label: t({ fr: 'Pwofitabilite', ht: 'Pwofitabilite' }), score: Math.round(Math.min(30, Math.max(0, marginPct >= 30 ? 30 : marginPct >= 20 ? 24 : marginPct >= 10 ? 15 : marginPct >= 5 ? 8 : 0))), max: 30, color: C.emerald },
-    { label: t({ fr: 'Revenu', ht: 'Revni' }),        score: totals.cashIn > 0 ? 20 : 0, max: 20, color: C.blue },
-    { label: t({ fr: 'Kontrôle des dépenses', ht: 'Kontwòl depans' }),score: Math.round(totals.cashIn > 0 ? (totals.cashOut / totals.cashIn < 0.60 ? 25 : totals.cashOut / totals.cashIn < 0.70 ? 20 : totals.cashOut / totals.cashIn < 0.80 ? 12 : totals.cashOut / totals.cashIn < 0.90 ? 6 : 0) : 0), max: 25, color: C.purple },
-    { label: t({ fr: 'Gestion des dettes', ht: 'Jestyon dèt' }),   score: Math.round(totals.cashIn > 0 ? (totals.debtTotal / totals.cashIn < 0.20 ? 25 : totals.debtTotal / totals.cashIn < 0.40 ? 18 : totals.debtTotal / totals.cashIn < 0.60 ? 10 : totals.debtTotal / totals.cashIn < 0.80 ? 4 : 0) : 0), max: 25, color: C.amber },
-  ];
+  const PILLAR_COLOR: Record<string, string> = {
+    margin: C.emerald, regularity: C.blue, cash: C.purple, recovery: C.amber,
+  };
+
+  const healthFactors = health
+    ? health.pillars.map(p => ({
+        label: p.label,
+        score: p.score,
+        max:   p.max,
+        color: PILLAR_COLOR[p.key] ?? C.blue,
+        comment: p.comment,
+      }))
+    : [
+        { label: t({ fr: 'Pwofitabilite', ht: 'Pwofitabilite' }), score: Math.round(Math.min(30, Math.max(0, marginPct >= 30 ? 30 : marginPct >= 20 ? 24 : marginPct >= 10 ? 15 : marginPct >= 5 ? 8 : 0))), max: 30, color: C.emerald, comment: '' },
+        { label: t({ fr: 'Revenu', ht: 'Revni' }),        score: totals.cashIn > 0 ? 20 : 0, max: 20, color: C.blue, comment: '' },
+        { label: t({ fr: 'Kontrôle des dépenses', ht: 'Kontwòl depans' }),score: Math.round(totals.cashIn > 0 ? (totals.cashOut / totals.cashIn < 0.60 ? 25 : totals.cashOut / totals.cashIn < 0.70 ? 20 : totals.cashOut / totals.cashIn < 0.80 ? 12 : totals.cashOut / totals.cashIn < 0.90 ? 6 : 0) : 0), max: 25, color: C.purple, comment: '' },
+        { label: t({ fr: 'Gestion des dettes', ht: 'Jestyon dèt' }),   score: Math.round(totals.cashIn > 0 ? (totals.debtTotal / totals.cashIn < 0.20 ? 25 : totals.debtTotal / totals.cashIn < 0.40 ? 18 : totals.debtTotal / totals.cashIn < 0.60 ? 10 : totals.debtTotal / totals.cashIn < 0.80 ? 4 : 0) : 0), max: 25, color: C.amber, comment: '' },
+      ];
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
@@ -851,15 +872,15 @@ function DashboardInner() {
 
             {/* Right side: actions + badges */}
             <div className="flex flex-wrap items-center gap-2">
-              {isDemo && (
+              {isEmpty && (
                 <motion.span
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30
-                             bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-400"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-300
+                             bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-500"
                 >
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                   {t({ fr: 'Données démo', ht: 'Done Demo' })}
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  {t({ fr: 'Aucune donnée sur cette période', ht: 'Pa gen done nan peryòd sa a' })}
                 </motion.span>
               )}
               <Link href="/ai-assistant"
@@ -936,6 +957,37 @@ function DashboardInner() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────────── */}
+        {/* 2b. PILOTAGE — ce qu'il faut voir AVANT les tableaux              */}
+        {/*     Alerte taux, score de santé, objectif du mois, MoM/YoY,       */}
+        {/*     recommandations. Diagnostics 1, 7, 9 + Bonus 3 et 7.          */}
+        {/* ──────────────────────────────────────────────────────────────── */}
+        <div className="mb-6">
+          <PilotageBand />
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────────── */}
+        {/* 2c. VENTE EN 10 SECONDES — Diagnostic 2                          */}
+        {/*     Le chemin court : produit → quantité → paiement.              */}
+        {/* ──────────────────────────────────────────────────────────────── */}
+        <div className="mb-6">
+          {showQuickSale ? (
+            <QuickSaleForm
+              onSaved={() => {
+                setShowQuickSale(false);
+                load(periodMode, monthRange[0], monthRange[1]);
+              }}
+            />
+          ) : (
+            <button
+              onClick={() => setShowQuickSale(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#50C878] bg-[#50C878]/5 px-4 py-4 text-sm font-bold text-[#001F3F] transition hover:bg-[#50C878]/10"
+            >
+              ⚡ {t({ fr: 'Enregistrer une vente en 10 secondes', ht: 'Anrejistre yon vant an 10 segond' })}
+            </button>
+          )}
         </div>
 
         {/* ──────────────────────────────────────────────────────────────── */}
@@ -1327,24 +1379,31 @@ function DashboardInner() {
                 }
               </div>
 
-              {/* Factor breakdown */}
+              {/* Factor breakdown — un score sans explication ne se corrige pas */}
               <div className="mt-4 space-y-3">
                 {healthFactors.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="w-32 text-[11px] text-[var(--color-muted)] flex-shrink-0">{f.label}</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(f.score / f.max) * 100}%` }}
-                        transition={{ delay: 0.8 + i * 0.1, duration: 0.7, ease: 'easeOut' }}
-                        style={{ background: f.color }}
-                      />
+                  <div key={i}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-32 text-[11px] text-[var(--color-muted)] flex-shrink-0">{f.label}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(f.score / f.max) * 100}%` }}
+                          transition={{ delay: 0.8 + i * 0.1, duration: 0.7, ease: 'easeOut' }}
+                          style={{ background: f.color }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums w-12 text-right"
+                        style={{ color: f.color }}>
+                        {f.score}/{f.max}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-bold tabular-nums w-12 text-right"
-                      style={{ color: f.color }}>
-                      {f.score}/{f.max}
-                    </span>
+                    {f.comment && (
+                      <p className="mt-1 pl-[8.5rem] text-[10.5px] leading-relaxed text-[var(--color-muted)]">
+                        {f.comment}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

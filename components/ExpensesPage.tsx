@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from './ProtectedRoute';
 import { supabase } from '../lib/supabaseClient';
 import { upsertExpense, deleteExpense, getExpenses } from '../app/actions/expenses';
+import {
+  businessShareOf, personalShareOf, SCOPE_LABELS, type ExpenseScope,
+} from '../lib/expenseScope';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +25,9 @@ type ExpenseRecord = {
   date: string;
   supplier_id: string | null;
   supplier_name?: string;
+  /** Diagnostic 6 : business, personnel, ou partagé entre les deux. */
+  scope: ExpenseScope;
+  business_share_pct: number;
 };
 
 type Supplier = { id: string; name: string };
@@ -69,28 +75,33 @@ const MOCK_EXPENSES: ExpenseRecord[] = [
     id: 'demo-1', date: '2026-05-02', description: 'Salè Janvye — Équipe boutik',
     category: 'Salaire', amount: 85000, currency: 'HTG',
     payment_status: 'Payé', payment_method: 'Espèces', supplier_id: null,
+    scope: 'business', business_share_pct: 100,
   },
   {
     id: 'demo-2', date: '2026-05-06', description: 'Lwaye boutik Pétionville',
     category: 'Loyer', amount: 35000, currency: 'HTG',
     payment_status: 'En attente', payment_method: 'Carte', supplier_id: null,
+    scope: 'business', business_share_pct: 100,
   },
   {
     id: 'demo-3', date: '2026-05-14', description: 'Rembòsman Dèt Founisè Mizik SA',
     category: 'Remboursements', amount: 12500, currency: 'USD',
     payment_status: 'Dette', payment_method: 'Mobile',
     supplier_id: 'mock-sup-1', supplier_name: 'Founisè Mizik SA',
+    scope: 'business', business_share_pct: 100,
   },
   {
     id: 'demo-4', date: '2026-05-18', description: 'Achte Stock Materyèl elektwonik',
     category: 'Stock', amount: 65000, currency: 'HTG',
     payment_status: 'Payé', payment_method: 'Espèces', supplier_id: null,
+    scope: 'business', business_share_pct: 100,
   },
   {
     id: 'demo-5', date: '2026-05-20', description: 'Peman Dèt Founisè Tekstil',
     category: 'Remboursements', amount: 24000, currency: 'HTG',
     payment_status: 'Dette', payment_method: 'Carte',
     supplier_id: 'mock-sup-2', supplier_name: 'Founisè Tekstil Kreyòl',
+    scope: 'business', business_share_pct: 100,
   },
 ];
 
@@ -118,6 +129,8 @@ const FORM_DEF = {
   payment_method: 'Espèces' as PayMethod,
   date:           new Date().toISOString().slice(0, 10),
   supplier_id:    '',
+  scope:          'business' as ExpenseScope,
+  share:          '100',
 };
 
 // ── Add/Edit Modal ────────────────────────────────────────────────────────────
@@ -142,6 +155,8 @@ function ExpenseModal({
           payment_method: record.payment_method,
           date:           record.date.slice(0, 10),
           supplier_id:    record.supplier_id ?? '',
+          scope:          record.scope ?? 'business',
+          share:          String(record.business_share_pct ?? 100),
         }
       : FORM_DEF,
   );
@@ -172,6 +187,8 @@ function ExpenseModal({
         payment_method: form.payment_method,
         date:           form.date,
         supplier_id:    isDebt && form.supplier_id ? form.supplier_id : undefined,
+        scope:              form.scope,
+        business_share_pct: form.scope === 'mixed' ? Number(form.share) || 0 : undefined,
       });
       onSaved(); onClose();
     } catch (e: any) { setErr(e.message); }
@@ -230,6 +247,51 @@ function ExpenseModal({
               <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
+            </div>
+          )}
+
+          {/* Business / Personnel — Diagnostic 6.
+              Sans cette distinction, impossible de dire si le business est
+              rentable ou s'il est maintenu à flot par la poche du foyer. */}
+          {field('Sa se depans ki moun ? *',
+            <div>
+              <div className="grid grid-cols-3 gap-2">
+                {(['business', 'personal', 'mixed'] as const).map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => set('scope', s)}
+                    className={
+                      form.scope === s
+                        ? 'rounded-2xl border-2 border-[#001F3F] bg-[#001F3F] px-3 py-2.5 text-sm font-semibold text-white transition'
+                        : 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm font-medium text-[var(--color-text)] transition hover:border-[#001F3F]/40'
+                    }
+                  >
+                    {SCOPE_LABELS[s].label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-[var(--color-muted)]">
+                {SCOPE_LABELS[form.scope as ExpenseScope].hint}
+              </p>
+
+              {form.scope === 'mixed' && (
+                <div className="mt-3 rounded-2xl border border-[#001F3F]/15 bg-[#001F3F]/5 p-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-[var(--color-text)]">Pati biznis la</span>
+                    <span className="font-bold text-[#001F3F]">{form.share}%</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    value={form.share}
+                    onChange={e => set('share', e.target.value)}
+                    className="mt-2 w-full accent-[#50C878]"
+                  />
+                  <p className="mt-1 text-xs text-[var(--color-muted)]">
+                    Egzanp : yon fòfè telefòn 60% pou biznis la, 40% pou lakay.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -434,6 +496,8 @@ export function ExpensesPage() {
             date:           e.date,
             supplier_id:    e.supplier_id ?? null,
             supplier_name:  e.supplier_id ? supMap[e.supplier_id] : undefined,
+            scope:              (e.scope ?? 'business') as ExpenseScope,
+            business_share_pct: Number(e.business_share_pct ?? 100),
           }))
         );
         setIsDemo(false);
@@ -495,7 +559,15 @@ export function ExpensesPage() {
     const totalSalary= expenses.filter(e => e.category === 'Salaire').reduce((s, e) => s + e.amount, 0);
     const totalDebt  = expenses.filter(e => e.category === 'Remboursements').reduce((s, e) => s + e.amount, 0);
     const pending    = expenses.filter(e => e.payment_status === 'En attente').reduce((s, e) => s + e.amount, 0);
-    return { totalMonth, totalSalary, totalDebt, pending };
+
+    // Diagnostic 6 : ce que l'entreprise a réellement dépensé, et ce que le
+    // foyer a pris au passage. Ces deux chiffres ne doivent jamais être additionnés.
+    const businessMonth = thisMonth.reduce(
+      (s, e) => s + businessShareOf(e.amount, e.scope, e.business_share_pct), 0);
+    const personalMonth = thisMonth.reduce(
+      (s, e) => s + personalShareOf(e.amount, e.scope, e.business_share_pct), 0);
+
+    return { totalMonth, totalSalary, totalDebt, pending, businessMonth, personalMonth };
   }, [expenses, currentMonth]);
 
   // ── Card helper ──────────────────────────────────────────────────────────────
@@ -558,9 +630,11 @@ export function ExpensesPage() {
           {/* ── Summary cards ── */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Total mwa sa a"
-              value={fmtAmt(stats.totalMonth, 'HTG')}
-              sub="Dépenses mois courant"
+              label="Depans biznis mwa a"
+              value={fmtAmt(stats.businessMonth, 'HTG')}
+              sub={stats.personalMonth > 0
+                ? `+ ${fmtAmt(stats.personalMonth, 'HTG')} pèsonèl (pa nan rezilta a)`
+                : 'Sèlman sa ki nan rezilta antrepriz la'}
               accent="bg-[#001F3F]"
               icon={<svg className="h-5 w-5 text-[#001F3F]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
             />
@@ -733,12 +807,22 @@ export function ExpensesPage() {
                                 </p>
                               )}
                             </td>
-                            {/* Category badge */}
+                            {/* Category badge + périmètre business/personnel */}
                             <td className="px-5 py-4">
                               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ${cat.badge}`}>
                                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: cat.dot }} />
                                 {cat.label}
                               </span>
+                              {exp.scope !== 'business' && (
+                                <span className={exp.scope === 'personal'
+                                  ? 'ml-1.5 inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600'
+                                  : 'ml-1.5 inline-flex items-center rounded-full bg-indigo-100 px-2 py-1 text-[10px] font-semibold text-indigo-700'}
+                                >
+                                  {exp.scope === 'personal'
+                                    ? 'Pèsonèl'
+                                    : `Melanje ${exp.business_share_pct}%`}
+                                </span>
+                              )}
                             </td>
                             {/* Amount */}
                             <td className="whitespace-nowrap px-5 py-4">

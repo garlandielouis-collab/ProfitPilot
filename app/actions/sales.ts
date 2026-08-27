@@ -71,6 +71,28 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   const { supabase: sb, userId, businessId } = ctx;
   const today = data.sale_date ?? new Date().toISOString().split('T')[0];
 
+  // ── 2b. Idempotence (rejeu de la file hors-ligne) ────────────────────────
+  // Une vente déjà passée avec la même clé client ne doit pas être créée deux
+  // fois : on renvoie simplement le résultat de la première.
+  if (data.client_ref) {
+    const { data: existing } = await sb
+      .from('sales')
+      .select('invoice_number, subtotal_amount, discount_amount, total_amount')
+      .eq('business_id', businessId)
+      .eq('metadata->>client_ref', data.client_ref)
+      .maybeSingle();
+
+    if (existing) {
+      return {
+        success:        true,
+        invoiceNumber:  existing.invoice_number,
+        subtotal:       Number(existing.subtotal_amount ?? 0),
+        discountAmount: Number(existing.discount_amount ?? 0),
+        totalAmount:    Number(existing.total_amount ?? 0),
+      };
+    }
+  }
+
   // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
   const exchangeRate = ctx.exchangeRate;
 
@@ -148,6 +170,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       total_amount:     totalAmount,
       paid_amount:      paidAmount,
       notes:            data.notes ?? null,
+      metadata:         data.client_ref ? { client_ref: data.client_ref } : null,
       created_by:       userId,
     })
     .select('id')

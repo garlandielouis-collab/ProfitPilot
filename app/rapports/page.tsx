@@ -7,6 +7,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import { WeeklyDigestCard } from '../../components/reports/WeeklyDigestCard';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { getReportsDataAction, type ReportPeriod } from '../actions/reports';
@@ -417,6 +419,33 @@ function RapportsPage() {
             <KpiCard label={t({ fr: 'Marge brute', ht: 'Maj brit' })}        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
             <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
             <KpiCard label={t({ fr: 'Trésorerie totale', ht: 'Trezoreri total' })}  value={htg(kpi.cashTotal, currency)} sub={t({ fr: 'Disponible', ht: 'Disponib' })}                             color="blue"  />
+          </div>
+
+          {/* ── Rapport hebdo WhatsApp (Bonus 1) + dossier crédit (Bonus 5) ── */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <WeeklyDigestCard />
+            <Link
+              href="/rapports/credit"
+              className="flex flex-col justify-between rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm transition hover:border-[#001F3F]/30 hover:shadow-md"
+            >
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[#12B981]">
+                  {t({ fr: 'Financement', ht: 'Finansman' })}
+                </p>
+                <h3 className="mt-1 text-lg font-bold text-[#0F172A]">
+                  {t({ fr: 'Dossier crédit & microfinance', ht: 'Dosye kredi & mikwofinans' })}
+                </h3>
+                <p className="mt-1 text-[13px] leading-relaxed text-[#64748B]">
+                  {t({
+                    fr: "Historique de chiffre d'affaires et de marge, hors dépenses personnelles — dans un format qu'une banque peut lire.",
+                    ht: 'Istorik chif dafè ak mòj, san depans pèsonèl — nan yon fòma yon bank ka li.',
+                  })}
+                </p>
+              </div>
+              <span className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-xl bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white">
+                {t({ fr: 'Générer le dossier', ht: 'Jenere dosye a' })} →
+              </span>
+            </Link>
           </div>
 
           {/* ── Period selector ── */}

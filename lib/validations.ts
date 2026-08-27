@@ -58,6 +58,12 @@ export const createSaleSchema = z.object({
   discount_percent: z.coerce.number().min(0).max(100).default(0),
   tax_amount:       z.coerce.number().nonnegative().default(0),
   notes:            z.string().max(1000).optional(),
+  /**
+   * Clé d'idempotence générée par le client (Bonus 4 — mode hors-ligne).
+   * Sans elle, un rejeu partiel de la file d'attente dupliquerait le chiffre
+   * d'affaires — c'est le point critique de toute la synchronisation.
+   */
+  client_ref:       z.string().uuid().optional(),
   items:            z.array(saleItemSchema).min(1, 'Au moins un article requis'),
 }).refine(
   (data) => {

@@ -5,6 +5,7 @@ import { Providers }       from '../components/providers/Providers';
 import { LanguageWrapper } from '../components/LanguageWrapper';
 import { AppShell }        from '../components/AppShell';
 import { RegisterSW }     from '../components/RegisterSW';
+import { OfflineSalesSync } from '../components/offline/OfflineSalesSync';
 
 const inter = Inter({
   subsets:  ['latin'],
@@ -66,6 +67,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </LanguageWrapper>
         </Providers>
         <RegisterSW />
+        {/* Rejeu des ventes saisies hors connexion (Bonus 4) */}
+        <OfflineSalesSync />
       </body>
     </html>
   );

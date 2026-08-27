@@ -182,6 +182,7 @@ const navSections: NavSection[] = [
       { title: { fr: 'Ventes', ht: 'Vant' }, href: '/sales', icon: <IconSales /> },
       { title: { fr: 'Clients', ht: 'Kliyan' }, href: '/customers', icon: <IconClients /> },
       { title: { fr: 'Produits', ht: 'Pwodwi' }, href: '/products', icon: <IconProducts /> },
+      { title: { fr: 'Rentabilité produits', ht: 'Rantabilite pwodwi' }, href: '/rentabilite', icon: <IconAnalytics /> },
       { title: { fr: 'Inventaire', ht: 'Envantè' }, href: '/inventory', icon: <IconInventory /> },
       { title: { fr: 'Achats', ht: 'Acha' }, href: '/purchases', icon: <IconPurchases /> },
       { title: { fr: 'Fournisseurs', ht: 'Founisè' }, href: '/suppliers', icon: <IconSuppliers /> },
@@ -195,6 +196,7 @@ const navSections: NavSection[] = [
       { title: { fr: 'Créances', ht: 'Kredi kliyan' }, href: '/creances', icon: <IconDebts /> },
       { title: { fr: 'Comptabilité', ht: 'Kontablite' }, href: '/rapports/comptabilite', icon: <IconAccounting /> },
       { title: { fr: 'Rapports', ht: 'Rapò' }, href: '/rapports', icon: <IconReports /> },
+      { title: { fr: 'Dossier crédit', ht: 'Dosye kredi' }, href: '/rapports/credit', icon: <IconReports /> },
     ],
   },
   {

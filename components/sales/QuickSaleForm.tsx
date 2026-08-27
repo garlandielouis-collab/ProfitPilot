@@ -15,6 +15,7 @@ import { createSaleAction } from '../../app/actions/sales';
 import { getProductsAction, type Product } from '../../app/actions/products';
 import { useCompany } from '../../hooks/useCompany';
 import { computeMargin } from '../../lib/margin';
+import { newClientRef, queueSale } from '../../lib/offlineQueue';
 
 type PaymentMode = 'Espèces' | 'MonCash' | 'Natcash' | 'Carte' | 'Crédit';
 
@@ -97,26 +98,44 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
     }
 
     setSubmitting(true);
+
+    // Clé d'idempotence générée AVANT l'appel : c'est elle qui permet de
+    // rejouer la vente hors-ligne sans jamais la compter deux fois.
+    const clientRef = newClientRef();
+    const payload = {
+      business_id:      company.id,
+      currency:         (selected.currency ?? 'HTG') as 'HTG' | 'USD',
+      payment_method:   MODE_TO_DB[mode],
+      payment_status:   (isCredit ? 'credit' : 'paid') as 'credit' | 'paid',
+      discount_percent: 0,
+      tax_amount:       0,
+      customer_name:    customerName.trim() || undefined,
+      client_ref:       clientRef,
+      items: [
+        {
+          product_id:       selected.id,
+          product_name:     selected.name,
+          quantity,
+          unit_price:       selected.sale_price,
+          discount_percent: 0,
+          tax_rate:         0,
+        },
+      ],
+    };
+
+    // Hors-ligne : on met en file tout de suite plutôt que de faire échouer la
+    // vente. Le marchand a encaissé, la saisie ne doit pas être perdue.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      await queueSale(clientRef, payload);
+      window.dispatchEvent(new Event('pp:sale-queued'));
+      toast.success('Vant sere — l ap anrejistre lè entènèt la tounen.');
+      reset();
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const result = await createSaleAction({
-        business_id:      company.id,
-        currency:         (selected.currency ?? 'HTG') as 'HTG' | 'USD',
-        payment_method:   MODE_TO_DB[mode],
-        payment_status:   isCredit ? 'credit' : 'paid',
-        discount_percent: 0,
-        tax_amount:       0,
-        customer_name:    customerName.trim() || undefined,
-        items: [
-          {
-            product_id:       selected.id,
-            product_name:     selected.name,
-            quantity,
-            unit_price:       selected.sale_price,
-            discount_percent: 0,
-            tax_rate:         0,
-          },
-        ],
-      });
+      const result = await createSaleAction(payload);
 
       if (!result.success) {
         toast.error(result.errors[0]?.message ?? 'Enregistrement impossible.');
@@ -139,7 +158,14 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
       reset();
       onSaved?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur inattendue.');
+      // Coupure réseau pendant l'appel : même traitement que le cas hors-ligne.
+      // Le `client_ref` garantit qu'un rejeu ne créera pas de doublon même si
+      // la requête était en fait passée côté serveur.
+      await queueSale(clientRef, payload);
+      window.dispatchEvent(new Event('pp:sale-queued'));
+      toast.success('Koneksyon koupe — vant la sere pou sinkronizasyon.');
+      reset();
+      onSaved?.();
     } finally {
       setSubmitting(false);
     }

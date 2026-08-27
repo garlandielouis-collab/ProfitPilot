@@ -15,7 +15,13 @@ import {
   Plus, Search, Edit2, Trash2, AlertTriangle, X,
   Upload, ImageIcon, Package, TrendingUp, Tag,
   ShoppingBag, Star, BarChart2, CheckCircle,
+  Calculator, ChevronDown, Sparkles, TrendingDown,
 } from 'lucide-react';
+import { useCompany } from '../../hooks/useCompany';
+import { computeMargin, suggestSalePrice } from '../../lib/margin';
+import type { CurrencyCode } from '../../lib/currency';
+import { MarginCalculator } from '../../components/margin/MarginCalculator';
+import { PriceSimulator } from '../../components/pricing/PriceSimulator';
 
 // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -26,18 +32,51 @@ function publicUrl(path: string) {
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 }
 
-function calcMargin(p: Product) {
-  if (!p.sale_price || p.sale_price <= p.purchase_price) return 0;
-  return ((p.sale_price - p.purchase_price) / p.sale_price) * 100;
+/**
+ * Marge NETTE du produit : prix de vente − coût complet (achat converti +
+ * livraison + emballage + autres) − commission plateforme.
+ *
+ * Passe par `lib/margin` pour qu'un seul chiffre fasse foi dans toute l'app —
+ * l'ancien calcul « (vente − achat) / vente » ignorait les frais annexes et
+ * le taux de change, et faisait donc croire à une marge qui n'existait pas.
+ */
+function calcMargin(p: Product, exchangeRate: number) {
+  return computeMargin({
+    purchasePrice:     p.purchase_price,
+    costCurrency:      (p.currency ?? 'HTG') as CurrencyCode,
+    deliveryCost:      p.delivery_cost,
+    packagingCost:     p.packaging_cost,
+    otherCost:         p.other_cost,
+    commissionPercent: p.commission_percent,
+    salePrice:         p.sale_price,
+    saleCurrency:      'HTG',
+    exchangeRate,
+    displayCurrency:   'HTG',
+  });
+}
+
+/** Champs de frais annexes du formulaire produit, libellés en créole. */
+function costFieldDefs(costCurrency: CurrencyCode) {
+  return [
+    { key: 'delivery_cost'         as const, label: `Livrezon (${costCurrency})`, step: '0.01' },
+    { key: 'packaging_cost'        as const, label: `Anbalaj (${costCurrency})`,  step: '0.01' },
+    { key: 'other_cost'            as const, label: `Lòt frè (${costCurrency})`,  step: '0.01' },
+    { key: 'commission_percent'    as const, label: 'Komisyon (%)',               step: '0.1'  },
+    { key: 'target_margin_percent' as const, label: 'Mòj vize (%)',               step: '1'    },
+    { key: 'reorder_point'         as const, label: 'Sèy rekòmand',               step: '1'    },
+  ];
 }
 
 function fmtHTG(n: number) {
   return new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 }
 
-function stockBadge(qty: number) {
-  if (qty === 0) return { label: 'Épuisé', cls: 'bg-red-100 text-red-600' };
-  if (qty <= 5)  return { label: `${qty} restants`, cls: 'bg-amber-100 text-amber-700' };
+// Le seuil vient du produit (Bonus 6) : 5 unités de riz et 5 téléviseurs ne
+// représentent pas du tout le même risque de rupture.
+function stockBadge(qty: number, reorderPoint = 5) {
+  const threshold = reorderPoint > 0 ? reorderPoint : 5;
+  if (qty === 0)          return { label: 'Épuisé', cls: 'bg-red-100 text-red-600' };
+  if (qty <= threshold)   return { label: `${qty} restants`, cls: 'bg-amber-100 text-amber-700' };
   return { label: `${qty} en stock`, cls: 'bg-emerald-100 text-emerald-700' };
 }
 
@@ -156,6 +195,9 @@ function ProductModal({
   onSaved: () => void;
 }) {
   const isEdit = !!product;
+  const { company } = useCompany();
+  const exchangeRate = company?.exchangeRate && company.exchangeRate > 0 ? company.exchangeRate : 1;
+
   const [form, setForm] = useState<ProductPayload>({
     name:           product?.name ?? '',
     category:       product?.category ?? '',
@@ -163,6 +205,13 @@ function ProductModal({
     sale_price:     product?.sale_price ?? 0,
     stock_quantity: product?.stock_quantity ?? 0,
     image_url:      product?.image_url ?? null,
+    currency:              product?.currency              ?? 'HTG',
+    delivery_cost:         product?.delivery_cost         ?? 0,
+    packaging_cost:        product?.packaging_cost        ?? 0,
+    other_cost:            product?.other_cost            ?? 0,
+    commission_percent:    product?.commission_percent    ?? 0,
+    target_margin_percent: product?.target_margin_percent ?? 30,
+    reorder_point:         product?.reorder_point         ?? 5,
   });
   const [uploading, setUploading] = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -170,9 +219,47 @@ function ProductModal({
   // For new products, we need the ID before uploading
   const [tempId,    setTempId]    = useState<string | null>(product?.id ?? null);
 
-  const previewMargin = form.sale_price > 0
-    ? ((form.sale_price - form.purchase_price) / form.sale_price * 100).toFixed(1)
-    : null;
+  // Les frais annexes sont repliés par défaut : on ne veut pas alourdir la
+  // saisie courante, mais ils doivent rester à un clic (Diagnostic 4).
+  const hasExtraCosts =
+    (form.delivery_cost ?? 0) > 0 ||
+    (form.packaging_cost ?? 0) > 0 ||
+    (form.other_cost ?? 0) > 0 ||
+    (form.commission_percent ?? 0) > 0;
+  const [showCosts, setShowCosts] = useState(hasExtraCosts);
+  const [showSimulator, setShowSimulator] = useState(false);
+
+  const costCurrency = (form.currency ?? 'HTG') as CurrencyCode;
+
+  // Coût complet + marge nette, recalculés à chaque frappe.
+  const margin = computeMargin({
+    purchasePrice:     form.purchase_price,
+    costCurrency,
+    deliveryCost:      form.delivery_cost,
+    packagingCost:     form.packaging_cost,
+    otherCost:         form.other_cost,
+    commissionPercent: form.commission_percent,
+    salePrice:         form.sale_price,
+    saleCurrency:      'HTG',
+    exchangeRate,
+    displayCurrency:   'HTG',
+  });
+
+  const advisedPrice = suggestSalePrice(
+    {
+      purchasePrice:     form.purchase_price,
+      costCurrency,
+      deliveryCost:      form.delivery_cost,
+      packagingCost:     form.packaging_cost,
+      otherCost:         form.other_cost,
+      commissionPercent: form.commission_percent,
+    },
+    {
+      exchangeRate,
+      displayCurrency:     'HTG',
+      targetMarginPercent: form.target_margin_percent ?? 30,
+    },
+  );
 
   async function handleImageUpload(file: File) {
     setUploading(true);
@@ -293,13 +380,38 @@ function ProductModal({
           {/* Prices row */}
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Pri Acha (HTG)</label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-sm font-medium text-slate-700">Pri Acha</label>
+                {/* Acheter en USD et encaisser en HTG est le piège n°1 :
+                    la devise d'achat doit être explicite. */}
+                <div className="flex overflow-hidden rounded-lg border border-slate-200">
+                  {(['HTG', 'USD'] as const).map(cur => (
+                    <button
+                      key={cur}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, currency: cur }))}
+                      className={
+                        (form.currency ?? 'HTG') === cur
+                          ? 'bg-[#001F3F] px-2 py-0.5 text-[11px] font-semibold text-white transition'
+                          : 'bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50'
+                      }
+                    >
+                      {cur}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <input
                 type="number" min="0" step="0.01"
                 value={form.purchase_price}
                 onChange={e => setForm(f => ({ ...f, purchase_price: parseFloat(e.target.value) || 0 }))}
                 className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
               />
+              {costCurrency === 'USD' && form.purchase_price > 0 && (
+                <p className="mt-1 text-[11px] text-slate-400">
+                  ≈ {fmtHTG(form.purchase_price * exchangeRate)} HTG nan to jodi a ({exchangeRate})
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Pri Vant (HTG)</label>
@@ -312,14 +424,106 @@ function ProductModal({
             </div>
           </div>
 
-          {/* Margin preview */}
-          {previewMargin !== null && parseFloat(previewMargin) > 0 && (
-            <div className="mt-3 rounded-xl bg-slate-50 border border-emerald-100 px-4 py-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-emerald-700">
-                <TrendingUp size={14} />
-                Mòj pwojete
+          {/* Frais annexes — Diagnostic 4 : ce qui mange la marge sans se voir */}
+          <button
+            type="button"
+            onClick={() => setShowCosts(v => !v)}
+            className="mt-3 flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <Calculator size={14} className="text-[#001F3F]" />
+              Frè anplis (livrezon, komisyon, anbalaj)
+              {hasExtraCosts && !showCosts && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                  aktif
+                </span>
+              )}
+            </span>
+            <ChevronDown size={15} className={showCosts ? 'rotate-180 transition-transform' : 'transition-transform'} />
+          </button>
+
+          {showCosts && (
+            <div className="mt-2 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-4">
+              {costFieldDefs(costCurrency).map(field => (
+                <div key={field.key}>
+                  <label className="mb-1 block text-xs font-medium text-slate-500">{field.label}</label>
+                  <input
+                    type="number" min="0" step={field.step}
+                    value={form[field.key] ?? 0}
+                    onChange={e => setForm(f => ({ ...f, [field.key]: parseFloat(e.target.value) || 0 }))}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                  />
+                </div>
+              ))}
+              <p className="col-span-2 text-[11px] leading-relaxed text-slate-400">
+                Sèy rekòmand : kantite ki deklanche yon alèt anvan ou fin an ripti.
+              </p>
+            </div>
+          )}
+
+          {/* Marge nette temps réel — le seul chiffre qui compte vraiment */}
+          {form.sale_price > 0 && (
+            <div
+              className={
+                margin.isLoss
+                  ? 'mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3'
+                  : 'mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3'
+              }
+            >
+              <div className="flex items-center justify-between">
+                <div className={margin.isLoss
+                  ? 'flex items-center gap-2 text-sm font-medium text-red-700'
+                  : 'flex items-center gap-2 text-sm font-medium text-emerald-700'}
+                >
+                  {margin.isLoss ? <TrendingDown size={14} /> : <TrendingUp size={14} />}
+                  {margin.isLoss ? 'Ou ap vann a pèt' : 'Mòj nèt pa inite'}
+                </div>
+                <span className={margin.isLoss ? 'font-bold text-red-700' : 'font-bold text-emerald-700'}>
+                  {fmtHTG(margin.netMargin)} HTG · {margin.marginPercent.toFixed(1)}%
+                </span>
               </div>
-              <span className="font-bold text-emerald-700">{previewMargin}%</span>
+              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-black/5 pt-2 text-[11px] text-slate-500">
+                <span>Kou konplè<br /><b className="text-[#1e293b]">{fmtHTG(margin.landedCost)}</b></span>
+                <span>Frè anplis<br /><b className="text-[#1e293b]">{fmtHTG(margin.extraCosts + margin.commission)}</b></span>
+                <span>Pri planche<br /><b className="text-[#1e293b]">{fmtHTG(margin.breakEvenPrice)}</b></span>
+              </div>
+            </div>
+          )}
+
+          {/* Prix conseillé pour atteindre la marge cible */}
+          {advisedPrice > 0 && Math.abs(advisedPrice - form.sale_price) > 0.5 && (
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, sale_price: advisedPrice }))}
+              className="mt-2 flex w-full items-center justify-between rounded-xl border border-dashed border-[#50C878] bg-white px-4 py-2.5 text-sm transition hover:bg-[#50C878]/5"
+            >
+              <span className="flex items-center gap-2 text-slate-600">
+                <Sparkles size={14} className="text-[#50C878]" />
+                Pri konseye pou {form.target_margin_percent ?? 30}% mòj
+              </span>
+              <span className="font-bold text-[#001F3F]">{fmtHTG(advisedPrice)} HTG</span>
+            </button>
+          )}
+
+          {/* Simulateur de prix — Bonus 2. Chargé à la demande : il interroge
+              l'historique de ventes, inutile de le faire à chaque ouverture. */}
+          {isEdit && product && (
+            <div className="mt-3">
+              {showSimulator ? (
+                <PriceSimulator productId={product.id} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowSimulator(true)}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <BarChart2 size={14} className="text-[#001F3F]" />
+                    E si m ta ogmante pri a ?
+                  </span>
+                  <ChevronDown size={15} />
+                </button>
+              )}
             </div>
           )}
 
@@ -384,15 +588,17 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
 
 function ProductCard({
   product,
+  exchangeRate,
   onEdit,
   onDelete,
 }: {
   product: Product;
+  exchangeRate: number;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const margin  = calcMargin(product);
-  const badge   = stockBadge(product.stock_quantity);
+  const margin  = calcMargin(product, exchangeRate);
+  const badge   = stockBadge(product.stock_quantity, product.reorder_point);
   const imgUrl  = product.image_url;
 
   return (
@@ -428,12 +634,15 @@ function ProductCard({
           </span>
         </div>
 
-        {/* Margin badge */}
-        {margin > 0 && (
+        {/* Marge nette — une vente à perte doit se voir, pas se cacher */}
+        {product.sale_price > 0 && (
           <div className="absolute top-2.5 right-2.5">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#1e293b]/80 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white">
-              <TrendingUp size={10} />
-              {margin.toFixed(0)}%
+            <span className={margin.isLoss
+              ? 'inline-flex items-center gap-1 rounded-full bg-red-600/90 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white'
+              : 'inline-flex items-center gap-1 rounded-full bg-[#1e293b]/80 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white'}
+            >
+              {margin.isLoss ? <TrendingDown size={10} /> : <TrendingUp size={10} />}
+              {margin.marginPercent.toFixed(0)}%
             </span>
           </div>
         )}
@@ -503,7 +712,16 @@ function ProductCard({
 
 // â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export function ProductsClient({ initialProducts, initialUserId }: { initialProducts: Product[]; initialUserId: string }) {
+export function ProductsClient({
+  initialProducts,
+  initialUserId,
+  exchangeRate: initialExchangeRate,
+}: {
+  initialProducts: Product[];
+  initialUserId: string;
+  /** Taux servi par la page serveur : évite d'attendre le contexte client. */
+  exchangeRate?: number;
+}) {
   const [products,     setProducts]     = useState<Product[]>(initialProducts);
   const [loading,      setLoading]      = useState(false);
   const [search,       setSearch]       = useState('');
@@ -513,6 +731,15 @@ export function ProductsClient({ initialProducts, initialUserId }: { initialProd
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [userId]                        = useState(initialUserId);
   const [error,        setError]        = useState('');
+  const [showCalc,     setShowCalc]     = useState(false);
+
+  const { company } = useCompany();
+  const exchangeRate =
+    company?.exchangeRate && company.exchangeRate > 0
+      ? company.exchangeRate
+      : initialExchangeRate && initialExchangeRate > 0
+        ? initialExchangeRate
+        : 1;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -530,10 +757,17 @@ export function ProductsClient({ initialProducts, initialUserId }: { initialProd
   // Computed stats
   const totalValue  = products.reduce((s, p) => s + p.purchase_price * p.stock_quantity, 0);
   const avgMargin   = products.length
-    ? products.reduce((s, p) => s + calcMargin(p), 0) / products.length
+    ? products.reduce((s, p) => s + calcMargin(p, exchangeRate).marginPercent, 0) / products.length
     : 0;
   const outOfStock  = products.filter(p => p.stock_quantity === 0).length;
   const withPhotos  = products.filter(p => p.image_url).length;
+  // Vendre à perte sans le savoir est le problème n°1 du document : on le compte.
+  const atLoss      = products.filter(
+    p => p.sale_price > 0 && calcMargin(p, exchangeRate).isLoss,
+  ).length;
+  const lowStock    = products.filter(
+    p => p.stock_quantity > 0 && p.stock_quantity <= (p.reorder_point || 5),
+  ).length;
 
   // Categories
   const categories  = [...new Set(products.map(p => p.category).filter(Boolean))] as string[];
@@ -569,14 +803,54 @@ export function ProductsClient({ initialProducts, initialUserId }: { initialProd
             <h1 className="mt-1 text-2xl font-semibold text-slate-800">Pwodwi & Katalòg</h1>
             <p className="mt-1 text-sm text-slate-500">Jere pwodwi, pri, foto ak stock ou yo an tan reyèl.</p>
           </div>
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#002D5B] active:scale-95 transition-all"
-          >
-            <Plus size={16} />
-            Nouvo Pwodui
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCalc(v => !v)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#001F3F] transition-all hover:bg-slate-50 active:scale-95"
+            >
+              <Calculator size={16} />
+              Kalkilatè mòj
+            </button>
+            <button
+              onClick={openAdd}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#002D5B] active:scale-95 transition-all"
+            >
+              <Plus size={16} />
+              Nouvo Pwodui
+            </button>
+          </div>
         </div>
+
+        {/* Calculateur de marge autonome — pour tester un prix avant même de
+            créer la fiche produit (Diagnostic 1). */}
+        {showCalc && (
+          <MarginCalculator
+            exchangeRate={exchangeRate}
+            displayCurrency="HTG"
+          />
+        )}
+
+        {/* Alertes qui coûtent de l'argent : vendre à perte, tomber en rupture */}
+        {(atLoss > 0 || lowStock > 0) && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {atLoss > 0 && (
+              <div className="flex flex-1 items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+                <TrendingDown size={18} className="shrink-0 text-red-600" />
+                <p className="text-sm text-red-800">
+                  <b>{atLoss} pwodwi</b> ap vann a pèt apre tout frè yo. Louvri fich la pou wè pri planche a.
+                </p>
+              </div>
+            )}
+            {lowStock > 0 && (
+              <div className="flex flex-1 items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <AlertTriangle size={18} className="shrink-0 text-amber-600" />
+                <p className="text-sm text-amber-800">
+                  <b>{lowStock} pwodwi</b> rive nan sèy rekòmand la. Reyaprovizyone anvan ou pèdi vant.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* â”€â”€ KPI Strip â”€â”€ */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -680,6 +954,7 @@ export function ProductsClient({ initialProducts, initialUserId }: { initialProd
                 <ProductCard
                   key={p.id}
                   product={p}
+                  exchangeRate={exchangeRate}
                   onEdit={() => openEdit(p)}
                   onDelete={() => setDeleteTarget(p)}
                 />

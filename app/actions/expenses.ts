@@ -6,6 +6,7 @@ import { recordExpenseEntry, recordExpensePaymentEntry, reverseDocumentEntries }
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { mapCategoryToAccountCode } from '../../lib/accountingEngine';
+import type { ExpenseScope } from '../../lib/expenseScope';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,9 @@ export type ExpensePayload = {
   payment_method?: string;
   date: string;              // YYYY-MM-DD
   supplier_id?: string;
+  scope?: ExpenseScope;
+  /** Part professionnelle d'une dépense `mixed`, en %. Ignoré sinon. */
+  business_share_pct?: number;
 };
 
 // Map UI payment status → DB enum
@@ -106,6 +110,17 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
     supplier_id:    payload.supplier_id    || null,
     created_by:     userId,
   };
+
+  // Colonnes ajoutées par 20260821_profitpilot_features.sql. Renseignées
+  // seulement si l'UI les fournit, pour que le trigger d'héritage de catégorie
+  // continue de s'appliquer quand l'utilisateur n'a rien choisi.
+  if (payload.scope) {
+    fields.scope = payload.scope;
+    fields.business_share_pct =
+      payload.scope === 'mixed'
+        ? Math.min(Math.max(Number(payload.business_share_pct) || 0, 0), 100)
+        : payload.scope === 'personal' ? 0 : 100;
+  }
 
   if (payload.id) {
     // Ce qui existait AVANT la modification : sans ça, impossible de savoir si
@@ -271,26 +286,41 @@ export async function markExpensePaid(expenseId: string): Promise<void> {
 export async function getExpenses() {
   const { supabase, businessId } = await getBusinessContext();
 
-  const { data, error } = await supabase
-    .from('expenses')
-    .select(`
+  const BASE = `
       id, description, amount, currency,
       payment_status, payment_method,
       expense_date, supplier_id,
       expense_categories ( name )
-    `)
+    `;
+
+  // `scope` / `business_share_pct` viennent de la migration features. Si elle
+  // n'a pas encore été jouée, la page dépenses doit continuer de s'afficher.
+  const withScope = await supabase
+    .from('expenses')
+    .select(`${BASE}, scope, business_share_pct`)
     .eq('business_id', businessId)
     .is('deleted_at', null)
     .order('expense_date', { ascending: false });
 
-  if (error) throw new Error(error.message);
+  let rows: any[] = withScope.data ?? [];
+
+  if (withScope.error) {
+    const legacy = await supabase
+      .from('expenses')
+      .select(BASE)
+      .eq('business_id', businessId)
+      .is('deleted_at', null)
+      .order('expense_date', { ascending: false });
+    if (legacy.error) throw new Error(legacy.error.message);
+    rows = legacy.data ?? [];
+  }
 
   // Normalize to match UI expectations
   const STATUS_REVERSE: Record<string, string> = {
     'paid': 'Payé', 'pending': 'En attente', 'credit': 'Dette',
   };
 
-  return (data ?? []).map((r: any) => ({
+  return rows.map((r: any) => ({
     id:             r.id,
     description:    r.description,
     category:       r.expense_categories?.name ?? '—',
@@ -298,8 +328,12 @@ export async function getExpenses() {
     currency:       r.currency,
     payment_status: STATUS_REVERSE[r.payment_status] ?? r.payment_status,
     payment_method: r.payment_method ?? '',
-    date:           r.expense_date,
-    supplier_id:    r.supplier_id ?? null,
+    date:               r.expense_date,
+    supplier_id:        r.supplier_id ?? null,
+    scope:              (r.scope ?? 'business') as ExpenseScope,
+    business_share_pct: r.business_share_pct === undefined || r.business_share_pct === null
+      ? 100
+      : Number(r.business_share_pct),
   }));
 }
 
