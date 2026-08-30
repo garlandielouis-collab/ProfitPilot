@@ -9,13 +9,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Minus, Plus, Search, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { Minus, Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import { createSaleAction } from '../../app/actions/sales';
+import { createSaleAction, getTodaySalesTotal } from '../../app/actions/sales';
 import { getProductsAction, type Product } from '../../app/actions/products';
 import { useCompany } from '../../hooks/useCompany';
 import { computeMargin } from '../../lib/margin';
 import { newClientRef, queueSale } from '../../lib/offlineQueue';
+import { flagAttention } from '../../lib/pendingAttention';
+import { cn } from '../../lib/utils';
+import {
+  Button, FirstRun, Money, NoResult, PaymentPicker, closestMatch, formatAmount,
+  type PaymentKey,
+} from '../ds';
 
 type PaymentMode = 'Espèces' | 'MonCash' | 'Natcash' | 'Carte' | 'Crédit';
 
@@ -27,13 +34,17 @@ const MODE_TO_DB: Record<PaymentMode, 'Cash' | 'MonCash' | 'Natcash' | 'Card'> =
   'Crédit':  'Cash',
 };
 
-const MODES: Array<{ mode: PaymentMode; emoji: string; className: string }> = [
-  { mode: 'Espèces', emoji: '💵', className: 'bg-[#50C878] text-white' },
-  { mode: 'MonCash', emoji: '📱', className: 'bg-[#e91e8c] text-white' },
-  { mode: 'Natcash', emoji: '📲', className: 'bg-purple-600 text-white' },
-  { mode: 'Carte',   emoji: '💳', className: 'bg-[#0056b3] text-white' },
-  { mode: 'Crédit',  emoji: '⏳', className: 'bg-amber-500 text-white' },
-];
+// Le composant de paiement est unique et partage (3.4) : ces deux tables font
+// le pont entre sa cle et le vocabulaire metier deja utilise ici.
+const PAY_KEY: Record<PaymentMode, PaymentKey> = {
+  'Espèces': 'cash', 'MonCash': 'moncash', 'Natcash': 'natcash',
+  'Carte': 'card', 'Crédit': 'credit',
+};
+const KEY_PAY: Record<PaymentKey, PaymentMode> = {
+  cash: 'Espèces', moncash: 'MonCash', natcash: 'Natcash',
+  card: 'Carte', credit: 'Crédit',
+};
+
 
 const fmt = (n: number, currency: string): string =>
   `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
@@ -48,9 +59,29 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
   const [quantity, setQuantity] = useState(1);
   const [customerName, setCustomerName] = useState('');
   const [submitting, setSubmitting]     = useState(false);
+  // Le paiement se choisit avant de valider : un seul appel a l'action,
+  // au lieu de cinq boutons colores qui validaient chacun (3.4).
+  const [mode, setMode]                 = useState<PaymentMode>('Espèces');
+  // La confirmation dure le temps du moment chorégraphié (7, moment 1),
+  // puis le bouton redevient disponible pour le client suivant.
+  const [confirmed, setConfirmed]       = useState(false);
+  // ── Moment 1 : la vente enregistrée (§7) ────────────────────────────────
+  // « Le bouton se contracte, coche animée, le montant vole vers le total du
+  //   jour qui s'incrémente en comptant. » Le total est celui du serveur : on
+  //   n'anime pas un chiffre inventé, on anime le chiffre réel qui vient de
+  //   changer. C'est la règle du budget d'animation : animer le changement
+  //   d'état, jamais la décoration.
+  const [todayTotal, setTodayTotal]     = useState<number | null>(null);
+  const [flying, setFlying]             = useState<number | null>(null);
 
   const exchangeRate = company?.exchangeRate ?? 1;
   const currency     = company?.defaultCurrency ?? 'HTG';
+
+  useEffect(() => {
+    // Silencieux en cas d'échec : sans total, la ligne ne s'affiche pas — elle
+    // ne montre jamais un zéro qui pourrait passer pour « rien vendu ».
+    getTodaySalesTotal().then((r) => setTodayTotal(r.total)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     getProductsAction()
@@ -86,9 +117,11 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
     setQuantity(1);
     setCustomerName('');
     setSearch('');
+    setMode('Espèces');
   }
 
-  async function submit(mode: PaymentMode) {
+  async function submit(paymentMode: PaymentMode) {
+    const mode = paymentMode;
     if (!selected || !company?.id) return;
     const isCredit = mode === 'Crédit';
 
@@ -128,7 +161,9 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       await queueSale(clientRef, payload);
       window.dispatchEvent(new Event('pp:sale-queued'));
-      toast.success('Vant sere — l ap anrejistre lè entènèt la tounen.');
+      // La créance naîtra au rejeu : l'onglet doit le signaler dès maintenant.
+      if (isCredit) flagAttention('receivables');
+      toast.success('Vente enregistrée sur ce téléphone. Elle partira dès le retour du réseau.');
       reset();
       setSubmitting(false);
       return;
@@ -155,15 +190,28 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
             : p,
         ),
       );
-      reset();
-      onSaved?.();
+      // La confirmation dure le temps du moment (7, moment 1) : la coche se
+      // dessine, le montant vole vers le total du jour, le total s'incrémente,
+      // puis le formulaire se libère pour le client suivant — sans bloquer la
+      // saisie : le marchand peut enchaîner trois clients.
+      // L'effet se produit AILLEURS : une vente à crédit crée une créance sur
+      // un écran que le marchand ne regarde pas. La pastille l'y attend (§3.7).
+      if (isCredit) flagAttention('receivables');
+      setConfirmed(true);
+      setFlying(result.totalAmount);
+      setTimeout(() => {
+        setFlying(null);
+        setTodayTotal((prev) => (prev ?? 0) + result.totalAmount);
+      }, 680);
+      setTimeout(() => { setConfirmed(false); reset(); onSaved?.(); }, 680);
     } catch (err) {
       // Coupure réseau pendant l'appel : même traitement que le cas hors-ligne.
       // Le `client_ref` garantit qu'un rejeu ne créera pas de doublon même si
       // la requête était en fait passée côté serveur.
       await queueSale(clientRef, payload);
       window.dispatchEvent(new Event('pp:sale-queued'));
-      toast.success('Koneksyon koupe — vant la sere pou sinkronizasyon.');
+      if (isCredit) flagAttention('receivables');
+      toast.success('Réseau coupé. La vente est gardée sur ce téléphone et partira toute seule.');
       reset();
       onSaved?.();
     } finally {
@@ -172,159 +220,218 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
   }
 
   // ── Rendu ──────────────────────────────────────────────────────────────────
+  //
+  // Ce que cet écran a perdu par rapport à sa version d'avant :
+  //   · les cinq boutons de paiement en cinq couleurs saturées — émeraude,
+  //     rose, violet, bleu, ambre — remplacés par UN composant décliné, la
+  //     sélection marquée par le contraste (§3.4, §4.2) ;
+  //   · l'en-tête marine décoratif qui volait un tiers de la feuille ;
+  //   · les mentions en 11 px, illisibles en plein soleil (§5.2).
+  //
+  // Et ce qu'il a gagné : un seul appel à l'action, portant les trois états
+  // obligatoires — enfoncé, chargement, confirmation (§3.7). Le marchand ne
+  // peut plus créer une vente en double en appuyant deux fois.
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex items-center gap-3 bg-[#001F3F] px-5 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#50C878]/20">
-          <Zap className="h-5 w-5 text-[#50C878]" />
+    <div className="space-y-6">
+      {/* Le total du jour — la cible du vol. Une ligne, deux valeurs, aucune
+          carte : ce n'est pas un indicateur de plus, c'est le repère de la
+          journée en cours. */}
+      {todayTotal !== null && (
+        <div className="relative flex min-h-touch items-center justify-between gap-4 border-b border-border pb-2 dark:border-dark-border">
+          <span className="text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">
+            Ventes du jour
+          </span>
+          <Money
+            key={todayTotal}
+            value={todayTotal}
+            currency={currency}
+            size="card"
+            className={confirmed ? 'transition-colors duration-move ease-pp' : undefined}
+          />
+          {/* Le montant qui vole : il monte depuis la saisie et se fond dans le
+              total, qui s'incrémente au même instant. 680 ms, interruptible,
+              coupé si « réduire les animations » est activé — la règle vit dans
+              globals.css, un seul endroit pour une seule décision. */}
+          {flying !== null && (
+            <span
+              className="pp-fly amount pointer-events-none absolute right-0 top-full text-card font-bold text-accent"
+              style={{ ['--fly-y' as string]: '-2rem' }}
+              aria-hidden
+            >
+              +{formatAmount(flying, currency)}
+            </span>
+          )}
         </div>
-        <div>
-          <h3 className="text-sm font-bold text-white">Vente rapide</h3>
-          <p className="text-xs text-slate-300">Produit · quantité · paiement</p>
-        </div>
-      </div>
+      )}
 
-      <div className="space-y-4 p-5">
-        {/* Étape 1 — produit */}
-        {!selected && (
-          <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Chercher un produit…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition
-                           focus:border-[#50C878] focus:ring-2 focus:ring-[#50C878]/20
-                           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              />
+      {/* Étape 1 — le produit */}
+      {!selected && (
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" aria-hidden />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Chercher un produit…"
+              aria-label="Chercher un produit"
+              className="min-h-13 w-full rounded-surface border border-border bg-surface pl-12 pr-4 text-body text-primary outline-none placeholder:text-muted focus:border-accent dark:border-dark-border dark:bg-dark-surface2 dark:text-dark-text"
+            />
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-2 gap-2">
+              {[0, 1, 2, 3].map((i) => <span key={i} className="pp-skeleton block h-20 rounded-surface" />)}
             </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-8 text-slate-400">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
-            ) : visible.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-500">
-                Aucun produit. Ajoutez-en un pour vendre en 10 secondes.
-              </p>
+          ) : visible.length === 0 ? (
+            search.trim() ? (
+              <NoResult
+                query={search.trim()}
+                noun="produit"
+                suggestion={closestMatch(search, products.map((p) => p.name))}
+                onUseSuggestion={setSearch}
+                onClear={() => setSearch('')}
+              />
             ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {visible.map((p) => {
-                  const out = p.stock_quantity <= 0;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      disabled={out}
-                      onClick={() => { setSelected(p); setQuantity(1); }}
-                      className={`rounded-xl border p-3 text-left transition active:scale-[0.98] ${
-                        out
-                          ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-50 dark:border-slate-800 dark:bg-slate-900'
-                          : 'border-slate-200 bg-white hover:border-[#50C878] hover:shadow-card dark:border-slate-700 dark:bg-slate-900'
-                      }`}
-                    >
-                      <p className="truncate text-sm font-semibold text-[#001F3F] dark:text-slate-100">
-                        {p.name}
-                      </p>
-                      <p className="mt-0.5 text-sm font-bold text-[#50C878]">
-                        {fmt(p.sale_price, p.currency ?? 'HTG')}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-slate-400">
-                        {out ? 'Rupture' : `Stock : ${p.stock_quantity}`}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
+              <FirstRun
+                title="Aucun produit enregistré"
+                hint="Ajoutez d'abord ce que vous vendez ; la vente prendra ensuite dix secondes."
+                action={
+                  <Link href="/products">
+                    <Button variant="accent" size="lg" block>Ajouter un produit</Button>
+                  </Link>
+                }
+              />
+            )
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {visible.map((p) => {
+                const out = p.stock_quantity <= 0;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={out}
+                    onClick={() => { setSelected(p); setQuantity(1); }}
+                    className={cn(
+                      'pressable flex min-h-13 flex-col justify-center rounded-surface border border-border p-3 text-left',
+                      out ? 'cursor-not-allowed opacity-45' : 'bg-white hover:border-accent dark:bg-dark-surface',
+                    )}
+                  >
+                    <span className="truncate text-body font-bold text-primary dark:text-dark-text">{p.name}</span>
+                    {/* Le prix est une DONNÉE : il est en marine, pas en
+                        émeraude. L'émeraude est réservée à l'action (§6.3). */}
+                    <Money value={p.sale_price} currency={p.currency ?? 'HTG'} size="body" className="mt-1 block font-bold" />
+                    <span className="mt-1 text-note text-muted dark:text-dark-muted">
+                      {out ? 'Rupture de stock' : `${p.stock_quantity} en stock`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Étape 2 — quantité + paiement */}
-        {selected && (
-          <>
-            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-900">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[#001F3F] dark:text-slate-100">
-                  {selected.name}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {fmt(selected.sale_price, selected.currency ?? 'HTG')} · l'unité
-                </p>
-              </div>
+      {/* Étape 2 — quantité, paiement, validation */}
+      {selected && (
+        <div className="space-y-6">
+          {/* Le produit choisi et sa quantité sont LIÉS : ils se touchent. */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <span className="min-w-0">
+                <span className="block truncate text-card font-bold text-primary dark:text-dark-text">{selected.name}</span>
+                <span className="block text-note text-muted dark:text-dark-muted">
+                  {formatAmount(selected.sale_price, selected.currency ?? 'HTG')} l unité
+                </span>
+              </span>
               <button
                 type="button"
                 onClick={reset}
-                className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                className="pressable min-h-touch flex-shrink-0 text-body text-muted underline underline-offset-4 dark:text-dark-muted"
               >
                 Changer
               </button>
             </div>
 
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center gap-6">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:text-slate-300"
+                aria-label="Retirer une unité"
+                className="pressable flex h-13 w-13 items-center justify-center rounded-surface border border-border text-primary dark:border-dark-border dark:text-dark-text"
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-5 w-5" strokeWidth={2} aria-hidden />
               </button>
-              <span className="w-16 text-center text-3xl font-black tabular-nums text-[#001F3F] dark:text-slate-100">
+              <span className="amount w-16 text-center text-amount-lg font-bold text-primary dark:text-dark-text">
                 {quantity}
               </span>
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.min(q + 1, Math.max(selected.stock_quantity, 1)))}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:text-slate-300"
+                aria-label="Ajouter une unité"
+                className="pressable flex h-13 w-13 items-center justify-center rounded-surface border border-border text-primary dark:border-dark-border dark:text-dark-text"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5" strokeWidth={2} aria-hidden />
               </button>
             </div>
+          </div>
 
-            {margin && (
-              <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5 dark:border-emerald-900 dark:bg-emerald-950/30">
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                  Total {fmt(margin.revenue, margin.currency)}
+          {/* Le marchand voit ce qu il gagne AVANT de valider. */}
+          {margin && (
+            <div className="flex items-center justify-between rounded-surface bg-surface px-4 py-3 dark:bg-dark-surface2">
+              <span className="text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">Total</span>
+              <span className="flex items-baseline gap-3">
+                <Money value={margin.revenue} currency={margin.currency} size="card" />
+                <span className="text-note text-muted dark:text-dark-muted">
+                  marge{' '}
+                  <Money
+                    value={margin.netMargin}
+                    currency={margin.currency}
+                    size="note"
+                    tone={margin.isLoss ? 'down' : 'default'}
+                    className="font-bold"
+                  />
                 </span>
-                <span className={`text-xs font-bold ${margin.isLoss ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                  Marge {fmt(margin.netMargin, margin.currency)} ({margin.marginPercent.toFixed(0)}%)
-                </span>
-              </div>
-            )}
+              </span>
+            </div>
+          )}
 
+          <div className="space-y-2">
+            <label htmlFor="pp-customer" className="block text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">
+              Client {mode === 'Crédit' ? '(obligatoire)' : '(facultatif)'}
+            </label>
             <input
+              id="pp-customer"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Nom du client (obligatoire si crédit)"
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition
-                         focus:border-[#50C878] focus:ring-2 focus:ring-[#50C878]/20
-                         dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              placeholder="Nom du client"
+              className="min-h-13 w-full rounded-surface border border-border bg-surface px-4 text-body text-primary outline-none placeholder:text-muted focus:border-accent dark:border-dark-border dark:bg-dark-surface2 dark:text-dark-text"
             />
+          </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {MODES.map(({ mode, emoji, className }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={submitting}
-                  onClick={() => submit(mode)}
-                  className={`flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl text-sm font-bold transition active:scale-[0.97] disabled:opacity-60 ${className}`}
-                >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>{emoji}</span>}
-                  {mode}
-                </button>
-              ))}
-            </div>
+          <div className="space-y-2">
+            <span className="block text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">
+              Paiement
+            </span>
+            <PaymentPicker value={PAY_KEY[mode]} onChange={(k) => setMode(KEY_PAY[k])} />
+          </div>
 
-            <p className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-              <Check className="h-3 w-3" />
-              Un seul geste : la vente, le stock et la marge sont enregistrés
-            </p>
-          </>
-        )}
-      </div>
+          {/* L unique appel à l action de la feuille : les 10 % de la palette
+              tombent exactement ici. Il porte ses trois états (§3.7). */}
+          <Button
+            variant="accent"
+            size="lg"
+            block
+            loading={submitting}
+            confirmed={confirmed}
+            loadingLabel="Enregistrement…"
+            onClick={() => submit(mode)}
+          >
+            {confirmed ? 'Vente enregistrée' : 'Enregistrer la vente'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

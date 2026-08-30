@@ -60,7 +60,7 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl">
+      <div className="relative w-full max-w-3xl overflow-hidden rounded-surface border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2 text-lg font-semibold text-anthracite">
             <Camera className="h-5 w-5" /> {t({ fr: 'Scanner de code-barres', ht: 'Skyane kòd-bar' })}

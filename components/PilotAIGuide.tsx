@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { X, ArrowRight } from 'lucide-react';
+import { X, ArrowRight, Bot } from 'lucide-react';
 import { checkSubscriptionExpired } from '../hooks/useSubscription';
 
 // ── Scripts par page ──────────────────────────────────────────────────────────
@@ -121,10 +121,10 @@ export function PilotAIGuide() {
         transition={{ type: 'spring', damping: 22, stiffness: 320 }}
         className="fixed bottom-20 right-4 z-40 w-[230px] lg:bottom-6 lg:right-6"
       >
-        <div className="rounded-xl border border-white/10 bg-[#001f3f] p-3 shadow-xl">
+        <div className="rounded-xl border border-white/10 bg-primary p-3 shadow-xl">
           <div className="flex items-start gap-2">
-            <span className="text-sm leading-none">🤖</span>
-            <p className="flex-1 text-[13px] leading-5 text-white/85">{guide.text}</p>
+            <Bot className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+            <p className="flex-1 text-note leading-5 text-white/85">{guide.text}</p>
             <button onClick={dismiss} title="Fermer"
               className="-mr-1 -mt-1 rounded p-1 text-white/30 transition hover:text-white/70">
               <X size={12} />
@@ -134,13 +134,13 @@ export function PilotAIGuide() {
           <div className="mt-2 flex items-center justify-between gap-2">
             {guide.action ? (
               <Link href={guide.action.href}
-                className="flex items-center gap-1 text-xs font-semibold text-[#50c878] transition hover:text-[#50c878]/80">
+                className="flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-accent/80">
                 {guide.action.label}
                 <ArrowRight size={12} />
               </Link>
             ) : <span />}
             <button onClick={dismissAll}
-              className="text-[10px] text-white/25 transition hover:text-white/50">
+              className="text-note text-white/25 transition hover:text-white/50">
               Pa montre ankò
             </button>
           </div>

@@ -1,85 +1,216 @@
 'use client';
 
-import { useState } from 'react';
-import { ProtectedRoute } from '../../components/ProtectedRoute';
-import { usePlan } from '../../hooks/usePlan';
-import { useLanguage } from '../../components/LanguageWrapper';
-import Link from 'next/link';
+// ─────────────────────────────────────────────────────────────────────────────
+// L'automatisation — « les rappels qui partent tout seuls »
+//
+// ── Le vrai défaut de cet écran n'était pas son style ───────────────────────
+//
+// Il affichait six interrupteurs branchés sur un `useState` local. Aucun n'était
+// lu par quoi que ce soit ; deux étaient posés sur « actif » à l'ouverture. Un
+// marchand pouvait donc croire, en toute bonne foi, que ses rappels de dettes
+// partaient tout seuls — alors que rien ne partait. Rafraîchir la page remettait
+// les interrupteurs dans leur position d'origine.
+//
+// C'est le contrôle bloquant n°2 de l'audit, sous une autre forme : « aucune
+// donnée fictive ». Un CONTRÔLE fictif est pire qu'un chiffre fictif — le
+// chiffre se vérifie d'un coup d'œil au cahier, la promesse d'un rappel
+// automatique ne se découvre fausse que le jour où le client n'a pas payé.
+//
+// ── Ce qui existe vraiment ──────────────────────────────────────────────────
+//
+// Trois automatismes tournent pour de bon, sur les tâches planifiées déclarées
+// dans `vercel.json` :
+//
+//   · `/api/cron/daily` (11 h) — relance des créances qui arrivent à échéance
+//     ou qui sont dépassées, une par créance et par jour au maximum
+//   · le même cron — alerte sur les produits qui passent sous leur seuil
+//   · `/api/cron/weekly-digest` (dimanche 23 h) — le résumé de la semaine
+//
+// Les trois qui restaient (sauvegarde automatique, facture automatique, alerte
+// de performance) n'avaient ni table, ni tâche planifiée, ni code : ils sont
+// retirés. Un écran d'automatisation ne peut pas être le seul du produit à
+// annoncer ce qu'il ne fait pas.
+//
+// ── Et les interrupteurs, maintenant, commandent ────────────────────────────
+//
+// Les deux premiers écrivent dans `notification_preferences`, que `notify()`
+// consulte avant chaque envoi. Le troisième écrit `businesses.weekly_digest_
+// enabled`, que le cron du dimanche lit déjà — ce réglage existait en base et
+// tournait en production sans qu'aucun écran ne permette de l'éteindre.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const AUTOMATIONS = [
-  { id: 'low_stock',    icon: '📦', title: { fr: 'Alerte stock bas', ht: 'Alèt stock ba' },           desc: { fr: 'Notification quand un produit passe sous le seuil minimum', ht: 'Notifikasyon lè yon pwodwi desann anba sèy minimòm' }, active: true },
-  { id: 'daily_report', icon: '📊', title: { fr: 'Rapport journalier', ht: 'Rapò chak jou' },         desc: { fr: 'Résumé des ventes et dépenses envoyé chaque soir', ht: 'Rezime vant ak depans voye chak aswè' }, active: false },
-  { id: 'credit_alert', icon: '💳', title: { fr: 'Rappel dettes clients', ht: 'Raple dèt kliyan' },   desc: { fr: 'Rappel automatique pour les clients avec solde impayé', ht: 'Rapèl otomatik pou kliyan ki gen balans enpaye' }, active: true },
-  { id: 'backup',       icon: '💾', title: { fr: 'Sauvegarde auto', ht: 'Sovgad otomatik' },          desc: { fr: 'Sauvegarde hebdomadaire de toutes vos données', ht: 'Sovgad chak semèn pou tout done ou yo' }, active: false },
-  { id: 'invoice',      icon: '🧾', title: { fr: 'Facture automatique', ht: 'Fakti otomatik' },        desc: { fr: 'Générer une facture pour chaque vente à crédit', ht: 'Jenere yon fakti pou chak vant a kredi' }, active: false },
-  { id: 'perf_alert',   icon: '🚨', title: { fr: 'Alerte performance', ht: 'Alèt pèfòmans' },         desc: { fr: 'Notification si les ventes chutent de plus de 20%', ht: 'Notifikasyon si vant yo tonbe plis pase 20%' }, active: false },
+import { useEffect, useState } from 'react';
+import { AlertTriangle, HandCoins, MessageCircle, type LucideIcon } from 'lucide-react';
+
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import { PlanGate, PlanLockScreen } from '../../components/PlanLock';
+import { useLanguage } from '../../components/LanguageWrapper';
+import { Card, ScreenHeader, Stack, Switch } from '../../components/ds';
+import {
+  getNotifPreferences,
+  setNotifPreference,
+  getWeeklyDigestEnabled,
+  setWeeklyDigestEnabled,
+} from '../actions/notifications';
+
+type Bilingual = { fr: string; ht: string };
+
+/**
+ * Chaque ligne dit QUAND elle se déclenche. C'est la seule information que le
+ * marchand ne peut pas deviner, et c'est celle qui manquait : « rappel
+ * automatique » ne dit pas si l'on parle du matin même ou de la fin du mois.
+ */
+type Automation = {
+  id:      string;
+  icon:    LucideIcon;
+  title:   Bilingual;
+  what:    Bilingual;
+  when:    Bilingual;
+  /** Le réglage sur lequel l'interrupteur écrit réellement. */
+  storage: { kind: 'notif_pref'; type: string } | { kind: 'weekly_digest' };
+};
+
+const AUTOMATIONS: Automation[] = [
+  {
+    id:    'receivables',
+    icon:  HandCoins,
+    title: { fr: 'Relance des créances',  ht: 'Rapèl kredi' },
+    what:  {
+      fr: 'Un rappel dès qu’une échéance approche, puis tant qu’elle est dépassée — une fois par jour et par client, jamais plus.',
+      ht: 'Yon rapèl depi yon dat ap pwoche, epi toutotan li depase — yon fwa pa jou pa kliyan, pa plis.',
+    },
+    when:  { fr: 'Chaque matin, vers 11 h', ht: 'Chak maten, vè 11 è' },
+    // Le cron quotidien envoie ces relances avec le type `generic`.
+    storage: { kind: 'notif_pref', type: 'generic' },
+  },
+  {
+    id:    'stock',
+    icon:  AlertTriangle,
+    title: { fr: 'Alerte de stock bas',   ht: 'Alèt stòk ba' },
+    what:  {
+      fr: 'Un avis quand un produit passe sous son seuil de réassort, avant que la vente ne soit perdue.',
+      ht: 'Yon avi lè yon pwodwi desann anba sèy li, anvan ou pèdi vant lan.',
+    },
+    when:  { fr: 'Chaque matin, vers 11 h', ht: 'Chak maten, vè 11 è' },
+    storage: { kind: 'notif_pref', type: 'stock_low' },
+  },
+  {
+    id:    'weekly',
+    icon:  MessageCircle,
+    title: { fr: 'Résumé de la semaine',  ht: 'Rezime semèn nan' },
+    what:  {
+      fr: 'Ventes, dépenses et créances de la semaine, mis en forme pour WhatsApp et prêts à envoyer en un appui.',
+      ht: 'Vant, depans ak kredi semèn nan, byen ranje pou WhatsApp, pare pou voye ak yon sèl tap.',
+    },
+    when:  { fr: 'Dimanche soir', ht: 'Dimanch swa' },
+    storage: { kind: 'weekly_digest' },
+  },
 ];
 
-function UpgradeGate({ children }: { children: React.ReactNode }) {
-  const plan = usePlan();
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AutomationInner() {
   const { t } = useLanguage();
-  if (plan.loading) return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-[#001F3F]" /></div>;
-  if (!plan.can('automation')) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20 p-12 text-center">
-        <div className="text-4xl">⚡</div>
-        <h2 className="text-xl font-bold text-[var(--color-text)]">{t({ fr: 'Automatisation', ht: 'Otomatizasyon' })}</h2>
-        <p className="max-w-sm text-sm text-[var(--color-muted)]">{t({ fr: 'Disponible en plan Expert. Automatisez les tâches répétitives et recevez des alertes intelligentes.', ht: 'Disponib nan plan Expert. Otomatize travay repetitif ak resevwa alèt entelijan.' })}</p>
-        <Link href="/pricing" className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-orange-600 transition">{t({ fr: 'Passer Expert', ht: 'Pase Expert' })}</Link>
-      </div>
-    );
+
+  const [states,  setStates]  = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+
+    Promise.all([getNotifPreferences(), getWeeklyDigestEnabled()])
+      .then(([prefs, digest]) => {
+        if (!alive) return;
+        const next: Record<string, boolean> = {};
+        for (const a of AUTOMATIONS) {
+          next[a.id] =
+            a.storage.kind === 'weekly_digest'
+              ? digest
+              // Pas de préférence enregistrée = actif : c'est exactement la
+              // règle qu'applique `notify()`. Deux réponses différentes à la
+              // même question, et l'écran mentirait sur l'état réel.
+              : prefs.find((p) => p.type === (a.storage as { type: string }).type)?.enabled ?? true;
+        }
+        setStates(next);
+      })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoading(false); });
+
+    return () => { alive = false; };
+  }, []);
+
+  async function toggle(auto: Automation, next: boolean) {
+    // L'écran répond au doigt tout de suite ; l'écriture suit (§3.7).
+    setStates((s) => ({ ...s, [auto.id]: next }));
+    try {
+      if (auto.storage.kind === 'weekly_digest') await setWeeklyDigestEnabled(next);
+      else await setNotifPreference(auto.storage.type, next);
+    } catch {
+      // Refusée (droits, réseau) : l'interrupteur revient où il était, sinon
+      // l'écran affirmerait un réglage que la base n'a pas.
+      setStates((s) => ({ ...s, [auto.id]: !next }));
+    }
   }
-  return <>{children}</>;
+
+  const active = AUTOMATIONS.filter((a) => states[a.id]).length;
+
+  return (
+    <div className="pp-enter mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <ScreenHeader
+        title={t({ fr: 'Automatisation', ht: 'Otomatizasyon' })}
+        subtitle={
+          loading
+            ? t({ fr: 'Lecture de vos réglages…', ht: 'Ap li reglaj ou yo…' })
+            : t({
+                fr: `${active} sur ${AUTOMATIONS.length} en marche`,
+                ht: `${active} sou ${AUTOMATIONS.length} k ap mache`,
+              })
+        }
+      />
+
+      <Stack className="mt-6">
+        <PlanGate feature="automation" fallback={<PlanLockScreen feature="automation" />}>
+          <Card className="px-4">
+            <p className="border-b border-border py-4 text-note text-muted dark:border-dark-border dark:text-dark-muted">
+              {t({
+                fr: 'Ces trois tâches partent seules, même application fermée. Rien d’autre ne s’exécute en votre nom.',
+                ht: 'Twa travay sa yo pati poukont yo, menm lè app la fèmen. Anyen lòt pa fèt nan non w.',
+              })}
+            </p>
+
+            <ul className="divide-y divide-border dark:divide-dark-border">
+              {AUTOMATIONS.map((auto) => {
+                const Icon = auto.icon;
+                return (
+                  <li key={auto.id} className="py-3">
+                    <Switch
+                      checked={states[auto.id] ?? true}
+                      disabled={loading}
+                      onChange={(next) => toggle(auto, next)}
+                      label={t(auto.title)}
+                      hint={t(auto.what)}
+                      icon={<Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+                    />
+                    {/* L'heure de passage, alignée sous le libellé : c'est ce
+                        que le marchand vient vérifier. */}
+                    <p className="ml-8 mt-1 text-note font-bold text-muted dark:text-dark-muted">
+                      {t(auto.when)}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        </PlanGate>
+      </Stack>
+    </div>
+  );
 }
 
 export default function AutomationPage() {
-  const { t } = useLanguage();
-  const [states, setStates] = useState<Record<string, boolean>>(
-    Object.fromEntries(AUTOMATIONS.map(a => [a.id, a.active]))
-  );
-
-  const toggle = (id: string) => setStates(s => ({ ...s, [id]: !s[id] }));
-  const activeCount = Object.values(states).filter(Boolean).length;
-
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">{t({ fr: 'Automatisation', ht: 'Otomatizasyon' })}</h1>
-            <p className="mt-1 text-sm text-[var(--color-muted)]">{t({ fr: 'Automatisez les tâches répétitives de votre business', ht: 'Otomatize travay repetitif biznis ou' })}</p>
-          </div>
-          <span className="flex-shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-            {activeCount} {t({ fr: 'active(s)', ht: 'aktif' })}
-          </span>
-        </div>
-
-        <UpgradeGate>
-          <div className="space-y-3">
-            {AUTOMATIONS.map(auto => (
-              <div key={auto.id} className="flex items-center gap-4 rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-5 transition-shadow hover:shadow-sm">
-                <span className="text-2xl">{auto.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-[var(--color-text)]">{t(auto.title)}</p>
-                  <p className="mt-0.5 text-xs text-[var(--color-muted)]">{t(auto.desc)}</p>
-                </div>
-                <button
-                  onClick={() => toggle(auto.id)}
-                  className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none ${states[auto.id] ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                  role="switch"
-                  aria-checked={states[auto.id]}
-                >
-                  <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${states[auto.id] ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-4 text-sm text-blue-700 dark:text-blue-300">
-            💡 {t({ fr: "Les automatisations s'exécutent en arrière-plan. Les notifications sont envoyées par email et dans l'app.", ht: "Otomatizasyon yo kouri an fon. Notifikasyon yo voye pa imèl ak nan app la." })}
-          </div>
-        </UpgradeGate>
-      </div>
+      <AutomationInner />
     </ProtectedRoute>
   );
 }

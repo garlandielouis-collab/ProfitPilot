@@ -12,8 +12,8 @@ function CreditInner() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
       <header className="mb-6 print:hidden">
-        <p className="text-xs uppercase tracking-[0.3em] text-[#001F3F]/70">Rapò</p>
-        <h1 className="mt-1 text-2xl font-black text-[#001F3F] dark:text-slate-100">
+        <p className="text-xs uppercase tracking-[0.3em] text-primary/70">Rapò</p>
+        <h1 className="mt-1 text-2xl font-black text-primary dark:text-slate-100">
           Dosye kredi & mikwofinans
         </h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -27,7 +27,7 @@ function CreditInner() {
               key={m}
               onClick={() => setMonths(m)}
               className={months === m
-                ? 'bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white'
+                ? 'bg-primary px-4 py-2 text-sm font-semibold text-white'
                 : 'bg-white px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50'}
             >
               {m} mwa

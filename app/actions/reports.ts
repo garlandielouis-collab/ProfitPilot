@@ -16,7 +16,12 @@ export type ReportsData = {
   businessAddress?: string;
   businessSector?:  string;
   businessTaxId?:   string;
+  /** Le compte a-t-il une écriture SUR LA PÉRIODE choisie ? */
   hasRealData:   boolean;
+  /** Le compte a-t-il une écriture, toutes périodes confondues ?
+   *  Les deux états vides ne se traitent pas pareil (§5.10) : un compte neuf
+   *  n'a rien à voir avec un exercice sans activité. */
+  hasAnyData:    boolean;
   periodLabel:   string;   // e.g. "T2 2026 — Avr/Jun"
   currency:      'HTG' | 'USD'; // Reporting currency
 
@@ -94,7 +99,7 @@ function emptyEquity(netProfit = 0): EquityStatementData {
 function emptyReports(businessName = 'ProfitPilot', periodLabel = '', currency: 'HTG' | 'USD' = 'HTG'): ReportsData {
   return {
     businessName, businessPhone: '', businessAddress: '', businessSector: '', businessTaxId: '',
-    hasRealData: false, periodLabel, currency,
+    hasRealData: false, hasAnyData: false, periodLabel, currency,
     income: emptyIncome(), balance: emptyBalance(),
     cashflow: emptyCashflow(), equity: emptyEquity(),
     kpi: { caNet: 0, cogs: 0, netProfit: 0, cashTotal: 0 },
@@ -168,6 +173,7 @@ export async function getReportsDataAction(
     { data: prodsRaw },
     { data: creditsRaw },
     { data: accountBalances },
+    { data: everSold },
   ] = await Promise.all([
     supabase.from('businesses').select('name, phone, address, sector, tax_id, exchange_rate, default_currency').eq('id', businessId).maybeSingle(),
 
@@ -206,6 +212,14 @@ export async function getReportsDataAction(
       `)
       .eq('journal_entries.business_id', businessId)
       .eq('journal_entries.status', 'posted'),
+
+    // Une seule ligne suffit : la question n'est pas « combien » mais « y a-t-il
+    // quelque chose ». Elle sépare le compte neuf de l'exercice sans activité.
+    supabase.from('sales')
+      .select('id')
+      .eq('business_id', businessId)
+      .is('deleted_at', null)
+      .limit(1),
   ]);
 
   const biz            = (bizRaw as any);
@@ -252,6 +266,7 @@ export async function getReportsDataAction(
   const accountBalance = (code: string): number => accountMap[code]?.balance ?? 0;
 
   const hasRealData = sales.length > 0 || expenses.length > 0 || purch.length > 0 || (accountBalances ?? []).length > 0;
+  const hasAnyData  = hasRealData || ((everSold ?? []) as any[]).length > 0;
 
   // ── Period sums — converted to reporting currency ────────────────────────────
   const selectedRevenue  = sales.reduce((s: number, r: any) =>
@@ -445,6 +460,7 @@ export async function getReportsDataAction(
     businessSector,
     businessTaxId,
     hasRealData,
+    hasAnyData,
     periodLabel,
     currency: reportCurrency,
     income,

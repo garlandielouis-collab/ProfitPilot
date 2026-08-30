@@ -20,9 +20,9 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-[#E2E8F0] last:border-0">
+    <div className="border-b border-border last:border-0">
       <button onClick={() => setOpen(v => !v)} className="flex w-full items-center justify-between gap-4 py-5 text-left">
-        <span className="font-semibold text-[#001f3f]">{t({ fr: {'ProfitPilot se gratis?': 'ProfitPilot est gratuit?', 'Kijan Pilot AI travay?': 'Comment fonctionne Pilot AI?'}[q] || q, ht: q })}</span>
+        <span className="font-semibold text-primary">{t({ fr: {'ProfitPilot se gratis?': 'ProfitPilot est gratuit?', 'Kijan Pilot AI travay?': 'Comment fonctionne Pilot AI?'}[q] || q, ht: q })}</span>
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown size={18} className="shrink-0 text-slate-400" />
         </motion.div>
@@ -41,25 +41,25 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function FAQPage() {
   const { t } = useLanguage();
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-3xl px-5 py-16 md:px-10">
-        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-[#001f3f] transition">
+        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-primary transition">
           <ArrowLeft size={14} /> Retounen lakay
         </Link>
         <div className="mb-10">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">{t({ fr: 'FAQ', ht: 'Sipò' })}</span>
-          <h1 className="mt-2 text-3xl font-extrabold text-[#001f3f]">{t({ fr: 'Questions fréquentes', ht: 'Kesyon Souvan Poze' })}</h1>
+          <span className="text-xs font-bold uppercase tracking-widest text-accent">{t({ fr: 'FAQ', ht: 'Sipò' })}</span>
+          <h1 className="mt-2 text-3xl font-extrabold text-primary">{t({ fr: 'Questions fréquentes', ht: 'Kesyon Souvan Poze' })}</h1>
           <p className="mt-3 text-slate-500">Tout repon ou bezwen sou ProfitPilot.</p>
         </div>
-        <div className="rounded-2xl border border-[#E2E8F0] bg-white px-6 shadow-sm">
+        <div className="rounded-2xl border border-border bg-white px-6 shadow-sm">
           {FAQS.map((f, i) => <FAQItem key={i} q={f.q} a={f.a} />)}
         </div>
-        <div className="mt-10 rounded-2xl border border-[#50c878]/20 bg-[#50c878]/5 p-6 text-center">
-          <p className="font-semibold text-[#001f3f]">Ou pa jwenn repon ou a?</p>
+        <div className="mt-10 rounded-2xl border border-accent/20 bg-accent/5 p-6 text-center">
+          <p className="font-semibold text-primary">Ou pa jwenn repon ou a?</p>
           <p className="mt-1 text-sm text-slate-500">Kontakte nou dirèkteman.</p>
           <a href="https://wa.me/50935045946" target="_blank" rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#001f3f] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#001f3f]/90 transition">
-            💬 WhatsApp +50935045946
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition">
+            WhatsApp +50935045946
           </a>
         </div>
       </div>

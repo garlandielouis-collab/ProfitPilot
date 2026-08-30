@@ -116,6 +116,7 @@ function ComptabiliteInner() {
   ]);
   const [saving,       setSaving]       = useState(false);
   const [saveMsg,      setSaveMsg]      = useState('');
+  const [saveOk,       setSaveOk]       = useState(false);
 
   // Computed balance
   const totalDebit  = lines.reduce((s, l) => s + (Number(l.debit)  || 0), 0);
@@ -277,10 +278,10 @@ function ComptabiliteInner() {
 
   // ── Save entry ───────────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!entryDesc.trim()) { setSaveMsg('Deskripsyon obligatwa.'); return; }
-    if (!balanced) { setSaveMsg(`⚠️ Ekriti pa ekilibre! Diferans: ${fmtHTG(diff)} HTG`); return; }
+    if (!entryDesc.trim()) { setSaveOk(false); setSaveMsg('Deskripsyon obligatwa.'); return; }
+    if (!balanced) { setSaveOk(false); setSaveMsg(`Ekriti pa ekilibre. Diferans: ${fmtHTG(diff)} HTG`); return; }
     const validLines = lines.filter(l => l.account_code && (l.debit > 0 || l.credit > 0));
-    if (validLines.length < 2) { setSaveMsg('Bezwen omwen 2 liy.'); return; }
+    if (validLines.length < 2) { setSaveOk(false); setSaveMsg('Bezwen omwen 2 liy.'); return; }
     setSaving(true); setSaveMsg('');
     try {
       await createJournalEntry({
@@ -290,7 +291,7 @@ function ComptabiliteInner() {
         currency: 'HTG',
         lines: validLines,
       });
-      setSaveMsg('✓ Ekriti anrejistre avèk siksè!');
+      setSaveOk(true); setSaveMsg('Ekriti anrejistre.');
       setEntryDesc(''); setAiSuggestion(null);
       setLines([
         { account_code: '', description: '', debit: 0, credit: 0 },
@@ -298,21 +299,21 @@ function ComptabiliteInner() {
       ]);
       await loadJournal();
     } catch (e: any) {
-      setSaveMsg('Erè: ' + e.message);
+      setSaveOk(false); setSaveMsg('Erè: ' + e.message);
     }
     setSaving(false);
   }
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-5">
 
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#12B981]">{t({ fr: 'Comptabilité', ht: 'Kontabilite' })}</p>
-            <h1 className="text-2xl font-bold text-[#0F172A] mt-1">{t({ fr: 'Journal Général & Comptabilité', ht: 'Jeneral Jounal & Kontabilite' })}</h1>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-accent">{t({ fr: 'Comptabilité', ht: 'Kontabilite' })}</p>
+            <h1 className="text-2xl font-bold text-anthracite mt-1">{t({ fr: 'Journal Général & Comptabilité', ht: 'Jeneral Jounal & Kontabilite' })}</h1>
             <p className="text-sm text-slate-500 mt-0.5">{t({ fr: 'Double entrée · Grand Livre · Balance de vérification', ht: 'Doub antre · Gran Liv · Balans verifyasyon' })}</p>
           </div>
 
@@ -321,7 +322,7 @@ function ComptabiliteInner() {
             <button
               onClick={handleBackfill}
               disabled={backfilling}
-              className="inline-flex items-center gap-2 rounded-2xl border border-[#12B981]/30 bg-[#12B981]/10 px-5 py-2.5 text-sm font-semibold text-[#12B981] hover:bg-[#12B981]/20 transition disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-5 py-2.5 text-sm font-semibold text-accent hover:bg-accent/20 transition disabled:opacity-50"
             >
               {backfilling
                 ? <><RefreshCw size={14} className="animate-spin" /> Backfill en cours…</>
@@ -335,7 +336,7 @@ function ComptabiliteInner() {
             >
               {cleaning
                 ? <><RefreshCw size={14} className="animate-spin" /> Netwayaj…</>
-                : <>🗑️ Netwaye doublon</>
+                : <><Trash2 size={14} /> Netwaye doublon</>
               }
             </button>
             {cleanMsg && (
@@ -353,7 +354,7 @@ function ComptabiliteInner() {
                 <div className="flex items-start gap-2">
                   <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
                   <div>
-                    <p className="font-semibold text-[#0F172A]">
+                    <p className="font-semibold text-anthracite">
                       {failures.length} tranzaksyon pa kontabilize
                     </p>
                     <p className="text-xs text-amber-700">
@@ -388,15 +389,15 @@ function ComptabiliteInner() {
         <AnimatePresence>
           {backfillResult && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="rounded-2xl border border-[#12B981]/20 bg-[#12B981]/5 p-4">
+              className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Check size={16} className="text-[#12B981]" />
-                <p className="font-semibold text-[#0F172A]">Backfill terminé</p>
+                <Check size={16} className="text-accent" />
+                <p className="font-semibold text-anthracite">Backfill terminé</p>
               </div>
               <div className="flex flex-wrap gap-4 text-sm">
-                <span className="text-emerald-700">✓ {backfillResult.sales} ventes kontabilizé</span>
-                <span className="text-blue-700">✓ {backfillResult.purchases} achats kontabilizé</span>
-                <span className="text-amber-700">✓ {backfillResult.expenses} dépenses kontabilizé</span>
+                <span className="text-emerald-700">{backfillResult.sales} ventes kontabilizé</span>
+                <span className="text-blue-700">{backfillResult.purchases} achats kontabilizé</span>
+                <span className="text-amber-700">{backfillResult.expenses} dépenses kontabilizé</span>
               </div>
               {backfillResult.errors.length > 0 && (
                 <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-3">
@@ -411,16 +412,16 @@ function ComptabiliteInner() {
         </AnimatePresence>
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-1 rounded-2xl bg-white border border-[#E2E8F0] p-1.5 shadow-sm">
+        <div className="flex flex-wrap gap-1 rounded-2xl bg-white border border-border p-1.5 shadow-sm">
           {[
-            { id: 'journal', label: '📖 Journal' },
-            { id: 'ledger',  label: '📒 Grand Livre' },
-            { id: 'balance', label: '⚖️ Balance' },
-            { id: 'bilan',   label: '🏦 Bilan / Résultat' },
-            { id: 'saisie',  label: '✍️ Nouvelle Écriture' },
+            { id: 'journal', label: 'Journal' },
+            { id: 'ledger',  label: 'Grand livre' },
+            { id: 'balance', label: 'Balance' },
+            { id: 'bilan',   label: 'Bilan et résultat' },
+            { id: 'saisie',  label: 'Nouvelle écriture' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === t.id ? 'bg-[#0F172A] text-white shadow' : 'text-slate-500 hover:text-[#0F172A]'}`}>
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === t.id ? 'bg-anthracite text-white shadow' : 'text-slate-500 hover:text-anthracite'}`}>
               {t.label}
             </button>
           ))}
@@ -428,13 +429,13 @@ function ComptabiliteInner() {
 
         {/* ── JOURNAL TAB ── */}
         {tab === 'journal' && (
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4">
+          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h2 className="font-semibold text-[#0F172A]">Journal Général</h2>
+                <h2 className="font-semibold text-anthracite">Journal Général</h2>
                 <p className="text-xs text-slate-400 mt-0.5">{entries.length} écriture(s)</p>
               </div>
-              <button onClick={loadJournal} className="rounded-xl border border-[#E2E8F0] p-2 hover:bg-slate-50 transition">
+              <button onClick={loadJournal} className="rounded-xl border border-border p-2 hover:bg-slate-50 transition">
                 <RefreshCw size={14} className={`text-slate-400 ${entriesLoad ? 'animate-spin' : ''}`} />
               </button>
             </div>
@@ -448,7 +449,7 @@ function ComptabiliteInner() {
                 <p className="text-sm text-slate-300 mt-1">Klike "Kontabilize tranzaksyon existants" pou kòmanse</p>
               </div>
             ) : (
-              <div className="divide-y divide-[#F1F5F9]">
+              <div className="divide-y divide-surface2">
                 {entries.map(entry => {
                   const isVoided = entry.status === 'void';
                   const isReversal = entry.description?.startsWith('ANNULATION');
@@ -458,7 +459,7 @@ function ComptabiliteInner() {
                       onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
                       className={`w-full flex items-center gap-4 px-5 py-4 text-left transition ${isVoided ? 'hover:bg-red-50' : 'hover:bg-slate-50'}`}
                     >
-                      <div className={`shrink-0 rounded-xl px-2 py-1 text-[10px] font-bold ${
+                      <div className={`shrink-0 rounded-xl px-2 py-1 text-note font-bold ${
                         isVoided ? 'bg-red-100 text-red-500 line-through' :
                         isReversal ? 'bg-red-100 text-red-700' :
                         entry.reference_type === 'sale' ? 'bg-emerald-100 text-emerald-700' :
@@ -473,16 +474,16 @@ function ComptabiliteInner() {
                          entry.reference_type === 'expense' ? 'DEPANS' : 'MANUEL'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${isVoided ? 'text-red-400 line-through' : 'text-[#0F172A]'}`}>
+                        <p className={`text-sm font-semibold truncate ${isVoided ? 'text-red-400 line-through' : 'text-anthracite'}`}>
                           {entry.description?.replace('[Backfill] ', '')}
-                          {isVoided && <span className="ml-2 text-[10px] font-normal text-red-400 no-underline">(annulée)</span>}
+                          {isVoided && <span className="ml-2 text-note font-normal text-red-400 no-underline">(annulée)</span>}
                         </p>
                         <p className="text-xs text-slate-400">{entry.entry_number} · {fmtDate(entry.entry_date)}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${isVoided ? 'text-red-300 line-through' : 'text-[#0F172A]'}`}>{fmtHTG(entry.total_debit_base ?? entry.total_debit)} HTG</p>
-                        <p className={`text-[10px] font-semibold ${Math.abs(entry.total_debit - entry.total_credit) < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {Math.abs(entry.total_debit - entry.total_credit) < 0.01 ? '✓ Équilibré' : '⚠ Déséquilibré'}
+                        <p className={`text-sm font-bold ${isVoided ? 'text-red-300 line-through' : 'text-anthracite'}`}>{fmtHTG(entry.total_debit_base ?? entry.total_debit)} HTG</p>
+                        <p className={`text-note font-semibold ${Math.abs(entry.total_debit - entry.total_credit) < 0.01 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {Math.abs(entry.total_debit - entry.total_credit) < 0.01 ? 'Équilibré' : 'Déséquilibré'}
                         </p>
                       </div>
                       {expandedId === entry.id ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />}
@@ -491,7 +492,7 @@ function ComptabiliteInner() {
                     <AnimatePresence>
                       {expandedId === entry.id && (
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                          <div className="border-t border-[#F1F5F9] bg-slate-50 px-5 pb-4 pt-3">
+                          <div className="border-t border-surface2 bg-slate-50 px-5 pb-4 pt-3">
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="text-slate-400 uppercase tracking-wider">
@@ -505,12 +506,12 @@ function ComptabiliteInner() {
                                 {(entry.journal_entry_lines ?? []).map((line: any) => (
                                     <tr key={line.id}>
                                       <td className="py-1.5">
-                                        <span className="font-mono font-semibold text-[#0F172A]">
+                                        <span className="font-mono font-semibold text-anthracite">
                                           {(line.chart_of_accounts as any)?.code ?? '—'}
                                         </span>
                                         <span className="ml-2 text-slate-500">{(line.chart_of_accounts as any)?.name ?? '—'}</span>
                                         {(line.chart_of_accounts as any)?.account_class && (
-                                          <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${CLASS_COLOR[(line.chart_of_accounts as any).account_class as string] ?? 'bg-slate-100 text-slate-600'}`}>
+                                          <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-note font-bold ${CLASS_COLOR[(line.chart_of_accounts as any).account_class as string] ?? 'bg-slate-100 text-slate-600'}`}>
                                             {(line.chart_of_accounts as any).account_class === 'Asset' ? 'ACTIF' :
                                              (line.chart_of_accounts as any).account_class === 'Liability' ? 'PASSIF' :
                                              (line.chart_of_accounts as any).account_class === 'Equity' ? 'CAP.' :
@@ -544,10 +545,10 @@ function ComptabiliteInner() {
 
         {/* ── BALANCE TAB ── */}
         {tab === 'balance' && (
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4">
+          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h2 className="font-semibold text-[#0F172A]">Balance de Vérification</h2>
+                <h2 className="font-semibold text-anthracite">Balance de Vérification</h2>
                 <p className="text-xs text-slate-400 mt-0.5">Total Débits doit égaler Total Crédits</p>
               </div>
               {trialBalance && (
@@ -561,7 +562,7 @@ function ComptabiliteInner() {
               <div className="p-8 text-center text-slate-400 text-sm">Calcul en cours…</div>
             ) : !trialBalance ? (
               <div className="p-8 text-center">
-                <button onClick={loadBalance} className="rounded-xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0F172A]/90 transition">
+                <button onClick={loadBalance} className="rounded-xl bg-anthracite px-5 py-2.5 text-sm font-semibold text-white hover:bg-anthracite/90 transition">
                   Calculer la Balance
                 </button>
               </div>
@@ -569,7 +570,7 @@ function ComptabiliteInner() {
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+                    <thead className="bg-slate-50 text-note uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="px-5 py-3 text-left">Code</th>
                         <th className="px-5 py-3 text-left">Compte</th>
@@ -579,32 +580,32 @@ function ComptabiliteInner() {
                         <th className="px-5 py-3 text-right">Solde</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#F1F5F9]">
+                    <tbody className="divide-y divide-surface2">
                       {trialBalance.rows.map((row: any) => (
                         <tr key={row.code} className="hover:bg-slate-50 transition">
-                          <td className="px-5 py-3 font-mono text-xs font-semibold text-[#0F172A]">{row.code}</td>
-                          <td className="px-5 py-3 text-[#0F172A]">{row.name}</td>
+                          <td className="px-5 py-3 font-mono text-xs font-semibold text-anthracite">{row.code}</td>
+                          <td className="px-5 py-3 text-anthracite">{row.name}</td>
                           <td className="px-5 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${CLASS_COLOR[row.class] ?? 'bg-slate-100 text-slate-600'}`}>
+                            <span className={`rounded-full px-2 py-0.5 text-note font-semibold ${CLASS_COLOR[row.class] ?? 'bg-slate-100 text-slate-600'}`}>
                               {row.class}
                             </span>
                           </td>
                           <td className="px-5 py-3 text-right font-semibold text-blue-700">{fmtHTG(row.debit)}</td>
                           <td className="px-5 py-3 text-right font-semibold text-emerald-700">{fmtHTG(row.credit)}</td>
-                          <td className={`px-5 py-3 text-right font-bold ${row.debit - row.credit >= 0 ? 'text-[#0F172A]' : 'text-red-600'}`}>
+                          <td className={`px-5 py-3 text-right font-bold ${row.debit - row.credit >= 0 ? 'text-anthracite' : 'text-red-600'}`}>
                             {fmtHTG(Math.abs(row.debit - row.credit))}
-                            <span className="ml-1 text-[10px] font-normal text-slate-400">{row.debit >= row.credit ? 'D' : 'C'}</span>
+                            <span className="ml-1 text-note font-normal text-slate-400">{row.debit >= row.credit ? 'D' : 'C'}</span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t-2 border-[#0F172A] bg-slate-50">
+                    <tfoot className="border-t-2 border-anthracite bg-slate-50">
                       <tr>
-                        <td colSpan={3} className="px-5 py-3 font-bold text-[#0F172A]">TOTAUX</td>
+                        <td colSpan={3} className="px-5 py-3 font-bold text-anthracite">TOTAUX</td>
                         <td className="px-5 py-3 text-right font-bold text-blue-700">{fmtHTG(trialBalance.totalDebit)}</td>
                         <td className="px-5 py-3 text-right font-bold text-emerald-700">{fmtHTG(trialBalance.totalCredit)}</td>
                         <td className={`px-5 py-3 text-right font-bold text-lg ${trialBalance.balanced ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {trialBalance.balanced ? '✓ 0.00' : fmtHTG(Math.abs(trialBalance.totalDebit - trialBalance.totalCredit))}
+                          {trialBalance.balanced ? '0.00' : fmtHTG(Math.abs(trialBalance.totalDebit - trialBalance.totalCredit))}
                         </td>
                       </tr>
                     </tfoot>
@@ -620,10 +621,10 @@ function ComptabiliteInner() {
           <div className="grid gap-4 lg:grid-cols-4">
             {/* Account list */}
             <div className="lg:col-span-1">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-sm overflow-hidden">
-                <div className="border-b border-[#E2E8F0] px-4 py-3 flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[#0F172A]">Comptes</p>
-                  <button onClick={loadLedger} className="text-slate-400 hover:text-[#0F172A] transition">
+              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-border px-4 py-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-anthracite">Comptes</p>
+                  <button onClick={loadLedger} className="text-slate-400 hover:text-anthracite transition">
                     <RefreshCw size={13} className={ledgerLoad ? 'animate-spin' : ''} />
                   </button>
                 </div>
@@ -632,15 +633,15 @@ function ComptabiliteInner() {
                 ) : ledgerData.length === 0 ? (
                   <div className="p-4 text-center text-xs text-slate-400">Aucun compte</div>
                 ) : (
-                  <div className="max-h-[600px] overflow-y-auto divide-y divide-[#F1F5F9]">
+                  <div className="max-h-[600px] overflow-y-auto divide-y divide-surface2">
                     {ledgerData.map(acct => {
                       const total = acct.lines.reduce((s: number, l: any) => s + l.debit - l.credit, 0);
                       return (
                         <button key={acct.code} onClick={() => setSelectedAcct(acct.code)}
-                          className={`w-full px-3 py-2.5 text-left transition ${selectedAcct === acct.code ? 'bg-[#0F172A] text-white' : 'hover:bg-slate-50'}`}>
+                          className={`w-full px-3 py-2.5 text-left transition ${selectedAcct === acct.code ? 'bg-anthracite text-white' : 'hover:bg-slate-50'}`}>
                           <div className="flex items-center justify-between gap-2">
-                            <span className={`font-mono text-[10px] font-bold ${selectedAcct === acct.code ? 'text-[#12B981]' : 'text-slate-400'}`}>{acct.code}</span>
-                            <span className={`text-[10px] font-bold ${total >= 0 ? (selectedAcct === acct.code ? 'text-blue-300' : 'text-blue-600') : (selectedAcct === acct.code ? 'text-red-300' : 'text-red-600')}`}>
+                            <span className={`font-mono text-note font-bold ${selectedAcct === acct.code ? 'text-accent' : 'text-slate-400'}`}>{acct.code}</span>
+                            <span className={`text-note font-bold ${total >= 0 ? (selectedAcct === acct.code ? 'text-blue-300' : 'text-blue-600') : (selectedAcct === acct.code ? 'text-red-300' : 'text-red-600')}`}>
                               {fmtHTG(Math.abs(total))}
                             </span>
                           </div>
@@ -655,7 +656,7 @@ function ComptabiliteInner() {
 
             {/* Account detail */}
             <div className="lg:col-span-3">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
                 {!selectedAcct ? (
                   <div className="p-12 text-center text-slate-400 text-sm">Chwazi yon kont pou wè Grand Liv li</div>
                 ) : (() => {
@@ -664,16 +665,16 @@ function ComptabiliteInner() {
                   let running = 0;
                   return (
                     <>
-                      <div className="border-b border-[#E2E8F0] px-5 py-4 flex items-center justify-between">
+                      <div className="border-b border-border px-5 py-4 flex items-center justify-between">
                         <div>
                           <p className="text-xs font-mono text-slate-400">{acct.code}</p>
-                          <h3 className="font-bold text-[#0F172A]">{acct.name}</h3>
+                          <h3 className="font-bold text-anthracite">{acct.name}</h3>
                         </div>
                         <span className={`rounded-xl px-3 py-1 text-xs font-bold ${CLASS_COLOR[acct.class] ?? 'bg-slate-100 text-slate-600'}`}>{acct.class}</span>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                          <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+                          <thead className="bg-slate-50 text-note uppercase tracking-wider text-slate-500">
                             <tr>
                               <th className="px-4 py-3 text-left">Date</th>
                               <th className="px-4 py-3 text-left">Référence</th>
@@ -683,29 +684,29 @@ function ComptabiliteInner() {
                               <th className="px-4 py-3 text-right">Solde</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#F1F5F9]">
+                          <tbody className="divide-y divide-surface2">
                             {acct.lines.map((l: any, i: number) => {
                               running += l.debit - l.credit;
                               return (
                                 <tr key={i} className="hover:bg-slate-50 transition">
                                   <td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(l.date)}</td>
-                                  <td className="px-4 py-2.5 font-mono text-[10px] text-slate-400 whitespace-nowrap">{l.ref}</td>
-                                  <td className="px-4 py-2.5 text-[#0F172A] text-xs max-w-[200px] truncate">{l.description}</td>
+                                  <td className="px-4 py-2.5 font-mono text-note text-slate-400 whitespace-nowrap">{l.ref}</td>
+                                  <td className="px-4 py-2.5 text-anthracite text-xs max-w-[200px] truncate">{l.description}</td>
                                   <td className="px-4 py-2.5 text-right font-semibold text-blue-700 text-xs">{l.debit > 0 ? fmtHTG(l.debit) : '—'}</td>
                                   <td className="px-4 py-2.5 text-right font-semibold text-emerald-700 text-xs">{l.credit > 0 ? fmtHTG(l.credit) : '—'}</td>
-                                  <td className={`px-4 py-2.5 text-right font-bold text-xs ${running >= 0 ? 'text-[#0F172A]' : 'text-red-600'}`}>
-                                    {fmtHTG(Math.abs(running))} <span className="text-[9px] text-slate-400">{running >= 0 ? 'D' : 'C'}</span>
+                                  <td className={`px-4 py-2.5 text-right font-bold text-xs ${running >= 0 ? 'text-anthracite' : 'text-red-600'}`}>
+                                    {fmtHTG(Math.abs(running))} <span className="text-note text-slate-400">{running >= 0 ? 'D' : 'C'}</span>
                                   </td>
                                 </tr>
                               );
                             })}
                           </tbody>
-                          <tfoot className="border-t-2 border-[#0F172A] bg-slate-50">
+                          <tfoot className="border-t-2 border-anthracite bg-slate-50">
                             <tr>
-                              <td colSpan={3} className="px-4 py-3 font-bold text-[#0F172A] text-xs">TOTAL</td>
+                              <td colSpan={3} className="px-4 py-3 font-bold text-anthracite text-xs">TOTAL</td>
                               <td className="px-4 py-3 text-right font-bold text-blue-700 text-xs">{fmtHTG(acct.lines.reduce((s: number, l: any) => s + l.debit, 0))}</td>
                               <td className="px-4 py-3 text-right font-bold text-emerald-700 text-xs">{fmtHTG(acct.lines.reduce((s: number, l: any) => s + l.credit, 0))}</td>
-                              <td className="px-4 py-3 text-right font-bold text-[#0F172A] text-xs">{fmtHTG(Math.abs(running))} <span className="text-[9px] text-slate-400">{running >= 0 ? 'D' : 'C'}</span></td>
+                              <td className="px-4 py-3 text-right font-bold text-anthracite text-xs">{fmtHTG(Math.abs(running))} <span className="text-note text-slate-400">{running >= 0 ? 'D' : 'C'}</span></td>
                             </tr>
                           </tfoot>
                         </table>
@@ -723,26 +724,26 @@ function ComptabiliteInner() {
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-500">Données basées sur les écritures du Journal Général</p>
-              <button onClick={loadBilan} className="inline-flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition">
+              <button onClick={loadBilan} className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition">
                 <RefreshCw size={13} className={bilanLoad ? 'animate-spin' : ''} /> Actualiser
               </button>
             </div>
 
             {bilanLoad ? (
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-12 text-center text-slate-400">Calcul en cours…</div>
+              <div className="rounded-2xl border border-border bg-white p-12 text-center text-slate-400">Calcul en cours…</div>
             ) : !balanceSheet ? (
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-12 text-center">
-                <button onClick={loadBilan} className="rounded-xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition">Calculer les états financiers</button>
+              <div className="rounded-2xl border border-border bg-white p-12 text-center">
+                <button onClick={loadBilan} className="rounded-xl bg-anthracite px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition">Calculer les états financiers</button>
               </div>
             ) : (
               <div className="grid gap-5 lg:grid-cols-2">
                 {/* BILAN */}
-                <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-sm overflow-hidden">
-                  <div className="bg-[#0F172A] px-5 py-4">
+                <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                  <div className="bg-anthracite px-5 py-4">
                     <h3 className="font-bold text-white">Bilan</h3>
                     <p className="text-xs text-white/50 mt-0.5">Au {new Date().toLocaleDateString('fr-FR')}</p>
                   </div>
-                  <div className="divide-y divide-[#F1F5F9]">
+                  <div className="divide-y divide-surface2">
                     {/* ACTIFS */}
                     <div className="px-5 py-3 bg-blue-50">
                       <p className="text-xs font-bold uppercase tracking-widest text-blue-700">ACTIFS</p>
@@ -750,7 +751,7 @@ function ComptabiliteInner() {
                     {Object.entries(balanceSheet.assets).map(([name, val]: any) => (
                       <div key={name} className="flex items-center justify-between px-5 py-2.5">
                         <span className="text-sm text-slate-600">{name}</span>
-                        <span className="font-semibold text-[#0F172A] text-sm">{fmtHTG(val)} HTG</span>
+                        <span className="font-semibold text-anthracite text-sm">{fmtHTG(val)} HTG</span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between px-5 py-3 bg-blue-50">
@@ -764,7 +765,7 @@ function ComptabiliteInner() {
                     {Object.entries(balanceSheet.liabilities).map(([name, val]: any) => (
                       <div key={name} className="flex items-center justify-between px-5 py-2.5">
                         <span className="text-sm text-slate-600">{name}</span>
-                        <span className="font-semibold text-[#0F172A] text-sm">{fmtHTG(val)} HTG</span>
+                        <span className="font-semibold text-anthracite text-sm">{fmtHTG(val)} HTG</span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between px-5 py-3 bg-red-50">
@@ -778,7 +779,7 @@ function ComptabiliteInner() {
                     {Object.entries(balanceSheet.equity).map(([name, val]: any) => (
                       <div key={name} className="flex items-center justify-between px-5 py-2.5">
                         <span className="text-sm text-slate-600">{name}</span>
-                        <span className="font-semibold text-[#0F172A] text-sm">{fmtHTG(val)} HTG</span>
+                        <span className="font-semibold text-anthracite text-sm">{fmtHTG(val)} HTG</span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between px-5 py-3 bg-purple-50">
@@ -788,7 +789,7 @@ function ComptabiliteInner() {
                     {/* EQUATION */}
                     <div className={`flex items-center justify-between px-5 py-4 ${balanceSheet.balanced ? 'bg-emerald-50' : 'bg-red-50'}`}>
                       <span className={`text-sm font-bold ${balanceSheet.balanced ? 'text-emerald-700' : 'text-red-700'}`}>
-                        {balanceSheet.balanced ? '✓ Bilan équilibré (A = P + CP)' : '⚠ Bilan déséquilibré!'}
+                        {balanceSheet.balanced ? 'Bilan équilibré (A = P + CP)' : 'Bilan déséquilibré'}
                       </span>
                       <span className={`font-black ${balanceSheet.balanced ? 'text-emerald-700' : 'text-red-700'}`}>
                         {fmtHTG(balanceSheet.totalAssets)} = {fmtHTG(balanceSheet.totalLiabilities + balanceSheet.totalEquity)}
@@ -799,12 +800,12 @@ function ComptabiliteInner() {
 
                 {/* COMPTE DE RÉSULTAT */}
                 {incomeStmt && (
-                  <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-sm overflow-hidden">
-                    <div className="bg-[#0F172A] px-5 py-4">
+                  <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                    <div className="bg-anthracite px-5 py-4">
                       <h3 className="font-bold text-white">Compte de Résultat</h3>
                       <p className="text-xs text-white/50 mt-0.5">Exercice {new Date().getFullYear()}</p>
                     </div>
-                    <div className="divide-y divide-[#F1F5F9]">
+                    <div className="divide-y divide-surface2">
                       <div className="px-5 py-3 bg-emerald-50">
                         <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">REVENUS</p>
                       </div>
@@ -833,7 +834,7 @@ function ComptabiliteInner() {
                       </div>
                       <div className={`flex items-center justify-between px-5 py-5 ${incomeStmt.netIncome >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
                         <span className={`text-lg font-black ${incomeStmt.netIncome >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {incomeStmt.netIncome >= 0 ? '✓ BÉNÉFICE NET' : '✗ PERTE NETTE'}
+                          {incomeStmt.netIncome >= 0 ? 'BÉNÉFICE NET' : 'PERTE NETTE'}
                         </span>
                         <span className={`text-xl font-black ${incomeStmt.netIncome >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                           {fmtHTG(Math.abs(incomeStmt.netIncome))} HTG
@@ -852,12 +853,14 @@ function ComptabiliteInner() {
           <div className="grid gap-5 lg:grid-cols-3">
             {/* Left: Pilot AI assistant */}
             <div className="lg:col-span-1 space-y-4">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F172A] to-[#12B981] text-base">🤖</div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--color-surface2)] text-muted">
+                    <Sparkles size={16} strokeWidth={1.8} aria-hidden />
+                  </div>
                   <div>
-                    <p className="text-sm font-bold text-[#0F172A]">Pilot AI Comptable</p>
-                    <p className="text-[10px] text-slate-400">Klasifikasyon otomatik</p>
+                    <p className="text-sm font-bold text-anthracite">Pilot AI Comptable</p>
+                    <p className="text-note text-slate-400">Klasifikasyon otomatik</p>
                   </div>
                 </div>
 
@@ -868,7 +871,7 @@ function ComptabiliteInner() {
                     onChange={e => handleDescChange(e.target.value)}
                     placeholder="ex: Vente comptant Marie Joseph 5000 HTG&#10;ex: Paiement salaire janvier&#10;ex: Achat stock fournisseur ABC"
                     rows={4}
-                    className="w-full rounded-xl border border-[#E2E8F0] bg-slate-50 px-4 py-3 text-sm resize-none outline-none focus:border-[#12B981] focus:bg-white transition"
+                    className="w-full rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm resize-none outline-none focus:border-accent focus:bg-white transition"
                   />
                 </div>
 
@@ -882,8 +885,8 @@ function ComptabiliteInner() {
                       }`}>
                       <div className="flex items-center gap-2 mb-2">
                         <Sparkles size={12} className={aiSuggestion.confidence === 'high' ? 'text-emerald-600' : 'text-amber-600'} />
-                        <p className="text-xs font-bold text-[#0F172A]">Suggestion Pilot AI</p>
-                        <span className={`ml-auto rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                        <p className="text-xs font-bold text-anthracite">Suggestion Pilot AI</p>
+                        <span className={`ml-auto rounded-full px-2 py-0.5 text-note font-bold ${
                           aiSuggestion.confidence === 'high' ? 'bg-emerald-100 text-emerald-700' :
                           aiSuggestion.confidence === 'medium' ? 'bg-amber-100 text-amber-700' :
                           'bg-red-100 text-red-700'
@@ -905,9 +908,9 @@ function ComptabiliteInner() {
                           </span>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-500 mb-3 italic">{t({ fr: aiSuggestion.label, ht: aiSuggestion.label_ht })}</p>
+                      <p className="text-note text-slate-500 mb-3 italic">{t({ fr: aiSuggestion.label, ht: aiSuggestion.label_ht })}</p>
                       <button onClick={applyAISuggestion}
-                        className="w-full rounded-lg bg-[#0F172A] py-2 text-xs font-semibold text-white hover:bg-[#0F172A]/90 transition">
+                        className="w-full rounded-lg bg-anthracite py-2 text-xs font-semibold text-white hover:bg-anthracite/90 transition">
                         Aplike sujestyon sa a →
                       </button>
                     </motion.div>
@@ -919,18 +922,18 @@ function ComptabiliteInner() {
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5">
                       {balanced
-                        ? <><Check size={12} className="text-emerald-600" /><span className="font-bold text-emerald-700">Ekilibre ✓</span></>
+                        ? <><Check size={12} className="text-emerald-600" /><span className="font-bold text-emerald-700">Ekilibre</span></>
                         : <><AlertTriangle size={12} className="text-red-600" /><span className="font-bold text-red-700">Pa ekilibre!</span></>
                       }
                     </div>
                     {!balanced && (
                       <button onClick={autoBalance}
-                        className="rounded-lg bg-red-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-red-700 transition">
+                        className="rounded-lg bg-red-600 px-2 py-1 text-note font-bold text-white hover:bg-red-700 transition">
                         Auto-équilibrer
                       </button>
                     )}
                   </div>
-                  <div className="mt-2 flex justify-between text-[10px] text-slate-500">
+                  <div className="mt-2 flex justify-between text-note text-slate-500">
                     <span>Débit: <strong className="text-blue-700">{fmtHTG(totalDebit)}</strong></span>
                     <span>Crédit: <strong className="text-emerald-700">{fmtHTG(totalCredit)}</strong></span>
                     {!balanced && <span className="text-red-600 font-bold">Diff: {fmtHTG(diff)}</span>}
@@ -939,7 +942,7 @@ function ComptabiliteInner() {
               </div>
 
               {/* Rules card */}
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Règles fondamentales</p>
                 <div className="space-y-2 text-xs text-slate-600">
                   {([
@@ -962,19 +965,19 @@ function ComptabiliteInner() {
 
             {/* Right: Form */}
             <div className="lg:col-span-2">
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="font-semibold text-[#0F172A]">Écriture Manuelle</h2>
+                  <h2 className="font-semibold text-anthracite">Écriture Manuelle</h2>
                   <div>
                     <label className="text-xs text-slate-400 mr-2">Date</label>
                     <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)}
-                      className="rounded-xl border border-[#E2E8F0] bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-[#12B981] transition" />
+                      className="rounded-xl border border-border bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-accent transition" />
                   </div>
                 </div>
 
                 {/* Lines */}
                 <div className="space-y-2 mb-4">
-                  <div className="grid grid-cols-12 gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                  <div className="grid grid-cols-12 gap-2 text-note font-bold uppercase tracking-widest text-slate-400 px-1">
                     <div className="col-span-3">Compte</div>
                     <div className="col-span-4">Description</div>
                     <div className="col-span-2 text-right">Débit</div>
@@ -988,7 +991,7 @@ function ComptabiliteInner() {
                           <select
                             value={line.account_code}
                             onChange={e => { const nl=[...lines]; nl[i]={...nl[i],account_code:e.target.value}; setLines(nl); }}
-                            className="w-full rounded-xl border border-[#E2E8F0] bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#12B981] focus:bg-white transition"
+                            className="w-full rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs outline-none focus:border-accent focus:bg-white transition"
                           >
                             <option value="">Chwazi...</option>
                             {(['Asset','Liability','Equity','Revenue','Expense'] as const).map(groupClass => {
@@ -1010,19 +1013,19 @@ function ComptabiliteInner() {
                       <div className="col-span-4">
                         <input value={line.description} onChange={e => { const nl=[...lines]; nl[i]={...nl[i],description:e.target.value}; setLines(nl); }}
                           placeholder={t({ fr: 'Description de la ligne...', ht: 'Description liy lan...' })}
-                          className="w-full rounded-xl border border-[#E2E8F0] bg-slate-50 px-3 py-2 text-xs outline-none focus:border-[#12B981] focus:bg-white transition" />
+                          className="w-full rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs outline-none focus:border-accent focus:bg-white transition" />
                       </div>
                       <div className="col-span-2">
                         <input type="number" min="0" step="0.01" value={line.debit || ''}
                           onChange={e => { const nl=[...lines]; nl[i]={...nl[i],debit:parseFloat(e.target.value)||0,credit:0}; setLines(nl); }}
                           placeholder="0.00"
-                          className="w-full rounded-xl border border-[#E2E8F0] bg-blue-50 px-3 py-2 text-xs text-right outline-none focus:border-blue-400 transition" />
+                          className="w-full rounded-xl border border-border bg-blue-50 px-3 py-2 text-xs text-right outline-none focus:border-blue-400 transition" />
                       </div>
                       <div className="col-span-2">
                         <input type="number" min="0" step="0.01" value={line.credit || ''}
                           onChange={e => { const nl=[...lines]; nl[i]={...nl[i],credit:parseFloat(e.target.value)||0,debit:0}; setLines(nl); }}
                           placeholder="0.00"
-                          className="w-full rounded-xl border border-[#E2E8F0] bg-emerald-50 px-3 py-2 text-xs text-right outline-none focus:border-emerald-400 transition" />
+                          className="w-full rounded-xl border border-border bg-emerald-50 px-3 py-2 text-xs text-right outline-none focus:border-emerald-400 transition" />
                       </div>
                       <div className="col-span-1 flex justify-center">
                         {lines.length > 2 && (
@@ -1037,7 +1040,7 @@ function ComptabiliteInner() {
                 </div>
 
                 <button onClick={() => setLines([...lines, { account_code:'', description:'', debit:0, credit:0 }])}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#12B981] hover:underline mb-5">
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline mb-5">
                   <Plus size={12} /> Ajoute yon liy
                 </button>
 
@@ -1045,7 +1048,7 @@ function ComptabiliteInner() {
                 <div className={`grid grid-cols-12 gap-2 rounded-xl border p-3 mb-5 ${balanced ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
                   <div className="col-span-7 flex items-center gap-2">
                     {balanced
-                      ? <><Check size={14} className="text-emerald-600" /><span className="text-xs font-bold text-emerald-700">Ekriti ekilibre ✓</span></>
+                      ? <><Check size={14} className="text-emerald-600" /><span className="text-xs font-bold text-emerald-700">Ekriti ekilibre</span></>
                       : <><AlertTriangle size={14} className="text-red-600" /><span className="text-xs font-bold text-red-700">Pa ekilibre — diferans: {fmtHTG(diff)} HTG</span></>
                     }
                   </div>
@@ -1055,20 +1058,21 @@ function ComptabiliteInner() {
                 </div>
 
                 {saveMsg && (
-                  <div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${saveMsg.startsWith('✓') ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                  <div className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${saveOk ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
                     {saveMsg}
                   </div>
                 )}
 
                 <div className="flex gap-3">
                   <button onClick={handleSave} disabled={saving || !balanced}
-                    className="flex-1 rounded-2xl bg-[#0F172A] py-3 text-sm font-bold text-white hover:bg-[#0F172A]/90 transition disabled:opacity-40">
-                    {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: '✓ Enregistrer Écriture Comptable', ht: '✓ Anrejistre Ekriti Kontab' })}
+                    className="flex-1 rounded-2xl bg-anthracite py-3 text-sm font-bold text-white hover:bg-anthracite/90 transition disabled:opacity-40">
+                    {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: 'Enregistrer l’écriture', ht: 'Anrejistre ekriti a' })}
                   </button>
                   {!balanced && (
                     <button onClick={autoBalance}
-                      className="rounded-2xl border border-[#12B981] bg-[#12B981]/10 px-4 py-3 text-sm font-semibold text-[#12B981] hover:bg-[#12B981]/20 transition">
-                      ⚖️ Ekilibre
+                      className="rounded-2xl border border-accent bg-accent/10 px-4 py-3 text-sm font-semibold text-accent hover:bg-accent/20 transition">
+                      <Scale size={14} className="mr-1 inline align-[-2px]" aria-hidden />
+                      Ekilibre
                     </button>
                   )}
                 </div>

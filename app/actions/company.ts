@@ -4,9 +4,11 @@ import { cookies } from 'next/headers';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { type Role, getPermissionsForRole } from '../../lib/rbac';
 import { type Permission } from '../../lib/rbac';
-import { type Feature, planHasFeature } from '../../lib/planFeatures';
+import { type Feature, planHasFeature, planMaxStores } from '../../lib/planFeatures';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
+import { getPreviewPlanServer } from '../../lib/planPreviewServer';
+import { FALLBACK_PLAN_KEY, normalizePlanKey } from '../../lib/plans';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,7 +41,12 @@ export type ClientTenantContext = {
   company:     CompanyInfo;
   role:        Role;
   permissions: Permission[];
+  /** Offre à AFFICHER : l'aperçu s'il tourne, sinon l'offre réelle. */
   planKey:     string | null;
+  /** Offre réelle du compte. Elle ne bouge jamais avec l'aperçu. */
+  realPlanKey: string | null;
+  /** Offre simulée, ou `null` quand on voit son offre réelle. */
+  previewPlan: string | null;
   allCompanies: Array<{ id: string; name: string }>;
 };
 
@@ -124,14 +131,25 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
       .limit(1)
       .maybeSingle();
 
-    // If no active DB subscription, default to Expert during trial (temp — revert after testing)
-    const planKey = (sub?.plan_key as string) ?? 'Expert';
+    // Sans abonnement actif en base, l'offre est le SOCLE — pas la plus haute.
+    // Le repli « Expert » posé pour un test donnait toutes les fonctionnalités à
+    // tout le monde : c'est ce qui empêchait l'interface de changer d'une offre
+    // à l'autre. Le repli est désormais unique, et il vit dans `plans.ts`.
+    const realPlanKey = normalizePlanKey(sub?.plan_key as string | undefined) ?? FALLBACK_PLAN_KEY;
+
+    // L'aperçu des offres remplace ce que les écrans AFFICHENT, jamais ce que
+    // le compte possède : `realPlanKey` part à côté, intact, et c'est lui que
+    // le bandeau d'aperçu annonce. Le cookie n'est honoré que si l'exploitant a
+    // posé `PLAN_PREVIEW=1` — sinon `getPreviewPlanServer()` rend `null`.
+    const preview = await getPreviewPlanServer();
 
     return {
       company,
       role,
       permissions: getPermissionsForRole(role),
-      planKey,
+      planKey: preview ?? realPlanKey,
+      realPlanKey,
+      previewPlan: preview,
       allCompanies: allCompanies.map((c) => ({ id: c.id, name: c.name })),
     };
   } catch {
@@ -155,8 +173,11 @@ export async function listCompanies(): Promise<CompanyRow[]> {
     .order('expires_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const planKey = (sub?.plan_key as string) ?? 'Expert'; // default Expert during trial
-  const maxStores = { 'Ti Machann': 1, 'Business Pilot': 1, 'Expert': 3 }[planKey] ?? 3;
+  const planKey = normalizePlanKey(sub?.plan_key as string | undefined) ?? FALLBACK_PLAN_KEY;
+  // Le plafond vient du registre (`PLAN_MAX_STORES`), jamais d'une copie
+  // locale : deux tables de quotas finissent toujours par diverger, et celle
+  // qui diverge ici couperait des boutiques bien réelles.
+  const maxStores = planMaxStores(planKey);
 
   const [{ data: owned }, { data: memberOf }] = await Promise.all([
     supabase

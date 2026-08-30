@@ -7,6 +7,10 @@ import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../lib/useAuth';
 import { upsertCustomer, deleteCustomer, markCustomerCreditPaid } from '../actions/customers';
 import { useLanguage } from '../../components/LanguageWrapper';
+import { Button, FirstRun, NoResult, closestMatch } from '../../components/ds';
+// Une seule bibliothèque d'icônes, en contour, à épaisseur constante (§3.5) :
+// l'étoile ⭐ et le trombone 📋 étaient dessinés par le téléphone, pas par nous.
+import { CalendarDays, CheckCircle2, FileText, Hash, Mail, Phone, Star } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,25 +79,17 @@ function daysSince(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 }
 
-// ── Mock data (shown when DB is empty) ───────────────────────────────────────
-
-const MOCK_CLIENTS: Client[] = [
-  { id: 'demo-1', name: 'Marie Josette Pierre',  phone: '+509 3712-4521', email: 'marie.pierre@gmail.com', outstanding_balance: 15000, created_at: '2026-02-10T10:00:00Z', totalPurchases: 142500, saleCount: 12, isVIP: true  },
-  { id: 'demo-2', name: 'Jean-Baptiste Duval',   phone: '+509 4822-6340', email: null,                      outstanding_balance: 35000, created_at: '2026-03-05T10:00:00Z', totalPurchases: 87500,  saleCount: 7,  isVIP: true  },
-  { id: 'demo-3', name: 'Claudette Morisseau',   phone: '+509 3611-8820', email: 'cmorisseau@yahoo.fr',    outstanding_balance: 0,     created_at: '2026-04-14T10:00:00Z', totalPurchases: 22000,  saleCount: 3,  isVIP: false },
-  { id: 'demo-4', name: 'Réginald Saint-Louis',  phone: '+509 3920-1145', email: null,                      outstanding_balance: 8500,  created_at: '2026-04-28T10:00:00Z', totalPurchases: 18500,  saleCount: 2,  isVIP: false },
-  { id: 'demo-5', name: 'Nadège Compère',        phone: '+509 4710-3382', email: 'nadege@profitpilot.ht',  outstanding_balance: 0,     created_at: '2026-05-03T10:00:00Z', totalPurchases: 9500,   saleCount: 1,  isVIP: false },
-];
-
-const MOCK_INVOICES: Invoice[] = [
-  { invoice_number: 'PP-2026-182543', total: 45000, currency: 'HTG', payment_method: 'Cash',    payment_status: 'Payé',     date: '2026-05-18T08:30:00Z', itemCount: 3 },
-  { invoice_number: 'PP-2026-097622', total: 32500, currency: 'HTG', payment_method: 'MonCash', payment_status: 'À Crédit', date: '2026-05-10T14:20:00Z', itemCount: 2 },
-  { invoice_number: 'PP-2026-043001', total: 65000, currency: 'HTG', payment_method: 'Cash',    payment_status: 'Payé',     date: '2026-04-22T09:15:00Z', itemCount: 5 },
-];
-
-const MOCK_CREDITS: ClientCredit[] = [
-  { id: 'cc-1', invoice_number: 'PP-2026-097622', amount: 32500, currency: 'HTG', payment_status: 'À Crédit', created_at: '2026-05-10T14:20:00Z' },
-];
+// ── Aucune donnée de démonstration (audit §1.1, §5.10) ───────────────────────
+//
+// Cinq clients inventés — Marie Josette Pierre, Jean-Baptiste Duval… — avec
+// leurs téléphones, leurs achats cumulés et leurs dettes, s'affichaient tant que
+// la base ne répondait pas. Un bandeau ambre prévenait ; le marchand, lui,
+// voyait cinq noms qu'il ne connaissait pas dans SON carnet de clients.
+//
+// « Dans un logiciel de gestion, un chiffre affiché est une promesse. »
+//
+// La liste part donc vide et le reste tant qu'elle l'est. À la place : l'état
+// de premier accueil, qui montre le geste — ajouter un premier client.
 
 // ── ClientModal (Add / Edit) ──────────────────────────────────────────────────
 
@@ -122,15 +118,15 @@ function ClientModal({
     setSaving(false);
   }
 
-  const inp = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-slate-600 focus:ring-[#001F3F]/30';
+  const inp = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-slate-600 focus:ring-primary/30';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white shadow-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-surface border border-[var(--color-border)] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div>
             <p className="text-xs uppercase tracking-widest text-[var(--color-muted)]">{client ? t({ fr: 'Modifier', ht: 'Modifye' }) : t({ fr: 'Nouveau Client', ht: 'Nouvo Kliyan' })}</p>
-            <h3 className="mt-0.5 text-xl font-semibold text-[#001F3F]">
+            <h3 className="mt-0.5 text-xl font-semibold text-primary">
               {client ? t({ fr: 'Modifier Client', ht: 'Modifye Kliyan' }) : t({ fr: 'Ajouter un Client', ht: 'Ajoute yon Kliyan' })}
             </h3>
           </div>
@@ -156,7 +152,7 @@ function ClientModal({
           {err && <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-400">{err}</p>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">{t({ fr: 'Annuler', ht: 'Anile' })}</button>
-            <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-[#001F3F] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] disabled:opacity-50">
+            <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-h disabled:opacity-50">
               {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : client ? t({ fr: 'Sauvegarder les modifications', ht: 'Sove Chanjman' }) : t({ fr: 'Ajouter Client', ht: 'Ajoute Kliyan' })}
             </button>
           </div>
@@ -171,26 +167,25 @@ function ClientModal({
 function DeleteModal({ client, onClose, onConfirm }: { client: Client; onClose: () => void; onConfirm: () => Promise<void> }) {
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
-  const isDemo = client.id.startsWith('demo-');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-surface border border-[var(--color-border)] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
           <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
         </div>
-        <h3 className="text-lg font-semibold text-[#001F3F]">{t({ fr: 'Supprimer le client?', ht: 'Efase kliyan?' })}</h3>
+        <h3 className="text-lg font-semibold text-primary">{t({ fr: 'Supprimer le client?', ht: 'Efase kliyan?' })}</h3>
         <p className="mt-2 text-sm text-[var(--color-muted)]">
           <span className="font-medium text-[var(--color-text)]">{client.name}</span>{' '}{t({ fr: 'sera supprimé. Ses ventes resteront mais sans lien.', ht: 'pral efase. Ventes li yo ap rete men san lyen.' })}
         </p>
-        {isDemo && <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-400">{t({ fr: 'Ceci sont des données démo — elles ne sont pas dans la DB réelle.', ht: 'Sa a se done demo — li pa nan DB reyèl.' })}</p>}
+        {/* Tous les clients sont réels : plus de branche « faux client » à
+            désamorcer, et le bouton de suppression fait toujours son travail. */}
         <div className="mt-5 flex gap-3">
           <button onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">{t({ fr: 'Annuler', ht: 'Anile' })}</button>
-          {!isDemo && (
-            <button onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }} disabled={busy}
-              className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
-              {busy ? t({ fr: 'Suppression…', ht: 'Efasman…' }) : t({ fr: 'Oui, Supprimer', ht: 'Wi, Efase' })}
-            </button>
-          )}
+          <button onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }} disabled={busy}
+            className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
+            {busy ? t({ fr: 'Suppression…', ht: 'Efasman…' }) : t({ fr: 'Oui, Supprimer', ht: 'Wi, Efase' })}
+          </button>
         </div>
       </div>
     </div>
@@ -200,7 +195,7 @@ function DeleteModal({ client, onClose, onConfirm }: { client: Client; onClose: 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
-  'bg-[#001F3F]/30 text-[#001F3F]',
+  'bg-primary/30 text-primary',
   'bg-blue-500/20 text-blue-300',
   'bg-emerald-500/20 text-emerald-300',
   'bg-orange-500/20 text-orange-300',
@@ -219,15 +214,15 @@ function ClientsCRMInner() {
   const params = useSearchParams();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [clients,      setClients]      = useState<Client[]>(MOCK_CLIENTS);
+  const [clients,      setClients]      = useState<Client[]>([]);
   const [selectedId,   setSelectedId]   = useState<string | null>(params.get('id') ?? null);
-  const [isDemo,       setIsDemo]       = useState(true);
+
   const [loading,      setLoading]      = useState(true);
   const [detailLoad,   setDetailLoad]   = useState(false);
 
   // detail data
-  const [invoices,     setInvoices]     = useState<Invoice[]>(MOCK_INVOICES);
-  const [credits,      setCredits]      = useState<ClientCredit[]>(MOCK_CREDITS);
+  const [invoices,     setInvoices]     = useState<Invoice[]>([]);
+  const [credits,      setCredits]      = useState<ClientCredit[]>([]);
   const [busyCredit,   setBusyCredit]   = useState<Set<string>>(new Set());
 
   // modals
@@ -275,6 +270,9 @@ function ClientsCRMInner() {
       .from('businesses')
       .select('id')
       .eq('owner_id', userId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (ownedBiz?.id) return ownedBiz.id;
 
@@ -293,7 +291,6 @@ function ClientsCRMInner() {
     if (user === undefined) return;
     setLoading(true);
     if (!user) {
-      setIsDemo(false);
       setClients([]);
       setLoading(false);
       return;
@@ -307,7 +304,6 @@ function ClientsCRMInner() {
     } else {
       // If no business ID, no customers to show
       setClients([]);
-      setIsDemo(false);
       setLoading(false);
       return;
     }
@@ -321,7 +317,8 @@ function ClientsCRMInner() {
 
     if (clientRes.error) {
       console.error('[clients] loadClients error:', clientRes.error.message);
-      setIsDemo(false);
+      // Une requête qui échoue ne remplit pas la liste de clients imaginaires.
+      setClients([]);
       setLoading(false);
       return;
     }
@@ -348,7 +345,6 @@ function ClientsCRMInner() {
     });
 
     setClients(enriched);
-    setIsDemo(false);
     if (!selectedId && enriched.length > 0) setSelectedId(enriched[0].id);
     setLoading(false);
   }, [selectedId, user]);
@@ -356,9 +352,7 @@ function ClientsCRMInner() {
   // ── Load client detail ─────────────────────────────────────────────────────
 
   const loadDetail = useCallback(async (clientId: string) => {
-    if (clientId.startsWith('demo-')) {
-      setInvoices(MOCK_INVOICES); setCredits(MOCK_CREDITS); return;
-    }
+
     setDetailLoad(true);
     const userResult = await supabase.auth.getUser();
     const businessId = userResult.data?.user ? await resolveBusinessId(userResult.data.user.id) : null;
@@ -402,16 +396,12 @@ function ClientsCRMInner() {
   async function handlePayCredit(creditId: string) {
     setBusyCredit(s => new Set(s).add(creditId));
     try {
-      if (isDemo || creditId.startsWith('cc-') || creditId.startsWith('demo-')) {
-        setCredits(prev => prev.map(c => c.id === creditId ? { ...c, payment_status: 'Payé' as const } : c));
-        setInvoices(prev => prev.map(inv => inv.payment_status === 'À Crédit' ? { ...inv, payment_status: 'Payé' } : inv));
-        if (selectedId) await loadDetail(selectedId);
-        await loadClients();
-      } else {
-        await markCustomerCreditPaid(creditId);
-        if (selectedId) await loadDetail(selectedId);
-        await loadClients();
-      }
+      // Plus de branche « faux crédit » : un règlement passe par la base, ou
+      // il ne passe pas. Une créance soldée à l'écran mais pas en comptabilité
+      // est exactement le genre de mensonge que cet audit chasse.
+      await markCustomerCreditPaid(creditId);
+      if (selectedId) await loadDetail(selectedId);
+      await loadClients();
     } catch (e: any) { alert(e.message); }
     finally { setBusyCredit(s => { const n = new Set(s); n.delete(creditId); return n; }); }
   }
@@ -471,13 +461,17 @@ function ClientsCRMInner() {
         <div className="border-b border-[var(--color-border)] px-5 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">CRM</p>
-              <h1 className="mt-0.5 text-xl font-semibold text-[#001F3F]">{t({ fr: 'Clients', ht: 'Kliyan yo' })}</h1>
+              {/* Le sur-titre « CRM » a sauté : trois lettres d'un jargon que
+                  le marchand n'a aucune raison de connaître, posées au-dessus
+                  d'un titre qui se suffisait (audit §9, contrôles 1 et 10). */}
+              <h1 className="text-xl font-semibold text-primary">{t({ fr: 'Clients', ht: 'Kliyan yo' })}</h1>
             </div>
             <button onClick={() => { setEditClient(null); setShowModal(true); }}
-              className="flex items-center gap-1.5 rounded-2xl bg-[#001F3F] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#002D5B] active:scale-95">
+              className="flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-h active:scale-95">
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              {t({ fr: 'Ajouter', ht: 'Ajoute' })}
+              {/* Le bouton nomme ce qu'il fait. « Ajouter » seul obligeait
+                  à deviner quoi (audit §9, contrôle 1). */}
+              {t({ fr: 'Nouveau client', ht: 'Nouvo kliyan' })}
             </button>
           </div>
 
@@ -485,14 +479,14 @@ function ClientsCRMInner() {
           <div className="relative mt-3">
             <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t({ fr: 'Rechercher client…', ht: 'Chèche kliyan…' })}
-              className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text)] outline-none placeholder:text-slate-600 focus:border-[#001F3F]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
+              className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text)] outline-none placeholder:text-slate-600 focus:border-primary/50 focus:ring-1 focus:ring-muted/30" />
           </div>
 
           {/* Filter tabs */}
           <div className="mt-3 flex gap-1.5">
-            {([['all', t({ fr: 'Tout', ht: 'Tout' })], ['vip', t({ fr: '⭐ VIP', ht: '⭐ VIP' })], ['debtor', t({ fr: '⚠ Débiteurs', ht: '⚠ Debitè' })]] as const).map(([k, label]) => (
+            {([['all', t({ fr: 'Tout', ht: 'Tout' })], ['vip', t({ fr: 'Fidèles', ht: 'Fidèl' })], ['debtor', t({ fr: 'Débiteurs', ht: 'Debitè' })]] as const).map(([k, label]) => (
               <button key={k} onClick={() => setFilter(k)}
-                className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filter === k ? 'bg-[#001F3F] text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100'}`}>
+                className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filter === k ? 'bg-primary text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100'}`}>
                 {label}
               </button>
             ))}
@@ -501,20 +495,55 @@ function ClientsCRMInner() {
 
         {/* Client list */}
         <div className="flex-1 overflow-y-auto py-2">
-          {isDemo && (
-            <div className="mx-3 mb-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
-              {t({ fr: '📊 Données démo — connectez la DB pour des données réelles', ht: '📊 Données démo — konekte DB pou done reyèl' })}
-            </div>
-          )}
+
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
             </div>
+          ) : clients.length === 0 ? (
+            /* Premier accueil : le carnet est neuf, et il le dit (§5.10). */
+            <FirstRun
+              title={t({
+                fr: 'Votre carnet de clients est vide',
+                ht: 'Kanè kliyan ou vid',
+              })}
+              hint={t({
+                fr: "Ajoutez ceux à qui vous vendez souvent : vous saurez qui vous doit, combien, et depuis quand.",
+                ht: 'Ajoute moun ou vann souvan yo : w ap konnen kiyès ki dwe w, konbyen, depi kilè.',
+              })}
+              action={
+                <Button variant="accent" block onClick={() => { setEditClient(null); setShowModal(true); }}>
+                  {t({ fr: 'Ajouter un client', ht: 'Ajoute yon kliyan' })}
+                </Button>
+              }
+            />
           ) : filteredClients.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--color-muted)]">{t({ fr: 'Aucun client trouvé', ht: 'Okenn kliyan jwenn' })}</p>
+            /* Résultat introuvable : ce n'est pas la même chose, et ça ne se
+               dit pas pareil. La recherche propose une correction ; le filtre
+               constate simplement, sans dramatiser. */
+            search ? (
+              <NoResult
+                query={search}
+                noun={t({ fr: 'client', ht: 'kliyan' })}
+                suggestion={closestMatch(search, clients.map(c => c.name))}
+                onUseSuggestion={setSearch}
+                onClear={() => setSearch('')}
+                action={
+                  <Button variant="primary" onClick={() => { setEditClient(null); setShowModal(true); }}>
+                    {t({ fr: 'Créer ce client', ht: 'Kreye kliyan sa a' })}
+                  </Button>
+                }
+              />
+            ) : (
+              <p className="px-4 py-10 text-center text-body text-[var(--color-muted)]">
+                {filter === 'vip'
+                  ? t({ fr: 'Aucun client VIP pour le moment.', ht: 'Pa gen kliyan VIP pou kounye a.' })
+                  : t({ fr: "Personne ne vous doit d'argent.", ht: 'Pèsonn pa dwe w lajan.' })}
+              </p>
+            )
           ) : filteredClients.map(c => (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
-              className={`w-full px-4 py-3.5 text-left transition ${selectedId === c.id ? 'bg-[#EAF1F8]' : 'hover:bg-slate-50'}`}>
+              className={`w-full px-4 py-3.5 text-left transition ${selectedId === c.id ? 'bg-nav-active' : 'hover:bg-slate-50'}`}>
               <div className="flex items-center gap-3">
                 {/* Avatar */}
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${avatarColor(c.name)}`}>
@@ -523,12 +552,18 @@ function ClientsCRMInner() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold text-[var(--color-text)]">{c.name}</p>
-                    {c.isVIP && <span className="shrink-0 text-xs">⭐</span>}
+                    {c.isVIP && (
+                      <Star
+                        className="h-4 w-4 shrink-0 text-warning"
+                        strokeWidth={1.8}
+                        aria-label={t({ fr: 'Client fidèle', ht: 'Kliyan fidèl' })}
+                      />
+                    )}
                   </div>
                   <p className="text-xs text-[var(--color-muted)]">{c.saleCount} {c.saleCount !== 1 ? t({ fr: 'ventes', ht: 'vant' }) : t({ fr: 'vente', ht: 'vant' })} · {fmt(c.totalPurchases)}</p>
                 </div>
                 {c.outstanding_balance > 0 && (
-                  <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                  <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-note font-bold text-red-400">
                     {fmt(c.outstanding_balance)}
                   </span>
                 )}
@@ -571,12 +606,12 @@ function ClientsCRMInner() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-[#001F3F]">{selected.name}</h2>
+                  <h2 className="text-lg font-semibold text-primary">{selected.name}</h2>
                   {selected.isVIP && (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">{t({ fr: '⭐ VIP', ht: '⭐ VIP' })}</span>
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">{t({ fr: 'Client fidèle', ht: 'Kliyan fidèl' })}</span>
                   )}
                   {selected.outstanding_balance > 0 && (
-                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">{t({ fr: '⚠ Dette', ht: '⚠ Dèt' })}</span>
+                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">{t({ fr: 'Dette', ht: 'Dèt' })}</span>
                   )}
                 </div>
                 <p className="truncate text-xs text-[var(--color-muted)]">
@@ -606,18 +641,18 @@ function ClientsCRMInner() {
             <div className="flex-1 space-y-6 px-6 py-6">
 
               {/* ── Profile ── */}
-              <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 backdrop-blur-xl">
+              <section className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-5 backdrop-blur-xl">
                 <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Profil Client', ht: 'Pwofil Kliyan' })}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { label: t({ fr: 'Téléphone', ht: 'Telefòn' }), value: selected.phone ?? '—', icon: '📞' },
-                    { label: t({ fr: 'Email', ht: 'Imèl' }), value: selected.email ?? '—', icon: '✉️' },
-                    { label: t({ fr: 'Inscription', ht: 'Enskripsyon' }), value: new Date(selected.created_at).toLocaleDateString('fr-FR'), icon: '📅' },
-                    { label: t({ fr: 'ID Client', ht: 'ID Kliyan' }), value: selected.id.slice(0, 8) + '…', icon: '🔑' },
-                  ].map(({ label, value, icon }) => (
+                    { label: t({ fr: 'Téléphone', ht: 'Telefòn' }), value: selected.phone ?? '—', icon: Phone },
+                    { label: t({ fr: 'Email', ht: 'Imèl' }), value: selected.email ?? '—', icon: Mail },
+                    { label: t({ fr: 'Inscription', ht: 'Enskripsyon' }), value: new Date(selected.created_at).toLocaleDateString('fr-FR'), icon: CalendarDays },
+                    { label: t({ fr: 'ID Client', ht: 'ID Kliyan' }), value: selected.id.slice(0, 8) + '…', icon: Hash },
+                  ].map(({ label, value, icon: Icon }) => (
                     <div key={label as string} className="rounded-2xl bg-[var(--color-surface)] p-3">
-                      <p className="mb-1 text-lg">{icon}</p>
-                      <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
+                      <Icon className="mb-1 h-5 w-5 text-muted" strokeWidth={1.8} aria-hidden />
+                      <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
                       <p className="mt-0.5 break-all text-sm font-medium text-[var(--color-text)]">{value}</p>
                     </div>
                   ))}
@@ -629,13 +664,13 @@ function ClientsCRMInner() {
                 <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Analytique', ht: 'Analitik' })}</p>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: t({ fr: 'Total Achats', ht: 'Total Acha' }), value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ${t({ fr: 'ventes', ht: 'vant' })}`, color: 'text-[#001F3F]', bg: 'bg-[#001F3F]/10' },
+                    { label: t({ fr: 'Total Achats', ht: 'Total Acha' }), value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ${t({ fr: 'ventes', ht: 'vant' })}`, color: 'text-primary', bg: 'bg-primary/10' },
                     { label: t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), value: fmt(selected.outstanding_balance), sub: totalDebtActive > 0 ? t({ fr: 'En cours', ht: 'An Kou' }) : t({ fr: 'Aucune', ht: 'Okenn' }), color: totalDebtActive > 0 ? 'text-red-400' : 'text-emerald-400', bg: totalDebtActive > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
                     { label: t({ fr: 'Moyenne / Vente', ht: 'Mwayèn / Vant' }), value: selected.saleCount ? fmt(selected.totalPurchases / selected.saleCount) : '—', sub: t({ fr: 'Panier moyen', ht: 'Mwayèn' }), color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-                    { label: t({ fr: 'Statistiques', ht: 'Estatistik' }), value: selected.isVIP ? t({ fr: '⭐ VIP', ht: '⭐ VIP' }) : t({ fr: 'Régulier', ht: 'Regilye' }), sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
+                    { label: t({ fr: 'Statistiques', ht: 'Estatistik' }), value: selected.isVIP ? t({ fr: 'Fidèle', ht: 'Fidèl' }) : t({ fr: 'Régulier', ht: 'Regilye' }), sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
                   ].map(({ label, value, sub, color, bg }) => (
-                    <div key={label as string} className={`rounded-[20px] border border-[var(--color-border)] ${bg} p-4 backdrop-blur-xl`}>
-                      <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
+                    <div key={label as string} className={`rounded-surface border border-[var(--color-border)] ${bg} p-4 backdrop-blur-xl`}>
+                      <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
                       <p className={`mt-1.5 text-xl font-bold ${color}`}>{value}</p>
                       <p className="mt-0.5 text-xs text-[var(--color-muted)]">{sub}</p>
                     </div>
@@ -645,9 +680,9 @@ function ClientsCRMInner() {
 
               {/* ── Credit/Debt section ── */}
               {credits.some(c => c.payment_status === 'À Crédit') && (
-                <section className="rounded-[24px] border border-red-500/20 bg-red-500/5 p-5">
+                <section className="rounded-surface border border-red-500/20 bg-red-500/5 p-5">
                   <div className="mb-4 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-red-400">{t({ fr: '⚠ Créances en cours', ht: '⚠ Kreyans an kou' })}</p>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-red-400">{t({ fr: 'Créances en cours', ht: 'Kreyans an kou' })}</p>
                     <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400">{fmt(totalDebtActive)}</span>
                   </div>
                   <div className="space-y-2">
@@ -655,13 +690,13 @@ function ClientsCRMInner() {
                       <div key={cc.id} className="flex items-center justify-between rounded-2xl bg-[var(--color-surface)] px-4 py-3">
                         <div>
                           <p className="font-mono text-xs text-[var(--color-muted)]">{cc.invoice_number ?? '—'}</p>
-                          <p className="text-[11px] text-[var(--color-muted)]">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} {t({ fr: 'jours', ht: 'jou' })}</p>
+                          <p className="text-note text-[var(--color-muted)]">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} {t({ fr: 'jours', ht: 'jou' })}</p>
                         </div>
                         <div className="flex items-center gap-3">
                           <p className="font-bold text-red-400">{fmt(cc.amount, cc.currency)}</p>
                           <button onClick={() => handlePayCredit(cc.id)} disabled={busyCredit.has(cc.id)}
                             className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50">
-                            {busyCredit.has(cc.id) ? '…' : `${t({ fr: 'Toucher', ht: 'Touche' })} ✓`}
+                            {busyCredit.has(cc.id) ? '…' : t({ fr: 'Encaisser', ht: 'Touche' })}
                           </button>
                         </div>
                       </div>
@@ -671,7 +706,7 @@ function ClientsCRMInner() {
               )}
 
               {/* ── Transaction history ── */}
-              <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] backdrop-blur-xl">
+              <section className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] backdrop-blur-xl">
                 <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
                   <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">
                     {t({ fr: 'Historique Transactions', ht: 'Istorik Tranzaksyon' })} ({invoices.length})
@@ -687,12 +722,14 @@ function ClientsCRMInner() {
                       <div key={inv.invoice_number} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
                         {/* Icon */}
                         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm ${inv.payment_status === 'Payé' ? 'bg-emerald-500/15' : 'bg-blue-500/15'}`}>
-                          {inv.payment_status === 'Payé' ? '✅' : '📋'}
+                          {inv.payment_status === 'Payé'
+                            ? <CheckCircle2 className="h-5 w-5 text-success" strokeWidth={1.8} aria-hidden />
+                            : <FileText className="h-5 w-5 text-info" strokeWidth={1.8} aria-hidden />}
                         </div>
                         {/* Info */}
                         <div className="min-w-0 flex-1">
                           <p className="font-mono text-xs font-semibold text-[var(--color-text)]">{inv.invoice_number}</p>
-                          <p className="text-[11px] text-[var(--color-muted)]">
+                          <p className="text-note text-[var(--color-muted)]">
                             {new Date(inv.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                             {' · '}{inv.payment_method}
                             {' · '}{inv.itemCount} {t({ fr: 'articles', ht: 'atik' })}
@@ -701,7 +738,7 @@ function ClientsCRMInner() {
                         {/* Amount + Status */}
                         <div className="text-right">
                           <p className="font-bold text-[var(--color-text)]">{fmt(inv.total, inv.currency)}</p>
-                          <span className={`text-[10px] font-semibold ${inv.payment_status === 'Payé' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                          <span className={`text-note font-semibold ${inv.payment_status === 'Payé' ? 'text-emerald-400' : 'text-blue-400'}`}>
                             {inv.payment_status}
                           </span>
                         </div>
@@ -713,7 +750,7 @@ function ClientsCRMInner() {
                 {/* History total */}
                 <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
                   <span className="text-xs text-[var(--color-muted)]">{invoices.length} {t({ fr: 'factures', ht: 'fakti' })}</span>
-                  <span className="text-sm font-bold text-[#001F3F]">
+                  <span className="text-sm font-bold text-primary">
                     {t({ fr: 'Total: ', ht: 'Total: ' })}{fmt(invoices.reduce((s, i) => s + i.total, 0))}
                   </span>
                 </div>
@@ -733,7 +770,7 @@ function ClientsCRMInner() {
               <p style={{ margin: '4px 0 0', color: '#555', fontSize: 13 }}>{t({ fr: 'Imprimé le ', ht: 'Enprime le ' })}{new Date().toLocaleDateString('fr-FR')}</p>
             </div>
             <h2 style={{ fontSize: 20, marginBottom: 4 }}>{selected.name}</h2>
-            <p style={{ color: '#555', fontSize: 13, marginBottom: 4 }}>📞 {selected.phone ?? '—'} &nbsp;·&nbsp; ✉️ {selected.email ?? '—'}</p>
+            <p style={{ color: '#555', fontSize: 13, marginBottom: 4 }}>{t({ fr: 'Tél. ', ht: 'Tel. ' })}{selected.phone ?? '—'} &nbsp;·&nbsp; {t({ fr: 'E-mail ', ht: 'Imèl ' })}{selected.email ?? '—'}</p>
             <p style={{ color: '#555', fontSize: 13, marginBottom: 24 }}>{t({ fr: 'Client depuis ', ht: 'Kliyan depi ' })}{new Date(selected.created_at).toLocaleDateString('fr-FR')}</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 32 }}>
@@ -761,7 +798,7 @@ function ClientsCRMInner() {
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{inv.invoice_number}</td>
                     <td style={{ padding: '8px 12px' }}>{inv.payment_method}</td>
                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{fmt(inv.total, inv.currency)}</td>
-                    <td style={{ padding: '8px 12px', color: inv.payment_status === 'Payé' ? '#16a34a' : '#2563eb' }}>{inv.payment_status}</td>
+                    <td style={{ padding: '8px 12px', color: inv.payment_status === 'Payé' ? '#16a34a' : '#1d4ed8' }}>{inv.payment_status}</td>
                   </tr>
                 ))}
               </tbody>

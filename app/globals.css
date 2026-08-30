@@ -2,25 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── CSS custom properties — light / dark ── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ProfitPilot — Socle d'interface
+   Audit « Du débutant au senior » : §4.1 couleurs · §4.3 typographie ·
+   §4.4 grille de 8 · §3.7 retour interactif · §7 chorégraphie.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
   color-scheme: light;
 
+  /* ── 30 % structure · 10 % accent ── */
   --color-primary:  #001F3F;
   --color-accent:   #50C878;
+
+  /* ── Couleurs système — réservées à l'erreur et au succès (§4.2) ── */
+  --color-success:  #0E9F6E;
+  --color-danger:   #DC2626;
+  --color-warning:  #B45309;
+
+  /* ── 60 % neutres ── */
   --color-bg:       #FFFFFF;
   --color-surface:  #F8FAFC;
   --color-surface2: #F1F5F9;
   --color-border:   #E2E8F0;
   --color-text:     #0F172A;
+  --color-text2:    #475569;
   --color-muted:    #64748B;
 
-  --shadow-card:
-    0 1px 3px rgba(0, 0, 0, 0.04),
-    0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-card-hover:
-    0 4px 6px rgba(0, 0, 0, 0.06),
-    0 12px 28px rgba(0, 0, 0, 0.10);
+  /* ── Deux ombres, pas six (§3.2) ── */
+  --shadow-card: 0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.05);
+  --shadow-pop:  0 2px 4px rgba(15,23,42,0.06), 0 16px 40px rgba(15,23,42,0.14);
+  /* Alias hérités — les écrans écrits avant l'audit tombent sur les deux tokens */
+  --shadow-card-hover: var(--shadow-pop);
+
+  /* ── Rythme (§7) ── */
+  --ease-pp:      cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-press:    90ms;    /* retour au doigt : sous 100 ms, toujours */
+  --dur-move:     220ms;   /* transition d'écran */
+  --dur-moment:   680ms;   /* un moment chorégraphié */
 }
 
 .dark {
@@ -31,18 +50,18 @@
   --color-surface2: #1E293B;
   --color-border:   #334155;
   --color-text:     #F1F5F9;
+  --color-text2:    #CBD5E1;
   --color-muted:    #94A3B8;
 
-  --shadow-card:
-    0 1px 3px rgba(0, 0, 0, 0.2),
-    0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover:
-    0 4px 6px rgba(0, 0, 0, 0.25),
-    0 12px 28px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.35);
+  --shadow-pop:  0 2px 4px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.50);
+  --shadow-card-hover: var(--shadow-pop);
 }
 
 html {
   scroll-behavior: smooth;
+  /* Le texte GROSSIT sur mobile, il ne rétrécit pas (§5.2). */
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -55,35 +74,189 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+button { font: inherit; }
+
+/* Le doigt n'a pas de survol : pas de flash bleu au toucher. */
+a, button, [role='button'] { -webkit-tap-highlight-color: transparent; }
+
+::selection { background: rgba(80, 200, 120, 0.22); color: #001F3F; }
+
+:focus-visible { outline: 2px solid #50C878; outline-offset: 2px; }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   MONTANTS — chasse fixe
+   « 4 250 HTG » et « 12 850 HTG » occupent des largeurs prévisibles : les
+   colonnes s'alignent, et la carte ne saute plus quand le chiffre grandit.
+   ─────────────────────────────────────────────────────────────────────────── */
+.amount,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  letter-spacing: -0.01em;
 }
 
-button {
-  font: inherit;
+/* ───────────────────────────────────────────────────────────────────────────
+   CIBLES TACTILES — 44 px minimum (§5.9)
+   Une icône peut être dessinée en 24 px ; sa zone tactile fait 44 px.
+   ─────────────────────────────────────────────────────────────────────────── */
+.touch-target {
+  position: relative;
+  min-height: 44px;
+  min-width: 44px;
 }
 
-/* ── Selection highlight ── */
-::selection {
-  background: rgba(80, 200, 120, 0.2);
-  color: #001F3F;
+/* ───────────────────────────────────────────────────────────────────────────
+   RETOUR INTERACTIF (§3.7)
+   Toute action reçoit une réponse visible en moins de 100 ms, même si le
+   résultat réel prend dix secondes. Sur un réseau irrégulier, ce n'est pas du
+   polish : c'est de l'intégrité comptable — un marchand sans retour appuie
+   deux fois et crée une vente en double.
+   ─────────────────────────────────────────────────────────────────────────── */
+.pressable {
+  transition: transform var(--dur-press) var(--ease-pp),
+              filter    var(--dur-press) var(--ease-pp);
+  touch-action: manipulation;
+}
+.pressable:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.94); }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   LES SIX MOMENTS (§7)
+   Chaque animation rend l'état du système plus clair — où est parti mon
+   montant, qu'est-ce qui a changé — ou récompense un accomplissement réel.
+   Jamais décorer. Si l'on coupe l'animation et que rien ne devient moins
+   clair, c'est qu'elle n'informait pas.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* 1. La vente enregistrée — le montant « vole » vers le total du jour */
+@keyframes pp-fly-to-total {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--fly-x, 0), var(--fly-y, -120px)) scale(0.72); }
+}
+.pp-fly { animation: pp-fly-to-total var(--dur-moment) var(--ease-pp) forwards; }
+
+/* Coche de confirmation — le trait se dessine */
+@keyframes pp-check-draw {
+  from { stroke-dashoffset: 30; }
+  to   { stroke-dashoffset: 0; }
+}
+.pp-check path { stroke-dasharray: 30; animation: pp-check-draw 340ms var(--ease-pp) forwards; }
+
+/* 2. La créance soldée — la ligne se barre puis glisse hors de la liste */
+@keyframes pp-settle-out {
+  0%   { opacity: 1; transform: translateX(0);    max-height: 240px; }
+  45%  { opacity: 1; transform: translateX(8px);  max-height: 240px; }
+  100% { opacity: 0; transform: translateX(110%); max-height: 0; padding-top: 0; padding-bottom: 0; }
+}
+.pp-settled { overflow: hidden; animation: pp-settle-out var(--dur-moment) var(--ease-pp) forwards; }
+
+/* 3. Le score de santé — la jauge se remplit une fois depuis zéro */
+@keyframes pp-gauge-fill { from { stroke-dashoffset: var(--gauge-len, 600); } }
+.pp-gauge { animation: pp-gauge-fill 800ms var(--ease-pp) both; }
+
+/* 4. L'alerte de taux — glisse depuis le haut, pulse UNE seule fois */
+@keyframes pp-drop-in {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pp-drop { animation: pp-drop-in var(--dur-move) var(--ease-pp) both; }
+
+/* Le point « en direct » — le même motif relie l'en-tête et la barre du jour
+   du graphique : l'utilisateur relie instantanément les deux zones (§2.4). */
+@keyframes pp-live {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.86); }
+}
+.pp-live { animation: pp-live 2.4s ease-in-out infinite; }
+
+/* 5. L'objectif atteint — le seul plein écran, une fois par mois au maximum */
+@keyframes pp-celebrate {
+  0%   { opacity: 0; transform: scale(0.9); }
+  55%  { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.pp-celebrate { animation: pp-celebrate var(--dur-moment) var(--ease-pp) both; }
+
+
+/* ── 6. Le passage d'un ecran a l'autre ─────────────────────────────────────
+   « La colle invisible entre tous les moments. » Trois gestes, un seul but :
+   que le marchand sache toujours d'ou il vient et ou il va.
+
+   Rien ici n'anime autre chose que `transform` et `opacity` : ce sont les deux
+   seules proprietes que le telephone d'entree de gamme du marchand compose
+   sans repeindre. Une animation qui saccade est pire que pas d'animation. */
+
+/* Un panneau qui apparait sur place — menus, encarts. */
+@keyframes pp-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pp-enter { animation: pp-enter var(--dur-move) var(--ease-pp) both; }
+
+/* L'entree d'un ecran : il vient de la droite, de peu, et vite. */
+@keyframes pp-screen-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.pp-screen-in { animation: pp-screen-in var(--dur-move) var(--ease-pp) both; }
+
+/* Le balayage retour. L'ecran suit le doigt ; la couche du dessous le suit a
+   35 % de sa course. C'est ce decalage — et lui seul — qui cree la profondeur :
+   sans lui, l'ecran a l'air de glisser sur du vide. */
+.pp-screen  { position: relative; z-index: 1; background: var(--color-bg); }
+.pp-back    { position: fixed; inset: 0; z-index: 0; background: var(--color-surface); pointer-events: none;
+              /* Deja en retrait des le premier rendu : aucun eclair au chargement. */
+              transform: translateX(-35%); }
+.pp-drag    { will-change: transform; }
+.pp-settle  { transition: transform var(--dur-move) var(--ease-pp); }
+
+/* Une feuille ouverte fait reculer l'ecran. Le contexte reste lisible derriere
+   — c'est tout l'interet d'une feuille (§5.7) — mais il passe visiblement au
+   second plan, et on comprend sans y penser que la feuille se fermera. */
+#pp-app {
+  transform-origin: 50% 0;
+  transition: transform var(--dur-move) var(--ease-pp),
+              border-radius var(--dur-move) var(--ease-pp);
+}
+body[data-sheet='open'] #pp-app {
+  transform: scale(0.94) translateY(10px);
+  border-radius: 16px;
+  overflow: hidden;
 }
 
-/* ── Focus ring ── */
-:focus-visible {
-  outline: 2px solid #50C878;
-  outline-offset: 2px;
+/* Squelette de chargement — au-dela d'une seconde d'attente */
+@keyframes pp-skeleton { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+.pp-skeleton {
+  background: var(--color-surface2);
+  animation: pp-skeleton 1.4s ease-in-out infinite;
 }
 
-/* ── Landing page animations ── */
+/* Le reglage « reduire les animations » du telephone fait autorite.
+   Sur l'Android d'entree de gamme du marchand, une animation qui saccade
+   est pire que pas d'animation. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Barre de defilement discrete pour les rangees horizontales (5.3) */
+.scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Animations des pages publiques (landing) */
 @keyframes pp-float {
   0%, 100% { transform: perspective(1200px) rotateX(2deg) rotateY(-4deg) translateY(0px); }
-  50%       { transform: perspective(1200px) rotateX(-2deg) rotateY(4deg) translateY(-14px); }
+  50%      { transform: perspective(1200px) rotateX(-2deg) rotateY(4deg) translateY(-14px); }
 }
 @keyframes pp-pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.45); }
-  70%  { box-shadow: 0 0 0 14px rgba(59,130,246,0); }
-  100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(80,200,120,0.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(80,200,120,0); }
+  100% { box-shadow: 0 0 0 0 rgba(80,200,120,0); }
 }
 @keyframes pp-dot-bounce {
   0%, 80%, 100% { transform: translateY(0); }
@@ -98,16 +271,16 @@ button {
   to   { opacity: 1; transform: translateX(0); }
 }
 
-.pp-float    { animation: pp-float 7s ease-in-out infinite; }
-.pp-pulse    { animation: pp-pulse-ring 2.4s ease-out infinite; }
-.pp-fade-up  { animation: pp-fade-in-up 0.6s cubic-bezier(0.22,1,0.36,1) both; }
-.pp-slide-r  { animation: pp-slide-in-right 0.8s cubic-bezier(0.22,1,0.36,1) both; }
+.pp-float   { animation: pp-float 7s ease-in-out infinite; }
+.pp-pulse   { animation: pp-pulse-ring 2.4s ease-out infinite; }
+.pp-fade-up { animation: pp-fade-in-up 0.6s var(--ease-pp) both; }
+.pp-slide-r { animation: pp-slide-in-right 0.8s var(--ease-pp) both; }
 
 .pp-dot:nth-child(1) { animation: pp-dot-bounce 0.9s 0.0s infinite; }
 .pp-dot:nth-child(2) { animation: pp-dot-bounce 0.9s 0.15s infinite; }
 .pp-dot:nth-child(3) { animation: pp-dot-bounce 0.9s 0.30s infinite; }
 
-/* ─────────────────────────────────────────────────────
+/* ═════════════════════════════════════════════════════════════════════════
    FINANCIAL REPORTS — A4 Print System
    ProfitPilot premium PDF export
 
@@ -241,25 +414,21 @@ button {
   .no-print { display: none !important; }
 }
 
-/* ── Tabular numbers for all financial figures ── */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
-}
-
-/* ── Mobile bottom padding (clear fixed nav ~64px) ── */
+/* ═════════════════════════════════════════════════════════════════════════
+   BARRE DE NAVIGATION MOBILE — degagement du contenu
+   La barre fait 72 px (cinq cibles de 44 px + respiration). Le contenu de
+   chaque ecran doit la depasser, sinon la derniere ligne d'une liste est
+   inatteignable au pouce.
+   ═════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
   main:not(:has(> .fullscreen-layout)) {
-    padding-bottom: 6rem;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 24px);
   }
-  /* AI page — input bar must clear the fixed mobile nav */
   .pb-mobile-nav {
-    padding-bottom: calc(64px + 12px) !important;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 12px) !important;
   }
 }
 
 @media (min-width: 1024px) {
-  .pb-mobile-nav {
-    padding-bottom: 12px;
-  }
+  .pb-mobile-nav { padding-bottom: 12px; }
 }

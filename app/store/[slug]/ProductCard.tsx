@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useCart } from './StoreCartContext';
 import type { StoreProduct } from '../../actions/store-public';
+import { Package } from 'lucide-react';
 
 type Props = {
   product:   StoreProduct;
@@ -39,20 +40,20 @@ export function ProductCard({ product, slug, showPrice, showStock }: Props) {
         {product.image_url ? (
           <img src={product.image_url} alt={product.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-3xl text-slate-300">📦</div>
+          <div className="flex h-full w-full items-center justify-center text-slate-300"><Package className="h-8 w-8" strokeWidth={1.5} aria-hidden /></div>
         )}
         {/* Badges */}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
           {hasDiscount && (
-            <span className="rounded-lg bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
+            <span className="rounded-lg bg-red-500 px-2 py-0.5 text-note font-bold text-white">
               -{Math.round((1 - product.sale_price! / product.price) * 100)}%
             </span>
           )}
           {product.is_new && !hasDiscount && (
-            <span className="rounded-lg bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white">NOUVEAU</span>
+            <span className="rounded-lg bg-emerald-500 px-2 py-0.5 text-note font-bold text-white">NOUVEAU</span>
           )}
           {product.is_featured && (
-            <span className="rounded-lg px-2 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: 'var(--store-primary)' }}>⭐ VEDETTE</span>
+            <span className="rounded-lg px-2 py-0.5 text-note font-bold text-white" style={{ backgroundColor: 'var(--store-primary)' }}>VEDETTE</span>
           )}
         </div>
         {outOfStock && (
@@ -77,7 +78,7 @@ export function ProductCard({ product, slug, showPrice, showStock }: Props) {
         )}
 
         {showStock && (
-          <p className={`mt-1 text-[10px] font-medium ${product.stock > 5 ? 'text-emerald-600' : product.stock > 0 ? 'text-amber-600' : 'text-red-500'}`}>
+          <p className={`mt-1 text-note font-medium ${product.stock > 5 ? 'text-emerald-600' : product.stock > 0 ? 'text-amber-600' : 'text-red-500'}`}>
             {product.stock > 0 ? `${product.stock} en stock` : 'Épuisé'}
           </p>
         )}
@@ -86,9 +87,9 @@ export function ProductCard({ product, slug, showPrice, showStock }: Props) {
           onClick={handleAdd}
           disabled={outOfStock}
           className="mt-3 w-full rounded-xl py-2 text-xs font-bold text-white transition disabled:opacity-40"
-          style={{ backgroundColor: added ? '#10b981' : 'var(--store-primary)' }}
+          style={{ backgroundColor: added ? '#50c878' : 'var(--store-primary)' }}
         >
-          {added ? '✓ Ajouté' : outOfStock ? 'Épuisé' : '+ Ajouter au panier'}
+          {added ? 'Ajouté' : outOfStock ? 'Épuisé' : '+ Ajouter au panier'}
         </button>
       </div>
     </Link>

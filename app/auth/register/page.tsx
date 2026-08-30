@@ -7,6 +7,8 @@ import { supabase } from '../../../lib/supabaseClient';
 import { Logo } from '../../../components/Logo';
 import { useLanguage } from '../../../components/LanguageWrapper';
 import { recordLogin } from '../../../hooks/useSubscription';
+import { linkPhoneToAccount } from '../../actions/phoneAuth';
+import { PhoneField } from '../../../components/ds';
 
 function translateError(msg: string, t: (obj: { fr: string; ht: string }) => string): string {
   const m = msg.toLowerCase();
@@ -35,6 +37,7 @@ function RegisterForm() {
   const [step,     setStep]     = useState<Step>('form');
   const [name,     setName]     = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [phone,    setPhone]    = useState('');
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -63,7 +66,14 @@ function RegisterForm() {
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email:   email.trim(),
       password,
-      options: { data: { full_name: name.trim(), business_name: businessName.trim() || name.trim() } },
+      // Le numéro voyage dans les métadonnées : quand la confirmation par
+      // e-mail est active, l'inscription ne pose pas de session et rien ne peut
+      // encore être écrit en base. Il se rattache à la première connexion.
+      options: { data: {
+        full_name:     name.trim(),
+        business_name: businessName.trim() || name.trim(),
+        phone:         phone.trim(),
+      } },
     });
 
     if (signUpError) {
@@ -75,6 +85,8 @@ function RegisterForm() {
     // Si Supabase a déjà confirmé l'email (confirmation désactivée dans le dashboard)
     // → la session est active immédiatement
     if (signUpData.session) {
+      // Session immédiate : le numéro se rattache tout de suite.
+      if (phone.trim()) void linkPhoneToAccount(phone);
       recordLogin();
       await new Promise(resolve => setTimeout(resolve, 500));
       router.replace('/dashboard');
@@ -108,7 +120,7 @@ function RegisterForm() {
           <div className="mb-8 flex flex-col items-center gap-3">
             <img src="/profitpilot-logo.png" alt="ProfitPilot" className="h-14 w-14 rounded-2xl object-contain shadow-lg" />
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-[#001F3F]">ProfitPilot</h1>
+              <h1 className="text-2xl font-bold text-primary">ProfitPilot</h1>
               <p className="mt-1 text-sm text-slate-500">{t({ fr: 'Créez votre compte gratuitement', ht: 'Kreye kont ou gratis' })}</p>
             </div>
           </div>
@@ -126,7 +138,7 @@ function RegisterForm() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Marie Josette Pierre"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </div>
 
@@ -139,9 +151,22 @@ function RegisterForm() {
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder={t({ fr: 'Mon Entreprise', ht: 'Mon Antrepriz' })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </div>
+
+              {/* Le numéro AVANT l'e-mail : c'est lui que le marchand connaît
+                  par cœur, et c'est avec lui qu'il se reconnectera (§6.1). */}
+              <PhoneField
+                label={t({ fr: 'Votre numéro', ht: 'Nimewo ou' })}
+                hint={t({
+                  fr: 'C\'est avec ce numéro que vous vous connecterez ensuite.',
+                  ht: 'Se ak nimewo sa a w ap konekte apre.',
+                })}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+              />
 
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
@@ -154,8 +179,14 @@ function RegisterForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="vous@example.com"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
+                <p className="mt-2 text-note text-slate-500">
+                  {t({
+                    fr: 'Il ne sert qu\'à récupérer votre compte si vous oubliez votre mot de passe.',
+                    ht: 'Li sèvi sèlman pou rekipere kont ou si w bliye modpas ou.',
+                  })}
+                </p>
               </div>
 
               <div>
@@ -170,7 +201,7 @@ function RegisterForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Au moins 6 caractères"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                   />
                   <button
                     type="button"
@@ -201,7 +232,8 @@ function RegisterForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-60"
+                // Les 10 % de la palette tombent sur l'action attendue (§4.1).
+                className="pressable flex min-h-13 w-full items-center justify-center gap-2 rounded-surface bg-accent px-4 py-3 text-body font-bold text-white shadow-card transition hover:bg-accent-h disabled:opacity-60"
               >
                 {loading ? (
                   <>
@@ -215,7 +247,7 @@ function RegisterForm() {
 
               <p className="text-center text-sm text-slate-500">
                 {t({ fr: 'Déjà un compte ?', ht: 'Deja gen yon kont ?' })} 
-                <Link href="/auth/login" className="font-semibold text-[#001F3F] hover:underline">
+                <Link href="/auth/login" className="font-semibold text-primary hover:underline">
                   {t({ fr: 'Se connecter', ht: 'Konekte' })}
                 </Link>
               </p>
@@ -250,7 +282,7 @@ function RegisterForm() {
               <p className="mt-2 text-sm text-slate-500 leading-relaxed">
                 {t({ fr: 'Votre compte a été créé. Un email de confirmation a été envoyé à :', ht: 'Kont ou te kreye. Yo voye yon imèl konfimasyon nan :' })}
               </p>
-              <p className="mt-1 font-semibold text-[#001F3F]">{email}</p>
+              <p className="mt-1 font-semibold text-primary">{email}</p>
             </div>
           </div>
 
@@ -259,19 +291,19 @@ function RegisterForm() {
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t({ fr: 'Étapes à suivre', ht: 'Etap pou swiv' })}</p>
             <ol className="space-y-2 text-sm text-slate-600">
               <li className="flex items-start gap-2">
-                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#001F3F] text-[10px] font-bold text-white">1</span>
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-note font-bold text-white">1</span>
                 {t({ fr: 'Ouvrez votre boîte mail', ht: 'Louvri bwat imèl ou' })}
               </li>
               <li className="flex items-start gap-2">
-                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#001F3F] text-[10px] font-bold text-white">2</span>
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-note font-bold text-white">2</span>
                 {t({ fr: "Trouvez l'email de", ht: 'Jwenn imèl la nan' })} <strong>ProfitPilot</strong> {t({ fr: "(vérifiez aussi les", ht: "(tcheke tou" })} <strong>{t({ fr: 'Spams', ht: 'Spams' })}</strong>
               </li>
               <li className="flex items-start gap-2">
-                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#001F3F] text-[10px] font-bold text-white">3</span>
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-note font-bold text-white">3</span>
                 Cliquez sur <strong>"Confirmer mon email"</strong>
               </li>
               <li className="flex items-start gap-2">
-                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#001F3F] text-[10px] font-bold text-white">4</span>
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-note font-bold text-white">4</span>
                 {t({ fr: 'Revenez ici et connectez-vous', ht: 'Retounen isit epi konekte' })}
               </li>
             </ol>
@@ -280,7 +312,7 @@ function RegisterForm() {
           {/* Resend */}
           {resendOk ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-700 font-medium">
-              ✅ {t({ fr: 'Email renvoyé avec succès !', ht: 'Imèl voye ak siksè !' })}
+              {t({ fr: 'Email renvoyé avec succès !', ht: 'Imèl voye ak siksè !' })}
             </div>
           ) : (
             <button
@@ -295,7 +327,7 @@ function RegisterForm() {
                   {t({ fr: 'Envoi...', ht: 'Anvwa...' })}
                 </>
               ) : (
-                t({ fr: '✉️ Renvoyer l\'email de confirmation', ht: '✉️ Voye imèl konfimasyon an ankò' })
+                t({ fr: 'Renvoyer l\'email de confirmation', ht: 'Voye imèl konfimasyon an ankò' })
               )}
             </button>
           )}
@@ -309,7 +341,7 @@ function RegisterForm() {
           {/* Go to login */}
           <Link
             href="/auth/login"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#002D5B]"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-h"
           >
             {t({ fr: 'J\'ai confirmé → Me connecter', ht: 'Mwen konfime → Konekte mwen' })}
           </Link>

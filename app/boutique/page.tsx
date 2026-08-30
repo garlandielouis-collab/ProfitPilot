@@ -7,6 +7,14 @@ import {
   getStorePreviewData,
 } from '../actions/boutique';
 import type { StoreSettings, ShippingMode } from '../actions/store-public';
+// Vingt-trois émojis sur l'écran qui configure la vitrine du marchand — dont
+// six en guise d'onglets. Un onglet est un point de repère : il doit être
+// dessiné par nous, pas par le clavier du téléphone (§3.5).
+import {
+  AlertTriangle, Check, CreditCard, ExternalLink, Eye, FileText, Globe,
+  Package, Palette, Rocket, Settings, ShoppingCart, Smartphone, Star,
+  type LucideIcon,
+} from 'lucide-react';
 
 const PAYMENT_OPTIONS = [
   { value: 'cash',    label: 'Paiement à la livraison' },
@@ -58,18 +66,21 @@ function PreviewProductCard({
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-4xl text-slate-300">📦</div>
+          <div className="flex h-full w-full items-center justify-center text-slate-300">
+            <Package className="h-10 w-10" strokeWidth={1.5} aria-hidden />
+          </div>
         )}
         {/* Badges */}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
           {hasDisc && (
-            <span className="rounded-lg bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
+            <span className="rounded-lg bg-red-500 px-2 py-0.5 text-note font-bold text-white">
               -{discPct}%
             </span>
           )}
           {product.is_featured && (
-            <span className="rounded-lg px-2 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: primary }}>
-              ⭐ VEDETTE
+            <span className="rounded-lg px-2 py-0.5 text-note font-bold text-white" style={{ backgroundColor: primary }}>
+              <Star className="mr-1 inline h-3 w-3 align-[-1px]" strokeWidth={2.5} aria-hidden />
+              VEDETTE
             </span>
           )}
         </div>
@@ -83,7 +94,7 @@ function PreviewProductCard({
       {/* Info */}
       <div className="flex flex-1 flex-col p-3">
         {product.category && (
-          <p className="truncate text-[10px] text-slate-400">{product.category}</p>
+          <p className="truncate text-note text-slate-400">{product.category}</p>
         )}
         <p className="mt-0.5 line-clamp-2 text-sm font-semibold text-slate-800">{product.name}</p>
 
@@ -99,7 +110,7 @@ function PreviewProductCard({
         )}
 
         {showStock && (
-          <p className={`mt-1 text-[10px] font-semibold ${
+          <p className={`mt-1 text-note font-semibold ${
             product.stock_quantity > 5 ? 'text-emerald-600' :
             product.stock_quantity > 0 ? 'text-amber-600' : 'text-red-500'
           }`}>
@@ -160,7 +171,10 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
     <div className="space-y-6">
       {/* Header info */}
       <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 space-y-2">
-        <h3 className="font-bold text-blue-900">🌐 Publier sur Netlify</h3>
+        <h3 className="flex items-center gap-2 font-bold text-blue-900">
+          <Globe className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+          Publier sur Netlify
+        </h3>
         <p className="text-sm text-blue-700">
           Publiez votre boutique comme un site statique sur Netlify — gratuit, rapide, et accessible partout.
           Vous obtiendrez une URL du type <code className="rounded bg-blue-100 px-1">ma-boutique.netlify.app</code>.
@@ -171,7 +185,8 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
       {(existingUrl || result?.url) && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 space-y-3">
           <p className="text-sm font-bold text-emerald-800">
-            ✅ Boutique publiée
+            <Check className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={2.5} aria-hidden />
+            Boutique publiée
             {result?.productCount !== undefined && (
               <span className="ml-2 font-normal text-emerald-700">— {result.productCount} produit{result.productCount !== 1 ? 's' : ''} inclus</span>
             )}
@@ -182,7 +197,8 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
             rel="noreferrer"
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
           >
-            🔗 Voir la boutique en ligne
+            <ExternalLink className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+            Voir la boutique en ligne
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
               <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
               <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
@@ -206,7 +222,7 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
           {/* Step 1 : Token */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#001F3F] text-xs font-bold text-white">1</div>
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">1</div>
               <h4 className="font-bold text-slate-800">Obtenir un token Netlify</h4>
             </div>
             <p className="text-sm text-slate-600">
@@ -231,7 +247,7 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
                   value={token}
                   onChange={e => setToken(e.target.value)}
                   placeholder="nfp_..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono outline-none focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </div>
               <div>
@@ -243,7 +259,7 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
                   value={siteName}
                   onChange={e => setSiteName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
                   placeholder="ma-boutique (ex: jean-shop → jean-shop.netlify.app)"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </div>
             </div>
@@ -257,22 +273,25 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
             <button
               onClick={handleDeploy}
               disabled={!token.trim() || deploying}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] py-3 text-sm font-bold text-white transition hover:bg-[#002D5B] disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-white transition hover:bg-primary-h disabled:opacity-60"
             >
               {deploying ? (
                 <>
                   <Spinner sm /> Déploiement en cours…
                 </>
               ) : (
-                <>🚀 Déployer sur Netlify</>
+                <>
+                  <Rocket className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                  Déployer sur Netlify
+                </>
               )}
             </button>
 
             {deploying && (
               <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700 space-y-1">
-                <p>⏳ Génération du site statique…</p>
-                <p>📦 Création du fichier ZIP…</p>
-                <p>🌐 Envoi vers Netlify…</p>
+                <p>Génération du site statique…</p>
+                <p>Création du fichier ZIP…</p>
+                <p>Envoi vers Netlify…</p>
               </div>
             )}
           </div>
@@ -292,7 +311,7 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
 
       {/* Guide */}
       <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-2">
-        <h4 className="text-sm font-bold text-slate-700">📋 Ce que contient le déploiement</h4>
+        <h4 className="text-sm font-bold text-slate-700">Ce que contient le déploiement</h4>
         <ul className="space-y-1 text-xs text-slate-500">
           <li>• Page d'accueil avec hero, produits, catégories</li>
           <li>• Grille de {settings ? 'vos' : 'tous les'} produits avec images, prix et stock</li>
@@ -452,15 +471,15 @@ export default function BoutiquePage() {
     ? `${window.location.origin}/store/${form.slug}`
     : '';
 
-  const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10';
+  const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10';
 
-  const TABS: { key: Tab; label: string; icon: string }[] = [
-    { key: 'general',  label: 'Général',          icon: '⚙️' },
-    { key: 'design',   label: 'Design',            icon: '🎨' },
-    { key: 'payment',  label: 'Paiement',          icon: '💳' },
-    { key: 'seo',      label: 'SEO & Contact',     icon: '📋' },
-    { key: 'apercu',   label: 'Aperçu',            icon: '👁️' },
-    { key: 'netlify',  label: 'Publier Netlify',   icon: '🚀' },
+  const TABS: { key: Tab; label: string; icon: LucideIcon }[] = [
+    { key: 'general',  label: 'Général',        icon: Settings },
+    { key: 'design',   label: 'Design',         icon: Palette },
+    { key: 'payment',  label: 'Paiement',       icon: CreditCard },
+    { key: 'seo',      label: 'SEO & Contact',  icon: FileText },
+    { key: 'apercu',   label: 'Aperçu',         icon: Eye },
+    { key: 'netlify',  label: 'Publier',        icon: Rocket },
   ];
 
   if (loading) {
@@ -482,7 +501,7 @@ export default function BoutiquePage() {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#001F3F]">Boutique en ligne</h1>
+          <h1 className="text-2xl font-bold text-primary">Boutique en ligne</h1>
           <p className="mt-1 text-sm text-slate-500">Gérez et publiez votre boutique publique.</p>
           {form.slug && (
             <a
@@ -491,7 +510,8 @@ export default function BoutiquePage() {
               rel="noreferrer"
               className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
             >
-              🔗 {storeUrl}
+              <ExternalLink className="h-3 w-3" strokeWidth={1.8} aria-hidden />
+              {storeUrl}
               <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
@@ -499,12 +519,17 @@ export default function BoutiquePage() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {saved && <span className="text-sm font-medium text-emerald-600">✓ Sauvegardé</span>}
+          {saved && (
+            <span className="flex items-center gap-1 text-sm font-medium text-emerald-600">
+              <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+              Sauvegardé
+            </span>
+          )}
           {tab !== 'apercu' && tab !== 'netlify' && (
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#002D5B] disabled:opacity-50"
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-h disabled:opacity-50"
             >
               {saving && <Spinner sm />}
               Enregistrer
@@ -521,18 +546,21 @@ export default function BoutiquePage() {
 
       {/* Tabs */}
       <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
-        {TABS.map((t) => (
+        {TABS.map((t) => {
+          const TabIcon = t.icon;
+          return (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex flex-shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-              tab === t.key ? 'bg-white shadow text-[#001F3F]' : 'text-slate-500 hover:text-slate-700'
+              tab === t.key ? 'bg-white shadow text-primary' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <span>{t.icon}</span>
+            <TabIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden />
             <span>{t.label}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Aperçu tab (outside the card) ── */}
@@ -580,7 +608,8 @@ export default function BoutiquePage() {
               className="rounded-lg px-3 py-1 text-xs font-bold text-white"
               style={{ backgroundColor: previewSecondary }}
             >
-              🛒 Panier (0)
+              <ShoppingCart className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={2} aria-hidden />
+              Panier (0)
             </span>
           </div>
 
@@ -605,7 +634,7 @@ export default function BoutiquePage() {
               </div>
             ) : previewProducts.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center">
-                <p className="text-4xl">📦</p>
+                <Package className="mx-auto h-10 w-10 text-slate-300" strokeWidth={1.5} aria-hidden />
                 <p className="mt-3 text-sm font-medium text-slate-500">Aucun produit trouvé</p>
                 <p className="text-xs text-slate-400">Ajoutez des produits dans la section Produits.</p>
               </div>
@@ -628,7 +657,7 @@ export default function BoutiquePage() {
 
           {/* Info tip */}
           <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-            💡 Ceci est un aperçu de votre boutique. Les produits affichés sont ceux de votre catalogue.
+            Ceci est un aperçu de votre boutique. Les produits affichés sont ceux de votre catalogue.
             Cliquez sur <strong>Publier Netlify</strong> pour mettre votre boutique en ligne.
           </div>
         </div>
@@ -691,11 +720,11 @@ export default function BoutiquePage() {
               </div>
               <div className="flex gap-6">
                 <label className="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" checked={form.show_prices} onChange={(e) => setForm({ ...form, show_prices: e.target.checked })} className="h-4 w-4 accent-[#001F3F]" />
+                  <input type="checkbox" checked={form.show_prices} onChange={(e) => setForm({ ...form, show_prices: e.target.checked })} className="h-4 w-4 accent-primary" />
                   <span className="text-sm text-slate-700">Afficher les prix</span>
                 </label>
                 <label className="flex cursor-pointer items-center gap-2">
-                  <input type="checkbox" checked={form.show_stock} onChange={(e) => setForm({ ...form, show_stock: e.target.checked })} className="h-4 w-4 accent-[#001F3F]" />
+                  <input type="checkbox" checked={form.show_stock} onChange={(e) => setForm({ ...form, show_stock: e.target.checked })} className="h-4 w-4 accent-primary" />
                   <span className="text-sm text-slate-700">Afficher le stock</span>
                 </label>
               </div>
@@ -769,7 +798,7 @@ export default function BoutiquePage() {
                 <div className="space-y-2">
                   {PAYMENT_OPTIONS.map((opt) => (
                     <label key={opt.value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 hover:bg-slate-50 transition">
-                      <input type="checkbox" checked={form.payment_methods.includes(opt.value)} onChange={() => togglePayment(opt.value)} className="h-4 w-4 accent-[#001F3F]" />
+                      <input type="checkbox" checked={form.payment_methods.includes(opt.value)} onChange={() => togglePayment(opt.value)} className="h-4 w-4 accent-primary" />
                       <span className="text-sm font-medium text-slate-800">{opt.label}</span>
                     </label>
                   ))}
@@ -779,7 +808,7 @@ export default function BoutiquePage() {
               {form.payment_methods.includes('moncash') && (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">📱</span>
+                    <Smartphone className="h-5 w-5 text-muted" strokeWidth={1.8} aria-hidden />
                     <h4 className="font-bold text-slate-800">Identifiants MonCash</h4>
                     <a href="https://moncashbutton.digicelgroup.com/Moncash-business" target="_blank" rel="noopener noreferrer" className="ml-auto text-xs text-blue-600 underline">Obtenir mes clés →</a>
                   </div>
@@ -795,11 +824,12 @@ export default function BoutiquePage() {
                     </div>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={creds.moncash_sandbox} onChange={(e) => setCreds({ ...creds, moncash_sandbox: e.target.checked })} className="h-4 w-4 accent-[#001F3F]" />
+                    <input type="checkbox" checked={creds.moncash_sandbox} onChange={(e) => setCreds({ ...creds, moncash_sandbox: e.target.checked })} className="h-4 w-4 accent-primary" />
                     <span className="text-xs text-slate-600">Mode sandbox (test) — décochez pour la production</span>
                   </label>
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                    ⚠️ Dans votre tableau de bord MonCash Business, configurez l'URL de retour :<br />
+                    <AlertTriangle className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />
+                    Dans votre tableau de bord MonCash Business, configurez l'URL de retour :<br />
                     <code className="mt-1 block break-all font-mono text-amber-900">
                       {typeof window !== 'undefined' ? window.location.origin : 'https://votre-app.com'}/api/store/payment/moncash/callback
                     </code>
@@ -811,7 +841,7 @@ export default function BoutiquePage() {
               {form.payment_methods.includes('natcash') && (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">📱</span>
+                    <Smartphone className="h-5 w-5 text-muted" strokeWidth={1.8} aria-hidden />
                     <h4 className="font-bold text-slate-800">Identifiants NatCash</h4>
                     <a href="https://www.natcash.com" target="_blank" rel="noopener noreferrer" className="ml-auto text-xs text-blue-600 underline">Portail NatCash →</a>
                   </div>
@@ -827,7 +857,7 @@ export default function BoutiquePage() {
                     </div>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={creds.natcash_sandbox} onChange={(e) => setCreds({ ...creds, natcash_sandbox: e.target.checked })} className="h-4 w-4 accent-[#001F3F]" />
+                    <input type="checkbox" checked={creds.natcash_sandbox} onChange={(e) => setCreds({ ...creds, natcash_sandbox: e.target.checked })} className="h-4 w-4 accent-primary" />
                     <span className="text-xs text-slate-600">Mode sandbox (test)</span>
                   </label>
                 </div>
@@ -857,7 +887,7 @@ export default function BoutiquePage() {
                     <input className={inp} type="number" placeholder="Prix (HTG)" value={newMode.price} onChange={(e) => setNewMode({ ...newMode, price: Number(e.target.value) })} />
                     <input className={inp} placeholder="Délai" value={newMode.days} onChange={(e) => setNewMode({ ...newMode, days: e.target.value })} />
                   </div>
-                  <button onClick={addShippingMode} className="rounded-xl bg-[#001F3F] px-4 py-2 text-xs font-bold text-white hover:bg-[#002D5B]">
+                  <button onClick={addShippingMode} className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-h">
                     Ajouter
                   </button>
                 </div>

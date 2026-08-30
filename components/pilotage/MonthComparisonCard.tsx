@@ -17,15 +17,15 @@ const fmt = (n: number, currency: string): string =>
 
 function Delta({ value }: { value: number | null }) {
   if (value === null) {
-    return <span className="text-[11px] font-medium text-slate-400">— pa gen istorik</span>;
+    return <span className="text-note font-medium text-slate-400">— pa gen istorik</span>;
   }
   const flat = Math.abs(value) < 0.05;
   const up   = value > 0;
   const Icon = flat ? Minus : up ? TrendingUp : TrendingDown;
-  const cls  = flat ? 'text-slate-400' : up ? 'text-[#50C878]' : 'text-red-500';
+  const cls  = flat ? 'text-slate-400' : up ? 'text-accent' : 'text-red-500';
 
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${cls}`}>
+    <span className={`inline-flex items-center gap-1 text-note font-semibold ${cls}`}>
       <Icon className="h-3 w-3" />
       {value > 0 ? '+' : ''}{value.toFixed(1)}%
     </span>
@@ -70,8 +70,8 @@ export function MonthComparisonCard({ initial }: { initial?: MonthComparison | n
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
       <div className="mb-4 flex items-center gap-2">
-        <CalendarRange className="h-4 w-4 text-[#001F3F] dark:text-slate-300" />
-        <h3 className="text-sm font-bold uppercase tracking-widest text-[#001F3F] dark:text-slate-300">
+        <CalendarRange className="h-4 w-4 text-primary dark:text-slate-300" />
+        <h3 className="text-sm font-bold uppercase tracking-widest text-primary dark:text-slate-300">
           Mwa sa a vs anvan
         </h3>
       </div>
@@ -79,7 +79,7 @@ export function MonthComparisonCard({ initial }: { initial?: MonthComparison | n
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[11px] uppercase tracking-widest text-slate-400">
+            <tr className="text-note uppercase tracking-widest text-slate-400">
               <th className="pb-2 text-left font-medium">Endikatè</th>
               <th className="pb-2 text-right font-medium">Mwa sa a</th>
               <th className="pb-2 text-right font-medium">vs mwa pase</th>
@@ -90,7 +90,7 @@ export function MonthComparisonCard({ initial }: { initial?: MonthComparison | n
             {ROWS.map((row) => (
               <tr key={row.key}>
                 <td className="py-2.5 text-slate-500">{row.label}</td>
-                <td className="py-2.5 text-right font-bold text-[#001F3F] dark:text-slate-100">
+                <td className="py-2.5 text-right font-bold text-primary dark:text-slate-100">
                   {fmt(data.current[row.key], data.currency)}
                 </td>
                 <td className="py-2.5 text-right">
@@ -106,7 +106,7 @@ export function MonthComparisonCard({ initial }: { initial?: MonthComparison | n
       </div>
 
       {!data.yoyPercent && (
-        <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+        <p className="mt-3 text-note leading-relaxed text-slate-400">
           Nan yon ane, kolòn sa a ap montre ou sezon fò ak sezon fèb yo — pou ou
           prepare yo davans olye pou ou sibi yo.
         </p>

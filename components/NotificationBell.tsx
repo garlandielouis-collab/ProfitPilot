@@ -10,20 +10,30 @@ import {
   getUnreadCount,
   type Notification,
 } from '../app/actions/notifications';
+// Le même jeu d'icônes que l'écran /notifications : la cloche et sa liste ne
+// peuvent pas montrer deux dessins différents pour un même événement (§3.4).
+import {
+  AlertTriangle, Bell, Building2, CheckCircle2, MailCheck, Receipt,
+  ShoppingBag, ShoppingCart, UserCog, Users,
+  type LucideIcon,
+} from 'lucide-react';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
-  sale_created:        { icon: '🛍️',  color: 'bg-emerald-100 text-emerald-700' },
-  invoice_paid:        { icon: '✅',  color: 'bg-green-100 text-green-700' },
-  stock_low:           { icon: '⚠️',  color: 'bg-amber-100 text-amber-700' },
-  expense_created:     { icon: '💸',  color: 'bg-red-100 text-red-700' },
-  purchase_created:    { icon: '📦',  color: 'bg-blue-100 text-blue-700' },
-  client_created:      { icon: '👤',  color: 'bg-purple-100 text-purple-700' },
-  employee_created:    { icon: '👷',  color: 'bg-indigo-100 text-indigo-700' },
-  invitation_accepted: { icon: '🎉',  color: 'bg-pink-100 text-pink-700' },
-  company_created:     { icon: '🏢',  color: 'bg-slate-100 text-slate-700' },
-  generic:             { icon: '🔔',  color: 'bg-slate-100 text-slate-600' },
+// Un seul ton par nature d'événement, comme sur l'écran complet : ambre pour
+// le stock qui s'épuise, vert pour l'argent encaissé, gris pour le reste. Dix
+// fonds colorés dans une liste de dix lignes ne hiérarchisent rien (§4.2).
+const TYPE_CONFIG: Record<string, { icon: LucideIcon; color: string }> = {
+  sale_created:        { icon: ShoppingCart, color: 'bg-surface2 text-muted' },
+  invoice_paid:        { icon: CheckCircle2, color: 'bg-success-sub text-success' },
+  stock_low:           { icon: AlertTriangle, color: 'bg-warning-sub text-warning' },
+  expense_created:     { icon: Receipt,      color: 'bg-surface2 text-muted' },
+  purchase_created:    { icon: ShoppingBag,  color: 'bg-surface2 text-muted' },
+  client_created:      { icon: Users,        color: 'bg-surface2 text-muted' },
+  employee_created:    { icon: UserCog,      color: 'bg-surface2 text-muted' },
+  invitation_accepted: { icon: MailCheck,    color: 'bg-surface2 text-muted' },
+  company_created:     { icon: Building2,    color: 'bg-surface2 text-muted' },
+  generic:             { icon: Bell,         color: 'bg-surface2 text-muted' },
 };
 
 function relDate(iso: string): string {
@@ -142,7 +152,7 @@ export function NotificationBell() {
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-note font-bold text-white">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -150,13 +160,13 @@ export function NotificationBell() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-[#0F172A]">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-dark-surface">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-slate-800 dark:text-white">Notifications</span>
               {unread > 0 && (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-note font-bold text-red-600">
                   {unread} non lue{unread > 1 ? 's' : ''}
                 </span>
               )}
@@ -165,7 +175,7 @@ export function NotificationBell() {
               {unread > 0 && (
                 <button
                   onClick={handleMarkAll}
-                  className="text-[11px] font-semibold text-[#001F3F] hover:underline dark:text-slate-300"
+                  className="text-note font-semibold text-primary hover:underline dark:text-slate-300"
                 >
                   Tout lire
                 </button>
@@ -173,7 +183,7 @@ export function NotificationBell() {
               <Link
                 href="/notifications"
                 onClick={() => setOpen(false)}
-                className="text-[11px] text-slate-400 hover:text-slate-600"
+                className="text-note text-slate-400 hover:text-slate-600"
               >
                 Voir tout →
               </Link>
@@ -188,7 +198,7 @@ export function NotificationBell() {
               </div>
             ) : notifs.length === 0 ? (
               <div className="py-10 text-center">
-                <p className="text-2xl">🔔</p>
+                <Bell className="mx-auto h-6 w-6 text-slate-300" strokeWidth={1.8} aria-hidden />
                 <p className="mt-2 text-sm text-slate-400">Aucune notification</p>
               </div>
             ) : (
@@ -203,8 +213,8 @@ export function NotificationBell() {
                     }`}
                   >
                     {/* Icon */}
-                    <span className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-sm ${c.color}`}>
-                      {c.icon}
+                    <span className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl ${c.color}`}>
+                      <c.icon className="h-4 w-4" strokeWidth={1.8} aria-hidden />
                     </span>
 
                     {/* Content */}
@@ -213,10 +223,10 @@ export function NotificationBell() {
                         <p className={`text-xs leading-snug ${n.readAt ? 'font-medium text-slate-600 dark:text-slate-400' : 'font-bold text-slate-800 dark:text-white'}`}>
                           {n.title}
                         </p>
-                        <span className="flex-shrink-0 text-[10px] text-slate-400">{relDate(n.createdAt)}</span>
+                        <span className="flex-shrink-0 text-note text-slate-400">{relDate(n.createdAt)}</span>
                       </div>
                       {n.body && (
-                        <p className="mt-0.5 text-[11px] text-slate-400 leading-snug line-clamp-2">{n.body}</p>
+                        <p className="mt-0.5 text-note text-slate-400 leading-snug line-clamp-2">{n.body}</p>
                       )}
                     </div>
 

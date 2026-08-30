@@ -18,30 +18,30 @@ const STEPS = [
 export default function GuidePage() {
   const { t } = useLanguage();
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-4xl px-5 py-16 md:px-10">
-        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-[#001f3f] transition">
+        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-primary transition">
           <ArrowLeft size={14} /> Retounen lakay
         </Link>
         <div className="mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">{t({ fr: 'Guide', ht: 'Dokimantasyon' })}</span>
-          <h1 className="mt-2 text-3xl font-extrabold text-[#001f3f]">{t({ fr: "Guide d'utilisation", ht: 'Gid Kòmanse' })}</h1>
+          <span className="text-xs font-bold uppercase tracking-widest text-accent">{t({ fr: 'Guide', ht: 'Dokimantasyon' })}</span>
+          <h1 className="mt-2 text-3xl font-extrabold text-primary">{t({ fr: "Guide d'utilisation", ht: 'Gid Kòmanse' })}</h1>
           <p className="mt-3 text-slate-500">Yon gid pa-a-pa pou konfigire ProfitPilot pou biznis ou nan mwens pase 30 minit.</p>
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#50c878]/10 px-4 py-2 text-sm font-semibold text-[#50c878]">
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent/10 px-4 py-2 text-sm font-semibold text-accent">
             <CheckCircle size={14} /> Tan total estimé: ~30 minit
           </div>
         </div>
         <div className="space-y-4">
           {STEPS.map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-              className="flex gap-5 rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm hover:border-[#50c878]/30 transition-colors">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#001f3f] text-lg font-black text-[#50c878]">
+              className="flex gap-5 rounded-2xl border border-border bg-white p-6 shadow-sm hover:border-accent/30 transition-colors">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-lg font-black text-accent">
                 {s.n}
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between gap-4">
-                  <h3 className="font-bold text-[#001f3f]">{t({ fr: { 'Kreye Kont Ou': 'Créez Votre Compte', 'Konfigire Biznis Ou': 'Configurez Votre Entreprise', 'Ajoute Pwodui Ou Yo': 'Ajoutez Vos Produits' }[s.title] || s.title, ht: s.title })}</h3>
-                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">{s.time}</span>
+                  <h3 className="font-bold text-primary">{t({ fr: { 'Kreye Kont Ou': 'Créez Votre Compte', 'Konfigire Biznis Ou': 'Configurez Votre Entreprise', 'Ajoute Pwodui Ou Yo': 'Ajoutez Vos Produits' }[s.title] || s.title, ht: s.title })}</h3>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-note font-semibold text-slate-500">{s.time}</span>
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{s.desc}</p>
               </div>
@@ -49,12 +49,12 @@ export default function GuidePage() {
           ))}
         </div>
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-          <Link href="/onboarding" className="flex-1 rounded-2xl bg-[#001f3f] px-6 py-3.5 text-center text-sm font-bold text-white hover:bg-[#001f3f]/90 transition">
+          <Link href="/onboarding" className="flex-1 rounded-2xl bg-primary px-6 py-3.5 text-center text-sm font-bold text-white hover:bg-primary/90 transition">
             Kòmanse kounye a <ArrowRight size={14} className="inline ml-1" />
           </Link>
           <a href="https://wa.me/50935045946" target="_blank" rel="noopener noreferrer"
-            className="flex-1 rounded-2xl border border-[#E2E8F0] bg-white px-6 py-3.5 text-center text-sm font-semibold text-[#001f3f] hover:bg-slate-50 transition">
-            💬 Bezwen Èd? WhatsApp nou
+            className="flex-1 rounded-2xl border border-border bg-white px-6 py-3.5 text-center text-sm font-semibold text-primary hover:bg-slate-50 transition">
+            Bezwen Èd? WhatsApp nou
           </a>
         </div>
       </div>

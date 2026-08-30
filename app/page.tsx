@@ -14,7 +14,7 @@ import { PilotAIChatbot }      from '../components/landing/PilotAIChatbot';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-white text-[#001f3f]">
+    <div className="min-h-screen overflow-x-hidden bg-white text-primary">
       <Navbar />
       <Hero />
       <TrustBar />

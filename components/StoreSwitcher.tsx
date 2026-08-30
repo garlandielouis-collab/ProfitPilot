@@ -75,14 +75,14 @@ export function StoreSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
       >
-        <Store className="h-3.5 w-3.5 text-[#0047AB]" />
+        <Store className="h-3.5 w-3.5 text-primary" />
         <span className="max-w-[120px] truncate">{active?.name ?? 'Boutique'}</span>
         <ChevronDown className={cn('h-3 w-3 text-slate-400 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-2xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-          <p className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-400 font-semibold border-b border-slate-100">
+          <p className="px-3 py-2 text-note uppercase tracking-widest text-slate-400 font-semibold border-b border-slate-100">
             Mes boutiques
           </p>
           <div className="max-h-48 overflow-y-auto">
@@ -94,11 +94,11 @@ export function StoreSwitcher() {
                 onClick={() => handleSwitch(s.id)}
                 className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition"
               >
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#0047AB]/10">
-                  <Store className="h-3.5 w-3.5 text-[#0047AB]" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10">
+                  <Store className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span className="flex-1 truncate text-left">{s.name}</span>
-                {s.id === activeId && <Check className="h-3.5 w-3.5 text-[#0047AB]" />}
+                {s.id === activeId && <Check className="h-3.5 w-3.5 text-primary" />}
               </button>
             ))}
           </div>
@@ -113,13 +113,13 @@ export function StoreSwitcher() {
                     onChange={(e) => setNewName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
                     placeholder="Nom de la boutique"
-                    className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-[#0047AB]"
+                    className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-primary"
                   />
                   <button
                     type="button"
                     onClick={handleCreate}
                     disabled={isPending || !newName.trim()}
-                    className="rounded-lg bg-[#0047AB] px-2 py-1 text-xs text-white disabled:opacity-50"
+                    className="rounded-lg bg-primary px-2 py-1 text-xs text-white disabled:opacity-50"
                   >
                     OK
                   </button>
@@ -128,7 +128,7 @@ export function StoreSwitcher() {
                 <button
                   type="button"
                   onClick={() => setCreating(true)}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-xs text-[#0047AB] hover:bg-blue-50 transition font-medium"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-xs text-primary hover:bg-blue-50 transition font-medium"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Créer une boutique

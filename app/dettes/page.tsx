@@ -142,7 +142,7 @@ function StatusBadge({ status }: { status: string }) {
   const { t } = useLanguage();
   const paid = status === 'Payé';
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-note font-semibold
       ${paid ? 'bg-emerald-500/15 text-emerald-400' : 'bg-blue-500/15 text-blue-400'}`}>
       {t({ fr: { 'Payé': 'Payé', 'À Crédit': 'À Crédit' }[status] || status, ht: status })}
     </span>
@@ -185,7 +185,7 @@ function StatCard({ label, value, sub, accent, glow, icon }: {
     <div className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white backdrop-blur-xl p-5 flex flex-col gap-2">
       <div className={`absolute -top-5 -right-5 h-20 w-20 rounded-full blur-2xl opacity-25 ${glow}`} />
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--color-muted)]">{label}</span>
+        <span className="text-note font-semibold uppercase tracking-widest text-[var(--color-muted)]">{label}</span>
         <span className={`${accent} opacity-70`}>{icon}</span>
       </div>
       <p className={`text-xl font-bold tracking-tight ${accent}`}>{value}</p>
@@ -202,7 +202,7 @@ function SectionTitle({ color, label, count }: { color: string; label: string; c
     <div className="flex items-center gap-3">
       <div className={`h-8 w-1 rounded-full ${color}`} />
       <div>
-        <h2 className="font-bold text-[#001F3F] text-lg">{label}</h2>
+        <h2 className="font-bold text-primary text-lg">{label}</h2>
         <p className="text-xs text-[var(--color-muted)]">{count} {t({ fr: 'entrées', ht: 'antrèman' })}</p>
       </div>
     </div>
@@ -249,6 +249,9 @@ function DettesInner() {
       .from('businesses')
       .select('id, exchange_rate')
       .eq('owner_id', user.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (biz) {
       setBusinessId(biz.id);
@@ -558,7 +561,7 @@ function DettesInner() {
               {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setDebtStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
-                    ${debtStatus === s ? 'bg-orange-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
+                    ${debtStatus === s ? 'bg-orange-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-primary hover:bg-slate-100'}`}>
                   {s === 'all' ? 'Tout' : s === 'unpaid' ? 'À Crédit' : 'Payé'}
                 </button>
               ))}
@@ -581,7 +584,7 @@ function DettesInner() {
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   {(['Founisè', 'Pwodui', 'Dat Ref.', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'] as const).map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-left text-note font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
                       {t({ fr: { Founisè: 'Fournisseur', Pwodui: 'Produit', 'Dat Ref.': 'Date Réf.', 'Dat Échéance': 'Date Échéance', 'Montan Rete': 'Montant Restant', 'État': 'État', Relanse: 'Relance', Aksyon: 'Action' }[h] || h, ht: h })}
                     </th>
                   ))}
@@ -665,7 +668,7 @@ function DettesInner() {
                             {payingId === debt.id ? '…' : t({ fr: 'Payer', ht: 'Peye' })}
                           </button>
                         ) : (
-                          <span className="text-xs text-emerald-400">{t({ fr: '✓ Payé', ht: '✓ Peye' })}</span>
+                          <span className="text-xs text-emerald-400">{t({ fr: 'Payé', ht: 'Peye' })}</span>
                         )}
                       </td>
                     </tr>
@@ -706,7 +709,7 @@ function DettesInner() {
               {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setExpenseStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
-                    ${expenseStatus === s ? 'bg-violet-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
+                    ${expenseStatus === s ? 'bg-violet-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-primary hover:bg-slate-100'}`}>
                   {s === 'all' ? 'Tout' : s === 'unpaid' ? 'À Crédit' : 'Payé'}
                 </button>
               ))}
@@ -727,7 +730,7 @@ function DettesInner() {
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   {(['Deskripsyon', 'Kategori', 'Dat Depans', 'Dat Échéance', 'Montan Rete', 'État', 'Aksyon'] as const).map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-left text-note font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
                       {t({ fr: { Deskripsyon: 'Description', Kategori: 'Catégorie', 'Dat Depans': 'Date Dépense', 'Dat Échéance': 'Date Échéance', 'Montan Rete': 'Montant Restant', 'État': 'État', Aksyon: 'Action' }[h] || h, ht: h })}
                     </th>
                   ))}
@@ -792,7 +795,7 @@ function DettesInner() {
                           {payingId === exp.id ? '…' : t({ fr: 'Payer', ht: 'Peye' })}
                         </button>
                       ) : (
-                        <span className="text-xs text-emerald-400">{t({ fr: '✓ Payé', ht: '✓ Peye' })}</span>
+                        <span className="text-xs text-emerald-400">{t({ fr: 'Payé', ht: 'Peye' })}</span>
                       )}
                     </td>
                   </tr>
@@ -832,7 +835,7 @@ function DettesInner() {
               {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setCreditStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
-                    ${creditStatus === s ? 'bg-blue-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[#001F3F] hover:bg-slate-100'}`}>
+                    ${creditStatus === s ? 'bg-blue-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-primary hover:bg-slate-100'}`}>
                   {s === 'all' ? t({ fr: 'Tout', ht: 'Tout' }) : s === 'unpaid' ? t({ fr: 'À Crédit', ht: 'À Crédit' }) : t({ fr: 'Payé', ht: 'Payé' })}
                 </button>
               ))}
@@ -855,7 +858,7 @@ function DettesInner() {
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   {(['Kliyan', 'Fakti #', 'Dat Kredi', 'Dat Échéance', 'Montan Rete', 'État', 'Relanse', 'Aksyon'] as const).map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
+                    <th key={h} className="px-4 py-3 text-left text-note font-semibold uppercase tracking-wider text-[var(--color-muted)] whitespace-nowrap">
                       {t({ fr: { Kliyan: 'Client', 'Fakti #': 'Facture #', 'Dat Kredi': 'Date Crédit', 'Dat Échéance': 'Date Échéance', 'Montan Rete': 'Montant Restant', 'État': 'État', Relanse: 'Relance', Aksyon: 'Action' }[h] || h, ht: h })}
                     </th>
                   ))}
@@ -948,7 +951,7 @@ function DettesInner() {
                             {payingId === cc.id ? '…' : t({ fr: 'Encaisser', ht: 'Touche' })}
                           </button>
                         ) : (
-                          <span className="text-xs text-emerald-400">{t({ fr: '✓ Encaissé', ht: '✓ Touche' })}</span>
+                          <span className="text-xs text-emerald-400">{t({ fr: 'Encaissé', ht: 'Touche' })}</span>
                         )}
                       </td>
                     </tr>

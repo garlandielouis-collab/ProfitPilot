@@ -72,7 +72,7 @@ export function StoreNav({ store, slug }: { store: StoreSettings; slug: string }
             </svg>
             {count > 0 && (
               <span
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-note font-bold text-white"
                 style={{ backgroundColor: 'var(--store-primary)' }}
               >
                 {count > 9 ? '9+' : count}

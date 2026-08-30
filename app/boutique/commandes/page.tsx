@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { listOrders, updateOrderStatus, type OrderRow } from '../../actions/boutique';
+import { Package } from 'lucide-react';
 
 const STATUSES = [
   { value: 'all',       label: 'Toutes',       color: 'bg-slate-100 text-slate-700' },
@@ -56,7 +57,7 @@ export default function CommandesPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#001F3F]">Commandes</h1>
+          <h1 className="text-2xl font-bold text-primary">Commandes</h1>
           <p className="mt-1 text-sm text-slate-500">{total} commande{total !== 1 ? 's' : ''} au total</p>
         </div>
       </div>
@@ -77,9 +78,9 @@ export default function CommandesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher par numéro, nom, email…"
-          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#001F3F]/40"
+          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-primary/40"
         />
-        <button type="submit" className="rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#002D5B]">
+        <button type="submit" className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-h">
           Rechercher
         </button>
       </form>
@@ -89,7 +90,7 @@ export default function CommandesPage() {
         <div className="flex h-48 items-center justify-center"><Spinner /></div>
       ) : orders.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 text-slate-400">
-          <p className="text-3xl">📦</p>
+          <Package className="mx-auto h-9 w-9 text-slate-300" strokeWidth={1.5} aria-hidden />
           <p className="mt-2 text-sm">Aucune commande trouvée.</p>
         </div>
       ) : (
@@ -145,7 +146,7 @@ export default function CommandesPage() {
           <div className="w-full max-w-lg overflow-y-auto max-h-[90vh] rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-slate-100">
               <div>
-                <h2 className="text-lg font-bold text-[#001F3F]">Commande {selected.order_number}</h2>
+                <h2 className="text-lg font-bold text-primary">Commande {selected.order_number}</h2>
                 <p className="text-xs text-slate-500">{relDate(selected.created_at)}</p>
               </div>
               <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-700">
@@ -189,7 +190,7 @@ export default function CommandesPage() {
                   <input className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none" placeholder="Numéro de suivi (optionnel)" value={tracking} onChange={(e) => setTracking(e.target.value)} />
                 )}
                 <button onClick={handleUpdateStatus} disabled={updating}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#002D5B] disabled:opacity-50">
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition hover:bg-primary-h disabled:opacity-50">
                   {updating && <Spinner />}
                   Mettre à jour
                 </button>

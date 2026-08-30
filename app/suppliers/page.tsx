@@ -79,7 +79,7 @@ function EditModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-[#212529]">Modifier le fournisseur</h3>
+          <h3 className="text-lg font-semibold text-anthracite">Modifier le fournisseur</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
@@ -91,7 +91,7 @@ function EditModal({
             <input
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -101,7 +101,7 @@ function EditModal({
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 type="email"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
               />
             </div>
             <div>
@@ -109,7 +109,7 @@ function EditModal({
               <input
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
               />
             </div>
           </div>
@@ -122,7 +122,7 @@ function EditModal({
               min={0}
               max={100}
               step={0.1}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#001F3F]"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
             />
           </div>
         </div>
@@ -139,9 +139,11 @@ function EditModal({
           <button
             onClick={handleSave}
             disabled={saving || !name.trim()}
-            className="flex-1 rounded-xl bg-[#001F3F] py-2.5 text-sm font-medium text-white hover:bg-[#002D5B] disabled:opacity-50"
+            className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-medium text-white hover:bg-primary-h disabled:opacity-50"
           >
-            {saving ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: 'Enregistrer', ht: 'Anrejistre' })}
+            {saving
+              ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' })
+              : t({ fr: 'Enregistrer les changements', ht: 'Anrejistre chanjman yo' })}
           </button>
         </div>
       </div>
@@ -170,7 +172,7 @@ function DeleteModal({
         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
           <Trash2 className="h-5 w-5 text-red-600" />
         </div>
-        <h3 className="text-lg font-semibold text-[#212529]">
+        <h3 className="text-lg font-semibold text-anthracite">
           Supprimer &ldquo;{supplier.name}&rdquo; ?
         </h3>
         {hasPurchases ? (
@@ -363,11 +365,11 @@ export default function SuppliersPage() {
 
           {/* ── Page header ── */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#001F3F]/90">{t({ fr: 'Fournisseurs', ht: 'Founisè yo' })}</p>
-            <h1 className="mt-1 text-2xl font-semibold text-[#212529] md:text-3xl">
+            <p className="text-sm uppercase tracking-[0.3em] text-primary/90">{t({ fr: 'Fournisseurs', ht: 'Founisè yo' })}</p>
+            <h1 className="mt-1 text-2xl font-semibold text-anthracite md:text-3xl">
               Gestion des Fournisseurs
             </h1>
-            <p className="mt-1 text-sm text-[#212529]/60">
+            <p className="mt-1 text-sm text-anthracite/60">
               Ajoutez des fournisseurs, suivez les dettes crédit et consultez l&apos;historique des achats.
             </p>
           </div>
@@ -389,7 +391,7 @@ export default function SuppliersPage() {
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder={t({ fr: 'Fournisseur S.A.', ht: 'Founisè S.A.' })}
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:bg-white"
                 />
               </div>
               {/* Email */}
@@ -400,7 +402,7 @@ export default function SuppliersPage() {
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="contact@founisè.com"
                   type="email"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:bg-white"
                 />
               </div>
               {/* Téléphone */}
@@ -410,7 +412,7 @@ export default function SuppliersPage() {
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   placeholder="+509 XXXX-XXXX"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:bg-white"
                 />
               </div>
               {/* Escompte */}
@@ -424,21 +426,21 @@ export default function SuppliersPage() {
                   min={0}
                   max={100}
                   step={0.1}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#001F3F] focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:bg-white"
                 />
               </div>
               {/* Submit */}
               <button
                 type="submit"
                 disabled={formSaving || !form.name.trim()}
-                className="flex shrink-0 items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-50"
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-50"
               >
                 {formSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-                {t({ fr: 'Ajouter', ht: 'Ajoute' })}
+                {t({ fr: 'Ajouter le fournisseur', ht: 'Ajoute founisè a' })}
               </button>
             </div>
             {formErr && <p className="mt-2 text-xs text-red-600">{formErr}</p>}
@@ -448,12 +450,12 @@ export default function SuppliersPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100">
-                <Users className="h-6 w-6 text-[#001F3F]" />
+                <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-widest text-[#212529]/50">Total Founisè</p>
-                <p className="mt-0.5 text-2xl font-bold text-[#212529]">{suppliers.length}</p>
-                <p className="text-[10px] text-[#212529]/40">Fournisseurs actifs</p>
+                <p className="text-xs uppercase tracking-widest text-anthracite/50">Total Founisè</p>
+                <p className="mt-0.5 text-2xl font-bold text-anthracite">{suppliers.length}</p>
+                <p className="text-note text-anthracite/40">Fournisseurs actifs</p>
               </div>
             </div>
 
@@ -462,13 +464,13 @@ export default function SuppliersPage() {
                 <CreditCard className="h-6 w-6 text-red-500" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-widest text-[#212529]/50">
+                <p className="text-xs uppercase tracking-widest text-anthracite/50">
                   Total Achat à Crédit
                 </p>
-                <p className="mt-0.5 text-2xl font-bold text-[#212529]">
+                <p className="mt-0.5 text-2xl font-bold text-anthracite">
                   {formatCurrency(totalDebt)}
                 </p>
-                <p className="text-[10px] text-[#212529]/40">Dette totale en cours</p>
+                <p className="text-note text-anthracite/40">Dette totale en cours</p>
               </div>
             </div>
           </div>
@@ -476,8 +478,8 @@ export default function SuppliersPage() {
           {/* ── Suppliers table ── */}
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 p-5">
-              <h2 className="text-lg font-semibold text-[#212529]">Liste des Fournisseurs</h2>
-              <p className="text-sm text-[#212529]/60">
+              <h2 className="text-lg font-semibold text-anthracite">Liste des Fournisseurs</h2>
+              <p className="text-sm text-anthracite/60">
                 Cliquez sur une ligne pour voir l&apos;historique des transactions.
               </p>
             </div>
@@ -511,13 +513,13 @@ export default function SuppliersPage() {
                         </div>
 
                         {/* Avatar */}
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#001F3F]/10 text-sm font-bold text-[#001F3F]">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
                           {sup.name.charAt(0).toUpperCase()}
                         </div>
 
                         {/* Name + contact */}
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium text-[#212529]">{sup.name}</p>
+                          <p className="truncate font-medium text-anthracite">{sup.name}</p>
                           <p className="truncate text-xs text-slate-400">
                             {sup.email || '—'}
                             {sup.phone ? ` · ${sup.phone}` : ''}
@@ -526,16 +528,16 @@ export default function SuppliersPage() {
 
                         {/* Escompte */}
                         <div className="hidden w-20 text-center sm:block">
-                          <p className="text-[10px] text-slate-400">Escompte</p>
-                          <p className="text-sm font-medium text-[#212529]">
+                          <p className="text-note text-slate-400">Escompte</p>
+                          <p className="text-sm font-medium text-anthracite">
                             {sup.discount_percent}%
                           </p>
                         </div>
 
                         {/* Nb achats */}
                         <div className="hidden w-20 text-center md:block">
-                          <p className="text-[10px] text-slate-400">Achats</p>
-                          <p className="text-sm font-medium text-[#212529]">
+                          <p className="text-note text-slate-400">Achats</p>
+                          <p className="text-sm font-medium text-anthracite">
                             {sup.purchases.length}
                           </p>
                         </div>
@@ -546,13 +548,13 @@ export default function SuppliersPage() {
                             {formatCurrency(sup.outstanding_balance)}
                           </p>
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            className={`rounded-full px-2 py-0.5 text-note font-semibold ${
                               hasDebt
                                 ? 'bg-red-100 text-red-700'
                                 : 'bg-emerald-100 text-emerald-700'
                             }`}
                           >
-                            {hasDebt ? '⏳ Dette' : '✓ Soldé'}
+                            {hasDebt ? 'Dette' : 'Soldé'}
                           </span>
                         </div>
 
@@ -563,7 +565,7 @@ export default function SuppliersPage() {
                         >
                           <button
                             onClick={() => setEditSupplier(sup)}
-                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-[#001F3F]"
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-primary"
                             title={t({ fr: 'Modifier', ht: 'Modifye' })}
                             aria-label={t({ fr: 'Modifier', ht: 'Modifye' })}
                           >
@@ -596,7 +598,7 @@ export default function SuppliersPage() {
                               <div className="overflow-x-auto">
                                 <table className="min-w-full text-sm">
                                   <thead>
-                                    <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wider text-slate-400">
+                                    <tr className="border-b border-slate-200 text-left text-note uppercase tracking-wider text-slate-400">
                                       <th className="pb-2 pr-4 font-medium">Produit</th>
                                       <th className="pb-2 px-2 text-right font-medium">Qté</th>
                                       <th className="pb-2 px-2 text-right font-medium">Prix unit.</th>
@@ -612,7 +614,7 @@ export default function SuppliersPage() {
                                         key={p.id}
                                         className="transition-colors hover:bg-white"
                                       >
-                                        <td className="py-2.5 pr-4 font-medium text-[#212529]">
+                                        <td className="py-2.5 pr-4 font-medium text-anthracite">
                                           {p.product_name}
                                         </td>
                                         <td className="py-2.5 px-2 text-right text-slate-600">
@@ -621,7 +623,7 @@ export default function SuppliersPage() {
                                         <td className="py-2.5 px-2 text-right text-slate-600">
                                           {formatCurrency(p.unit_cost)}
                                         </td>
-                                        <td className="py-2.5 px-2 text-right font-semibold text-[#212529]">
+                                        <td className="py-2.5 px-2 text-right font-semibold text-anthracite">
                                           {formatCurrency(p.total_amount)}
                                         </td>
                                         <td className="py-2.5 px-2 text-center text-xs text-slate-500">
@@ -629,13 +631,13 @@ export default function SuppliersPage() {
                                         </td>
                                         <td className="py-2.5 px-2 text-center">
                                           <span
-                                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                            className={`rounded-full px-2 py-0.5 text-note font-semibold ${
                                               p.payment_status === 'paid'
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : 'bg-red-100 text-red-700'
                                             }`}
                                           >
-                                            {p.payment_status === 'paid' ? '✓ Peye' : '⏳ Kredi'}
+                                            {p.payment_status === 'paid' ? 'Peye' : 'Kredi'}
                                           </span>
                                         </td>
                                         <td className="py-2.5 pl-2">
@@ -662,7 +664,7 @@ export default function SuppliersPage() {
                               <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2.5">
                                 <span className="text-xs text-slate-500">
                                   Total acha :{' '}
-                                  <span className="font-semibold text-[#212529]">
+                                  <span className="font-semibold text-anthracite">
                                     {formatCurrency(sup.total_purchased)}
                                   </span>
                                 </span>

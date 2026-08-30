@@ -47,13 +47,13 @@ export function WeeklyDigestCard() {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex items-center gap-3 bg-[#001F3F] px-5 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#50C878]/20">
-          <MessageCircle className="h-5 w-5 text-[#50C878]" />
+      <div className="flex items-center gap-3 bg-primary px-5 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
+          <MessageCircle className="h-5 w-5 text-accent" />
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-bold text-white">Rezime semèn nan</h3>
-          <p className="text-[11px] text-white/60">{period}</p>
+          <p className="text-note text-white/60">{period}</p>
         </div>
         <button
           onClick={load}
@@ -71,10 +71,10 @@ export function WeeklyDigestCard() {
           { label: 'Vant',        value: String(digest.salesCount) },
         ].map((s) => (
           <div key={s.label} className="px-4 py-3 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            <p className="text-note font-semibold uppercase tracking-widest text-slate-400">
               {s.label}
             </p>
-            <p className="mt-0.5 text-base font-black text-[#001F3F] dark:text-slate-100">
+            <p className="mt-0.5 text-base font-black text-primary dark:text-slate-100">
               {s.value}
             </p>
           </div>

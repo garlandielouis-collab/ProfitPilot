@@ -55,7 +55,7 @@ function PaymentBadge({ method, status }: { method: string; status?: string }) {
   const { t } = useLanguage();
   if (status === 'credit' || status === 'À Crédit') {
     return (
-      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-note font-semibold text-amber-700">
         ⏳ {t({ fr: 'Crédit', ht: 'Kredi' })}
       </span>
     );
@@ -64,7 +64,7 @@ function PaymentBadge({ method, status }: { method: string; status?: string }) {
     Cash: { fr: 'Espèces', ht: 'Kach' }, MonCash: { fr: 'MonCash', ht: 'MonCash' }, Natcash: { fr: 'NatCash', ht: 'NatCash' }, Card: { fr: 'Visa', ht: 'Visa' },
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${METHOD_BADGE[method] ?? 'bg-slate-100 text-slate-600'}`}>
+    <span className={`rounded-full px-2 py-0.5 text-note font-semibold ${METHOD_BADGE[method] ?? 'bg-slate-100 text-slate-600'}`}>
       {label[method] ? t(label[method]) : method}
     </span>
   );
@@ -180,11 +180,11 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <>
-      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-[#212529]">Istorik Vant yo</h2>
-            <p className="mt-1 text-sm text-[#212529]/60">
+            <h2 className="text-xl font-semibold text-anthracite">Istorik Vant yo</h2>
+            <p className="mt-1 text-sm text-anthracite/60">
               {loading ? t({ fr: 'Chargement…', ht: 'Ap chaje…' }) : `${groups.length} fakti`}
             </p>
           </div>
@@ -192,7 +192,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100 text-sm">
-            <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-500">
+            <thead className="bg-slate-50 text-left text-note uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-3 py-3">Fakti #</th>
                 <th className="px-3 py-3">Pwodui</th>
@@ -208,7 +208,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
                 <SkeletonRows />
               ) : groups.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-[#212529]/40">
+                  <td colSpan={7} className="py-12 text-center text-sm text-anthracite/40">
                     Pa gen vant ankò.
                   </td>
                 </tr>
@@ -216,7 +216,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
                 groups.map((g) => (
                   <tr key={g.invoice_number} className="transition hover:bg-slate-50">
                     <td className="px-3 py-3">
-                      <span className="font-mono text-[10px] text-slate-400">
+                      <span className="font-mono text-note text-slate-400">
                         {g.invoice_number.length > 16 ? g.invoice_number.slice(0, 14) + '…' : g.invoice_number}
                       </span>
                     </td>
@@ -227,13 +227,13 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
                         ) : (
                           <>
                             {g.items.slice(0, 2).map((item, i) => (
-                              <p key={i} className="truncate font-medium text-[#212529]">
+                              <p key={i} className="truncate font-medium text-anthracite">
                                 {item.product_name}
                                 <span className="ml-1 text-slate-400">×{item.quantity}</span>
                               </p>
                             ))}
                             {g.items.length > 2 && (
-                              <p className="text-[10px] text-slate-400">+{g.items.length - 2} lòt</p>
+                              <p className="text-note text-slate-400">+{g.items.length - 2} lòt</p>
                             )}
                           </>
                         )}
@@ -242,7 +242,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
                     <td className="px-3 py-3 text-slate-500">
                       {g.customer_name ?? <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-3 py-3 text-right font-semibold text-[#212529]">
+                    <td className="px-3 py-3 text-right font-semibold text-anthracite">
                       {fmtAmount(g.total, g.currency)}
                     </td>
                     <td className="px-3 py-3">
@@ -254,7 +254,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
                     <td className="px-3 py-3">
                       <button
                         onClick={() => setActiveInvoice(g.invoice_number)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-600 transition hover:bg-blue-100"
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-note font-semibold text-blue-600 transition hover:bg-blue-100"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

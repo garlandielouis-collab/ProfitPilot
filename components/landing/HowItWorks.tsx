@@ -20,7 +20,7 @@ export function HowItWorks() {
   const inView = useInView(ref, { once: true, margin: '-60px' });
 
   return (
-    <section ref={ref} className="relative overflow-hidden bg-[#F8FAFC] px-5 py-24 md:px-10">
+    <section ref={ref} className="relative overflow-hidden bg-surface px-5 py-24 md:px-10">
       <div className="mx-auto max-w-5xl">
         {/* Header */}
         <motion.div
@@ -28,10 +28,10 @@ export function HowItWorks() {
           transition={{ duration: 0.6 }}
           className="mb-16 text-center"
         >
-          <span className="mb-4 inline-block rounded-full border border-[#001f3f]/10 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[#001f3f]/50 shadow-sm">
+          <span className="mb-4 inline-block rounded-full border border-primary/10 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary/50 shadow-sm">
             {t({ fr: 'Comment ça marche', ht: 'Kijan li fonksyone' })}
           </span>
-          <h2 className="mt-4 text-3xl font-extrabold text-[#001f3f] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-extrabold text-primary sm:text-4xl">
             {t({ fr: 'De', ht: 'Soti' })} <span style={{ background: 'linear-gradient(135deg,#001f3f,#50c878)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{t({ fr: 'zéro à maître', ht: 'zewo a mèt' })}</span> {t({ fr: 'de votre business', ht: 'de biznis ou' })}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-500">
@@ -42,7 +42,7 @@ export function HowItWorks() {
         {/* Steps */}
         <div className="relative">
           {/* Connecting line */}
-          <div className="absolute left-[28px] top-8 bottom-8 w-px bg-gradient-to-b from-[#50c878]/20 via-[#50c878]/40 to-[#50c878]/20 hidden sm:block" />
+          <div className="absolute left-[28px] top-8 bottom-8 w-px bg-gradient-to-b from-accent/20 via-accent/40 to-accent/20 hidden sm:block" />
 
           <div className="flex flex-col gap-6">
             {STEPS.map((step, i) => (
@@ -57,24 +57,24 @@ export function HowItWorks() {
                 <div className="relative z-10 flex shrink-0 flex-col items-center">
                   <motion.div
                     whileHover={{ scale: 1.1 }}
-                    className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-[#50c878]/20 bg-white shadow-md text-2xl"
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-accent/20 bg-white shadow-md text-2xl"
                   >
                     {step.icon}
                   </motion.div>
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm transition-all hover:border-[#50c878]/20 hover:shadow-md">
+                <div className="flex-1 rounded-2xl border border-border bg-white p-5 shadow-sm transition-all hover:border-accent/20 hover:shadow-md">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#50c878]">
+                      <span className="text-note font-bold uppercase tracking-widest text-accent">
                         {t({ fr: 'Étape', ht: 'Etap' })} {step.n}
                       </span>
-                      <h3 className="mt-1 text-lg font-bold text-[#001f3f]">{t(step.title)}</h3>
+                      <h3 className="mt-1 text-lg font-bold text-primary">{t(step.title)}</h3>
                       <p className="mt-1.5 text-sm leading-relaxed text-slate-500">{t(step.desc)}</p>
                     </div>
-                    <div className="hidden shrink-0 rounded-xl bg-[#50c878]/8 px-3 py-1.5 sm:block">
-                      <p className="text-2xl font-black text-[#50c878]/30">{step.n}</p>
+                    <div className="hidden shrink-0 rounded-xl bg-accent/8 px-3 py-1.5 sm:block">
+                      <p className="text-2xl font-black text-accent/30">{step.n}</p>
                     </div>
                   </div>
                 </div>
@@ -92,7 +92,7 @@ export function HowItWorks() {
         >
           <Link
             href="/onboarding"
-            className="group inline-flex items-center gap-3 rounded-2xl bg-[#001f3f] px-8 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] hover:bg-[#001f3f]/90 active:scale-95"
+            className="group inline-flex items-center gap-3 rounded-2xl bg-primary px-8 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] hover:bg-primary/90 active:scale-95"
           >
             {t({ fr: 'Commencer maintenant — c\'est gratuit', ht: 'Kòmanse kounye a — li gratis' })}
             <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />

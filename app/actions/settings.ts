@@ -22,13 +22,23 @@ async function getAuthUser() {
 
 // ── Business Profile ──────────────────────────────────────────────────────────
 
+// Ces deux fonctions cherchaient « l'entreprise dont je suis propriétaire »,
+// au singulier. Deux conséquences, toutes deux corrigées ici en passant par le
+// contexte métier, qui sait déjà répondre à la question :
+//
+//   Elles LEVAIENT pour un marchand qui possède deux commerces — `maybeSingle()`
+//   sur plusieurs lignes ne renvoie pas la première, il échoue.
+//
+//   Elles ignoraient le sélecteur d'entreprise : un marchand passé sur sa
+//   seconde boutique ouvrait les réglages… de la première, et les modifiait.
+
 export async function getBusinessProfile() {
-  const { user, supabase } = await getAuthUser();
+  const { supabase, businessId } = await getBusinessContext();
 
   const { data, error } = await supabase
     .from('businesses')
     .select('*')
-    .eq('owner_id', user.id)
+    .eq('id', businessId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -36,7 +46,9 @@ export async function getBusinessProfile() {
 }
 
 export async function upsertBusinessProfile(raw: BusinessProfileInput) {
-  const { user, supabase } = await getAuthUser();
+  // Le contexte garantit qu'une entreprise existe — il la crée au besoin. La
+  // branche « insertion » d'avant n'a donc plus de raison d'être.
+  const { supabase, businessId } = await getBusinessContext();
 
   // Validate with Zod
   const parsed = businessProfileSchema.safeParse(raw);
@@ -45,15 +57,10 @@ export async function upsertBusinessProfile(raw: BusinessProfileInput) {
   }
   const data = parsed.data;
 
-  // Check if a record already exists
-  const { data: existing } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('owner_id', user.id)
-    .maybeSingle();
-
+  // `owner_id` n'est pas dans la charge utile : on met à jour un profil, on ne
+  // change pas de propriétaire. L'y laisser faisait tenter à un employé qui
+  // corrige une adresse de s'approprier le commerce — et RLS le refusait.
   const payload = {
-    owner_id:         user.id,
     name:             data.name,
     sector:           data.sector           || null,
     phone:            data.phone            || null,
@@ -64,18 +71,11 @@ export async function upsertBusinessProfile(raw: BusinessProfileInput) {
     default_currency: data.default_currency,
   };
 
-  if (existing?.id) {
-    const { error } = await supabase
-      .from('businesses')
-      .update(payload)
-      .eq('id', existing.id);
-    if (error) throw new Error(error.message);
-  } else {
-    const { error } = await supabase
-      .from('businesses')
-      .insert(payload);
-    if (error) throw new Error(error.message);
-  }
+  const { error } = await supabase
+    .from('businesses')
+    .update(payload)
+    .eq('id', businessId);
+  if (error) throw new Error(error.message);
 
   revalidatePath('/settings');
   revalidatePath('/dashboard');
@@ -156,7 +156,9 @@ export async function exportUserData() {
     { data: purchases },
     { data: clients },
   ] = await Promise.all([
-    supabase.from('businesses').select('*').eq('owner_id', user.id).maybeSingle(),
+    // L'entreprise EN COURS, pas « celle dont je suis propriétaire » :
+    // `businessId` vient du contexte, juste au-dessus, et respecte le sélecteur.
+    supabase.from('businesses').select('*').eq('id', businessId).maybeSingle(),
     supabase.from('user_preferences').select('*').eq('user_id', user.id).maybeSingle(),
     supabase.from('sales').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
     supabase.from('expenses').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),

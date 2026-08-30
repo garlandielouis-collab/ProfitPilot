@@ -7,32 +7,32 @@ import { useLanguage } from '../LanguageWrapper';
 
 const FEATURES = [
   {
-    id: 1, Icon: BarChart3, color: '#3b82f6', glow: 'rgba(59,130,246,0.18)',
+    id: 1, Icon: BarChart3, color: '#1d4ed8', glow: 'rgba(59,130,246,0.18)',
     title: { fr: 'Double Comptabilité', ht: 'Doub Kontablite' },
     desc: { fr: 'Gérez le cash et le crédit séparément avec une vision 360° de votre trésorerie en temps réel.', ht: 'Jere lajan kach ak kredi separeman ak yon vizyon 360° sou lajan ou an tan reyèl.' },
   },
   {
-    id: 2, Icon: ScanLine, color: '#10b981', glow: 'rgba(16,185,129,0.18)',
+    id: 2, Icon: ScanLine, color: '#50c878', glow: 'rgba(16,185,129,0.18)',
     title: { fr: 'Scan Produit', ht: 'Eskan Pwodwi' },
     desc: { fr: 'Capturez vos produits en 2 secondes avec le scanner intégré. Inventaire automatique.', ht: 'Kaptire pwodwi ou yo nan 2 segond ak scanner entegre a. Envantè otomatik.' },
   },
   {
-    id: 3, Icon: Cpu, color: '#8b5cf6', glow: 'rgba(139,92,246,0.18)',
+    id: 3, Icon: Cpu, color: '#64748b', glow: 'rgba(139,92,246,0.18)',
     title: { fr: 'PilotAI', ht: 'PilotAI' },
     desc: { fr: 'Recommandations intelligentes pour optimiser vos marges, stocks et flux de trésorerie.', ht: 'Rekòmandasyon entèlijan pou optimize maj, estòk ak flus lajan ou.' },
   },
   {
-    id: 4, Icon: TrendingUp, color: '#f59e0b', glow: 'rgba(245,158,11,0.18)',
+    id: 4, Icon: TrendingUp, color: '#b45309', glow: 'rgba(245,158,11,0.18)',
     title: { fr: 'Rapports HTG/USD', ht: 'Rapò HTG/USD' },
     desc: { fr: 'Rapports financiers complets avec conversion automatique Gourdes/Dollar en temps réel.', ht: 'Rapò finansye konplè ak konvèsyon otomatik Goud/Dola an tan reyèl.' },
   },
   {
-    id: 5, Icon: Shield, color: '#ef4444', glow: 'rgba(239,68,68,0.18)',
+    id: 5, Icon: Shield, color: '#dc2626', glow: 'rgba(239,68,68,0.18)',
     title: { fr: 'Sécurité Renforcée', ht: 'Sekirite Ranfòse' },
     desc: { fr: 'Vos données sont cryptées et sauvegardées automatiquement. Accès sécurisé 24/7.', ht: 'Done ou yo kriptografye epi sovgade otomatikman. Aksè sekirize 24/7.' },
   },
   {
-    id: 6, Icon: Zap, color: '#06b6d4', glow: 'rgba(6,182,212,0.18)',
+    id: 6, Icon: Zap, color: '#64748b', glow: 'rgba(6,182,212,0.18)',
     title: { fr: 'Mode Hors Ligne', ht: 'Mòd San Entènèt' },
     desc: { fr: 'Continuez à vendre sans connexion internet. Synchronisation automatique dès reconnexion.', ht: 'Kontinye vann san koneksyon entènèt. Sinkronizasyon otomatik depi ou rekonekte.' },
   },
@@ -69,7 +69,7 @@ function FeatureGrid() {
           >
             <f.Icon size={22} style={{ color: f.color }} />
           </div>
-          <h3 className="text-base font-semibold text-[#001f3f]">{t(f.title)}</h3>
+          <h3 className="text-base font-semibold text-primary">{t(f.title)}</h3>
           <p className="mt-2 text-sm leading-7 text-slate-500">{t(f.desc)}</p>
         </motion.div>
       ))}
@@ -118,7 +118,7 @@ function FeatureCarousel() {
             >
               <f.Icon size={26} style={{ color: f.color }} />
             </div>
-            <h3 className="text-xl font-semibold text-[#001f3f]">{t(f.title)}</h3>
+            <h3 className="text-xl font-semibold text-primary">{t(f.title)}</h3>
             <p className="mt-3 text-sm leading-7 text-slate-500">{t(f.desc)}</p>
           </motion.div>
         </AnimatePresence>
@@ -152,7 +152,7 @@ function FeatureCarousel() {
                 ? (idx - 1 + FEATURES.length) % FEATURES.length
                 : (idx + 1) % FEATURES.length
               )}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-slate-500 transition hover:bg-slate-50 hover:text-[#001f3f]"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white text-slate-500 transition hover:bg-slate-50 hover:text-primary"
             >
               <Icon size={18} />
             </button>
@@ -172,7 +172,7 @@ export function FeaturesSection() {
   const headInView = useInView(headRef, { once: true, margin: '-80px' });
 
   return (
-    <section id="features" className="bg-[#F8FAFC] px-5 py-20 md:px-10 lg:px-16">
+    <section id="features" className="bg-surface px-5 py-20 md:px-10 lg:px-16">
       <div className="mx-auto max-w-7xl">
         <motion.div
           ref={headRef}
@@ -181,10 +181,10 @@ export function FeaturesSection() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
           className="mb-14 text-center"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-[#50c878]">
+          <p className="text-xs uppercase tracking-[0.3em] text-accent">
             {t({ fr: 'Fonctionnalités', ht: 'Fonksyon yo' })}
           </p>
-          <h2 className="mt-3 text-3xl font-bold text-[#001f3f] sm:text-4xl">
+          <h2 className="mt-3 text-3xl font-bold text-primary sm:text-4xl">
             {t({ fr: 'Des outils qui changent tout', ht: 'Zouti ki chanje tout bagay' })}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-base text-slate-500">

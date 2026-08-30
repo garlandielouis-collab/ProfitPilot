@@ -1,6 +1,40 @@
 'use client';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Les notifications — ce que le commerce a fait pendant qu'on ne regardait pas
+//
+// Ce que l'écran faisait de travers :
+//
+//   §3.5  dix émojis (🛍️ ✅ ⚠️ 💸 📦 👤 👷 🎉 🏢 🔔), dont un posé dans une
+//         pastille de 40 px en haut de page comme s'il était le logo du produit.
+//   §4.2  dix fonds colorés — émeraude, vert, ambre, rouge, bleu, violet,
+//         indigo, rose, ardoise — un par type. Une dépense enregistrée
+//         s'affichait en ROUGE : le marchand lisait « problème » là où il n'y
+//         avait qu'une écriture normale. Le rouge et le vert sont réservés
+//         (§4.2) ; il ne reste ici qu'un ambre, pour le stock qui s'épuise, et
+//         un vert, pour l'argent réellement encaissé.
+//   §5.9  l'interrupteur des préférences faisait 24 px de haut ; il vient
+//         désormais du système (`ds/Switch`), avec sa cible de 44 px.
+//   §4.4  la page peignait SON PROPRE fond (`min-h-screen bg-slate-50`) à
+//         l'intérieur de la coquille qui en pose déjà un — d'où la bande grise
+//         qui ne suivait pas le mode sombre.
+//
+// L'écran garde ses deux temps : ce qui est arrivé, et ce qu'on veut être
+// prévenu. Le second n'a de sens qu'après avoir vu le premier — d'où l'ordre.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useCallback, useEffect, useState } from 'react';
+import {
+  AlertTriangle, Bell, Building2, CheckCircle2, MailCheck, Package,
+  Receipt, ShoppingBag, ShoppingCart, UserCog, Users,
+  type LucideIcon,
+} from 'lucide-react';
+
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import { useLanguage } from '../../components/LanguageWrapper';
+import {
+  Card, FilterPill, FirstRun, ScreenHeader, Stack, Switch,
+} from '../../components/ds';
 import {
   listNotifications,
   markAsRead,
@@ -11,273 +45,321 @@ import {
   type NotifPreference,
 } from '../actions/notifications';
 
-// ── Config ────────────────────────────────────────────────────────────────────
+type Bilingual = { fr: string; ht: string };
+type Tone = 'neutral' | 'warning' | 'success';
 
-const TYPE_CONFIG: Record<string, { icon: string; label: string; color: string }> = {
-  sale_created:        { icon: '🛍️',  label: 'Nouvelle vente',          color: 'bg-emerald-100 text-emerald-700' },
-  invoice_paid:        { icon: '✅',  label: 'Facture payée',            color: 'bg-green-100 text-green-700' },
-  stock_low:           { icon: '⚠️',  label: 'Stock faible',             color: 'bg-amber-100 text-amber-700' },
-  expense_created:     { icon: '💸',  label: 'Nouvelle dépense',         color: 'bg-red-100 text-red-700' },
-  purchase_created:    { icon: '📦',  label: 'Nouvel achat',             color: 'bg-blue-100 text-blue-700' },
-  client_created:      { icon: '👤',  label: 'Nouveau client',           color: 'bg-purple-100 text-purple-700' },
-  employee_created:    { icon: '👷',  label: 'Nouvel employé',           color: 'bg-indigo-100 text-indigo-700' },
-  invitation_accepted: { icon: '🎉',  label: 'Invitation acceptée',      color: 'bg-pink-100 text-pink-700' },
-  company_created:     { icon: '🏢',  label: 'Nouvelle entreprise',      color: 'bg-slate-100 text-slate-700' },
-  generic:             { icon: '🔔',  label: 'Notification',             color: 'bg-slate-100 text-slate-600' },
+const TYPES: Record<string, { label: Bilingual; icon: LucideIcon; tone: Tone }> = {
+  sale_created:        { label: { fr: 'Nouvelle vente',      ht: 'Nouvo vant'        }, icon: ShoppingCart, tone: 'neutral' },
+  // De l'argent réellement entré : c'est l'un des deux seuls verts de l'écran.
+  invoice_paid:        { label: { fr: 'Facture payée',       ht: 'Fakti peye'        }, icon: CheckCircle2, tone: 'success' },
+  // Ce qui demande d'agir avant qu'il ne soit trop tard.
+  stock_low:           { label: { fr: 'Stock faible',        ht: 'Stòk ba'           }, icon: AlertTriangle, tone: 'warning' },
+  expense_created:     { label: { fr: 'Nouvelle dépense',    ht: 'Nouvo depans'      }, icon: Receipt,      tone: 'neutral' },
+  purchase_created:    { label: { fr: 'Nouvel achat',        ht: 'Nouvo acha'        }, icon: ShoppingBag,  tone: 'neutral' },
+  client_created:      { label: { fr: 'Nouveau client',      ht: 'Nouvo kliyan'      }, icon: Users,        tone: 'neutral' },
+  employee_created:    { label: { fr: 'Nouvel employé',      ht: 'Nouvo anplwaye'    }, icon: UserCog,      tone: 'neutral' },
+  invitation_accepted: { label: { fr: 'Invitation acceptée', ht: 'Envitasyon aksepte'}, icon: MailCheck,    tone: 'neutral' },
+  company_created:     { label: { fr: 'Nouvelle entreprise', ht: 'Nouvo antrepriz'   }, icon: Building2,    tone: 'neutral' },
+  generic:             { label: { fr: 'Notification',        ht: 'Notifikasyon'      }, icon: Bell,         tone: 'neutral' },
 };
 
-const ALL_PREF_TYPES = Object.entries(TYPE_CONFIG).map(([type, cfg]) => ({ type, ...cfg }));
+/** Ce que chaque type prévient — la ligne qui manquait à l'écran de réglages. */
+const PREF_HINTS: Record<string, Bilingual> = {
+  sale_created:        { fr: 'À chaque vente enregistrée, y compris par un employé.', ht: 'Chak fwa yon vant anrejistre, menm pa yon anplwaye.' },
+  invoice_paid:        { fr: "Quand un client règle une facture ou solde sa dette.",  ht: 'Lè yon kliyan peye yon fakti oswa solde dèt li.' },
+  stock_low:           { fr: 'Quand un produit passe sous son seuil de réassort.',    ht: 'Lè yon pwodwi desann anba sèy li.' },
+  expense_created:     { fr: 'À chaque dépense saisie sur le compte.',                ht: 'Chak depans ki antre nan kont lan.' },
+  purchase_created:    { fr: 'À chaque achat auprès d’un fournisseur.',               ht: 'Chak acha kay yon founisè.' },
+  client_created:      { fr: 'Quand un client est ajouté au carnet.',                 ht: 'Lè yon kliyan antre nan kanè a.' },
+  employee_created:    { fr: 'Quand quelqu’un rejoint l’équipe.',                     ht: 'Lè yon moun antre nan ekip la.' },
+  invitation_accepted: { fr: 'Quand une invitation envoyée est acceptée.',            ht: 'Lè yon envitasyon aksepte.' },
+  company_created:     { fr: 'Quand une nouvelle entreprise est créée.',              ht: 'Lè yon nouvo antrepriz kreye.' },
+  generic:             { fr: 'Les messages qui n’entrent dans aucune autre case.',    ht: 'Mesaj ki pa antre nan okenn lòt kazye.' },
+};
 
-function cfg(type: string) { return TYPE_CONFIG[type] ?? TYPE_CONFIG.generic; }
+const ICON_TONE: Record<Tone, string> = {
+  neutral: 'bg-surface2 text-muted dark:bg-dark-surface2 dark:text-dark-muted',
+  warning: 'bg-warning-sub text-warning dark:bg-warning/15',
+  success: 'bg-success-sub text-success dark:bg-success/15',
+};
 
-function relDate(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60)     return 'À l\'instant';
-  if (diff < 3600)   return `il y a ${Math.floor(diff / 60)} min`;
-  if (diff < 86400)  return `il y a ${Math.floor(diff / 3600)} h`;
-  if (diff < 604800) return `il y a ${Math.floor(diff / 86400)} j`;
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const LIMIT = 30;
+
+function typeOf(type: string) {
+  return TYPES[type] ?? TYPES.generic;
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
-export default function NotificationsPage() {
-  const [tab, setTab]           = useState<'feed' | 'preferences'>('feed');
-  const [notifs, setNotifs]     = useState<Notification[]>([]);
-  const [prefs, setPrefs]       = useState<NotifPreference[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [filter, setFilter]     = useState<'all' | 'unread'>('all');
-  const [offset, setOffset]     = useState(0);
-  const [hasMore, setHasMore]   = useState(false);
-  const LIMIT = 30;
+function NotificationsInner() {
+  const { t, language } = useLanguage();
 
-  const loadNotifs = useCallback(async (newOffset = 0, unreadOnly = filter === 'unread') => {
+  const [tab,     setTab]     = useState<'feed' | 'preferences'>('feed');
+  const [notifs,  setNotifs]  = useState<Notification[]>([]);
+  const [prefs,   setPrefs]   = useState<NotifPreference[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [offset,  setOffset]  = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+
+  const load = useCallback(async (newOffset: number, onlyUnread: boolean) => {
     setLoading(true);
-    const data = await listNotifications({ limit: LIMIT + 1, offset: newOffset, unreadOnly });
+    // On demande un élément de plus que la page : s'il revient, c'est qu'il y a
+    // une suite. Un comptage complet coûterait une requête pour rien.
+    const data = await listNotifications({ limit: LIMIT + 1, offset: newOffset, unreadOnly: onlyUnread });
     setHasMore(data.length > LIMIT);
     setNotifs(data.slice(0, LIMIT));
     setOffset(newOffset);
     setLoading(false);
-  }, [filter]);
+  }, []);
 
-  useEffect(() => { loadNotifs(0); }, [loadNotifs]);
+  useEffect(() => { load(0, unreadOnly); }, [load, unreadOnly]);
 
   useEffect(() => {
-    if (tab === 'preferences') {
-      getNotifPreferences().then(setPrefs);
-    }
+    if (tab === 'preferences') getNotifPreferences().then(setPrefs).catch(() => {});
   }, [tab]);
 
-  async function handleMarkRead(id: string) {
-    await markAsRead(id);
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, readAt: new Date().toISOString() } : n));
+  async function handleRead(id: string) {
+    setNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)));
+    try { await markAsRead(id); } catch { /* l'écran a déjà répondu */ }
   }
 
-  async function handleMarkAll() {
-    await markAllAsRead();
-    setNotifs(prev => prev.map(n => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
+  async function handleReadAll() {
+    setNotifs((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
+    try { await markAllAsRead(); } catch { /* idem */ }
   }
 
-  async function handleTogglePref(type: string, enabled: boolean) {
-    await setNotifPreference(type, enabled);
-    setPrefs(prev => {
-      const existing = prev.find(p => p.type === type);
-      if (existing) return prev.map(p => p.type === type ? { ...p, enabled } : p);
-      return [...prev, { type, enabled }];
-    });
+  async function togglePref(type: string, enabled: boolean) {
+    setPrefs((prev) =>
+      prev.some((p) => p.type === type)
+        ? prev.map((p) => (p.type === type ? { ...p, enabled } : p))
+        : [...prev, { type, enabled }],
+    );
+    try { await setNotifPreference(type, enabled); } catch { /* idem */ }
   }
 
-  function isPrefEnabled(type: string): boolean {
-    const p = prefs.find(p => p.type === type);
-    return p ? p.enabled : true; // default enabled
-  }
-
-  const unreadCount = notifs.filter(n => !n.readAt).length;
+  const prefEnabled = (type: string) => prefs.find((p) => p.type === type)?.enabled ?? true;
+  const unread = notifs.filter((n) => !n.readAt).length;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="mx-auto max-w-2xl space-y-6">
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#001F3F] text-lg text-white">
-              🔔
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Notifications</h1>
-              <p className="text-sm text-slate-500">Centre de notifications en temps réel</p>
-            </div>
-          </div>
-          {tab === 'feed' && unreadCount > 0 && (
+    <div className="pp-enter mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <ScreenHeader
+        title={t({ fr: 'Notifications', ht: 'Notifikasyon' })}
+        subtitle={
+          unread > 0
+            ? t({
+                fr: `${unread} non lue${unread > 1 ? 's' : ''}`,
+                ht: `${unread} ou poko li`,
+              })
+            : t({ fr: 'Tout est lu.', ht: 'Tout li deja.' })
+        }
+        action={
+          tab === 'feed' && unread > 0 ? (
             <button
-              onClick={handleMarkAll}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              type="button"
+              onClick={handleReadAll}
+              className="pressable min-h-touch flex-shrink-0 text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
             >
-              Tout marquer lu
+              {t({ fr: 'Tout marquer lu', ht: 'Make tout kòm li' })}
             </button>
-          )}
+          ) : undefined
+        }
+      />
+
+      <Stack className="mt-6">
+        <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+          <FilterPill
+            label={t({ fr: 'Ce qui est arrivé', ht: 'Sa ki pase' })}
+            selected={tab === 'feed'}
+            onClick={() => setTab('feed')}
+          />
+          <FilterPill
+            label={t({ fr: 'Ce que je veux savoir', ht: 'Sa m vle konnen' })}
+            selected={tab === 'preferences'}
+            onClick={() => setTab('preferences')}
+          />
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
-          {[
-            { key: 'feed',        label: 'Flux' },
-            { key: 'preferences', label: 'Préférences' },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key as any)}
-              className={`flex-1 rounded-lg py-2 text-sm font-semibold transition ${
-                tab === key
-                  ? 'bg-[#001F3F] text-white'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Feed tab */}
-        {tab === 'feed' && (
+        {tab === 'feed' ? (
           <>
-            {/* Filter */}
-            <div className="flex gap-2">
-              {(['all', 'unread'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => { setFilter(f); loadNotifs(0, f === 'unread'); }}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    filter === f
-                      ? 'bg-[#001F3F] text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {f === 'all' ? 'Toutes' : `Non lues${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
-                </button>
-              ))}
+            <div className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
+              <FilterPill
+                label={t({ fr: 'Toutes', ht: 'Tout' })}
+                selected={!unreadOnly}
+                onClick={() => setUnreadOnly(false)}
+              />
+              <FilterPill
+                label={t({ fr: 'Non lues', ht: 'Poko li' })}
+                count={unread > 0 ? unread : undefined}
+                selected={unreadOnly}
+                onClick={() => setUnreadOnly(true)}
+              />
             </div>
 
-            {/* List */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <Card>
               {loading ? (
-                <div className="flex items-center justify-center py-16">
-                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-[#001F3F]" />
+                <div className="space-y-2 p-4" aria-hidden>
+                  {[0, 1, 2, 3].map((i) => (
+                    <span key={i} className="pp-skeleton block h-14 rounded-control" />
+                  ))}
                 </div>
+              ) : notifs.length === 0 && unreadOnly ? (
+                <p className="px-4 py-10 text-center text-body text-muted dark:text-dark-muted">
+                  {t({ fr: 'Rien en attente : tout est lu.', ht: 'Anyen ap tann : tout li deja.' })}
+                </p>
               ) : notifs.length === 0 ? (
-                <div className="py-16 text-center">
-                  <p className="text-4xl">🔔</p>
-                  <p className="mt-3 text-sm font-medium text-slate-500">Aucune notification</p>
-                  <p className="text-xs text-slate-400">
-                    {filter === 'unread' ? 'Tout est lu !' : 'Les notifications apparaîtront ici.'}
-                  </p>
-                </div>
+                <FirstRun
+                  title={t({
+                    fr: 'Rien à signaler pour le moment',
+                    ht: 'Anyen pou siyale pou kounye a',
+                  })}
+                  hint={t({
+                    fr: 'Une vente enregistrée, un stock qui baisse, un client qui paie : ProfitPilot vous préviendra ici.',
+                    ht: 'Yon vant anrejistre, yon stòk k ap bese, yon kliyan ki peye : ProfitPilot ap avèti w isit la.',
+                  })}
+                />
               ) : (
-                <div className="divide-y divide-slate-100">
+                <ul className="divide-y divide-border dark:divide-dark-border">
                   {notifs.map((n) => {
-                    const c = cfg(n.type);
+                    const cfg  = typeOf(n.type);
+                    const Icon = cfg.icon;
+                    const isUnread = !n.readAt;
+
                     return (
-                      <div
-                        key={n.id}
-                        onClick={() => !n.readAt && handleMarkRead(n.id)}
-                        className={`flex cursor-pointer items-start gap-4 px-5 py-4 transition hover:bg-slate-50 ${
-                          !n.readAt ? 'bg-blue-50/50' : ''
-                        }`}
-                      >
-                        {/* Icon */}
-                        <span className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-lg ${c.color}`}>
-                          {c.icon}
-                        </span>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className={`text-sm leading-snug ${n.readAt ? 'font-medium text-slate-600' : 'font-bold text-slate-800'}`}>
-                              {n.title}
-                            </p>
-                            <span className="flex-shrink-0 text-[11px] text-slate-400">{relDate(n.createdAt)}</span>
-                          </div>
-                          {n.body && (
-                            <p className="mt-0.5 text-xs text-slate-400 leading-snug">{n.body}</p>
-                          )}
-                          <span className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.color}`}>
-                            {c.icon} {c.label}
+                      <li key={n.id}>
+                        <button
+                          type="button"
+                          onClick={() => isUnread && handleRead(n.id)}
+                          className="pressable flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface dark:hover:bg-white/5"
+                        >
+                          <span
+                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-surface ${ICON_TONE[cfg.tone]}`}
+                          >
+                            <Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden />
                           </span>
-                        </div>
 
-                        {/* Unread dot */}
-                        {!n.readAt && (
-                          <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-500" />
-                        )}
-                      </div>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-baseline justify-between gap-3">
+                              {/* Le non-lu se marque par le CONTRASTE — gras et
+                                  marine — et non par un fond bleu pâle (§4.5). */}
+                              <span
+                                className={
+                                  isUnread
+                                    ? 'min-w-0 truncate text-body font-bold text-primary dark:text-dark-text'
+                                    : 'min-w-0 truncate text-body text-text2 dark:text-dark-text2'
+                                }
+                              >
+                                {n.title}
+                              </span>
+                              <span className="amount flex-shrink-0 text-note text-muted dark:text-dark-muted">
+                                {relativeDate(n.createdAt, language)}
+                              </span>
+                            </span>
+
+                            {n.body && (
+                              <span className="mt-0.5 block truncate text-note text-muted dark:text-dark-muted">
+                                {n.body}
+                              </span>
+                            )}
+                            <span className="mt-1 block text-note text-muted dark:text-dark-muted">
+                              {t(cfg.label)}
+                            </span>
+                          </span>
+
+                          {isUnread && (
+                            <span
+                              className="mt-2 h-2 w-2 flex-shrink-0 rounded-pill bg-accent"
+                              aria-label={t({ fr: 'Non lue', ht: 'Poko li' })}
+                            />
+                          )}
+                        </button>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               )}
 
-              {/* Pagination */}
               {(offset > 0 || hasMore) && (
-                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                  <button
-                    onClick={() => loadNotifs(Math.max(0, offset - LIMIT))}
-                    disabled={offset === 0 || loading}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                  >
-                    ← Précédent
-                  </button>
-                  <button
-                    onClick={() => loadNotifs(offset + LIMIT)}
-                    disabled={!hasMore || loading}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                  >
-                    Suivant →
-                  </button>
+                <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-2 dark:border-dark-border">
+                  <PageButton onClick={() => load(Math.max(0, offset - LIMIT), unreadOnly)} disabled={offset === 0 || loading}>
+                    {t({ fr: 'Précédent', ht: 'Anvan' })}
+                  </PageButton>
+                  <PageButton onClick={() => load(offset + LIMIT, unreadOnly)} disabled={!hasMore || loading}>
+                    {t({ fr: 'Suivant', ht: 'Apre' })}
+                  </PageButton>
                 </div>
               )}
-            </div>
+            </Card>
           </>
-        )}
+        ) : (
+          <Card className="px-4">
+            <p className="border-b border-border py-4 text-note text-muted dark:border-dark-border dark:text-dark-muted">
+              {t({
+                fr: 'Coupez ce qui ne vous sert pas : une alerte qu’on ignore tous les jours finit par cacher celle qui compte.',
+                ht: 'Koupe sa ki pa sèvi w : yon alèt ou inyore chak jou ap fini pa kache sa ki enpòtan an.',
+              })}
+            </p>
 
-        {/* Preferences tab */}
-        {tab === 'preferences' && (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <p className="text-sm font-bold text-slate-800">Types de notifications</p>
-              <p className="text-xs text-slate-500 mt-0.5">Activez ou désactivez chaque type de notification</p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {ALL_PREF_TYPES.map(({ type, icon, label, color }) => {
-                const enabled = isPrefEnabled(type);
+            <ul className="divide-y divide-border dark:divide-dark-border">
+              {Object.entries(TYPES).map(([type, cfg]) => {
+                const Icon = cfg.icon;
                 return (
-                  <div key={type} className="flex items-center justify-between px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-base ${color}`}>
-                        {icon}
-                      </span>
-                      <span className="text-sm font-medium text-slate-700">{label}</span>
-                    </div>
-
-                    {/* Toggle */}
-                    <button
-                      onClick={() => handleTogglePref(type, !enabled)}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                        enabled ? 'bg-[#001F3F]' : 'bg-slate-200'
-                      }`}
-                      role="switch"
-                      aria-checked={enabled}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                        enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </button>
-                  </div>
+                  <li key={type} className="py-2">
+                    <Switch
+                      checked={prefEnabled(type)}
+                      onChange={(next) => togglePref(type, next)}
+                      label={t(cfg.label)}
+                      hint={PREF_HINTS[type] ? t(PREF_HINTS[type]) : undefined}
+                      icon={<Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+                    />
+                  </li>
                 );
               })}
-            </div>
-          </div>
+            </ul>
+          </Card>
         )}
-      </div>
-    </main>
+      </Stack>
+    </div>
+  );
+}
+
+function PageButton({
+  children, onClick, disabled,
+}: { children: React.ReactNode; onClick: () => void; disabled: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="pressable min-h-touch rounded-control px-4 text-note font-bold text-primary disabled:opacity-45 dark:text-dark-text"
+    >
+      {children}
+    </button>
+  );
+}
+
+function relativeDate(iso: string, language: 'fr' | 'ht'): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60)     return language === 'ht' ? 'kounye a' : "à l'instant";
+  if (diff < 3_600)  return `${Math.floor(diff / 60)} min`;
+  if (diff < 86_400) {
+    const h = Math.floor(diff / 3_600);
+    return language === 'ht' ? `${h} è` : `${h} h`;
+  }
+  if (diff < 604_800) {
+    const d = Math.floor(diff / 86_400);
+    return language === 'ht' ? `${d} jou` : `${d} j`;
+  }
+  return new Date(iso).toLocaleDateString(language === 'ht' ? 'fr-HT' : 'fr-FR', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+export default function NotificationsPage() {
+  return (
+    <ProtectedRoute>
+      <NotificationsInner />
+    </ProtectedRoute>
   );
 }

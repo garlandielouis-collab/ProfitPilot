@@ -13,6 +13,11 @@ import {
   type UpsertEmployeeInput,
 } from '../actions/hr-employees';
 import { sendHrInvitation } from '../actions/invitations';
+import { Button, FirstRun, NoResult, closestMatch } from '../../components/ds';
+// La fiche employé annonçait ses champs par des émojis (📞 ✉️ 🏢 📅 ⏳ 🔑).
+// Une icône de contour, à épaisseur constante, prend la couleur du texte —
+// un émoji, non : il reste jaune vif à côté d'un libellé gris (§3.5).
+import { Briefcase, CalendarDays, Clock, Hash, Mail, Phone } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,18 +37,15 @@ const POSITIONS = [
   'Superviseur', 'Directeur', 'RH', 'Marketing', 'Autre',
 ];
 
-const MOCK_EMPLOYEES: HrEmployee[] = [
-  { id: 'demo-1', company_id: '', first_name: 'Marie',    last_name: 'Josette',    email: 'marie@example.com',  phone: '+509 3712-4521', position: 'Caissière',  avatar_url: null, status: 'actif',   hire_date: '2024-03-15', salary: 18000, salary_currency: 'HTG', notes: null, created_at: '2024-03-15T10:00:00Z' },
-  { id: 'demo-2', company_id: '', first_name: 'Jean',     last_name: 'Duval',      email: null,                 phone: '+509 4822-6340', position: 'Vendeur',    avatar_url: null, status: 'actif',   hire_date: '2024-06-01', salary: 15000, salary_currency: 'HTG', notes: null, created_at: '2024-06-01T10:00:00Z' },
-  { id: 'demo-3', company_id: '', first_name: 'Claudette',last_name: 'Morisseau',  email: 'claude@mail.fr',     phone: '+509 3611-8820', position: 'Comptable',  avatar_url: null, status: 'conge',   hire_date: '2023-11-20', salary: 25000, salary_currency: 'HTG', notes: 'Congé maternité', created_at: '2023-11-20T10:00:00Z' },
-  { id: 'demo-4', company_id: '', first_name: 'Réginald', last_name: 'Saint-Louis',email: null,                 phone: '+509 3920-1145', position: 'Magasinier', avatar_url: null, status: 'inactif', hire_date: '2023-08-10', salary: 14000, salary_currency: 'HTG', notes: null, created_at: '2023-08-10T10:00:00Z' },
-  { id: 'demo-5', company_id: '', first_name: 'Nadège',   last_name: 'Compère',    email: 'nadege@mail.ht',     phone: '+509 4710-3382', position: 'Superviseur',avatar_url: null, status: 'actif',   hire_date: '2022-01-05', salary: 35000, salary_currency: 'HTG', notes: null, created_at: '2022-01-05T10:00:00Z' },
-];
+// Aucun employé de démonstration (audit §1.1, §5.10). Cinq salariés fictifs
+// s'affichaient avec leurs postes et leurs salaires — 35 000 HTG pour l'un —
+// jusqu'à ce que la base réponde, et restaient là si elle ne répondait pas.
+// Un registre RH qui invente du personnel invente une masse salariale.
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
-  'bg-[#001F3F]/20 text-[#001F3F]',
+  'bg-primary/20 text-primary',
   'bg-blue-500/20 text-blue-700',
   'bg-emerald-500/20 text-emerald-700',
   'bg-orange-500/20 text-orange-700',
@@ -85,7 +87,7 @@ function yearsWorked(hireDate: string | null) {
 
 // ── InputField ────────────────────────────────────────────────────────────────
 
-const INP = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-slate-400 focus:ring-[#001F3F]/20 focus:border-[#001F3F]/50';
+const INP = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-slate-400 focus:ring-primary/20 focus:border-primary/50';
 
 // ── EmployeeModal ─────────────────────────────────────────────────────────────
 
@@ -126,7 +128,7 @@ function EmployeeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-lg overflow-hidden rounded-surface border border-[var(--color-border)] bg-white shadow-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5 flex-shrink-0">
@@ -134,7 +136,7 @@ function EmployeeModal({
             <p className="text-xs uppercase tracking-widest text-[var(--color-muted)]">
               {employee ? 'Modifier' : 'Nouvel Employé'}
             </p>
-            <h3 className="mt-0.5 text-xl font-semibold text-[#001F3F]">
+            <h3 className="mt-0.5 text-xl font-semibold text-primary">
               {employee ? `${employee.first_name} ${employee.last_name}` : 'Ajouter un Employé'}
             </h3>
           </div>
@@ -205,7 +207,7 @@ function EmployeeModal({
                     type="number" min="0" step="100" placeholder="0"
                     className={`${INP} flex-1`}
                   />
-                  <select value={form.salary_currency} onChange={e => set('salary_currency', e.target.value)} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 text-sm outline-none focus:border-[#001F3F]/50">
+                  <select value={form.salary_currency} onChange={e => set('salary_currency', e.target.value)} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 text-sm outline-none focus:border-primary/50">
                     <option value="HTG">HTG</option>
                     <option value="USD">USD</option>
                   </select>
@@ -227,8 +229,10 @@ function EmployeeModal({
             <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-3 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">
               Annuler
             </button>
-            <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-[#001F3F] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] disabled:opacity-50">
-              {saving ? 'Enregistrement…' : employee ? 'Sauvegarder' : 'Ajouter Employé'}
+            <button type="submit" disabled={saving} className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-h disabled:opacity-50">
+              {/* « Ajouter Employé » répétait mot pour mot le sous-titre de
+                  la fenêtre juste au-dessus (audit §9, contrôle 1). */}
+              {saving ? 'Enregistrement…' : employee ? 'Enregistrer les changements' : "Ajouter l'employé"}
             </button>
           </div>
         </form>
@@ -243,27 +247,24 @@ function DeleteModal({ employee, onClose, onConfirm }: {
   employee: HrEmployee; onClose: () => void; onConfirm: () => Promise<void>
 }) {
   const [busy, setBusy] = useState(false);
-  const isDemo = employee.id.startsWith('demo-');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-surface border border-[var(--color-border)] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
           <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
         </div>
-        <h3 className="text-lg font-semibold text-[#001F3F]">Supprimer l&apos;employé ?</h3>
+        <h3 className="text-lg font-semibold text-primary">Supprimer l&apos;employé ?</h3>
         <p className="mt-2 text-sm text-[var(--color-muted)]">
           <span className="font-medium text-[var(--color-text)]">{fullName(employee)}</span>
           {' '}sera retiré du registre RH. Cette action est irréversible.
         </p>
-        {isDemo && <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-400">Données démo — non enregistrées en base.</p>}
         <div className="mt-5 flex gap-3">
           <button onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">Annuler</button>
-          {!isDemo && (
-            <button onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }} disabled={busy}
-              className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
-              {busy ? 'Suppression…' : 'Oui, Supprimer'}
-            </button>
-          )}
+          <button onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }} disabled={busy}
+            className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
+            {busy ? 'Suppression…' : 'Oui, Supprimer'}
+          </button>
         </div>
       </div>
     </div>
@@ -295,22 +296,22 @@ function InviteModal({ employee, onClose }: { employee: HrEmployee; onClose: () 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-surface border border-[var(--color-border)] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/15">
           <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
         </div>
 
         {done ? (
           <>
-            <h3 className="text-lg font-semibold text-[#001F3F]">Invitation envoyée ✓</h3>
+            <h3 className="text-lg font-semibold text-primary">Invitation envoyée</h3>
             <p className="mt-2 text-sm text-[var(--color-muted)]">
               <span className="font-medium text-[var(--color-text)]">{fullName(employee)}</span> recevra un accès à ProfitPilot.
             </p>
-            <button onClick={onClose} className="mt-5 w-full rounded-2xl bg-[#001F3F] py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B]">Fermer</button>
+            <button onClick={onClose} className="mt-5 w-full rounded-2xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h">Fermer</button>
           </>
         ) : (
           <>
-            <h3 className="text-lg font-semibold text-[#001F3F]">Inviter sur ProfitPilot</h3>
+            <h3 className="text-lg font-semibold text-primary">Inviter sur ProfitPilot</h3>
             <p className="mt-1 text-sm text-[var(--color-muted)]">
               Donner accès à <span className="font-medium text-[var(--color-text)]">{fullName(employee)}</span> pour qu&apos;il puisse se connecter.
             </p>
@@ -322,13 +323,13 @@ function InviteModal({ employee, onClose }: { employee: HrEmployee; onClose: () 
                 onKeyDown={e => e.key === 'Enter' && handleInvite()}
                 type="email"
                 placeholder="email@example.com"
-                className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm outline-none focus:border-[#001F3F]/50"
+                className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm outline-none focus:border-primary/50"
               />
             </div>
             {err && <p className="mt-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-400">{err}</p>}
             <div className="mt-4 flex gap-3">
               <button onClick={onClose} className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">Annuler</button>
-              <button onClick={handleInvite} disabled={busy || !email.trim()} className="flex-1 rounded-2xl bg-[#0047AB] py-2.5 text-sm font-semibold text-white transition hover:bg-[#003d96] disabled:opacity-50">
+              <button onClick={handleInvite} disabled={busy || !email.trim()} className="flex-1 rounded-2xl bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-50">
                 {busy ? 'Envoi…' : 'Inviter'}
               </button>
             </div>
@@ -342,9 +343,8 @@ function InviteModal({ employee, onClose }: { employee: HrEmployee; onClose: () 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function EmployeesPageInner() {
-  const [employees,    setEmployees]    = useState<HrEmployee[]>(MOCK_EMPLOYEES);
-  const [selectedId,   setSelectedId]   = useState<string | null>('demo-1');
-  const [isDemo,       setIsDemo]       = useState(true);
+  const [employees,    setEmployees]    = useState<HrEmployee[]>([]);
+  const [selectedId,   setSelectedId]   = useState<string | null>(null);
   const [loading,      setLoading]      = useState(true);
 
   const [search,       setSearch]       = useState('');
@@ -362,13 +362,12 @@ function EmployeesPageInner() {
     setLoading(true);
     try {
       const data = await listHrEmployees();
-      if (data.length > 0) {
-        setEmployees(data);
-        setIsDemo(false);
-        if (!selectedId || selectedId.startsWith('demo-')) setSelectedId(data[0].id);
-      }
+      setEmployees(data);
+      setSelectedId(prev => (prev && data.some(e => e.id === prev) ? prev : data[0]?.id ?? null));
     } catch {
-      // keep demo data
+      // Une erreur de chargement laisse le registre vide, pas peuplé de fictifs.
+      setEmployees([]);
+      setSelectedId(null);
     }
     setLoading(false);
   }, []);
@@ -435,11 +434,11 @@ function EmployeesPageInner() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">RH</p>
-              <h1 className="mt-0.5 text-xl font-semibold text-[#001F3F]">Employés</h1>
+              <h1 className="mt-0.5 text-xl font-semibold text-primary">Employés</h1>
             </div>
             <button
               onClick={() => { setEditTarget(null); setShowModal(true); }}
-              className="flex items-center gap-1.5 rounded-2xl bg-[#001F3F] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#002D5B] active:scale-95"
+              className="flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-h active:scale-95"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               Ajouter
@@ -453,7 +452,7 @@ function EmployeesPageInner() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Rechercher employé…"
-              className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text)] outline-none placeholder:text-slate-400 focus:border-[#001F3F]/50 focus:ring-1 focus:ring-[#001F3F]/20"
+              className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 pl-9 pr-4 text-sm text-[var(--color-text)] outline-none placeholder:text-slate-400 focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
             />
           </div>
 
@@ -463,7 +462,7 @@ function EmployeesPageInner() {
               <button
                 key={k}
                 onClick={() => setFilterStatus(k)}
-                className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filterStatus === k ? 'bg-[#001F3F] text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100'}`}
+                className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition ${filterStatus === k ? 'bg-primary text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100'}`}
               >
                 {k === 'all' ? 'Tous' : k === 'conge' ? 'Congé' : STATUS_CONFIG[k].label}
               </button>
@@ -475,7 +474,7 @@ function EmployeesPageInner() {
             <select
               value={filterPos}
               onChange={e => setFilterPos(e.target.value)}
-              className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)] outline-none focus:border-[#001F3F]/50"
+              className="mt-2 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)] outline-none focus:border-primary/50"
             >
               <option value="">Tous les postes</option>
               {positions.map(p => <option key={p} value={p}>{p}</option>)}
@@ -485,23 +484,42 @@ function EmployeesPageInner() {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto py-2">
-          {isDemo && (
-            <div className="mx-3 mb-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
-              📊 Données démo — connectez la DB pour des données réelles
-            </div>
-          )}
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
             </div>
+          ) : employees.length === 0 ? (
+            /* Registre neuf : beaucoup de marchands travaillent seuls, et c'est
+               une situation normale — l'écran ne la présente pas comme un manque. */
+            <FirstRun
+              title="Vous êtes seul aux commandes"
+              hint="Ajoutez un employé quand vous embaucherez : postes, salaires et congés se suivront ici, et vous pourrez lui donner un accès à l'application."
+              action={
+                <Button variant="accent" block onClick={() => { setEditTarget(null); setShowModal(true); }}>
+                  Ajouter un employé
+                </Button>
+              }
+            />
           ) : filtered.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--color-muted)]">Aucun employé trouvé</p>
+            search ? (
+              <NoResult
+                query={search}
+                noun="employé"
+                suggestion={closestMatch(search, employees.map(fullName))}
+                onUseSuggestion={setSearch}
+                onClear={() => setSearch('')}
+              />
+            ) : (
+              <p className="px-4 py-10 text-center text-body text-[var(--color-muted)]">
+                Aucun employé ne correspond à ce filtre.
+              </p>
+            )
           ) : (
             filtered.map(emp => (
               <button
                 key={emp.id}
                 onClick={() => setSelectedId(emp.id)}
-                className={`w-full px-4 py-3.5 text-left transition ${selectedId === emp.id ? 'bg-[#EAF1F8]' : 'hover:bg-slate-50'}`}
+                className={`w-full px-4 py-3.5 text-left transition ${selectedId === emp.id ? 'bg-nav-active' : 'hover:bg-slate-50'}`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${avatarColor(fullName(emp))}`}>
@@ -515,7 +533,7 @@ function EmployeesPageInner() {
                       {emp.position ?? 'Sans poste'}{emp.phone ? ` · ${emp.phone}` : ''}
                     </p>
                   </div>
-                  <span className={`shrink-0 flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_CONFIG[emp.status].color}`}>
+                  <span className={`shrink-0 flex items-center gap-1 rounded-full border px-2 py-0.5 text-note font-semibold ${STATUS_CONFIG[emp.status].color}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${STATUS_CONFIG[emp.status].dot}`} />
                     {STATUS_CONFIG[emp.status].label}
                   </span>
@@ -560,7 +578,7 @@ function EmployeesPageInner() {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-[#001F3F]">{fullName(selected)}</h2>
+                  <h2 className="text-lg font-semibold text-primary">{fullName(selected)}</h2>
                   <span className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_CONFIG[selected.status].color}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${STATUS_CONFIG[selected.status].dot}`} />
                     {STATUS_CONFIG[selected.status].label}
@@ -606,20 +624,20 @@ function EmployeesPageInner() {
             <div className="flex-1 space-y-6 px-6 py-6">
 
               {/* ── Profil ── */}
-              <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+              <section className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
                 <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Profil Employé</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {[
-                    { icon: '📞', label: 'Téléphone',    value: selected.phone    ?? '—' },
-                    { icon: '✉️', label: 'Email',         value: selected.email    ?? '—' },
-                    { icon: '🏢', label: 'Poste',         value: selected.position ?? '—' },
-                    { icon: '📅', label: 'Date d\'embauche', value: fmtDate(selected.hire_date) },
-                    { icon: '⏳', label: 'Ancienneté',    value: yearsWorked(selected.hire_date) ?? '—' },
-                    { icon: '🔑', label: 'ID',            value: selected.id.slice(0, 8) + '…' },
-                  ].map(({ icon, label, value }) => (
+                    { icon: Phone, label: 'Téléphone',    value: selected.phone    ?? '—' },
+                    { icon: Mail, label: 'Email',         value: selected.email    ?? '—' },
+                    { icon: Briefcase, label: 'Poste',         value: selected.position ?? '—' },
+                    { icon: CalendarDays, label: 'Date d\'embauche', value: fmtDate(selected.hire_date) },
+                    { icon: Clock, label: 'Ancienneté',    value: yearsWorked(selected.hire_date) ?? '—' },
+                    { icon: Hash, label: 'ID',            value: selected.id.slice(0, 8) + '…' },
+                  ].map(({ icon: Icon, label, value }) => (
                     <div key={label} className="rounded-2xl bg-white border border-[var(--color-border)] p-3">
-                      <p className="mb-1 text-lg">{icon}</p>
-                      <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
+                      <Icon className="mb-1 h-5 w-5 text-muted" strokeWidth={1.8} aria-hidden />
+                      <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">{label}</p>
                       <p className="mt-0.5 break-all text-sm font-medium text-[var(--color-text)]">{value}</p>
                     </div>
                   ))}
@@ -630,17 +648,17 @@ function EmployeesPageInner() {
               <section>
                 <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Rémunération & Statut</p>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-[20px] border border-[var(--color-border)] bg-[#001F3F]/5 p-4">
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">Salaire Mensuel</p>
-                    <p className="mt-1.5 text-xl font-bold text-[#001F3F]">
+                  <div className="rounded-surface border border-[var(--color-border)] bg-primary/5 p-4">
+                    <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">Salaire Mensuel</p>
+                    <p className="mt-1.5 text-xl font-bold text-primary">
                       {selected.salary != null ? fmt(selected.salary, selected.salary_currency) : '—'}
                     </p>
                     <p className="mt-0.5 text-xs text-[var(--color-muted)]">Par mois</p>
                   </div>
-                  <div className={`rounded-[20px] border p-4 ${STATUS_CONFIG[selected.status].color.replace('text-', 'border-').replace(' bg-', ' bg-').split(' ')[2]} bg-opacity-30`}
+                  <div className={`rounded-surface border p-4 ${STATUS_CONFIG[selected.status].color.replace('text-', 'border-').replace(' bg-', ' bg-').split(' ')[2]} bg-opacity-30`}
                     style={{ background: selected.status === 'actif' ? 'rgba(16,185,129,0.07)' : selected.status === 'conge' ? 'rgba(245,158,11,0.07)' : 'rgba(100,116,139,0.07)' }}
                   >
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">Statut Actuel</p>
+                    <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">Statut Actuel</p>
                     <p className={`mt-1.5 text-xl font-bold ${selected.status === 'actif' ? 'text-emerald-600' : selected.status === 'conge' ? 'text-amber-600' : 'text-slate-500'}`}>
                       {STATUS_CONFIG[selected.status].label}
                     </p>
@@ -648,15 +666,15 @@ function EmployeesPageInner() {
                       {selected.status === 'actif' ? 'En poste' : selected.status === 'conge' ? 'Absent temporaire' : 'Plus actif'}
                     </p>
                   </div>
-                  <div className="rounded-[20px] border border-[var(--color-border)] bg-cyan-500/5 p-4">
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">Salaire Annuel</p>
+                  <div className="rounded-surface border border-[var(--color-border)] bg-cyan-500/5 p-4">
+                    <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">Salaire Annuel</p>
                     <p className="mt-1.5 text-xl font-bold text-cyan-600">
                       {selected.salary != null ? fmt(selected.salary * 12, selected.salary_currency) : '—'}
                     </p>
                     <p className="mt-0.5 text-xs text-[var(--color-muted)]">Estimation</p>
                   </div>
-                  <div className="rounded-[20px] border border-[var(--color-border)] bg-violet-500/5 p-4">
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">Ancienneté</p>
+                  <div className="rounded-surface border border-[var(--color-border)] bg-violet-500/5 p-4">
+                    <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">Ancienneté</p>
                     <p className="mt-1.5 text-xl font-bold text-violet-600">
                       {yearsWorked(selected.hire_date) ?? '—'}
                     </p>
@@ -667,7 +685,7 @@ function EmployeesPageInner() {
 
               {/* ── Notes ── */}
               {selected.notes && (
-                <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-5">
+                <section className="rounded-surface border border-amber-200 bg-amber-50 p-5">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-amber-600">Notes internes</p>
                   <p className="text-sm text-slate-700">{selected.notes}</p>
                 </section>
@@ -675,17 +693,17 @@ function EmployeesPageInner() {
 
               {/* ── Invite CTA ── */}
               {!selected.id.startsWith('demo-') && (
-                <section className="rounded-[24px] border border-blue-200 bg-blue-50/60 p-5">
+                <section className="rounded-surface border border-blue-200 bg-blue-50/60 p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-[#001F3F]">Accès ProfitPilot</p>
+                      <p className="text-sm font-semibold text-primary">Accès ProfitPilot</p>
                       <p className="mt-0.5 text-xs text-slate-500">
                         Donnez un accès à {selected.first_name} pour gérer la boutique depuis son téléphone.
                       </p>
                     </div>
                     <button
                       onClick={() => setInviteTarget(selected)}
-                      className="flex-shrink-0 ml-4 flex items-center gap-2 rounded-2xl bg-[#0047AB] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#003d96]"
+                      className="flex-shrink-0 ml-4 flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-primary-h"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                       Inviter
@@ -695,25 +713,25 @@ function EmployeesPageInner() {
               )}
 
               {/* ── Équipe stats ── */}
-              <section className="rounded-[24px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+              <section className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
                 <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">Vue d&apos;ensemble — Équipe</p>
                 <div className="grid grid-cols-4 gap-3 text-center">
                   {[
-                    { label: 'Total',   value: stats.total,   color: 'text-[#001F3F]' },
+                    { label: 'Total',   value: stats.total,   color: 'text-primary' },
                     { label: 'Actifs',  value: stats.actif,   color: 'text-emerald-600' },
                     { label: 'Congé',   value: stats.conge,   color: 'text-amber-600' },
                     { label: 'Inactifs',value: stats.inactif, color: 'text-slate-400' },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white py-3">
                       <p className={`text-2xl font-bold ${color}`}>{value}</p>
-                      <p className="text-[10px] text-[var(--color-muted)]">{label}</p>
+                      <p className="text-note text-[var(--color-muted)]">{label}</p>
                     </div>
                   ))}
                 </div>
                 {stats.masseSalariale > 0 && (
                   <div className="mt-3 rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3">
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-muted)]">Masse Salariale Mensuelle (HTG)</p>
-                    <p className="mt-1 text-lg font-bold text-[#001F3F]">{fmt(stats.masseSalariale)}</p>
+                    <p className="text-note uppercase tracking-widest text-[var(--color-muted)]">Masse Salariale Mensuelle (HTG)</p>
+                    <p className="mt-1 text-lg font-bold text-primary">{fmt(stats.masseSalariale)}</p>
                   </div>
                 )}
               </section>

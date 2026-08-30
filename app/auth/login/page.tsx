@@ -1,37 +1,70 @@
 'use client';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// L'écran de connexion — les quatre lignes du tableau §6.1
+//
+//   Couleur     Un seul élément émeraude : le bouton « Se connecter ». Le reste
+//               en marine sur fond clair. L'accent tombe exactement sur l'action
+//               attendue. Avant : le bouton était marine comme tout le reste —
+//               l'écran n'avait aucun point d'accent, donc rien ne guidait.
+//
+//   Hiérarchie  Ce que vous faites ici (titre), ce qu'il faut saisir (libellés
+//               DISTINCTS des placeholders — le contraste, pas un cadre), l'action
+//               (bouton plein), et en tertiaire, en texte : « Pas de compte ? ».
+//               Le lien « Mot de passe oublié » est souligné et distinct — il
+//               n'existait pas du tout : un marchand qui oubliait son mot de
+//               passe n'avait aucun chemin (§3.1, le flux incomplet).
+//
+//   Proximité   Le bloc logo + titre + sous-titre est verrouillé à espacement
+//               constant, puis 24 px le séparent du formulaire. Avant, le logo
+//               flottait à mi-distance : il ne se rattachait visuellement à rien.
+//
+//   Contexte    Connexion par NUMÉRO en premier, +509 prérempli, clavier
+//   haïtien     numérique ; l'e-mail en option secondaire. Beaucoup de marchands
+//               vivent sur WhatsApp et n'ouvrent jamais leur boîte mail — leur
+//               demander une adresse e-mail pour entrer chez eux, c'est leur
+//               demander de retenir une chose de plus.
+//
+// Et un message de réseau clair si la connexion échoue — pas de silence (§3.7).
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 import { Logo } from '../../../components/Logo';
 import { recordLogin } from '../../../hooks/useSubscription';
 import { useLanguage } from '../../../components/LanguageWrapper';
 import { recordLoginSession } from '../../actions/security';
+import { ensurePhoneLinked, resolvePhoneLogin } from '../../actions/phoneAuth';
+import { Button, Field, PhoneField } from '../../../components/ds';
+
+type Mode = 'phone' | 'email';
 
 function translateError(msg: string, t: (obj: { fr: string; ht: string }) => string): string {
   const m = (msg ?? '').toLowerCase();
   if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
-    return t({ fr: 'Email ou mot de passe incorrect.', ht: 'Imèl oswa modpas pa kòrèk.' });
+    return t({ fr: 'Identifiant ou mot de passe incorrect.', ht: 'Idantifyan oswa modpas pa kòrèk.' });
   if (m.includes('email not confirmed'))
     return t({ fr: 'Email pas encore confirmé. Vérifiez votre boîte mail (+ dossier Spam).', ht: 'Imèl poko konfime. Tcheke bwat resepsyon ou (+ dosye Spam).' });
   if (m.includes('too many requests') || m.includes('rate limit'))
-    return t({ fr: 'Trop de tentatives. Attendez 1-2 minutes et réessayez.', ht: 'Twòp tantativ. Tann 1-2 minit epi reesyek.' });
+    return t({ fr: 'Trop de tentatives. Attendez 1 à 2 minutes et réessayez.', ht: 'Twòp tantativ. Tann 1 a 2 minit epi reeseye.' });
   if (m.includes('user not found'))
-    return t({ fr: 'Aucun compte trouvé avec cet email.', ht: 'Pa gen kont jwenn ak imèl sa a.' });
+    return t({ fr: 'Aucun compte trouvé avec cet identifiant.', ht: 'Pa gen kont ak idantifyan sa a.' });
   // Backend injoignable ≠ internet coupé : le remède n'est pas le même.
   if (m.includes('supabase_unreachable') || m.includes('injoignable'))
     return t({
-      fr: 'Serveur ProfitPilot injoignable. Votre connexion fonctionne, mais le backend ne répond pas — contactez le support.',
-      ht: 'Sèvè ProfitPilot pa reponn. Koneksyon ou bon, men backend la pa disponib — kontakte sipò a.',
+      fr: 'Serveur ProfitPilot injoignable. Votre connexion fonctionne, mais le serveur ne répond pas — réessayez dans un instant.',
+      ht: 'Sèvè ProfitPilot pa reponn. Koneksyon ou bon, men sèvè a pa disponib — reeseye nan yon ti moman.',
     });
   if (m.includes('pas de connexion internet') || m.includes('network') || m.includes('fetch'))
-    return t({ fr: 'Erreur réseau. Vérifiez votre connexion internet.', ht: 'Erè rezo. Tcheke koneksyon entènèt ou.' });
+    return t({ fr: 'Pas de réseau. Vérifiez votre connexion, puis réessayez.', ht: 'Pa gen rezo. Tcheke koneksyon ou, epi reeseye.' });
   if (m.includes('trop de temps'))
     return t({ fr: 'Le serveur met trop de temps à répondre. Réessayez.', ht: 'Sèvè a pran twòp tan. Reeseye.' });
   if (m.includes('supabase client not available'))
     return t({ fr: 'Configuration manquante. Vérifiez les variables NEXT_PUBLIC_SUPABASE_*.', ht: 'Konfigirasyon manke. Tcheke varyab NEXT_PUBLIC_SUPABASE_*.' });
-  return t({ fr: 'Erreur inconnue. Vérifiez la console (F12).', ht: 'Erè enkoni. Tcheke console la (F12).' });
+  return t({ fr: 'Connexion impossible. Réessayez dans un instant.', ht: 'Koneksyon pa posib. Reeseye nan yon ti moman.' });
 }
 
 function LoginForm() {
@@ -39,6 +72,8 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [mode,        setMode]        = useState<Mode>('phone');
+  const [phone,       setPhone]       = useState('');
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -50,10 +85,44 @@ function LoginForm() {
 
   useEffect(() => {
     if (searchParams?.get('error') === 'confirmation_failed') {
-      setError(t({ fr: 'Le lien de confirmation a expiré ou est invalide. Renvoyez un email ci-dessous.', ht: 'Lyen konfimasyon an ekspire oswa envalid. Voye yon imèl ankò anba.' }));
+      setError(t({ fr: 'Le lien de confirmation a expiré. Renvoyez-vous un e-mail ci-dessous.', ht: 'Lyen konfimasyon an ekspire. Voye yon imèl ankò anba.' }));
       setEmailNeeded(true);
+      setMode('email');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Ouvre la session. Le chemin est le même quel que soit l'identifiant : une
+   *  seule mécanique de session à maintenir (§3.4, cohérence). */
+  async function openSession(withEmail: string) {
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: withEmail.trim().toLowerCase(),
+      password,
+    });
+
+    if (authError) {
+      const m = authError.message.toLowerCase();
+      if (m.includes('email not confirmed') || m.includes('email_not_confirmed')) {
+        setEmail(withEmail);
+        setEmailNeeded(true);
+      } else {
+        setError(translateError(authError.message, t));
+      }
+      return false;
+    }
+
+    recordLogin();
+    void recordLoginSession();
+    // Rattrape le numéro laissé en métadonnées quand l'inscription exigeait une
+    // confirmation par e-mail : sans cela, la connexion par numéro ne marcherait
+    // jamais pour ces comptes-là.
+    void ensurePhoneLinked();
+    // On laisse la session se propager avant de naviguer.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    void data;
+    router.replace('/dashboard');
+    return true;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,60 +130,41 @@ function LoginForm() {
     setEmailNeeded(false);
     setResendSent(false);
 
-    if (!email.trim()) { setError('Entrez votre email.'); return; }
-    if (!password)     { setError('Entrez votre mot de passe.'); return; }
+    if (mode === 'phone' && !phone.trim()) {
+      setError(t({ fr: 'Entrez votre numéro de téléphone.', ht: 'Antre nimewo telefòn ou.' })); return;
+    }
+    if (mode === 'email' && !email.trim()) {
+      setError(t({ fr: 'Entrez votre adresse e-mail.', ht: 'Antre adrès imèl ou.' })); return;
+    }
+    if (!password) {
+      setError(t({ fr: 'Entrez votre mot de passe.', ht: 'Antre modpas ou.' })); return;
+    }
 
     setLoading(true);
-
     try {
-      console.group('🔍 [LOGIN DIAGNOSTIC]');
-      console.log('1. Email:', email.trim().toLowerCase());
-
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email:    email.trim().toLowerCase(),
-        password,
-      });
-
-      console.log('2. signInWithPassword résultat:');
-      console.log('   → error:', authError ? `${authError.message} (status=${authError.status})` : 'null ✅');
-      console.log('   → user exists:', !!data?.user, '| user.id:', data?.user?.id ?? 'null');
-      console.log('   → session exists:', !!data?.session);
-      console.log('   → access_token exists:', !!data?.session?.access_token);
-      console.log('   → refresh_token exists:', !!data?.session?.refresh_token);
-      console.groupEnd();
-
-      if (authError) {
-        console.warn('[Login] ❌ Erreur auth:', authError.message, 'status:', authError.status);
-        if (
-          authError.message.toLowerCase().includes('email not confirmed') ||
-          authError.message.toLowerCase().includes('email_not_confirmed')
-        ) {
-          setEmailNeeded(true);
+      if (mode === 'email') {
+        await openSession(email);
+      } else {
+        // Le numéro est résolu côté serveur, et seulement si le mot de passe
+        // est le bon : l'adresse ne sort jamais pour un numéro tapé au hasard.
+        const found = await resolvePhoneLogin(phone, password);
+        if (!found.ok) {
+          setError(
+            found.reason === 'bad_phone'
+              ? t({ fr: 'Numéro incomplet. Huit chiffres, par exemple 3712 4521.', ht: 'Nimewo pa konplè. Uit chif, egzanp 3712 4521.' })
+              : found.reason === 'no_account'
+              ? t({ fr: 'Aucun compte avec ce numéro. Connectez-vous par e-mail, puis rattachez votre numéro dans les réglages.', ht: 'Pa gen kont ak nimewo sa a. Konekte ak imèl, epi mete nimewo ou nan reglaj yo.' })
+              : found.reason === 'bad_password'
+              ? t({ fr: 'Numéro ou mot de passe incorrect.', ht: 'Nimewo oswa modpas pa kòrèk.' })
+              : t({ fr: 'Connexion par numéro indisponible pour le moment. Utilisez votre e-mail.', ht: 'Koneksyon ak nimewo pa disponib kounye a. Sèvi ak imèl ou.' }),
+          );
         } else {
-          setError(translateError(authError.message, t));
+          await openSession(found.email);
         }
-        setLoading(false);
-        return;
       }
-
-      console.log('[Login] ✅ Connexion réussie — navigation vers /dashboard');
-      console.log('[Login] user.id:', data.user?.id);
-      console.log('[Login] session.expires_at:', data.session?.expires_at);
-
-      // Vérifier la session immédiatement après login (preuve que les cookies sont posés)
-      const { data: { session: verif } } = await supabase.auth.getSession();
-      console.log('[Login] 3. Vérif getSession() juste après login:', !!verif, '| user:', verif?.user?.id ?? 'null');
-
-      // Succès - laisser onAuthStateChange propager la session avant de naviguer
-      recordLogin();
-      void recordLoginSession();
-      await new Promise(resolve => setTimeout(resolve, 300));
-      router.replace('/dashboard');
-      setLoading(false);
-
     } catch (err: any) {
-      console.error('[Login] exception:', err);
       setError(translateError(err?.message ?? String(err), t));
+    } finally {
       setLoading(false);
     }
   }
@@ -123,159 +173,179 @@ function LoginForm() {
     setResending(true);
     setError('');
     try {
-      const { error } = await supabase.auth.resend({
-        type:  'signup',
-        email: email.trim().toLowerCase(),
-      });
-      if (error) setError(translateError(error.message, t));
-      else       setResendSent(true);
+      const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: email.trim().toLowerCase() });
+      if (resendErr) setError(translateError(resendErr.message, t));
+      else setResendSent(true);
     } catch (err: any) {
       setError(translateError(err?.message ?? String(err), t));
     }
     setResending(false);
   }
 
-  // ── UI : Email pas confirmé ────────────────────────────────────────────────
+  // ── E-mail pas confirmé ────────────────────────────────────────────────────
   if (emailNeeded) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm space-y-5">
-
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100">
-              <svg className="h-7 w-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-800">{t({ fr: 'Confirmez votre email', ht: 'Konfime imèl ou' })}</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {t({ fr: 'Email envoyé à ', ht: 'Imèl voye nan ' })}
-                <strong className="text-slate-700">{email}</strong>.
-                <br />{t({ fr: 'Cliquez le lien dans cet email. Vérifiez aussi les ', ht: 'Klike sou lyen an nan imèl sa a. Tcheke tou ' })}
-                <strong>{t({ fr: 'Spams', ht: 'Spams' })}</strong>.
-              </p>
-            </div>
-          </div>
-
-          {resendSent
-            ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-700">✅ {t({ fr: 'Email renvoyé !', ht: 'Imèl voye ankò !' })}</div>
-            : <button type="button" onClick={handleResend} disabled={resending}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
-                {resending
-                  ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" /> {t({ fr: 'Envoi...', ht: 'Anvwa...' })}</>
-                  : t({ fr: 'Renvoyer l\'email de confirmation', ht: 'Voye imèl konfimasyon an ankò' })}
-              </button>
-          }
-
-          {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
-
-          <button type="button" onClick={() => { setEmailNeeded(false); setError(''); }}
-            className="w-full text-center text-sm text-slate-400 hover:text-slate-600">
-            {t({ fr: '← Retour à la connexion', ht: '← Retounen nan koneksyon' })}
-          </button>
+      <Frame>
+        <div className="text-center">
+          <h1 className="text-screen font-bold text-primary">
+            {t({ fr: 'Confirmez votre e-mail', ht: 'Konfime imèl ou' })}
+          </h1>
+          <p className="mt-2 text-body text-text2">
+            {t({ fr: 'Un lien a été envoyé à ', ht: 'Yon lyen voye nan ' })}
+            <span className="font-bold text-primary">{email}</span>.{' '}
+            {t({ fr: 'Regardez aussi dans les spams.', ht: 'Gade tou nan spam yo.' })}
+          </p>
         </div>
-      </main>
+
+        <div className="mt-8 space-y-4">
+          {resendSent ? (
+            <p className="rounded-surface bg-success/10 px-4 py-3 text-center text-body font-bold text-success">
+              {t({ fr: 'E-mail renvoyé.', ht: 'Imèl voye ankò.' })}
+            </p>
+          ) : (
+            <Button variant="outline" block loading={resending} onClick={handleResend}>
+              {t({ fr: "Renvoyer l'e-mail", ht: 'Voye imèl la ankò' })}
+            </Button>
+          )}
+
+          {error && <ErrorNote>{error}</ErrorNote>}
+
+          <Button
+            variant="link"
+            block
+            onClick={() => { setEmailNeeded(false); setError(''); }}
+          >
+            {t({ fr: 'Revenir à la connexion', ht: 'Retounen nan koneksyon' })}
+          </Button>
+        </div>
+      </Frame>
     );
   }
 
-  // ── UI : Formulaire normal ────────────────────────────────────────────────
+  // ── Connexion ──────────────────────────────────────────────────────────────
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-      <div className="w-full max-w-md">
-
-        <div className="mb-8 flex flex-col items-center gap-3">
-          <Logo size="h-14 w-14" />
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-[#001F3F]">ProfitPilot</h1>
-            <p className="mt-1 text-sm text-slate-500">{t({ fr: 'Connectez-vous à votre compte', ht: 'Konekte ak kont ou' })}</p>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
-                {t({ fr: 'Email', ht: 'Imèl' })}
-              </label>
-              <input
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="vous@example.com"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
-                {t({ fr: 'Mot de passe', ht: 'Modpas' })}
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? (
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-60"
-            >
-              {loading
-                ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> {t({ fr: 'Connexion...', ht: 'Koneksyon...' })}</>
-                : t({ fr: 'Se connecter', ht: 'Konekte' })}
-            </button>
-
-          </form>
-
-          <p className="mt-6 text-center text-sm text-slate-500">
-            {t({ fr: 'Pas encore de compte ?', ht: 'Pokò gen kont ?' })}{' '}
-            <Link href="/auth/register" className="font-semibold text-[#001F3F] hover:underline">
-              {t({ fr: 'Créer un compte', ht: 'Kreye yon kont' })}
-            </Link>
-          </p>
-        </div>
+    <Frame>
+      {/* Le bloc d'identité : logo, titre, sous-titre, espacement constant.
+          Il se lit comme UN élément (§4.5, proximité). */}
+      <div className="flex flex-col items-center gap-2 text-center">
+        <Logo size="h-12 w-12" />
+        <h1 className="text-screen font-bold text-primary">ProfitPilot</h1>
+        <p className="text-body text-text2">
+          {t({ fr: 'Votre commerce, au clair.', ht: 'Komès ou, byen klè.' })}
+        </p>
       </div>
+
+      {/* 24 px séparent deux groupes distincts — et rien d'autre : pas de carte
+          dans une carte, pas de trait (§5.5, §4.5). */}
+      <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-4">
+        {mode === 'phone' ? (
+          <PhoneField
+            label={t({ fr: 'Votre numéro', ht: 'Nimewo ou' })}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            autoFocus
+          />
+        ) : (
+          <Field
+            label={t({ fr: 'Votre e-mail', ht: 'Imèl ou' })}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="marchand@exemple.ht"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+          />
+        )}
+
+        <Field
+          label={t({ fr: 'Mot de passe', ht: 'Modpas' })}
+          type={showPassword ? 'text' : 'password'}
+          autoComplete="current-password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          suffix={
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword
+                ? t({ fr: 'Masquer le mot de passe', ht: 'Kache modpas la' })
+                : t({ fr: 'Afficher le mot de passe', ht: 'Montre modpas la' })}
+              className="pressable flex h-touch w-touch items-center justify-center rounded-control text-muted"
+            >
+              {showPassword ? <EyeOff className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+                            : <Eye    className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+            </button>
+          }
+        />
+
+        {error && <ErrorNote>{error}</ErrorNote>}
+
+        {/* LE point d'émeraude de l'écran. Un seul, sur l'action attendue. */}
+        <Button type="submit" variant="accent" size="lg" block loading={loading}
+          loadingLabel={t({ fr: 'Connexion…', ht: 'Koneksyon…' })}>
+          {t({ fr: 'Se connecter', ht: 'Konekte' })}
+        </Button>
+
+        {/* L'autre identifiant, en tertiaire : présent, jamais au même poids
+            que l'action principale (§4.5). */}
+        <button
+          type="button"
+          onClick={() => { setMode(mode === 'phone' ? 'email' : 'phone'); setError(''); }}
+          className="pressable block w-full min-h-touch text-note text-text2 underline underline-offset-4"
+        >
+          {mode === 'phone'
+            ? t({ fr: 'Utiliser plutôt mon e-mail', ht: 'Sèvi ak imèl mwen pito' })
+            : t({ fr: 'Utiliser plutôt mon numéro', ht: 'Sèvi ak nimewo mwen pito' })}
+        </button>
+      </form>
+
+      {/* Deux sorties, toutes deux en texte : oublier son mot de passe n'était
+          pas un chemin prévu du tout avant (§3.1). */}
+      <div className="mt-8 space-y-3 text-center">
+        <Link
+          href="/auth/forgot-password"
+          className="pressable inline-flex min-h-touch items-center text-note text-text2 underline underline-offset-4"
+        >
+          {t({ fr: 'Mot de passe oublié ?', ht: 'Ou bliye modpas ou ?' })}
+        </Link>
+        <p className="text-body text-text2">
+          {t({ fr: 'Pas encore de compte ?', ht: 'Ou pòkò gen kont ?' })}{' '}
+          <Link href="/auth/register" className="font-bold text-primary underline underline-offset-4">
+            {t({ fr: 'Créer mon compte', ht: 'Kreye kont mwen' })}
+          </Link>
+        </p>
+      </div>
+    </Frame>
+  );
+}
+
+/** Le cadre commun : fond neutre, contenu centré, respiration constante. */
+function Frame({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-10">
+      <div className="w-full max-w-sm">{children}</div>
     </main>
+  );
+}
+
+/** Le rouge système, et seulement ici : quelque chose a échoué (§4.2). */
+function ErrorNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="alert" className="rounded-surface bg-danger/10 px-4 py-3 text-body text-danger">
+      {children}
+    </p>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[#001F3F]" /></div>}>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <span className="h-8 w-8 animate-spin rounded-pill border-2 border-border border-t-primary" aria-label="Chargement" />
+      </div>
+    }>
       <LoginForm />
     </Suspense>
   );

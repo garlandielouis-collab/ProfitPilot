@@ -19,7 +19,7 @@ export function Logo({ size = 'h-9 w-9', className = '' }: LogoProps) {
   if (errored) {
     return (
       <div
-        className={`${size} flex items-center justify-center rounded-xl bg-[#001F3F] text-xs font-bold text-white ${className}`}
+        className={`${size} flex items-center justify-center rounded-xl bg-primary text-xs font-bold text-white ${className}`}
       >
         PP
       </div>

@@ -52,11 +52,36 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   const jar = await cookies();
   const activeStoreId = validUuid(jar.get(ACTIVE_STORE_COOKIE)?.value);
 
+  // ── Quelle entreprise, quand le cookie ne le dit pas ? ─────────────────────
+  //
+  // Un même compte peut posséder plusieurs commerces — c'est tout l'objet du
+  // sélecteur d'entreprise. Le cookie `pp_active_store` tranche presque
+  // toujours ; les trois fonctions ci-dessous ne servent que lorsqu'il est
+  // absent : nouvel appareil, cookies effacés, première connexion.
+  //
+  // Le critère retenu est **la plus ancienne**. Deux raisons :
+  //
+  //   C'est le commerce principal. Celui qu'on a créé en s'inscrivant, celui
+  //   qui porte l'historique. Le second est une extension, pas un remplacement.
+  //
+  //   C'est stable. Prendre la plus récente ferait basculer par défaut TOUTE
+  //   l'application vers la dernière boutique ouverte, à chaque session neuve —
+  //   un marchand qui ouvre un second point de vente verrait son commerce
+  //   principal disparaître de son écran d'accueil sans avoir rien demandé.
+  //
+  // Et surtout : `limit(1)`. Sans lui, `maybeSingle()` ne renvoie pas la
+  // première ligne, il LÈVE — « JSON object requested, multiple (or no) rows
+  // returned ». Un marchand avec deux commerces ne pouvait plus ouvrir
+  // l'application du tout.
+
   async function getActiveStoreBusiness(storeId: string) {
     const { data, error } = await supabase
       .from('businesses')
       .select('id, owner_id, exchange_rate, default_currency')
       .eq('id', storeId)
+      // Un commerce supprimé ne redevient pas actif parce qu'un vieux cookie
+      // le désigne encore.
+      .is('deleted_at', null)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
@@ -77,6 +102,9 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       .from('businesses')
       .select('id, owner_id, exchange_rate, default_currency')
       .eq('owner_id', userId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
@@ -89,6 +117,10 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       .eq('user_id', userId)
       .eq('is_active', true)
       .is('deleted_at', null)
+      // Même critère que pour les commerces possédés : l'adhésion la plus
+      // ancienne. Sans tri, `limit(1)` renvoyait une ligne au hasard — et donc
+      // potentiellement un commerce différent d'une session à l'autre.
+      .order('joined_at', { ascending: true })
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);

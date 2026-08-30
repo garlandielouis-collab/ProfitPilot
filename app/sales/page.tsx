@@ -53,7 +53,7 @@ function KPI({
       <div>
         <p className="text-xs uppercase tracking-widest text-slate-500">{label}</p>
         <p className="mt-0.5 text-2xl font-bold text-slate-800">{value}</p>
-        <p className="text-[10px] text-slate-400">{sub}</p>
+        <p className="text-note text-slate-400">{sub}</p>
       </div>
     </div>
   );
@@ -72,7 +72,7 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#001F3F] border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
@@ -87,7 +87,7 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
           placeholder="Rechercher un client…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#001F3F]/50 focus:ring-2 focus:ring-[#001F3F]/10"
+          className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-4 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
         />
       </div>
 
@@ -183,12 +183,12 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
 const TABS = [
   { id: 'pos',      label: 'Point de Vente',  icon: ShoppingCart },
   { id: 'history',  label: 'Historique',       icon: Receipt      },
-  { id: 'crm',      label: 'CRM Clients',      icon: Users        },
+  { id: 'crm',      label: 'Clients',          icon: Users        },
 ] as const;
 const TAB_LABELS: Record<string, { fr: string; ht: string }> = {
   pos:     { fr: 'Point de Vente', ht: 'Pwen Vant' },
   history: { fr: 'Historique',     ht: 'Istoryal' },
-  crm:     { fr: 'CRM Clients',    ht: 'KRM Kliyan' },
+  crm:     { fr: 'Clients',        ht: 'Kliyan yo' },
 };
 type TabId = typeof TABS[number]['id'];
 
@@ -240,13 +240,14 @@ export default function SalesPage() {
 
           {/* ── Header ───────────────────────────────────────────────────────── */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-[#001F3F]/90">{t({ fr: 'Module', ht: 'Modil' })}</p>
-            <h1 className="mt-1 text-2xl font-semibold text-slate-800 md:text-3xl">
-              {t({ fr: 'Ventes & CRM', ht: 'Vant & KRM' })}
+            {/* Trois éléments retirés d'un coup (audit §9, contrôles 1 et 10) :
+                le sur-titre « Module », qui ne dit rien à personne ; le « CRM »
+                du titre, du jargon anglais ; et la phrase de sous-titre, qui
+                énumérait mot pour mot les trois onglets situés juste dessous.
+                « Que perd-on si on le retire ? » — rien. */}
+            <h1 className="text-2xl font-semibold text-slate-800 md:text-3xl">
+              {t({ fr: 'Ventes', ht: 'Vant' })}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              {t({ fr: 'Enregistrez des ventes, consultez l\'historique et analysez vos clients.', ht: 'Anrejistre vant, konsilte istorik la epi analize kliyan ou yo.' })}
-            </p>
           </div>
 
           {/* ── KPIs ─────────────────────────────────────────────────────────── */}
@@ -256,7 +257,7 @@ export default function SalesPage() {
               label={t({ fr: 'Ventes ce mois', ht: 'Vant mwa sa a' })}
               value={fmt(metrics.monthlyTotal)}
               sub={now}
-              accent="bg-blue-100 text-[#001F3F]"
+              accent="bg-blue-100 text-primary"
             />
             <KPI
               icon={ShoppingCart}
@@ -293,7 +294,7 @@ export default function SalesPage() {
                   className={cn(
                     'flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                     active
-                      ? 'bg-[#001F3F] text-white shadow-sm'
+                      ? 'bg-primary text-white shadow-sm'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50',
                   )}
                 >

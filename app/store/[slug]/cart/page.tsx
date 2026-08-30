@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCart } from '../StoreCartContext';
+import { Package, ShoppingCart } from 'lucide-react';
 
 function fmt(n: number) { return new Intl.NumberFormat('fr-HT').format(n) + ' HTG'; }
 
@@ -14,7 +15,7 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center sm:px-6">
-        <p className="text-5xl">🛒</p>
+        <ShoppingCart className="mx-auto h-12 w-12 text-slate-300" strokeWidth={1.5} aria-hidden />
         <h1 className="mt-4 text-2xl font-bold text-slate-800">Votre panier est vide</h1>
         <p className="mt-2 text-sm text-slate-500">Ajoutez des produits pour commencer vos achats.</p>
         <Link
@@ -43,7 +44,7 @@ export default function CartPage() {
                 <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
                   {product.image_url
                     ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
-                    : <div className="flex h-full items-center justify-center text-2xl">📦</div>}
+                    : <div className="flex h-full items-center justify-center text-slate-300"><Package className="h-6 w-6" strokeWidth={1.5} aria-hidden /></div>}
                 </div>
                 {/* Info */}
                 <div className="flex flex-1 flex-col justify-between">

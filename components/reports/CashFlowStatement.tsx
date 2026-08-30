@@ -123,12 +123,12 @@ function CfSection({
     >
       <div>
         <div
-          className="text-[10px] font-bold uppercase tracking-[0.16em]"
+          className="text-note font-bold uppercase tracking-[0.16em]"
           style={{ color }}
         >
           {number} — {title}
         </div>
-        <div className="text-[10px] text-[#94A3B8] mt-[2px]">{subtitle}</div>
+        <div className="text-note text-slate-400 mt-1">{subtitle}</div>
       </div>
     </div>
   );
@@ -157,9 +157,9 @@ function WaterfallStrip({
   }
 
   const bars = [
-    { label: 'Exploitation', value: exploitation, color: exploitation >= 0 ? '#12B981' : '#EF4444' },
-    { label: 'Investissement', value: investissement, color: investissement >= 0 ? '#3B82F6' : '#F97316' },
-    { label: t({ fr: 'Financement', ht: 'Finansman' }), value: financement, color: financement >= 0 ? '#8B5CF6' : '#F59E0B' },
+    { label: 'Exploitation', value: exploitation, color: exploitation >= 0 ? '#50C878' : '#DC2626' },
+    { label: 'Investissement', value: investissement, color: investissement >= 0 ? '#1D4ED8' : '#B45309' },
+    { label: t({ fr: 'Financement', ht: 'Finansman' }), value: financement, color: financement >= 0 ? '#64748B' : '#B45309' },
   ];
 
   return (
@@ -169,7 +169,7 @@ function WaterfallStrip({
         return (
           <div key={b.label} className="flex flex-col items-center flex-1">
             <div
-              className="text-[10px] font-semibold mb-[2px]"
+              className="text-note font-semibold mb-1"
               style={{ color: b.color }}
             >
               {fmt(b.value)}
@@ -178,7 +178,7 @@ function WaterfallStrip({
               className="w-full rounded-t-sm"
               style={{ height: `${h}px`, background: b.color, opacity: 0.85 }}
             />
-            <div className="text-[9px] text-[#94A3B8] mt-[3px]">{b.label}</div>
+            <div className="text-note text-slate-400 mt-1">{b.label}</div>
           </div>
         );
       })}
@@ -204,7 +204,7 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
 
   return (
     <ReportLayout meta={{ ...meta, reportTitle: 'TABLEAU DES FLUX DE TRÉSORERIE' }}>
-      <div className="text-[13px]">
+      <div className="text-note">
 
         {/* Waterfall mini-chart — screen only, hidden in print to save space */}
         <div className="no-print">
@@ -225,11 +225,11 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
           number="I"
           title="Flux d'exploitation"
           subtitle="Encaissements et décaissements liés à l'activité courante"
-          color="#12B981"
+          color="#50C878"
         />
 
-        <div className="px-4 pt-1 pb-[2px]">
-          <span className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wider">
+        <div className="px-4 pt-1 pb-1">
+          <span className="text-note text-slate-400 font-medium uppercase tracking-wider">
             {t({ fr: 'Encaissements (Entrées de cash)', ht: 'Lajan resevwa (Antre kach)' })}
           </span>
         </div>
@@ -238,8 +238,8 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
         <AccountingRow label={t({ fr: 'Recouvrement créances clients', ht: 'Rekouvreman kreyans kliyan' })}          current={c.autresEncaissements}    previous={prev?.autresEncaissements}    indent={1} />
         <AccountingRow label={t({ fr: 'Total encaissements', ht: 'Total lajan resevwa' })}                    current={c.totalEntrees}           previous={prev?.totalEntrees}           bold highlight="gray" topBorder />
 
-        <div className="px-4 pt-2 pb-[2px]">
-          <span className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wider">
+        <div className="px-4 pt-2 pb-1">
+          <span className="text-note text-slate-400 font-medium uppercase tracking-wider">
             Décaissements (Sorties de cash)
           </span>
         </div>
@@ -268,7 +268,7 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
           number="II"
           title={t({ fr: "Flux d'investissement", ht: 'Flux envestisman' })}
           subtitle={t({ fr: 'Acquisitions et cessions d\'actifs non courants', ht: 'Akirisyon ak sesyon aktif ki pa kouran' })}
-          color="#3B82F6"
+          color="#1D4ED8"
         />
         <AccountingRow label={t({ fr: 'Acquisitions d\'immobilisations', ht: 'Akirisyon imobilizasyon' })}          current={-c.acquisitionsImmobilisations}  previous={prev ? -prev.acquisitionsImmobilisations : undefined}  indent={1} />
         <AccountingRow label={t({ fr: 'Cessions d\'immobilisations', ht: 'Sesyon imobilizasyon' })}              current={c.cedImmobilisations}            previous={prev?.cedImmobilisations}                              indent={1} />
@@ -289,7 +289,7 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
           number="III"
           title="Flux de financement"
           subtitle="Emprunts, remboursements et apports en capital"
-          color="#8B5CF6"
+          color="#64748B"
         />
         <AccountingRow label="Nouveaux emprunts contractés"            current={c.empruntContractes}       previous={prev?.empruntContractes}      indent={1} />
         <AccountingRow label="Apports en capital du propriétaire"      current={c.apportsProprio}          previous={prev?.apportsProprio}         indent={1} />
@@ -307,9 +307,9 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
         {/* ═══════════════════════════════════
             SYNTHÈSE
         ═══════════════════════════════════ */}
-        <div className="mt-4 border border-[#E2E8F0] rounded-lg overflow-hidden">
-          <div className="bg-[#0F172A] px-4 py-2">
-            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-white">
+        <div className="mt-4 border border-border rounded-lg overflow-hidden">
+          <div className="bg-anthracite px-4 py-2">
+            <span className="text-note font-bold uppercase tracking-[0.1em] text-white">
               {t({ fr: 'Synthèse de trésorerie', ht: 'Sentèz trezoreri' })}
             </span>
           </div>
@@ -338,25 +338,25 @@ function CashFlowStatement({ meta, data, showPrevious = true }: Props) {
           />
 
           {/* Days of cash metric */}
-          <div className="flex gap-3 px-4 py-2 bg-[#F8FAFC] border-t border-[#E2E8F0]">
+          <div className="flex gap-3 px-4 py-2 bg-surface border-t border-border">
             <div className="flex-1">
-              <span className="text-[10px] uppercase tracking-wider text-[#94A3B8]">{t({ fr: 'Couverture trésorerie', ht: 'Kouvèti trezoreri' })}</span>
+              <span className="text-note uppercase tracking-wider text-slate-400">{t({ fr: 'Couverture trésorerie', ht: 'Kouvèti trezoreri' })}</span>
             </div>
             <div>
               {c.totalSorties > 0 ? (
-                <span className="text-[12px] font-semibold text-[#12B981]">
+                <span className="text-note font-semibold text-accent">
                   {Math.round((c.tresorerieFinExercice / (c.totalSorties / 12)))} {t({ fr: 'mois de réserve', ht: 'mwa rezèv' })}
                 </span>
               ) : (
-                <span className="text-[12px] text-[#94A3B8]">—</span>
+                <span className="text-note text-slate-400">—</span>
               )}
             </div>
           </div>
         </div>
 
         {/* Notes */}
-        <div className="mt-3 pt-2 border-t border-[#E2E8F0]">
-          <p className="text-[10px] text-[#94A3B8] leading-relaxed">
+        <div className="mt-3 pt-2 border-t border-border">
+          <p className="text-note text-slate-400 leading-relaxed">
             {t({ fr: 'Méthode directe · La trésorerie inclut caisse, banque, MonCash et Natcash. Les flux d\'exploitation correspondent aux activités génératrices de revenus. Les flux d\'investissement incluent les achats d\'équipements et matériel.', ht: 'Metòd dirèk · Trezoreri a gen ladan kès, bank, MonCash ak Natcash. Flux eksplwatasyon yo koresponn ak aktivite ki jenere revni. Flux envestisman yo gen ladan acha ekipman ak materyèl.' })}
           </p>
         </div>

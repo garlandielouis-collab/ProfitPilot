@@ -19,8 +19,8 @@ export function CTASection() {
         animate={{ opacity: [0.3, 0.6, 0.3] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#50c878]/20 blur-3xl" />
-        <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-[#50c878]/15 blur-2xl" />
+        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-accent/15 blur-2xl" />
       </motion.div>
 
       {/* Grid pattern */}
@@ -32,7 +32,7 @@ export function CTASection() {
           initial={{ opacity: 0, y: 20 }} animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
         >
-          <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#50c878]/30 bg-[#50c878]/10 px-4 py-2 text-xs font-semibold text-[#50c878]">
+          <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-xs font-semibold text-accent">
             <Sparkles size={11} />
             {t({ fr: 'Rejoignez 250+ entrepreneurs haïtiens', ht: 'Rejwenn 250+ antreprenè ayisyen' })}
           </span>
@@ -67,7 +67,7 @@ export function CTASection() {
         >
           <Link
             href="/onboarding"
-            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-2xl bg-[#50c878] px-8 py-4 text-base font-bold text-[#001f3f] shadow-xl transition-all hover:scale-[1.02] hover:bg-[#4db86e] active:scale-95"
+            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-2xl bg-accent px-8 py-4 text-base font-bold text-primary shadow-xl transition-all hover:scale-[1.02] hover:bg-accent active:scale-95"
             style={{ boxShadow: '0 0 0 1px rgba(80,200,120,0.3), 0 20px 60px rgba(80,200,120,0.3)' }}
           >
             <span className="pointer-events-none absolute inset-0 translate-x-[-120%] skew-x-[-20deg] bg-white/20 transition-transform duration-700 group-hover:translate-x-[120%]" />

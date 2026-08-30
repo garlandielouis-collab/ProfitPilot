@@ -159,28 +159,28 @@ interface BSRowProps {
 
 function BSRow({ label, val, prevVal, indent = 0, bold, highlight, border, italic }: BSRowProps) {
   const pl = indent === 1 ? 'pl-5' : indent === 2 ? 'pl-9' : 'pl-2';
-  const bg = highlight === 'green' ? 'bg-[#ECFDF5]' :
-             highlight === 'navy'  ? 'bg-[#0F172A]' :
-             highlight === 'gray'  ? 'bg-[#F8FAFC]' :
-             highlight === 'red'   ? 'bg-[#FEF2F2]' : 'bg-white';
+  const bg = highlight === 'green' ? 'bg-accent-sub' :
+             highlight === 'navy'  ? 'bg-anthracite' :
+             highlight === 'gray'  ? 'bg-surface' :
+             highlight === 'red'   ? 'bg-danger-sub' : 'bg-white';
   const tc = highlight === 'navy' ? 'text-white' :
-             highlight === 'green' ? 'text-[#065F46]' :
-             highlight === 'red'   ? 'text-[#991B1B]' : 'text-[#0F172A]';
-  const nc = highlight === 'navy'  ? 'text-[#6EE7B7]' :
-             highlight === 'green' ? 'text-[#065F46]' :
-             highlight === 'red'   ? 'text-[#B91C1C]' :
-             val < 0              ? 'text-[#B91C1C]' : 'text-[#0F172A]';
+             highlight === 'green' ? 'text-accent-a' :
+             highlight === 'red'   ? 'text-danger' : 'text-anthracite';
+  const nc = highlight === 'navy'  ? 'text-emerald-300' :
+             highlight === 'green' ? 'text-accent-a' :
+             highlight === 'red'   ? 'text-danger' :
+             val < 0              ? 'text-danger' : 'text-anthracite';
 
   return (
-    <div className={`flex items-center py-[5px] pr-2 ${pl} ${bg} ${border ? 'border-t border-[#CBD5E1]' : ''}`}>
-      <span className={`flex-1 text-[12px] leading-4 ${bold ? 'font-semibold' : italic ? 'italic font-normal' : 'font-normal'} ${tc}`}>
+    <div className={`flex items-center py-1 pr-2 ${pl} ${bg} ${border ? 'border-t border-slate-300' : ''}`}>
+      <span className={`flex-1 text-note leading-4 ${bold ? 'font-semibold' : italic ? 'italic font-normal' : 'font-normal'} ${tc}`}>
         {label}
       </span>
-      <span className={`text-[12px] tabular-nums text-right min-w-[80px] ${bold ? 'font-semibold' : 'font-normal'} ${nc}`}>
+      <span className={`text-note tabular-nums text-right min-w-[80px] ${bold ? 'font-semibold' : 'font-normal'} ${nc}`}>
         {fmt(val)}
       </span>
       {prevVal !== undefined && (
-        <span className="text-[11px] tabular-nums text-right min-w-[72px] text-[#94A3B8] ml-1">
+        <span className="text-note tabular-nums text-right min-w-[72px] text-slate-400 ml-1">
           {fmt(prevVal)}
         </span>
       )}
@@ -190,9 +190,9 @@ function BSRow({ label, val, prevVal, indent = 0, bold, highlight, border, itali
 
 function BSSection({ title, color }: { title: string; color: string }) {
   return (
-    <div className={`px-2 py-[5px] mt-2`}>
+    <div className={`px-2 py-1 mt-2`}>
       <span
-        className="text-[10px] font-bold uppercase tracking-[0.14em]"
+        className="text-note font-bold uppercase tracking-[0.14em]"
         style={{ color }}
       >
         {title}
@@ -220,9 +220,8 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
   return (
     <ReportLayout meta={{ ...meta, reportTitle: t({ fr: 'BILAN', ht: 'BILANS' }) }}>
       {/* Balance check banner */}
-      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-4 text-[11px] font-semibold
-        ${c.balanced ? 'bg-[#ECFDF5] text-[#065F46]' : 'bg-[#FEF2F2] text-[#991B1B]'}`}>
-        <span>{c.balanced ? '✓' : '⚠'}</span>
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-4 text-note font-semibold
+        ${c.balanced ? 'bg-accent-sub text-accent-a' : 'bg-danger-sub text-danger'}`}>
         <span>
           {c.balanced
             ? `${t({ fr: 'Bilan équilibré — Total Actif = Total Passif =', ht: 'Bilans ekilibre — Total Aktif = Total Pasif =' })} ${fmt(c.totalActif)} ${meta.currency ?? 'HTG'}`
@@ -231,20 +230,20 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
       </div>
 
       {/* Two-column layout */}
-      <div className="grid grid-cols-2 gap-3 text-[12px]">
+      <div className="grid grid-cols-2 gap-3 text-note">
 
         {/* ═══════════════════════════════
             LEFT — ACTIF
         ═══════════════════════════════ */}
-        <div className="border border-[#E2E8F0] rounded-lg overflow-hidden">
+        <div className="border border-border rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-[#0F172A] px-3 py-2 flex justify-between items-center">
-            <span className="text-white text-[11px] font-bold uppercase tracking-[0.1em]">{t({ fr: 'ACTIF', ht: 'AKTIF' })}</span>
-            <span className="text-[#6EE7B7] text-[11px] font-semibold">{fmt(c.totalActif)}</span>
+          <div className="bg-anthracite px-3 py-2 flex justify-between items-center">
+            <span className="text-white text-note font-bold uppercase tracking-[0.1em]">{t({ fr: 'ACTIF', ht: 'AKTIF' })}</span>
+            <span className="text-emerald-300 text-note font-semibold">{fmt(c.totalActif)}</span>
           </div>
 
           {/* ACTIF NON COURANT */}
-          <BSSection title={t({ fr: 'Actif non courant (Immobilisations)', ht: 'Aktif ki pa kouran (Imobilizasyon)' })} color="#3B82F6" />
+          <BSSection title={t({ fr: 'Actif non courant (Immobilisations)', ht: 'Aktif ki pa kouran (Imobilizasyon)' })} color="#1D4ED8" />
           <BSRow label={t({ fr: 'Terrains', ht: 'Tè' })}                      val={c.terrains}              prevVal={pv(p?.terrains)}              indent={1} />
           <BSRow label={t({ fr: 'Bâtiments et constructions', ht: 'Bilding ak konstriksyon' })}    val={c.batimentsConstruct}    prevVal={pv(p?.batimentsConstruct)}    indent={1} />
           <BSRow label={t({ fr: 'Matériel informatique', ht: 'Materyèl enfòmatik' })}         val={c.materielInformatique}  prevVal={pv(p?.materielInformatique)}  indent={1} />
@@ -255,7 +254,7 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
           <BSRow label={t({ fr: 'Immobilisations nettes', ht: 'Imobilizasyon nèt yo' })}        val={c.immoNettes}            prevVal={pv(p?.immoNettes)}            bold highlight="gray" border />
 
           {/* ACTIF COURANT */}
-          <BSSection title={t({ fr: 'Actif courant', ht: 'Aktif kouran' })} color="#8B5CF6" />
+          <BSSection title={t({ fr: 'Actif courant', ht: 'Aktif kouran' })} color="#64748B" />
           <BSRow label={t({ fr: 'Stocks de marchandises', ht: 'Stock machandiz yo' })}        val={c.stocksMarchandises}    prevVal={pv(p?.stocksMarchandises)}    indent={1} />
           <BSRow label={t({ fr: 'Créances clients (AR)', ht: 'Kreyans kliyan (AR)' })}         val={c.creancesClients}       prevVal={pv(p?.creancesClients)}       indent={1} />
           <BSRow label={t({ fr: 'Avances versées fournisseurs', ht: 'Avans founisè' })}  val={c.avancesFournisseurs}   prevVal={pv(p?.avancesFournisseurs)}   indent={1} />
@@ -273,15 +272,15 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
         {/* ═══════════════════════════════
             RIGHT — PASSIF
         ═══════════════════════════════ */}
-        <div className="border border-[#E2E8F0] rounded-lg overflow-hidden">
+        <div className="border border-border rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-[#0F172A] px-3 py-2 flex justify-between items-center">
-            <span className="text-white text-[11px] font-bold uppercase tracking-[0.1em]">PASSIF & CAPITAUX</span>
-            <span className="text-[#6EE7B7] text-[11px] font-semibold">{fmt(c.totalPassif)}</span>
+          <div className="bg-anthracite px-3 py-2 flex justify-between items-center">
+            <span className="text-white text-note font-bold uppercase tracking-[0.1em]">PASSIF & CAPITAUX</span>
+            <span className="text-emerald-300 text-note font-semibold">{fmt(c.totalPassif)}</span>
           </div>
 
           {/* CAPITAUX PROPRES */}
-          <BSSection title={t({ fr: 'Capitaux propres', ht: 'Kapital pwop' })} color="#12B981" />
+          <BSSection title={t({ fr: 'Capitaux propres', ht: 'Kapital pwop' })} color="#50C878" />
           <BSRow label={t({ fr: 'Capital social', ht: 'Kapital sosyal' })}                val={c.capitalSocial}              prevVal={pv(p?.capitalSocial)}              indent={1} />
           <BSRow label={t({ fr: 'Apports propriétaire', ht: 'Apò pwopriyetè' })}          val={c.apportsProprio}             prevVal={pv(p?.apportsProprio)}             indent={1} />
           <BSRow label={t({ fr: 'Réserves légales', ht: 'Rezèv legal' })}              val={c.reservesLegales}            prevVal={pv(p?.reservesLegales)}            indent={1} />
@@ -291,14 +290,14 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
           <BSRow label={t({ fr: 'TOTAL CAPITAUX PROPRES', ht: 'TOTAL KAPITAL PWOP' })}        val={c.capitauxPropres}            prevVal={pv(p?.capitauxPropres)}            bold highlight="green" border />
 
           {/* PASSIF NON COURANT */}
-          <BSSection title={t({ fr: 'Passif non courant (Dettes LT)', ht: 'Pasif ki pa kouran (Dèt LT)' })} color="#EF4444" />
+          <BSSection title={t({ fr: 'Passif non courant (Dettes LT)', ht: 'Pasif ki pa kouran (Dèt LT)' })} color="#DC2626" />
           <BSRow label={t({ fr: 'Emprunts bancaires long terme', ht: 'Anprunt bankè long tèm' })}  val={c.empruntsBancairesLT}  prevVal={pv(p?.empruntsBancairesLT)}  indent={1} />
           <BSRow label={t({ fr: 'Prêts long terme', ht: 'Prè long tèm' })}               val={c.pretesLT}             prevVal={pv(p?.pretesLT)}             indent={1} />
           <BSRow label={t({ fr: 'Dettes sur immobilisations', ht: 'Dèt sou imobilizasyon' })}     val={c.dettesImmobilisations} prevVal={pv(p?.dettesImmobilisations)} indent={1} />
           <BSRow label={t({ fr: 'Total Passif non courant', ht: 'Total Pasif ki pa kouran' })}       val={c.passifNC}             prevVal={pv(p?.passifNC)}             bold highlight="gray" border />
 
           {/* PASSIF COURANT */}
-          <BSSection title={t({ fr: 'Passif courant (Dettes CT)', ht: 'Pasif kouran (Dèt CT)' })} color="#F97316" />
+          <BSSection title={t({ fr: 'Passif courant (Dettes CT)', ht: 'Pasif kouran (Dèt CT)' })} color="#B45309" />
           <BSRow label={t({ fr: 'Fournisseurs — dettes (AP)', ht: 'Founisè — dèt (AP)' })}    val={c.detteFournisseurs}     prevVal={pv(p?.detteFournisseurs)}     indent={1} />
           <BSRow label={t({ fr: 'Personnel — salaires à payer', ht: 'Pèsonèl — salè pou peye' })}  val={c.salairesPayer}         prevVal={pv(p?.salairesPayer)}         indent={1} />
           <BSRow label={t({ fr: 'ONA / OFATMA à payer', ht: 'ONA / OFATMA pou peye' })}          val={c.onaPayer}              prevVal={pv(p?.onaPayer)}              indent={1} />
@@ -314,8 +313,8 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
       </div>
 
       {/* Notes */}
-      <div className="mt-4 pt-2 border-t border-[#E2E8F0]">
-        <p className="text-[10px] text-[#94A3B8] leading-relaxed">
+      <div className="mt-4 pt-2 border-t border-border">
+        <p className="text-note text-slate-400 leading-relaxed">
           {t({ fr: `Les montants sont exprimés en Gourdes Haïtiennes (${meta.currency ?? 'HTG'}) · L'équation fondamentale ACTIF = CAPITAUX PROPRES + DETTES est vérifiée à chaque opération par le moteur comptable ProfitPilot. — Trésorerie`, ht: `Montan yo eksprime an Goud Ayisyen (${meta.currency ?? 'HTG'}) · Ekasyon fondamantal AKTIF = KAPITAL PWOP + DET yo verifye nan chak operasyon pa motè kontab ProfitPilot. — Trezoreri` })}
         </p>
       </div>

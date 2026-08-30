@@ -137,7 +137,7 @@ function ImageUploadZone({
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
       className={`relative cursor-pointer rounded-xl border-2 border-dashed transition-all overflow-hidden
-        ${dragging ? 'border-[#001F3F] bg-slate-50' : 'border-slate-200 hover:border-[#001F3F] hover:bg-slate-50'}
+        ${dragging ? 'border-primary bg-slate-50' : 'border-slate-200 hover:border-primary hover:bg-slate-50'}
         ${uploading ? 'opacity-60 pointer-events-none' : ''}`}
       style={{ aspectRatio: '1 / 1' }}
     >
@@ -161,13 +161,13 @@ function ImageUploadZone({
         <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
           {uploading ? (
             <>
-              <div className="h-6 w-6 rounded-full border-2 border-[#001F3F] border-t-transparent animate-spin" />
+              <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
               <span className="text-xs text-slate-500">Ap telechaje…</span>
             </>
           ) : (
             <>
               <div className="rounded-full bg-slate-50 p-3">
-                <ImageIcon size={20} className="text-[#001F3F]" />
+                <ImageIcon size={20} className="text-primary" />
               </div>
               <p className="text-xs text-slate-500 text-center">
                 Klike oswa trennen yon imaj<br />
@@ -313,7 +313,7 @@ function ProductModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-[#1e293b]">
+            <h2 className="text-lg font-semibold text-slate-800">
               {isEdit ? 'Modifye Pwodui' : 'Nouvo Pwodui'}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
@@ -353,7 +353,7 @@ function ProductModal({
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="ex: Diri blanc 5kg"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
                 />
               </div>
               <div>
@@ -362,7 +362,7 @@ function ProductModal({
                   value={form.category ?? ''}
                   onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   placeholder="ex: Alimantasyon"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
                 />
               </div>
               <div>
@@ -371,7 +371,7 @@ function ProductModal({
                   type="number" min="0"
                   value={form.stock_quantity}
                   onChange={e => setForm(f => ({ ...f, stock_quantity: parseInt(e.target.value) || 0 }))}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
                 />
               </div>
             </div>
@@ -392,8 +392,8 @@ function ProductModal({
                       onClick={() => setForm(f => ({ ...f, currency: cur }))}
                       className={
                         (form.currency ?? 'HTG') === cur
-                          ? 'bg-[#001F3F] px-2 py-0.5 text-[11px] font-semibold text-white transition'
-                          : 'bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50'
+                          ? 'bg-primary px-2 py-0.5 text-note font-semibold text-white transition'
+                          : 'bg-white px-2 py-0.5 text-note font-semibold text-slate-500 transition hover:bg-slate-50'
                       }
                     >
                       {cur}
@@ -405,10 +405,10 @@ function ProductModal({
                 type="number" min="0" step="0.01"
                 value={form.purchase_price}
                 onChange={e => setForm(f => ({ ...f, purchase_price: parseFloat(e.target.value) || 0 }))}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
               />
               {costCurrency === 'USD' && form.purchase_price > 0 && (
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-note text-slate-400">
                   ≈ {fmtHTG(form.purchase_price * exchangeRate)} HTG nan to jodi a ({exchangeRate})
                 </p>
               )}
@@ -419,7 +419,7 @@ function ProductModal({
                 type="number" min="0" step="0.01"
                 value={form.sale_price}
                 onChange={e => setForm(f => ({ ...f, sale_price: parseFloat(e.target.value) || 0 }))}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
               />
             </div>
           </div>
@@ -431,10 +431,10 @@ function ProductModal({
             className="mt-3 flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
           >
             <span className="flex items-center gap-2 font-medium">
-              <Calculator size={14} className="text-[#001F3F]" />
+              <Calculator size={14} className="text-primary" />
               Frè anplis (livrezon, komisyon, anbalaj)
               {hasExtraCosts && !showCosts && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-note font-semibold text-amber-700">
                   aktif
                 </span>
               )}
@@ -451,11 +451,11 @@ function ProductModal({
                     type="number" min="0" step={field.step}
                     value={form[field.key] ?? 0}
                     onChange={e => setForm(f => ({ ...f, [field.key]: parseFloat(e.target.value) || 0 }))}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
                   />
                 </div>
               ))}
-              <p className="col-span-2 text-[11px] leading-relaxed text-slate-400">
+              <p className="col-span-2 text-note leading-relaxed text-slate-400">
                 Sèy rekòmand : kantite ki deklanche yon alèt anvan ou fin an ripti.
               </p>
             </div>
@@ -482,10 +482,10 @@ function ProductModal({
                   {fmtHTG(margin.netMargin)} HTG · {margin.marginPercent.toFixed(1)}%
                 </span>
               </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-black/5 pt-2 text-[11px] text-slate-500">
-                <span>Kou konplè<br /><b className="text-[#1e293b]">{fmtHTG(margin.landedCost)}</b></span>
-                <span>Frè anplis<br /><b className="text-[#1e293b]">{fmtHTG(margin.extraCosts + margin.commission)}</b></span>
-                <span>Pri planche<br /><b className="text-[#1e293b]">{fmtHTG(margin.breakEvenPrice)}</b></span>
+              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-black/5 pt-2 text-note text-slate-500">
+                <span>Kou konplè<br /><b className="text-slate-800">{fmtHTG(margin.landedCost)}</b></span>
+                <span>Frè anplis<br /><b className="text-slate-800">{fmtHTG(margin.extraCosts + margin.commission)}</b></span>
+                <span>Pri planche<br /><b className="text-slate-800">{fmtHTG(margin.breakEvenPrice)}</b></span>
               </div>
             </div>
           )}
@@ -495,13 +495,13 @@ function ProductModal({
             <button
               type="button"
               onClick={() => setForm(f => ({ ...f, sale_price: advisedPrice }))}
-              className="mt-2 flex w-full items-center justify-between rounded-xl border border-dashed border-[#50C878] bg-white px-4 py-2.5 text-sm transition hover:bg-[#50C878]/5"
+              className="mt-2 flex w-full items-center justify-between rounded-xl border border-dashed border-accent bg-white px-4 py-2.5 text-sm transition hover:bg-accent/5"
             >
               <span className="flex items-center gap-2 text-slate-600">
-                <Sparkles size={14} className="text-[#50C878]" />
+                <Sparkles size={14} className="text-accent" />
                 Pri konseye pou {form.target_margin_percent ?? 30}% mòj
               </span>
-              <span className="font-bold text-[#001F3F]">{fmtHTG(advisedPrice)} HTG</span>
+              <span className="font-bold text-primary">{fmtHTG(advisedPrice)} HTG</span>
             </button>
           )}
 
@@ -518,7 +518,7 @@ function ProductModal({
                   className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
                 >
                   <span className="flex items-center gap-2 font-medium">
-                    <BarChart2 size={14} className="text-[#001F3F]" />
+                    <BarChart2 size={14} className="text-primary" />
                     E si m ta ogmante pri a ?
                   </span>
                   <ChevronDown size={15} />
@@ -537,7 +537,7 @@ function ProductModal({
             </button>
             <button
               type="submit" disabled={saving || uploading}
-              className="flex-1 rounded-xl bg-[#001F3F] py-2.5 text-sm font-semibold text-white hover:bg-[#002D5B] transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary-h transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving
                 ? <><div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Ap sove…</>
@@ -567,9 +567,9 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
           <Trash2 size={20} className="text-red-600" />
         </div>
-        <h3 className="text-lg font-semibold text-[#1e293b]">Efase pwodui?</h3>
+        <h3 className="text-lg font-semibold text-slate-800">Efase pwodui?</h3>
         <p className="mt-1.5 text-sm text-slate-500">
-          <span className="font-medium text-[#1e293b]">"{name}"</span> pral efase pou toujou.
+          <span className="font-medium text-slate-800">"{name}"</span> pral efase pou toujou.
         </p>
         <div className="mt-5 flex gap-3">
           <button onClick={onCancel} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">
@@ -607,10 +607,10 @@ function ProductCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="group rounded-2xl border border-slate-200 bg-white overflow-hidden hover:shadow-lg hover:border-[#001F3F]/20 transition-all duration-200"
+      className="group rounded-2xl border border-slate-200 bg-white overflow-hidden hover:shadow-lg hover:border-primary/20 transition-all duration-200"
     >
       {/* Product image */}
-      <div className="relative aspect-square bg-[#F8FAFC] overflow-hidden">
+      <div className="relative aspect-square bg-surface overflow-hidden">
         {imgUrl ? (
           <img
             src={imgUrl}
@@ -629,7 +629,7 @@ function ProductCard({
 
         {/* Stock badge */}
         <div className="absolute top-2.5 left-2.5">
-          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${badge.cls}`}>
+          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-note font-semibold ${badge.cls}`}>
             {badge.label}
           </span>
         </div>
@@ -638,8 +638,8 @@ function ProductCard({
         {product.sale_price > 0 && (
           <div className="absolute top-2.5 right-2.5">
             <span className={margin.isLoss
-              ? 'inline-flex items-center gap-1 rounded-full bg-red-600/90 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white'
-              : 'inline-flex items-center gap-1 rounded-full bg-[#1e293b]/80 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white'}
+              ? 'inline-flex items-center gap-1 rounded-full bg-red-600/90 backdrop-blur-sm px-2.5 py-1 text-note font-semibold text-white'
+              : 'inline-flex items-center gap-1 rounded-full bg-slate-800/80 backdrop-blur-sm px-2.5 py-1 text-note font-semibold text-white'}
             >
               {margin.isLoss ? <TrendingDown size={10} /> : <TrendingUp size={10} />}
               {margin.marginPercent.toFixed(0)}%
@@ -651,7 +651,7 @@ function ProductCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-end p-3 gap-2">
           <button
             onClick={e => { e.stopPropagation(); onEdit(); }}
-            className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-[#1e293b] shadow hover:bg-slate-50 hover:text-[#001F3F] transition"
+            className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow hover:bg-slate-50 hover:text-primary transition"
           >
             <Edit2 size={12} className="inline mr-1" />
             Modifye
@@ -669,25 +669,25 @@ function ProductCard({
       {/* Product info */}
       <div className="p-4">
         {product.category && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[#001F3F] mb-1.5">
+          <span className="inline-flex items-center gap-1 text-note font-semibold uppercase tracking-widest text-primary mb-1.5">
             <Tag size={9} />
             {product.category}
           </span>
         )}
-        <h3 className="font-semibold text-[#1e293b] text-sm leading-snug line-clamp-2 mb-3">
+        <h3 className="font-semibold text-slate-800 text-sm leading-snug line-clamp-2 mb-3">
           {product.name}
         </h3>
 
         {/* Prices */}
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10px] text-slate-400 mb-0.5">Pri Vant</p>
-            <p className="text-lg font-bold text-[#1e293b]">
+            <p className="text-note text-slate-400 mb-0.5">Pri Vant</p>
+            <p className="text-lg font-bold text-slate-800">
               {fmtHTG(product.sale_price)} <span className="text-xs font-normal text-slate-400">HTG</span>
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-slate-400 mb-0.5">Pri Acha</p>
+            <p className="text-note text-slate-400 mb-0.5">Pri Acha</p>
             <p className="text-sm text-slate-500">{fmtHTG(product.purchase_price)}</p>
           </div>
         </div>
@@ -695,11 +695,11 @@ function ProductCard({
         {/* Bottom bar */}
         <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
           <span className="text-xs text-slate-400">
-            Valè: <span className="font-medium text-[#1e293b]">{fmtHTG(product.purchase_price * product.stock_quantity)} HTG</span>
+            Valè: <span className="font-medium text-slate-800">{fmtHTG(product.purchase_price * product.stock_quantity)} HTG</span>
               </span>
           <button
             onClick={onEdit}
-            className="rounded-lg bg-[#001F3F]/10 px-2.5 py-1 text-xs font-semibold text-[#001F3F] hover:bg-[#001F3F]/20 transition"
+            className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
           >
             <Upload size={10} className="inline mr-1" />
             Foto
@@ -799,21 +799,21 @@ export function ProductsClient({
         {/* â”€â”€ Header â”€â”€ */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-[#001F3F]/70">Katalòg</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-primary/70">Katalòg</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-800">Pwodwi & Katalòg</h1>
             <p className="mt-1 text-sm text-slate-500">Jere pwodwi, pri, foto ak stock ou yo an tan reyèl.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCalc(v => !v)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#001F3F] transition-all hover:bg-slate-50 active:scale-95"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-slate-50 active:scale-95"
             >
               <Calculator size={16} />
               Kalkilatè mòj
             </button>
             <button
               onClick={openAdd}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#002D5B] active:scale-95 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-h active:scale-95 transition-all"
             >
               <Plus size={16} />
               Nouvo Pwodui
@@ -855,7 +855,7 @@ export function ProductsClient({
         {/* â”€â”€ KPI Strip â”€â”€ */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { label: 'Total Pwodui',  value: String(products.length),    icon: Package,   accent: 'bg-blue-100 text-[#001F3F]' },
+            { label: 'Total Pwodui',  value: String(products.length),    icon: Package,   accent: 'bg-blue-100 text-primary' },
             { label: 'Valè Stock',    value: fmtHTG(totalValue) + ' G',   icon: BarChart2,  accent: 'bg-emerald-100 text-emerald-800' },
             { label: 'Mwayèn Mòj',   value: avgMargin.toFixed(1) + '%',  icon: TrendingUp, accent: 'bg-purple-100 text-purple-800' },
             { label: 'Foto Mete',     value: `${withPhotos}/${products.length}`, icon: Star, accent: 'bg-amber-100 text-amber-800' },
@@ -887,7 +887,7 @@ export function ProductsClient({
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Chèche pwodui…"
-              className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30/30 transition"
+              className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30/30 transition"
             />
           </div>
 
@@ -895,7 +895,7 @@ export function ProductsClient({
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setFilterCat('')}
-                className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${!filterCat ? 'bg-[#001F3F] text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${!filterCat ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
               >
                 Tout
               </button>
@@ -903,7 +903,7 @@ export function ProductsClient({
                 <button
                   key={cat}
                   onClick={() => setFilterCat(cat === filterCat ? '' : cat)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${filterCat === cat ? 'bg-[#001F3F] text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${filterCat === cat ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                 >
                   {cat}
                 </button>
@@ -927,7 +927,7 @@ export function ProductsClient({
             className="flex flex-col items-center justify-center py-24 text-center"
           >
             <div className="mb-4 rounded-full bg-slate-100 p-5">
-              <Package size={36} className="text-[#001F3F]" />
+              <Package size={36} className="text-primary" />
             </div>
             <h3 className="text-lg font-semibold text-slate-800">
               {search || filterCat ? 'Okenn rezilta' : 'Katalòg ou a vid'}
@@ -940,7 +940,7 @@ export function ProductsClient({
             {!search && !filterCat && (
               <button
                 onClick={openAdd}
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#002D5B] transition"
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-h transition"
               >
                 <Plus size={15} />
                 Ajoute Premye Pwodwi

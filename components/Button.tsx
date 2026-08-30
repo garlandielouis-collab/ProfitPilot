@@ -11,40 +11,45 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-[#001F3F] text-white shadow-sm ' +
-    'hover:bg-[#002D5B] hover:-translate-y-px ' +
-    'active:scale-[0.98] active:bg-[#001428] ' +
-    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#001F3F]/50',
+    'bg-primary text-white shadow-sm ' +
+    'hover:bg-primary-h hover:-translate-y-px ' +
+    'active:scale-[0.98] active:bg-primary-a ' +
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/50',
 
   secondary:
-    'bg-[#50C878] text-white shadow-sm ' +
-    'hover:bg-[#3daa62] hover:-translate-y-px ' +
-    'active:scale-[0.98] active:bg-[#2e8c50] ' +
-    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#50C878]/50',
+    'bg-accent text-white shadow-sm ' +
+    'hover:bg-accent-h hover:-translate-y-px ' +
+    'active:scale-[0.98] active:bg-accent-a ' +
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/50',
 
   ghost:
-    'bg-transparent text-[#001F3F] ' +
-    'hover:bg-[#EAF1F8] hover:text-[#001F3F] ' +
+    'bg-transparent text-primary ' +
+    'hover:bg-nav-active hover:text-primary ' +
     'active:scale-[0.98] ' +
     'dark:text-slate-300 dark:hover:bg-white/5',
 
   outline:
-    'bg-transparent border border-[#001F3F] text-[#001F3F] ' +
-    'hover:bg-[#EAF1F8] hover:-translate-y-px ' +
+    'bg-transparent border border-primary text-primary ' +
+    'hover:bg-nav-active hover:-translate-y-px ' +
     'active:scale-[0.98] ' +
     'dark:border-slate-600 dark:text-slate-200 dark:hover:bg-white/5',
 
   danger:
-    'bg-[#DC2626] text-white shadow-sm ' +
-    'hover:bg-[#b91c1c] hover:-translate-y-px ' +
-    'active:scale-[0.98] active:bg-[#991b1b] ' +
-    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]/50',
+    'bg-danger text-white shadow-sm ' +
+    'hover:bg-danger hover:-translate-y-px ' +
+    'active:scale-[0.98] active:bg-danger ' +
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger/50',
 
+  // Le dégradé a disparu (§3.2). Deux boutons qui font la même chose doivent se
+  // ressembler : celui-ci ne pouvait pas être « le même en dégradé » que le
+  // bouton du système. `gradient` reste comme alias de `primary` — les écrans
+  // qui l'appelaient encore n'ont rien à changer, ils cessent simplement de
+  // diverger (§3.4, et §9 contrôle 6).
   gradient:
-    'bg-gradient-to-r from-[#001F3F] to-[#003B7A] text-white shadow-sm ' +
-    'hover:-translate-y-px hover:shadow-md ' +
+    'bg-primary text-white shadow-sm ' +
+    'hover:bg-primary-h ' +
     'active:scale-[0.98] ' +
-    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#001F3F]/50',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/50',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

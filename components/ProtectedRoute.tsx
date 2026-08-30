@@ -36,7 +36,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-[#001F3F]">
+          <h2 className="text-xl font-bold text-primary">
             {t({ fr: 'Période d\'essai terminée', ht: 'Periyòd esè fini' })}
           </h2>
           <p className="text-sm text-slate-500">
@@ -47,7 +47,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           </p>
           <a
             href="/pricing"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-6 py-3 text-sm font-semibold text-white hover:bg-[#002D5B]"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary-h"
           >
             {t({ fr: 'Voir les abonnements', ht: 'Wè abònman yo' })}
           </a>

@@ -1,115 +1,144 @@
 'use client';
 
-import { useState } from 'react';
-import { ProtectedRoute } from '../../components/ProtectedRoute';
-import { usePlan } from '../../hooks/usePlan';
-import { useLanguage } from '../../components/LanguageWrapper';
-import { toast } from 'sonner';
-import Link from 'next/link';
+// ─────────────────────────────────────────────────────────────────────────────
+// L'accès API — « brancher un autre outil »
+//
+// ── Ce que cet écran affichait ─────────────────────────────────────────────
+//
+// Une CLÉ D'API fabriquée dans le navigateur :
+//
+//     useState('pp_live_sk_' + Math.random().toString(36).slice(2, 18))
+//
+// Une chaîne au hasard, étiquetée « Live », avec un bouton « Copier », un
+// exemple `curl` prêt à coller et l'avertissement « ne partagez jamais cette
+// clé, elle donne accès à toutes vos données ». Elle changeait à chaque
+// rechargement de la page, et ne donnait accès à rien : ni la table `api_keys`,
+// ni le domaine `api.profitpilot.app`, ni les cinq points d'entrée `/v1/…`
+// n'existent dans ce dépôt.
+//
+// C'est le contrôle bloquant n°2 poussé à son extrême : ce n'était plus un
+// chiffre inventé, c'était un IDENTIFIANT inventé. Un marchand un peu curieux
+// le collait dans un outil tiers, obtenait une erreur de connexion, et en
+// concluait que son compte était cassé — ou pire, envoyait la « clé secrète »
+// à un développeur pour qu'il regarde.
+//
+// ── Ce que cet écran dit maintenant ────────────────────────────────────────
+//
+// La vérité : l'API est prévue, elle n'est pas ouverte, et voici comment
+// demander à en être. Rien n'est perdu commercialement — un marchand qui écrit
+// pour demander un accès est un marchand qui en a besoin, donc un signal utile.
+// Ce qui aurait été perdu, c'est la confiance de celui qui découvre seul que la
+// clé de son tableau de bord ne mène nulle part.
+//
+// > À l'équipe : tant que l'API n'existe pas, `api_access` ne devrait pas
+// > figurer parmi les arguments de vente de l'offre Elit (`lib/plans.ts`).
+// ─────────────────────────────────────────────────────────────────────────────
 
-const ENDPOINTS = [
-  { method: 'GET',    path: '/api/v1/sales',    desc: { fr: 'Lister toutes les ventes', ht: 'Liste tout vant yo' } },
-  { method: 'GET',    path: '/api/v1/products', desc: { fr: 'Lister tous les produits', ht: 'Liste tout pwodwi yo' } },
-  { method: 'GET',    path: '/api/v1/customers',  desc: { fr: 'Lister tous les clients',  ht: 'Liste tout kliyan yo' } },
-  { method: 'POST',   path: '/api/v1/sales',    desc: { fr: 'Créer une vente',           ht: 'Kreye yon vant' } },
-  { method: 'GET',    path: '/api/v1/reports',  desc: { fr: 'Rapport financier',          ht: 'Rapò finansye' } },
+import { MessageCircle, Mail } from 'lucide-react';
+
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import { PlanGate, PlanLockScreen } from '../../components/PlanLock';
+import { useLanguage } from '../../components/LanguageWrapper';
+import { Badge, Card, ScreenHeader, Stack } from '../../components/ds';
+
+const SUPPORT_WHATSAPP = 'https://wa.me/50935045946';
+const SUPPORT_EMAIL    = 'support@profitpilot.app';
+
+/** Ce que l'API permettra — décrit en tâches, pas en points d'entrée : le
+ *  marchand qui lit cet écran n'écrira pas le code lui-même. */
+const PLANNED = [
+  { fr: 'Lire vos ventes depuis un autre logiciel',        ht: 'Li vant ou yo depi yon lòt lojisyèl' },
+  { fr: 'Synchroniser votre catalogue de produits',        ht: 'Sinkronize katalòg pwodwi ou' },
+  { fr: 'Enregistrer une vente faite ailleurs',            ht: 'Anrejistre yon vant ki fèt yon lòt kote' },
+  { fr: 'Récupérer vos rapports financiers automatiquement', ht: 'Pran rapò finansye ou yo otomatikman' },
 ];
 
-const METHOD_COLOR: Record<string, string> = {
-  GET:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  POST:   'bg-blue-100    text-blue-700    dark:bg-blue-900/30    dark:text-blue-400',
-  PUT:    'bg-amber-100   text-amber-700   dark:bg-amber-900/30   dark:text-amber-400',
-  DELETE: 'bg-red-100     text-red-700     dark:bg-red-900/30     dark:text-red-400',
-};
-
-function UpgradeGate({ children }: { children: React.ReactNode }) {
-  const plan = usePlan();
+function ApiAccessInner() {
   const { t } = useLanguage();
-  if (plan.loading) return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-[#001F3F]" /></div>;
-  if (!plan.can('api_access')) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 p-12 text-center">
-        <div className="text-4xl">🔌</div>
-        <h2 className="text-xl font-bold text-[var(--color-text)]">{t({ fr: 'API Access', ht: 'API Access' })}</h2>
-        <p className="max-w-sm text-sm text-[var(--color-muted)]">{t({ fr: 'Disponible en plan Expert. Connectez ProfitPilot à vos outils externes via notre API REST.', ht: 'Disponib nan plan Expert. Konekte ProfitPilot ak zouti ekstèn ou yo via API REST nou.' })}</p>
-        <Link href="/pricing" className="rounded-xl bg-[#001F3F] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#002D5B] transition">{t({ fr: 'Passer Expert', ht: 'Pase Expert' })}</Link>
-      </div>
-    );
-  }
-  return <>{children}</>;
-}
 
-function maskKey(key: string) {
-  return key.slice(0, 8) + '•'.repeat(24) + key.slice(-4);
+  return (
+    <div className="pp-enter mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <ScreenHeader
+        title={t({ fr: 'Accès API', ht: 'Aksè API' })}
+        subtitle={t({
+          fr: 'Brancher ProfitPilot à un autre outil',
+          ht: 'Konekte ProfitPilot ak yon lòt zouti',
+        })}
+      />
+
+      <Stack className="mt-6">
+        <PlanGate feature="api_access" fallback={<PlanLockScreen feature="api_access" />}>
+          <Card className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-card font-bold text-primary dark:text-dark-text">
+                {t({ fr: 'Pas encore ouvert', ht: 'Poko louvri' })}
+              </h2>
+              {/* Ambre et non rouge : rien n'est en panne, quelque chose n'est
+                  pas encore là (§4.2). */}
+              <Badge tone="warning">{t({ fr: 'En préparation', ht: 'N ap prepare' })}</Badge>
+            </div>
+
+            <p className="mt-2 text-body text-text2 dark:text-dark-text2">
+              {t({
+                fr: 'Aucune clé n’est délivrée pour le moment. Nous ouvrons l’accès compte par compte, pour accompagner le premier branchement.',
+                ht: 'Nou poko bay okenn kle. N ap louvri aksè a kont pa kont, pou n ka akonpaye premye koneksyon an.',
+              })}
+            </p>
+
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <a
+                href={SUPPORT_WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pressable flex min-h-13 flex-1 items-center justify-center gap-2 rounded-surface bg-accent text-body font-bold text-white shadow-card hover:bg-accent-h"
+              >
+                <MessageCircle className="h-5 w-5" strokeWidth={2} aria-hidden />
+                {t({ fr: 'Demander un accès', ht: 'Mande yon aksè' })}
+              </a>
+              <a
+                href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Accès API ProfitPilot')}`}
+                className="pressable flex min-h-13 items-center justify-center gap-2 rounded-surface border border-border px-5 text-body font-bold text-primary hover:bg-surface dark:border-dark-border dark:text-dark-text dark:hover:bg-white/5"
+              >
+                <Mail className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+                {t({ fr: 'Par e-mail', ht: 'Pa imèl' })}
+              </a>
+            </div>
+          </Card>
+
+          <Card className="px-4">
+            <h2 className="border-b border-border py-4 text-card font-bold text-primary dark:border-dark-border dark:text-dark-text">
+              {t({ fr: 'Ce que l’accès permettra', ht: 'Sa aksè a ap pèmèt' })}
+            </h2>
+
+            <ul className="divide-y divide-border dark:divide-dark-border">
+              {PLANNED.map((item) => (
+                <li
+                  key={item.fr}
+                  className="flex min-h-touch items-center gap-3 py-3 text-body text-text2 dark:text-dark-text2"
+                >
+                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-pill bg-border dark:bg-dark-border" aria-hidden />
+                  {t(item)}
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <p className="text-note text-muted dark:text-dark-muted">
+            {t({
+              fr: 'En attendant, l’export de vos données reste disponible dans les Paramètres, dans les trois offres — vos chiffres vous appartiennent.',
+              ht: 'An atandan, ekspòtasyon done ou yo rete disponib nan Paramèt, nan twa òf yo — chif ou yo se pou ou.',
+            })}
+          </p>
+        </PlanGate>
+      </Stack>
+    </div>
+  );
 }
 
 export default function ApiAccessPage() {
-  const { t } = useLanguage();
-  const [apiKey] = useState('pp_live_sk_' + Math.random().toString(36).slice(2, 18));
-  const [revealed, setRevealed] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard.writeText(apiKey);
-    toast.success(t({ fr: 'Clé copiée !', ht: 'Kle kopye!' }));
-  };
-
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text)]">{t({ fr: 'API Access', ht: 'API Access' })}</h1>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">{t({ fr: 'Intégrez ProfitPilot à vos outils via notre API REST', ht: 'Entegre ProfitPilot ak zouti ou yo via API REST nou' })}</p>
-        </div>
-
-        <UpgradeGate>
-          {/* API Key card */}
-          <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Votre clé API', ht: 'Kle API ou' })}</h2>
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">Live</span>
-            </div>
-            <div className="flex items-center gap-3 rounded-xl bg-[var(--color-surface)] dark:bg-slate-800/50 border border-[var(--color-border)] px-4 py-3">
-              <code className="flex-1 min-w-0 truncate text-xs font-mono text-[var(--color-text)]">
-                {revealed ? apiKey : maskKey(apiKey)}
-              </code>
-              <button onClick={() => setRevealed(r => !r)} className="flex-shrink-0 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition">
-                {revealed ? t({ fr: 'Masquer', ht: 'Kache' }) : t({ fr: 'Afficher', ht: 'Montre' })}
-              </button>
-              <button onClick={copy} className="flex-shrink-0 rounded-lg bg-[#001F3F] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#002D5B] transition">
-                {t({ fr: 'Copier', ht: 'Kopye' })}
-              </button>
-            </div>
-            <p className="text-xs text-[var(--color-muted)]">
-              ⚠️ {t({ fr: 'Ne partagez jamais cette clé. Elle donne accès à toutes vos données.', ht: 'Pa janm pataje kle sa a. Li ba ou aksè nan tout done ou.' })}
-            </p>
-          </div>
-
-          {/* Endpoints */}
-          <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] overflow-hidden">
-            <div className="border-b border-[var(--color-border)] px-5 py-4">
-              <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Endpoints disponibles', ht: 'Endpoint disponib yo' })}</h2>
-              <p className="mt-0.5 text-xs text-[var(--color-muted)]">Base URL: <code className="font-mono">https://api.profitpilot.app/v1</code></p>
-            </div>
-            <div className="divide-y divide-[var(--color-border)]">
-              {ENDPOINTS.map((ep, i) => (
-                <div key={i} className="flex items-center gap-4 px-5 py-3.5">
-                  <span className={`flex-shrink-0 rounded-md px-2 py-0.5 text-[0.65rem] font-bold font-mono ${METHOD_COLOR[ep.method] ?? ''}`}>{ep.method}</span>
-                  <code className="flex-1 min-w-0 truncate text-xs font-mono text-[var(--color-text)]">{ep.path}</code>
-                  <span className="text-xs text-[var(--color-muted)] hidden sm:block">{t(ep.desc)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Code example */}
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[#0F172A] p-5 overflow-x-auto">
-            <p className="mb-3 text-xs font-semibold text-slate-400 uppercase tracking-widest">{t({ fr: 'Exemple', ht: 'Egzanp' })}</p>
-            <pre className="text-xs text-slate-300 leading-relaxed whitespace-pre">{`curl https://api.profitpilot.app/v1/sales \\
-  -H "Authorization: Bearer ${revealed ? apiKey : maskKey(apiKey)}" \\
-  -H "Content-Type: application/json"`}</pre>
-          </div>
-        </UpgradeGate>
-      </div>
+      <ApiAccessInner />
     </ProtectedRoute>
   );
 }

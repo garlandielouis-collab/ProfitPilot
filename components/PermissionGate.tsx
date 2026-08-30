@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { usePermissions } from '../hooks/usePermissions';
 import type { Permission } from '../lib/rbac';
 import type { Feature } from '../lib/planFeatures';
+import { Sparkles } from 'lucide-react';
 
 type PermissionGateProps = {
   children:  ReactNode;
@@ -72,7 +73,7 @@ export function FeatureGate({
 
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-      <span className="text-xl">✨</span>
+      <Sparkles className="h-5 w-5 flex-shrink-0 text-amber-600" strokeWidth={1.8} aria-hidden />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-amber-700">{title}</p>
         <p className="text-xs text-amber-600">{message}</p>

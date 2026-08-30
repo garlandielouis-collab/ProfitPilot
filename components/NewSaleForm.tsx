@@ -11,8 +11,10 @@ import { SaleInvoiceModal, type InvoiceData } from './SaleInvoiceModal';
 import {
   Scan, Trash2, DollarSign, UserPlus, ChevronDown,
   FileText, Percent, User,
+  Check as CheckIcon, Package as PackageIcon, X as XIcon,
 } from 'lucide-react';
 import { useLanguage } from './LanguageWrapper';
+import { PaymentPicker, type PaymentKey } from './ds';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,20 +52,23 @@ const MODE_TO_DB: Record<PaymentMode, 'Cash' | 'MonCash' | 'Natcash' | 'Card'> =
 const IMMEDIATE_METHODS: PaymentMode[] = ['Espèces', 'Moncash', 'Natcash', 'Carte Visa'];
 const ALL_MODES: PaymentMode[] = ['Espèces', 'Moncash', 'Natcash', 'Carte Visa', 'Crédit'];
 
-const MODE_COLORS: Record<PaymentMode, string> = {
-  Espèces:     'bg-emerald-600 text-white',
-  Moncash:     'bg-[#e91e8c] text-white',
-  Natcash:     'bg-purple-600 text-white',
-  'Carte Visa': 'bg-[#0056b3] text-white',
-  Crédit:       'bg-amber-500 text-white',
+// Le mode de paiement passe par le composant unique (3.4) : la selection se
+// marque par le contraste, pas par cinq teintes saturees cote a cote.
+const PAY_KEY: Record<PaymentMode, PaymentKey> = {
+  'Espèces': 'cash', Moncash: 'moncash', Natcash: 'natcash',
+  'Carte Visa': 'card', 'Crédit': 'credit',
+};
+const KEY_PAY: Record<PaymentKey, PaymentMode> = {
+  cash: 'Espèces', moncash: 'Moncash', natcash: 'Natcash',
+  card: 'Carte Visa', credit: 'Crédit',
 };
 
 const MODE_LABELS: Record<PaymentMode, string> = {
-  Espèces:     '💵 Espèces',
-  Moncash:     '📱 MonCash',
-  Natcash:     '📲 NatCash',
-  'Carte Visa': '💳 Carte Visa',
-  Crédit:       '⏳ À Crédit',
+  Espèces:     'Espèces',
+  Moncash:     'MonCash',
+  Natcash:     'NatCash',
+  'Carte Visa': 'Carte Visa',
+  Crédit:       'À crédit',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -342,11 +347,11 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
 
         {/* ── Catalogue ── */}
-        <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <section className="rounded-surface border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-[#212529]">{t({ fr: 'Catalogue', ht: 'Katalòg' })}</h2>
-              <p className="mt-1 text-sm text-[#212529]/60">{t({ fr: "Cliquez sur un produit pour l'ajouter.", ht: 'Klike sou yon pwodui pou ajoute l.' })}</p>
+              <h2 className="text-xl font-semibold text-anthracite">{t({ fr: 'Catalogue', ht: 'Katalòg' })}</h2>
+              <p className="mt-1 text-sm text-anthracite/60">{t({ fr: "Cliquez sur un produit pour l'ajouter.", ht: 'Klike sou yon pwodui pou ajoute l.' })}</p>
             </div>
           </div>
 
@@ -356,36 +361,40 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t({ fr: 'Rechercher un produit ou catégorie…', ht: 'Chèche yon pwodui oswa kategori…' })}
-              className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-[#212529] outline-none focus:border-[#0056b3] focus:bg-white"
+              className="flex-1 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-anthracite outline-none focus:border-primary focus:bg-white"
             />
             <button type="button" onClick={() => { setScanMessage(''); setScannerOpen(true); }}
-              className="inline-flex items-center gap-2 rounded-3xl bg-[#0056b3] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0047a1]">
+              className="inline-flex items-center gap-2 rounded-3xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h">
               <Scan size={15} /> {t({ fr: 'Scan', ht: 'Eskane' })}
             </button>
           </div>
-          {scanMessage && <p className="mb-3 text-xs text-[#0056b3]">{scanMessage}</p>}
+          {scanMessage && <p className="mb-3 text-xs text-primary">{scanMessage}</p>}
 
           {/* Products grid */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {filteredProducts.length === 0 ? (
-              <p className="col-span-full py-8 text-center text-sm text-[#212529]/50">{t({ fr: 'Aucun produit trouvé.', ht: 'Pa gen pwodui jwenn.' })}</p>
+              <p className="col-span-full py-8 text-center text-sm text-anthracite/50">{t({ fr: 'Aucun produit trouvé.', ht: 'Pa gen pwodui jwenn.' })}</p>
             ) : filteredProducts.map(p => (
               <div key={p.id} onClick={() => addToCart(p)}
-                className={`cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden transition hover:shadow-md hover:border-[#0056b3]/40 ${p.stock_quantity === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+                className={`cursor-pointer rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden transition hover:shadow-md hover:border-primary/40 ${p.stock_quantity === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="aspect-square bg-slate-100 overflow-hidden">
                   {p.image_url
                     ? <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
-                    : <div className="flex h-full w-full items-center justify-center text-2xl">📦</div>}
+                    : (
+                      <div className="flex h-full w-full items-center justify-center text-muted">
+                        <PackageIcon className="h-7 w-7" strokeWidth={1.5} aria-hidden />
+                      </div>
+                    )}
                 </div>
                 <div className="p-2.5">
-                  <p className="truncate text-xs font-semibold text-[#212529]">{p.name}</p>
-                  <p className="mt-1 text-[10px] text-[#212529]/50">{p.category}</p>
+                  <p className="truncate text-xs font-semibold text-anthracite">{p.name}</p>
+                  <p className="mt-1 text-note text-anthracite/50">{p.category}</p>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                      <p className="text-xs font-bold text-[#0056b3]">{fmtDisplay(displayUnitPrice(p))}</p>
-                      {p.currency === 'USD' && <span className="text-[9px] font-bold text-[#0056b3]/60">USD</span>}
+                      <p className="text-xs font-bold text-primary">{fmtDisplay(displayUnitPrice(p))}</p>
+                      {p.currency === 'USD' && <span className="text-note font-bold text-primary/60">USD</span>}
                     </div>
-                    <p className={`text-[10px] font-medium ${p.stock_quantity < 5 ? 'text-orange-500' : 'text-[#212529]/50'}`}>{p.stock_quantity}{t({ fr: ' unités', ht: ' inite' })}</p>
+                    <p className={`text-note font-medium ${p.stock_quantity < 5 ? 'text-orange-500' : 'text-anthracite/50'}`}>{p.stock_quantity}{t({ fr: ' unités', ht: ' inite' })}</p>
                   </div>
                 </div>
               </div>
@@ -399,13 +408,13 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
         {/* ── Panier ── */}
         <aside className="sticky top-6 h-fit">
-          <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <section className="rounded-surface border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-[#212529]">
-                Panier <span className="ml-1 text-sm text-[#212529]/50">({cart.length})</span>
+              <h2 className="text-lg font-semibold text-anthracite">
+                Panier <span className="ml-1 text-sm text-anthracite/50">({cart.length})</span>
               </h2>
               <button type="button" onClick={() => setCurrency(c => c === 'HTG' ? 'USD' : 'HTG')}
-                className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-[#212529] transition hover:bg-slate-100">
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-anthracite transition hover:bg-slate-100">
                 <DollarSign size={13} /> {currency}
               </button>
             </div>
@@ -413,11 +422,11 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
             {/* Cart items */}
             <div className="max-h-52 overflow-y-auto space-y-2">
               {cart.length === 0
-                ? <p className="rounded-2xl bg-slate-50 py-6 text-center text-xs text-[#212529]/50">{t({ fr: 'Panier vide', ht: 'Panye vid' })}</p>
+                ? <p className="rounded-2xl bg-slate-50 py-6 text-center text-xs text-anthracite/50">{t({ fr: 'Panier vide', ht: 'Panye vid' })}</p>
                 : cart.map(item => (
                   <div key={item.product.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="flex-1 truncate text-xs font-semibold text-[#212529]">{item.product.name}</p>
+                      <p className="flex-1 truncate text-xs font-semibold text-anthracite">{item.product.name}</p>
                       <button type="button" onClick={() => removeFromCart(item.product.id)}
                         className="shrink-0 rounded p-0.5 text-red-400 hover:bg-red-50 transition">
                         <Trash2 size={13} />
@@ -428,10 +437,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                         className="h-6 w-6 rounded border border-slate-200 text-xs font-bold hover:bg-slate-100">−</button>
                       <input type="number" value={item.quantity} min={1} max={item.product.stock_quantity}
                         onChange={e => updateQty(item.product.id, Number(e.target.value))}
-                        className="w-12 rounded border border-slate-200 bg-white py-0.5 text-center text-xs outline-none focus:border-[#0056b3]" />
+                        className="w-12 rounded border border-slate-200 bg-white py-0.5 text-center text-xs outline-none focus:border-primary" />
                       <button type="button" onClick={() => updateQty(item.product.id, item.quantity + 1)}
                         className="h-6 w-6 rounded border border-slate-200 text-xs font-bold hover:bg-slate-100">+</button>
-                      <p className="ml-auto text-xs font-bold text-[#0056b3]">
+                      <p className="ml-auto text-xs font-bold text-primary">
                         {fmtDisplay(displayUnitPrice(item.product) * item.quantity)}
                       </p>
                     </div>
@@ -443,18 +452,18 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
               <>
                 {/* Discount */}
                 <div className="space-y-1">
-                  <label htmlFor="sale-discount" className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
+                  <label htmlFor="sale-discount" className="flex items-center gap-1.5 text-xs font-medium text-anthracite/70">
                     <Percent size={12} /> Remise (%)
                   </label>
                   <input id="sale-discount" type="number" min={0} max={100} step={0.5}
                     value={discountPercent}
                     onChange={e => setDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-[#212529] outline-none focus:border-[#0056b3] focus:bg-white" />
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-anthracite outline-none focus:border-primary focus:bg-white" />
                 </div>
 
                 {/* Client selector */}
                 <div className="space-y-1 relative">
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-[#212529]/70">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-anthracite/70">
                     <User size={12} />
                     {t({ fr: 'Client ', ht: 'Kliyan ' })}{isCredit && <span className="text-red-500">*</span>}
                   </span>
@@ -462,7 +471,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                   {/* Error state */}
                   {clientsError && (
                     <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
-                      ⚠️ {clientsError}
+                      {clientsError}
                     </p>
                   )}
 
@@ -471,9 +480,9 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                       type="button"
                       onClick={() => setClientDropdown(v => !v)}
                       disabled={clientsLoading}
-                      className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-[#212529] transition hover:bg-slate-100 disabled:opacity-60"
+                      className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-anthracite transition hover:bg-slate-100 disabled:opacity-60"
                     >
-                      <span className={selectedClient ? 'font-medium text-[#212529]' : 'text-[#212529]/40'}>
+                      <span className={selectedClient ? 'font-medium text-anthracite' : 'text-anthracite/40'}>
                         {clientsLoading
                           ? t({ fr: 'Chargement des clients…', ht: 'Ap chaje kliyan yo…' })
                           : selectedClient
@@ -495,7 +504,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                             value={clientSearch}
                             onChange={e => setClientSearch(e.target.value)}
                             placeholder={t({ fr: 'Chercher client…', ht: 'Chèche kliyan…' })}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3] focus:bg-white"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-primary focus:bg-white"
                           />
                         </div>
 
@@ -505,7 +514,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                           {selectedClient && (
                             <button type="button"
                               onClick={() => { setSelectedClient(null); setClientDropdown(false); }}
-                              className="w-full px-3 py-2 text-left text-xs text-[#212529]/50 hover:bg-slate-50">
+                              className="w-full px-3 py-2 text-left text-xs text-anthracite/50 hover:bg-slate-50">
                               {t({ fr: '— Retirer client —', ht: '— Retire kliyan —' })}
                             </button>
                           )}
@@ -519,7 +528,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                               <button
                                 type="button"
                                 onClick={() => setShowNewClient(true)}
-                                className="inline-flex items-center gap-1 rounded-lg bg-[#0056b3] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0047a1]"
+                                className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-h"
                               >
                                 <UserPlus size={11} /> {t({ fr: 'Créer votre premier client', ht: 'Kreye premye kliyan ou' })}
                               </button>
@@ -533,7 +542,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                               type="button"
                               onClick={() => { setSelectedClient(c); setClientDropdown(false); setClientSearch(''); }}
                               className={`w-full px-3 py-2.5 text-left text-xs transition hover:bg-slate-50 flex items-center justify-between gap-2 ${
-                                selectedClient?.id === c.id ? 'bg-blue-50 font-semibold text-[#0056b3]' : 'text-[#212529]'
+                                selectedClient?.id === c.id ? 'bg-blue-50 font-semibold text-primary' : 'text-anthracite'
                               }`}
                             >
                               <span className="font-medium truncate">{c.name}</span>
@@ -547,7 +556,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                             <button
                               type="button"
                               onClick={() => setShowNewClient(true)}
-                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0056b3] hover:underline"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
                             >
                               <UserPlus size={12} /> {t({ fr: 'Nouveau client', ht: 'Nouvo kliyan' })}
                             </button>
@@ -559,16 +568,18 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                                 onChange={e => setNewClientName(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveNewClient(); } }}
                                 placeholder={t({ fr: 'Nom client *', ht: 'Non kliyan *' })}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-[#0056b3] focus:bg-white"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:border-primary focus:bg-white"
                               />
                               <div className="flex gap-2">
                                 <button
                                   type="button"
                                   onClick={handleSaveNewClient}
                                   disabled={!newClientName.trim() || savingClient}
-                                  className="flex-1 rounded-xl bg-[#0056b3] py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-[#0047a1]"
+                                  className="flex-1 rounded-xl bg-primary py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-primary-h"
                                 >
-                                  {savingClient ? t({ fr: 'Création…', ht: 'Ap kreye…' }) : t({ fr: 'Créer', ht: 'Kreye' })}
+                                  {savingClient
+                                    ? t({ fr: 'Création…', ht: 'Ap kreye…' })
+                                    : t({ fr: 'Créer le client', ht: 'Kreye kliyan an' })}
                                 </button>
                                 <button
                                   type="button"
@@ -588,36 +599,35 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                   {/* Selected client info */}
                   {selectedClient && (
                     <div className="flex items-center justify-between rounded-xl bg-blue-50 px-3 py-2">
-                      <span className="text-xs font-semibold text-[#0056b3]">✓ {selectedClient.name}</span>
+                      <span className="text-xs font-semibold text-primary">{selectedClient.name}</span>
                       <button
                         type="button"
                         onClick={() => setSelectedClient(null)}
-                        className="text-[10px] text-slate-400 hover:text-red-500 ml-2"
+                        className="text-note text-slate-400 hover:text-red-500 ml-2"
                       >
-                        ✕
+                        <XIcon className="h-4 w-4" strokeWidth={2} aria-hidden />
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Payment mode */}
+                {/* Mode de paiement — un seul composant, decline par une
+                    icone et un libelle. Le rose #001F3F installait une note
+                    d alerte permanente sur le moment le plus positif de la
+                    journee du marchand (4.2). */}
                 <div className="space-y-2">
-                  <span className="text-xs font-medium text-[#212529]/70">{t({ fr: 'Méthode de Paiement', ht: 'Metòd Peman' })}</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {ALL_MODES.map(mode => (
-                      <button key={mode} type="button"
-                        onClick={() => setPaymentMode(mode)}
-                        className={`rounded-xl py-2.5 px-2 text-xs font-semibold text-center leading-tight transition
-                          ${paymentMode === mode ? MODE_COLORS[mode] : 'bg-slate-100 text-[#212529]/70 hover:bg-slate-200'}`}>
-                        {mode === 'Espèces' ? t({ fr: '💵 Espèces', ht: '💵 Kach' }) : mode === 'Crédit' ? t({ fr: '⏳ À Crédit', ht: '⏳ À Kredi' }) : mode === 'Carte Visa' ? t({ fr: '💳 Carte Visa', ht: '💳 Kat Visa' }) : MODE_LABELS[mode]}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="block text-note font-bold uppercase tracking-wide text-muted">
+                    {t({ fr: 'Paiement', ht: 'Peman' })}
+                  </span>
+                  <PaymentPicker
+                    value={PAY_KEY[paymentMode]}
+                    onChange={(k) => setPaymentMode(KEY_PAY[k])}
+                  />
                 </div>
 
                 {/* Totals */}
                 <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-1.5">
-                  <div className="flex justify-between text-xs text-[#212529]/60">
+                  <div className="flex justify-between text-xs text-anthracite/60">
                     <span>{t({ fr: 'Sous-total', ht: 'Sous-total' })}</span>
                     <span>{fmtDisplay(subtotal)}</span>
                   </div>
@@ -628,14 +638,14 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                     </div>
                   )}
                   <div className="flex justify-between border-t border-slate-200 pt-1.5">
-                    <span className="text-sm font-bold text-[#212529]">{t({ fr: 'Total', ht: 'Total' })}</span>
-                    <span className="text-xl font-extrabold text-[#0056b3]">{fmtDisplay(total)}</span>
+                    <span className="text-sm font-bold text-anthracite">{t({ fr: 'Total', ht: 'Total' })}</span>
+                    <span className="text-xl font-extrabold text-primary">{fmtDisplay(total)}</span>
                   </div>
                 </div>
 
                 {isCredit && !selectedClient && (
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    {t({ fr: '⚠ Un client est requis pour une vente à crédit.', ht: '⚠ Yon kliyan obligatwa pou yon vant a kredi.' })}
+                    {t({ fr: 'Un client est requis pour une vente à crédit.', ht: 'Yon kliyan obligatwa pou yon vant a kredi.' })}
                   </p>
                 )}
 
@@ -646,7 +656,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                 <button type="submit"
                   disabled={submitting || cart.length === 0 || (isCredit && !selectedClient)}
                   className="w-full rounded-2xl bg-green-600 py-3.5 text-sm font-bold text-white transition hover:bg-green-700 hover:scale-[1.02] active:scale-95 disabled:scale-100 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-lg">
-                  {submitting ? t({ fr: 'Traitement…', ht: 'Tretman…' }) : isCredit ? t({ fr: '⏳ Enregistrer à Crédit', ht: '⏳ Anrejistre a Kredi' }) : t({ fr: '✓ Encaisser', ht: '✓ Enkese' })}
+                  {submitting ? t({ fr: 'Traitement…', ht: 'Tretman…' }) : isCredit ? t({ fr: 'Enregistrer à crédit', ht: 'Anrejistre a kredi' }) : t({ fr: 'Encaisser', ht: 'Enkese' })}
                 </button>
               </>
             )}
@@ -659,7 +669,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/60 p-4">
           <div className="mb-4 flex w-full max-w-2xl items-center justify-between rounded-2xl bg-emerald-600 px-6 py-4 text-white shadow-lg">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">✓</span>
+              <CheckIcon className="h-6 w-6" strokeWidth={2.5} aria-hidden />
               <div>
                 <p className="text-sm font-bold">{t({ fr: 'Vente enregistrée avec succès !', ht: 'Vant anrejistre avèk siksè !' })}</p>
                 <p className="text-xs opacity-80">{t({ fr: 'Facture N° ', ht: 'Fakti N° ' })}{invoiceData.invoiceNumber}</p>

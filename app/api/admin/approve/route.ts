@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
 
 function htmlResponse(title: string, body: string, color: 'green' | 'red') {
   const bg = color === 'green' ? '#d1fae5' : '#fee2e2';
-  const border = color === 'green' ? '#6ee7b7' : '#fca5a5';
+  const border = color === 'green' ? '#86d3a5' : '#fca5a5';
   const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
   <title>${title}</title>
   <style>body{font-family:Inter,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;margin:0}

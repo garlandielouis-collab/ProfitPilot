@@ -2,6 +2,7 @@
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getBusinessContext } from '../../lib/serverAuth';
+import { assertPermission } from '../../lib/entitlements';
 import { revalidatePath } from 'next/cache';
 
 export type Notification = {
@@ -140,4 +141,41 @@ export async function setNotifPreference(type: string, enabled: boolean): Promis
         { onConflict: 'user_id,company_id,type' },
       );
   } catch { /* swallow */ }
+}
+
+// ── Le résumé du dimanche soir ───────────────────────────────────────────────
+//
+// Le cron hebdomadaire (`/api/cron/weekly-digest`) ne prépare le message que
+// pour les entreprises dont `weekly_digest_enabled` n'est pas `false`. Ce
+// réglage tournait donc en production sans qu'aucun écran ne permette de
+// l'éteindre : le seul moyen de ne plus recevoir le résumé était d'ouvrir la
+// base. C'est l'interrupteur qui manquait, pas la fonctionnalité.
+
+export async function getWeeklyDigestEnabled(): Promise<boolean> {
+  try {
+    const { supabase, businessId } = await getBusinessContext();
+    const { data } = await supabase
+      .from('businesses')
+      .select('weekly_digest_enabled')
+      .eq('id', businessId)
+      .maybeSingle();
+
+    // Le cron traite « pas de valeur » comme un oui : l'écran dit la même chose.
+    return (data as { weekly_digest_enabled?: boolean } | null)?.weekly_digest_enabled ?? true;
+  } catch {
+    return true;
+  }
+}
+
+export async function setWeeklyDigestEnabled(enabled: boolean): Promise<void> {
+  const { supabase, businessId } = await getBusinessContext();
+  // Un employé ne coupe pas les rapports du patron.
+  await assertPermission('settings:write');
+
+  await supabase
+    .from('businesses')
+    .update({ weekly_digest_enabled: enabled })
+    .eq('id', businessId);
+
+  revalidatePath('/automation');
 }

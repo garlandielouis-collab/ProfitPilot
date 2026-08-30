@@ -30,7 +30,7 @@ function TypingDots() {
       {[0, 1, 2].map(i => (
         <motion.div
           key={i}
-          className="h-1.5 w-1.5 rounded-full bg-[#50c878]"
+          className="h-1.5 w-1.5 rounded-full bg-accent"
           animate={{ opacity: [0.3, 1, 0.3] }}
           transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
         />
@@ -41,7 +41,7 @@ function TypingDots() {
 
 function formatResponse(text: string) {
   return text.split('**').map((part, i) =>
-    i % 2 === 1 ? <strong key={i} className="font-semibold text-[#001f3f]">{part}</strong> : part
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-primary">{part}</strong> : part
   );
 }
 
@@ -73,10 +73,10 @@ export function PilotAISection() {
           transition={{ duration: 0.6 }}
           className="mb-14 text-center"
         >
-          <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#50c878]/30 bg-[#50c878]/10 px-4 py-1.5 text-xs font-semibold text-[#50c878]">
+          <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-1.5 text-xs font-semibold text-accent">
             <Sparkles size={11} /> {t({ fr: 'Intelligence Artificielle Financière', ht: 'Entèlijans Atifisyèl Finansye' })}
           </span>
-          <h2 className="mt-4 text-3xl font-extrabold text-[#001f3f] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-extrabold text-primary sm:text-4xl">
             {t({ fr: 'Rencontrez', ht: 'Rankontre' })} <span style={{ background: 'linear-gradient(135deg,#001f3f,#50c878)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Pilot AI</span>
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-500">
@@ -98,16 +98,16 @@ export function PilotAISection() {
                 onClick={() => selectConversation(i)}
                 className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all duration-200 ${
                   active === i
-                    ? 'border-[#50c878]/30 bg-[#50c878]/5 shadow-sm'
-                    : 'border-[#E2E8F0] bg-white hover:border-[#50c878]/20 hover:bg-[#50c878]/3'
+                    ? 'border-accent/30 bg-accent/5 shadow-sm'
+                    : 'border-border bg-white hover:border-accent/20 hover:bg-accent/3'
                 }`}
               >
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                  active === i ? 'bg-[#50c878] text-white' : 'bg-slate-100 text-slate-400'
+                  active === i ? 'bg-accent text-white' : 'bg-slate-100 text-slate-400'
                 }`}>
                   <Send size={12} />
                 </div>
-                <span className={`text-sm font-medium ${active === i ? 'text-[#001f3f]' : 'text-slate-600'}`}>
+                <span className={`text-sm font-medium ${active === i ? 'text-primary' : 'text-slate-600'}`}>
                   {t(c.q)}
                 </span>
               </button>
@@ -115,7 +115,7 @@ export function PilotAISection() {
 
             <Link
               href="/ai-assistant"
-              className="mt-3 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#001f3f] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#001f3f]/90 active:scale-95"
+              className="mt-3 inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-primary/90 active:scale-95"
             >
               <Sparkles size={14} />
               {t({ fr: 'Parler à Pilot AI maintenant', ht: 'Pale ak Pilot AI kounye a' })}
@@ -126,22 +126,22 @@ export function PilotAISection() {
           <motion.div
             initial={{ opacity: 0, x: 20 }} animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ delay: 0.3, duration: 0.7 }}
-            className="rounded-3xl border border-[#E2E8F0] bg-[#F8FAFC] overflow-hidden shadow-lg"
+            className="rounded-3xl border border-border bg-surface overflow-hidden shadow-lg"
           >
             {/* Chat header */}
-            <div className="flex items-center gap-3 border-b border-[#E2E8F0] bg-white px-5 py-4">
+            <div className="flex items-center gap-3 border-b border-border bg-white px-5 py-4">
               <motion.div
-                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#001f3f] to-[#50c878] text-lg"
+                className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent text-lg"
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 2.5, repeat: Infinity }}
               >
                 🤖
               </motion.div>
               <div>
-                <p className="text-sm font-bold text-[#001f3f]">Pilot AI</p>
+                <p className="text-sm font-bold text-primary">Pilot AI</p>
                 <div className="flex items-center gap-1.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-[#50c878] animate-pulse" />
-                  <p className="text-[10px] text-slate-400">{t({ fr: 'En ligne — Analyse votre business', ht: 'An liy — Analize biznis ou' })}</p>
+                  <div className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                  <p className="text-note text-slate-400">{t({ fr: 'En ligne — Analyse votre business', ht: 'An liy — Analize biznis ou' })}</p>
                 </div>
               </div>
             </div>
@@ -150,14 +150,14 @@ export function PilotAISection() {
             <div className="flex flex-col gap-4 p-5 min-h-[280px]">
               {/* User message */}
               <div className="flex justify-end">
-                <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-[#001f3f] px-4 py-3">
+                <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3">
                   <p className="text-sm text-white">{t(CONVERSATIONS[active].q)}</p>
                 </div>
               </div>
 
               {/* AI response */}
               <div className="flex items-start gap-2">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#001f3f] to-[#50c878] text-sm mt-1">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-sm mt-1">
                   🤖
                 </div>
                 <div className="max-w-[85%]">
@@ -166,7 +166,7 @@ export function PilotAISection() {
                       <motion.div
                         key="typing"
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="rounded-2xl rounded-tl-sm bg-white border border-[#E2E8F0] px-4 py-3"
+                        className="rounded-2xl rounded-tl-sm bg-white border border-border px-4 py-3"
                       >
                         <TypingDots />
                       </motion.div>
@@ -175,7 +175,7 @@ export function PilotAISection() {
                         key={`answer-${active}`}
                         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4 }}
-                        className="rounded-2xl rounded-tl-sm bg-white border border-[#E2E8F0] px-4 py-3"
+                        className="rounded-2xl rounded-tl-sm bg-white border border-border px-4 py-3"
                       >
                         <p className="text-sm leading-relaxed text-slate-700">
                           {formatResponse(t(CONVERSATIONS[active].a))}
@@ -188,10 +188,10 @@ export function PilotAISection() {
             </div>
 
             {/* Input area */}
-            <div className="border-t border-[#E2E8F0] bg-white p-3">
-              <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5">
+            <div className="border-t border-border bg-white p-3">
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5">
                 <p className="flex-1 text-sm text-slate-400">{t({ fr: 'Posez votre question à Pilot AI...', ht: 'Poze kesyon ou a Pilot AI...' })}</p>
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#001f3f]">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
                   <Send size={11} className="text-white" />
                 </div>
               </div>

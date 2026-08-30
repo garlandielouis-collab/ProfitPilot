@@ -25,40 +25,40 @@ const TAG_COLORS: Record<string, string> = {
 export default function BlogPage() {
   const { t } = useLanguage();
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-surface">
       <div className="mx-auto max-w-5xl px-5 py-16 md:px-10">
-        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-[#001f3f] transition">
+        <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-500 hover:text-primary transition">
           <ArrowLeft size={14} /> Retounen lakay
         </Link>
         <div className="mb-12">
-          <span className="text-xs font-bold uppercase tracking-widest text-[#50c878]">{t({ fr: 'Blog', ht: 'Blog' })}</span>
-          <h1 className="mt-2 text-3xl font-extrabold text-[#001f3f]">Konsèy pou Antreprenè Ayisyen</h1>
+          <span className="text-xs font-bold uppercase tracking-widest text-accent">{t({ fr: 'Blog', ht: 'Blog' })}</span>
+          <h1 className="mt-2 text-3xl font-extrabold text-primary">Konsèy pou Antreprenè Ayisyen</h1>
           <p className="mt-3 text-slate-500">Gid pratik, konsèy jesyon ak istwa siksè pou devlope biznis ou.</p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {POSTS.map((p, i) => (
             <motion.div key={p.slug} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-              className="group rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm hover:border-[#50c878]/30 hover:shadow-md transition-all cursor-pointer">
+              className="group rounded-2xl border border-border bg-white p-6 shadow-sm hover:border-accent/30 hover:shadow-md transition-all cursor-pointer">
               <div className="mb-3 flex items-center justify-between">
-                <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${TAG_COLORS[p.tag] ?? 'bg-slate-100 text-slate-600'}`}>
+                <span className={`rounded-full px-2.5 py-1 text-note font-semibold ${TAG_COLORS[p.tag] ?? 'bg-slate-100 text-slate-600'}`}>
                   <Tag size={8} className="inline mr-1" />{t({ fr: { Jesyon: 'Gestion', Envantè: 'Inventaire', 'Pilot AI': 'Pilot AI', Rapò: 'Rapport', Fournisè: 'Fournisseur', Trezoreri: 'Trésorerie' }[p.tag] || p.tag, ht: p.tag })}
                 </span>
-                <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                <span className="flex items-center gap-1 text-note text-slate-400">
                   <Clock size={10} /> {p.time}
                 </span>
               </div>
-              <h2 className="font-bold text-[#001f3f] leading-snug group-hover:text-[#50c878] transition-colors">{p.title}</h2>
+              <h2 className="font-bold text-primary leading-snug group-hover:text-accent transition-colors">{p.title}</h2>
               <p className="mt-2 text-sm text-slate-500 leading-relaxed line-clamp-3">{p.excerpt}</p>
-              <p className="mt-4 text-[11px] text-slate-400">{p.date}</p>
+              <p className="mt-4 text-note text-slate-400">{p.date}</p>
             </motion.div>
           ))}
         </div>
-        <div className="mt-12 rounded-2xl border border-[#001f3f]/10 bg-[#001f3f] p-8 text-center">
+        <div className="mt-12 rounded-2xl border border-primary/10 bg-primary p-8 text-center">
           <p className="text-lg font-bold text-white">Resevwa konsèy chak semenn</p>
           <p className="mt-1 text-sm text-white/60">Abòne pou resevwa dènye konsèy biznis gratis.</p>
           <a href="mailto:garlandielouis178@gmail.com?subject=Abonnement Blog ProfitPilot"
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#50c878] px-5 py-2.5 text-sm font-semibold text-[#001f3f] hover:bg-[#4db86e] transition">
-            ✉️ Abòne gratis
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-primary hover:bg-accent transition">
+            Abòne gratis
           </a>
         </div>
       </div>

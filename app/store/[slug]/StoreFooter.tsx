@@ -12,9 +12,9 @@ export function StoreFooter({ store }: { store: StoreSettings }) {
             {store.tagline && <p className="mt-1 text-xs text-slate-500">{store.tagline}</p>}
           </div>
           <div className="text-xs text-slate-500 space-y-1">
-            {store.contact_email   && <p>✉ {store.contact_email}</p>}
-            {store.contact_phone   && <p>📞 {store.contact_phone}</p>}
-            {store.contact_address && <p>📍 {store.contact_address}</p>}
+            {store.contact_email   && <p>{store.contact_email}</p>}
+            {store.contact_phone   && <p>{store.contact_phone}</p>}
+            {store.contact_address && <p>{store.contact_address}</p>}
           </div>
           <div className="text-xs text-slate-400">
             <p>Propulsé par <span className="font-semibold text-slate-600">ProfitPilot</span></p>

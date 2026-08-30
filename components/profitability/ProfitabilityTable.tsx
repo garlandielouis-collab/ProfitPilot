@@ -58,9 +58,9 @@ const VERDICT: Record<
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-black text-[#001F3F] dark:text-slate-100">{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{sub}</p>}
+      <p className="text-note font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+      <p className="mt-1 text-xl font-black text-primary dark:text-slate-100">{value}</p>
+      {sub && <p className="mt-0.5 text-note leading-relaxed text-slate-400">{sub}</p>}
     </div>
   );
 }
@@ -98,7 +98,7 @@ export function ProfitabilityTable() {
   if (!report || report.items.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-950">
-        <p className="text-sm font-semibold text-[#001F3F] dark:text-slate-200">
+        <p className="text-sm font-semibold text-primary dark:text-slate-200">
           Pa gen ase vant pou klase pwodwi yo ankò.
         </p>
         <p className="mt-1 text-sm text-slate-500">
@@ -106,7 +106,7 @@ export function ProfitabilityTable() {
         </p>
         <Link
           href="/sales"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#002D5B]"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-h"
         >
           Ale nan vant yo
           <ArrowUpRight className="h-4 w-4" />
@@ -150,8 +150,8 @@ export function ProfitabilityTable() {
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
         <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-[#001F3F] text-white">
-            <tr className="text-[11px] uppercase tracking-widest">
+          <thead className="bg-primary text-white">
+            <tr className="text-note uppercase tracking-widest">
               <th className="px-4 py-3 text-left font-semibold">Pwodwi</th>
               <th className="px-4 py-3 text-right font-semibold">Inite vandi</th>
               <th className="px-4 py-3 text-right font-semibold">Lajan antre</th>
@@ -166,8 +166,8 @@ export function ProfitabilityTable() {
               return (
                 <tr key={item.productId} className="transition hover:bg-slate-50 dark:hover:bg-slate-900">
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-[#001F3F] dark:text-slate-100">{item.name}</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="font-semibold text-primary dark:text-slate-100">{item.name}</p>
+                    <p className="text-note text-slate-400">
                       {item.stockQuantity} an stock
                       {item.stockQuantity > 0 && item.stockQuantity <= item.reorderPoint && ' · sèy rekòmand rive'}
                     </p>
@@ -178,7 +178,7 @@ export function ProfitabilityTable() {
                   <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
                     {fmt(item.revenue, report.currency)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-bold text-[#001F3F] dark:text-slate-100">
+                  <td className="px-4 py-3 text-right tabular-nums font-bold text-primary dark:text-slate-100">
                     {fmt(item.grossMargin, report.currency)}
                   </td>
                   <td className={item.marginPct < 0
@@ -188,11 +188,11 @@ export function ProfitabilityTable() {
                     {item.marginPct.toFixed(1)}%
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${v.className}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-note font-semibold ${v.className}`}>
                       {v.icon}
                       {v.label}
                     </span>
-                    <p className="mt-0.5 text-[10.5px] text-slate-400">{v.hint}</p>
+                    <p className="mt-0.5 text-note text-slate-400">{v.hint}</p>
                   </td>
                 </tr>
               );

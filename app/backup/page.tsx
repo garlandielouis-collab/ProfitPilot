@@ -1,6 +1,41 @@
 'use client';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Les sauvegardes — « vos données, à l'abri »
+//
+// Ce que l'écran faisait de travers :
+//
+//   §3.5  quinze émojis, dont ✅ ❌ ⏳ en guise d'INDICATEURS D'ÉTAT. Un état se
+//         lit dans une étiquette qui porte un mot ; un rond vert dessiné par le
+//         téléphone ne se lit pas en plein soleil et ne dit pas ce qu'il vaut.
+//   §3.6  une barre de trois compteurs (nombre, taille, dernière) posée
+//         au-dessus d'une liste qui répétait les trois. Elle est devenue le
+//         sous-titre de l'écran : même information, une ligne, zéro carte.
+//   §5.9  quatre boutons de 28 px de haut alignés à droite de chaque ligne, sur
+//         un téléphone. Ils sont passés dans une feuille qui monte à l'appui sur
+//         la ligne : quatre cibles pleine largeur, impossibles à rater (§5.7).
+//   §4.2  du vert, du rouge, de l'ambre et du bleu sur le même écran, dont un
+//         encadré bleu « ℹ️ À propos ». Il reste un rouge — supprimer — et un
+//         ambre — restaurer, qui écrase.
+//   §4.4  la page peignait son propre fond gris dans la coquille.
+//   §9.1  « Les sauvegardes sont stockées de façon sécurisée et chiffrées » :
+//         une affirmation de sécurité que le code ne tient pas lui-même. Elle
+//         est remplacée par ce qui est vrai et vérifiable.
+//
+// Les deux boîtes de dialogue centrées (restaurer, importer) sont devenues des
+// feuilles inférieures, comme partout ailleurs dans le produit.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Archive, Download, FileJson, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import { useLanguage } from '../../components/LanguageWrapper';
+import {
+  Badge, BottomSheet, Button, Card, Field, FirstRun, ScreenHeader, Stack,
+  type BadgeTone,
+} from '../../components/ds';
 import {
   createBackup,
   listBackups,
@@ -9,610 +44,591 @@ import {
   type BackupRecord,
 } from '../actions/backup';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+type Bilingual = { fr: string; ht: string };
 
-function fmtSize(bytes: number): string {
-  if (bytes === 0) return '—';
-  if (bytes < 1024)       return `${bytes} o`;
-  if (bytes < 1048576)    return `${(bytes / 1024).toFixed(1)} Ko`;
-  return `${(bytes / 1048576).toFixed(2)} Mo`;
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
-
-function relDate(iso: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60)     return 'À l\'instant';
-  if (diff < 3600)   return `il y a ${Math.floor(diff / 60)} min`;
-  if (diff < 86400)  return `il y a ${Math.floor(diff / 3600)} h`;
-  if (diff < 604800) return `il y a ${Math.floor(diff / 86400)} j`;
-  return fmtDate(iso);
-}
-
-const ENTITY_LABELS: Record<string, string> = {
-  company:        'Entreprise',
-  customers:      'Clients',
-  products:       'Produits',
-  suppliers:      'Fournisseurs',
-  sales:          'Ventes',
-  sale_items:     'Lignes ventes',
-  purchases:      'Achats',
-  purchase_items: 'Lignes achats',
-  expenses:       'Dépenses',
-  employees:      'Employés',
-  activity_logs:  'Logs activité',
+const ENTITIES: Record<string, Bilingual> = {
+  company:        { fr: 'Entreprise',   ht: 'Antrepriz' },
+  customers:      { fr: 'Clients',      ht: 'Kliyan'    },
+  products:       { fr: 'Produits',     ht: 'Pwodwi'    },
+  suppliers:      { fr: 'Fournisseurs', ht: 'Founisè'   },
+  sales:          { fr: 'Ventes',       ht: 'Vant'      },
+  sale_items:     { fr: 'Lignes de vente',  ht: 'Liy vant'  },
+  purchases:      { fr: 'Achats',       ht: 'Acha'      },
+  purchase_items: { fr: 'Lignes d’achat',   ht: 'Liy acha'  },
+  expenses:       { fr: 'Dépenses',     ht: 'Depans'    },
+  employees:      { fr: 'Employés',     ht: 'Anplwaye'  },
+  activity_logs:  { fr: 'Journal',      ht: 'Jounal'    },
 };
 
-// ── Restore modal ─────────────────────────────────────────────────────────────
+const STATUS: Record<BackupRecord['status'], { label: Bilingual; tone: BadgeTone }> = {
+  ready:   { label: { fr: 'Prête',    ht: 'Pare'      }, tone: 'success' },
+  pending: { label: { fr: 'En cours', ht: 'Ap fèt'    }, tone: 'warning' },
+  error:   { label: { fr: 'Échouée',  ht: 'Li pa fèt' }, tone: 'danger'  },
+};
 
-function RestoreModal({
-  backup,
-  onClose,
-  onDone,
-}: {
-  backup: BackupRecord;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [loading,  setLoading]  = useState(false);
-  const [result,   setResult]   = useState<any>(null);
-  const [error,    setError]    = useState('');
-  const [confirm,  setConfirm]  = useState(false);
+// ─────────────────────────────────────────────────────────────────────────────
 
-  async function handleRestore() {
-    setLoading(true);
-    setError('');
-    try {
-      const fd = new FormData();
-      fd.append('backupId', backup.id);
-      const res = await fetch('/api/backup/restore', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? 'Erreur'); setLoading(false); return; }
-      setResult(json);
-    } catch (e: any) {
-      setError(e.message ?? 'Erreur réseau');
-    }
-    setLoading(false);
-  }
+function BackupInner() {
+  const { t, language } = useLanguage();
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl space-y-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-800">Restaurer la sauvegarde</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-            <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
+  const [backups, setBackups] = useState<BackupRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-        {result ? (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-bold text-emerald-800">✅ {result.message}</p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-1">
-              {Object.entries(result.restored as Record<string, number>).map(([k, v]) => (
-                <div key={k} className="flex justify-between text-xs">
-                  <span className="text-slate-600">{ENTITY_LABELS[k] ?? k}</span>
-                  <span className="font-mono font-semibold text-slate-700">{v}</span>
-                </div>
-              ))}
-            </div>
-            {result.errors && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-bold text-amber-800 mb-1">Avertissements :</p>
-                {result.errors.map((e: string, i: number) => (
-                  <p key={i} className="text-xs text-amber-700">{e}</p>
-                ))}
-              </div>
-            )}
-            <button onClick={() => { onDone(); onClose(); }} className="w-full rounded-xl bg-[#001F3F] py-2.5 text-sm font-semibold text-white hover:bg-[#001F3F]/80">
-              Fermer
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-              <p className="text-sm font-bold text-amber-800">⚠️ Attention</p>
-              <p className="text-xs text-amber-700">
-                La restauration va <strong>écraser</strong> les données existantes avec celles de cette sauvegarde.
-                Cette action est irréversible.
-              </p>
-              <p className="text-xs text-amber-600">
-                Sauvegarde du <strong>{fmtDate(backup.createdAt)}</strong>
-              </p>
-            </div>
+  const [creating, setCreating] = useState(false);
+  const [label,    setLabel]    = useState('');
 
-            {/* Entity summary */}
-            {backup.entityCounts && (
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-1">
-                <p className="text-xs font-semibold text-slate-600 mb-2">Contenu de la sauvegarde :</p>
-                {Object.entries(backup.entityCounts).map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-xs">
-                    <span className="text-slate-500">{ENTITY_LABELS[k] ?? k}</span>
-                    <span className="font-mono font-semibold text-slate-700">{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={confirm}
-                onChange={e => setConfirm(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300"
-              />
-              <span className="text-xs text-slate-600">
-                Je comprends que cette action va remplacer mes données actuelles et je souhaite continuer.
-              </span>
-            </label>
-
-            {error && <p className="text-xs text-red-600">{error}</p>}
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleRestore}
-                disabled={!confirm || loading}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
-              >
-                {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
-                {loading ? 'Restauration…' : 'Restaurer maintenant'}
-              </button>
-              <button
-                onClick={onClose}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Import ZIP modal ──────────────────────────────────────────────────────────
-
-function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-  const [file,    setFile]    = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [result,  setResult]  = useState<any>(null);
-  const [error,   setError]   = useState('');
-  const [confirm, setConfirm] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function handleImport() {
-    if (!file) return;
-    setLoading(true);
-    setError('');
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/backup/restore', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? 'Erreur'); setLoading(false); return; }
-      setResult(json);
-    } catch (e: any) {
-      setError(e.message ?? 'Erreur réseau');
-    }
-    setLoading(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl space-y-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-800">Importer un fichier ZIP</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
-            <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
-
-        {result ? (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-bold text-emerald-800">✅ {result.message}</p>
-            </div>
-            <button onClick={() => { onDone(); onClose(); }} className="w-full rounded-xl bg-[#001F3F] py-2.5 text-sm font-semibold text-white">Fermer</button>
-          </div>
-        ) : (
-          <>
-            {/* Drop zone */}
-            <div
-              onClick={() => inputRef.current?.click()}
-              className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-8 cursor-pointer hover:border-[#001F3F]/40 hover:bg-slate-100 transition"
-            >
-              <span className="text-3xl">📦</span>
-              {file ? (
-                <>
-                  <p className="text-sm font-semibold text-slate-700">{file.name}</p>
-                  <p className="text-xs text-slate-400">{fmtSize(file.size)}</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-semibold text-slate-600">Cliquez pour sélectionner un ZIP</p>
-                  <p className="text-xs text-slate-400">Fichiers .zip générés par ProfitPilot uniquement</p>
-                </>
-              )}
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".zip"
-                className="hidden"
-                onChange={e => setFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
-
-            {file && (
-              <>
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-xs text-amber-700">
-                    ⚠️ L'importation va <strong>écraser</strong> les données existantes avec celles du fichier.
-                  </p>
-                </div>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={confirm}
-                    onChange={e => setConfirm(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300"
-                  />
-                  <span className="text-xs text-slate-600">
-                    Je comprends que cette action va remplacer mes données actuelles.
-                  </span>
-                </label>
-              </>
-            )}
-
-            {error && <p className="text-xs text-red-600">{error}</p>}
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleImport}
-                disabled={!file || !confirm || loading}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#001F3F] py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
-                {loading ? 'Import…' : 'Importer'}
-              </button>
-              <button onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-                Annuler
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
-
-export default function BackupPage() {
-  const [backups,      setBackups]      = useState<BackupRecord[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [creating,     setCreating]     = useState(false);
-  const [label,        setLabel]        = useState('');
-  const [showLabel,    setShowLabel]    = useState(false);
-  const [toast,        setToast]        = useState('');
-  const [restoreTarget, setRestoreTarget] = useState<BackupRecord | null>(null);
-  const [showImport,   setShowImport]   = useState(false);
-  const [downloading,  setDownloading]  = useState<string | null>(null);
-  const [deleting,     setDeleting]     = useState<string | null>(null);
-
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(''), 4000);
-  }
+  const [sheet,   setSheet]   = useState<'create' | 'import' | null>(null);
+  const [actions, setActions] = useState<BackupRecord | null>(null);
+  const [restore, setRestore] = useState<BackupRecord | null>(null);
+  const [busyId,  setBusyId]  = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const data = await listBackups();
-    setBackups(data);
+    setBackups(await listBackups());
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  async function handleCreate() {
+  async function create() {
     setCreating(true);
     const res = await createBackup(label.trim() || undefined);
     if ('error' in res) {
-      showToast('❌ ' + res.error);
+      toast.error(res.error);
     } else {
-      showToast('✅ Sauvegarde créée avec succès !');
+      toast.success(t({ fr: 'Sauvegarde créée.', ht: 'Sovgad la fèt.' }));
       setLabel('');
-      setShowLabel(false);
+      setSheet(null);
       await load();
     }
     setCreating(false);
   }
 
-  async function handleDownloadZip(backup: BackupRecord) {
-    setDownloading(backup.id);
+  async function downloadZip(backup: BackupRecord) {
+    setBusyId(backup.id);
     try {
       const res = await fetch(`/api/backup/${backup.id}/download`);
       if (!res.ok) {
-        const j = await res.json();
-        showToast('❌ ' + (j.error ?? 'Erreur'));
-        return;
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error);
       }
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      const dateStr = new Date(backup.createdAt).toISOString().split('T')[0];
-      a.href     = url;
-      a.download = `backup_${dateStr}.zip`;
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `profitpilot-${backup.createdAt.slice(0, 10)}.zip`,
+      });
       a.click();
       URL.revokeObjectURL(url);
+      setActions(null);
     } catch (e: any) {
-      showToast('❌ ' + e.message);
+      toast.error(e?.message ?? t({ fr: 'Téléchargement impossible.', ht: 'Nou pa ka telechaje.' }));
     }
-    setDownloading(null);
+    setBusyId(null);
   }
 
-  async function handleDownloadJson(backup: BackupRecord) {
+  async function openJson(backup: BackupRecord) {
     const res = await getBackupSignedUrl(backup.id);
-    if ('error' in res) { showToast('❌ ' + res.error); return; }
+    if ('error' in res) { toast.error(res.error); return; }
     window.open(res.url, '_blank');
+    setActions(null);
   }
 
-  async function handleDelete(id: string) {
-    setDeleting(id);
-    const res = await deleteBackup(id);
+  async function remove(backup: BackupRecord) {
+    setBusyId(backup.id);
+    const res = await deleteBackup(backup.id);
     if (res.error) {
-      showToast('❌ ' + res.error);
+      toast.error(res.error);
     } else {
-      showToast('Sauvegarde supprimée.');
-      setBackups(prev => prev.filter(b => b.id !== id));
+      toast.success(t({ fr: 'Sauvegarde supprimée.', ht: 'Sovgad la efase.' }));
+      setBackups((prev) => prev.filter((b) => b.id !== backup.id));
+      setActions(null);
     }
-    setDeleting(null);
+    setBusyId(null);
   }
 
-  const totalSize = backups.reduce((s, b) => s + b.sizeBytes, 0);
+  // Le résumé remplace la barre de trois cartes : la même information, à
+  // l'endroit où l'écran se présente déjà (§3.6).
+  const totalSize = backups.reduce((sum, b) => sum + b.sizeBytes, 0);
+  const subtitle = loading
+    ? t({ fr: 'Lecture…', ht: 'Ap li…' })
+    : backups.length === 0
+      ? t({ fr: 'Aucune sauvegarde pour le moment.', ht: 'Pa gen sovgad pou kounye a.' })
+      : [
+          t({
+            fr: `${backups.length} sauvegarde${backups.length > 1 ? 's' : ''}`,
+            ht: `${backups.length} sovgad`,
+          }),
+          formatSize(totalSize),
+          t({
+            fr: `dernière ${relativeDate(backups[0].createdAt, language)}`,
+            ht: `dènye a ${relativeDate(backups[0].createdAt, language)}`,
+          }),
+        ].join(' · ');
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <div className="pp-enter mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <ScreenHeader
+        title={t({ fr: 'Sauvegardes', ht: 'Sovgad' })}
+        subtitle={subtitle}
+        action={
+          <Button variant="accent" size="sm" onClick={() => setSheet('create')}>
+            {t({ fr: 'Sauvegarder', ht: 'Sovgade' })}
+          </Button>
+        }
+      />
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#001F3F] text-lg text-white">
-              💾
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Sauvegardes</h1>
-              <p className="text-sm text-slate-500">Export, sauvegarde et restauration de données</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setShowImport(true)}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              📤 Importer ZIP
-            </button>
-            <button
-              onClick={() => setShowLabel(v => !v)}
-              className="flex items-center gap-2 rounded-xl bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white hover:bg-[#001F3F]/80"
-            >
-              + Nouvelle sauvegarde
-            </button>
-          </div>
-        </div>
-
-        {toast && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700">
-            {toast}
-          </div>
-        )}
-
-        {/* New backup form */}
-        {showLabel && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-            <p className="text-sm font-bold text-slate-800">Nouvelle sauvegarde</p>
-            <input
-              type="text"
-              value={label}
-              onChange={e => setLabel(e.target.value)}
-              placeholder="Nom de la sauvegarde (facultatif)"
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-[#001F3F] focus:outline-none focus:ring-2 focus:ring-[#001F3F]/10"
-            />
-            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
-              📋 La sauvegarde inclura : clients, produits, fournisseurs, ventes, achats, dépenses, employés et logs d'activité.
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleCreate}
-                disabled={creating}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#001F3F] py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {creating && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
-                {creating ? 'Sauvegarde en cours…' : '💾 Créer la sauvegarde'}
-              </button>
-              <button
-                onClick={() => { setShowLabel(false); setLabel(''); }}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Stats bar */}
-        {backups.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'Sauvegardes', value: backups.length },
-              { label: 'Taille totale', value: fmtSize(totalSize) },
-              { label: 'Dernière', value: relDate(backups[0].createdAt) },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 text-center">
-                <p className="text-lg font-bold text-slate-800">{value}</p>
-                <p className="text-xs text-slate-500">{label}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Backup list */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-bold text-slate-800">Historique des sauvegardes</h2>
-          </div>
-
+      <Stack className="mt-6">
+        <Card>
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-[#001F3F]" />
-            </div>
-          ) : backups.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="text-4xl">💾</p>
-              <p className="mt-3 text-sm font-medium text-slate-500">Aucune sauvegarde</p>
-              <p className="text-xs text-slate-400">Créez votre première sauvegarde ci-dessus.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {backups.map((b) => (
-                <div key={b.id} className="px-5 py-4">
-                  <div className="flex items-start gap-3">
-                    {/* Status icon */}
-                    <div className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-base ${
-                      b.status === 'ready'   ? 'bg-emerald-100 text-emerald-700' :
-                      b.status === 'error'   ? 'bg-red-100 text-red-600' :
-                                               'bg-amber-100 text-amber-600'
-                    }`}>
-                      {b.status === 'ready' ? '✅' : b.status === 'error' ? '❌' : '⏳'}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-slate-800">
-                          {b.label ?? `Sauvegarde du ${fmtDate(b.createdAt)}`}
-                        </p>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          b.status === 'ready' ? 'bg-emerald-100 text-emerald-600' :
-                          b.status === 'error' ? 'bg-red-100 text-red-600' :
-                                                 'bg-amber-100 text-amber-600'
-                        }`}>
-                          {b.status === 'ready' ? 'Prête' : b.status === 'error' ? 'Erreur' : 'En cours'}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-slate-400 flex-wrap">
-                        <span>🕐 {relDate(b.createdAt)}</span>
-                        <span>📦 {fmtSize(b.sizeBytes)}</span>
-                        {b.entityCounts && (
-                          <span>
-                            {Object.entries(b.entityCounts)
-                              .filter(([k]) => k !== 'company' && k !== 'activity_logs')
-                              .map(([k, v]) => `${v} ${ENTITY_LABELS[k] ?? k}`)
-                              .slice(0, 3)
-                              .join(' · ')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    {b.status === 'ready' && (
-                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                        {/* Download ZIP */}
-                        <button
-                          onClick={() => handleDownloadZip(b)}
-                          disabled={downloading === b.id}
-                          title="Télécharger ZIP"
-                          className="flex items-center gap-1.5 rounded-lg border border-[#001F3F]/20 bg-[#001F3F]/5 px-2.5 py-1.5 text-xs font-semibold text-[#001F3F] hover:bg-[#001F3F]/10 disabled:opacity-60"
-                        >
-                          {downloading === b.id
-                            ? <span className="h-3 w-3 animate-spin rounded-full border border-[#001F3F]/30 border-t-[#001F3F]" />
-                            : '📥'}
-                          ZIP
-                        </button>
-
-                        {/* Download JSON */}
-                        <button
-                          onClick={() => handleDownloadJson(b)}
-                          title="Télécharger JSON brut"
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                        >
-                          JSON
-                        </button>
-
-                        {/* Restore */}
-                        <button
-                          onClick={() => setRestoreTarget(b)}
-                          title="Restaurer"
-                          className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
-                        >
-                          🔄 Restaurer
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          onClick={() => handleDelete(b.id)}
-                          disabled={deleting === b.id}
-                          title="Supprimer"
-                          className="flex items-center justify-center rounded-lg border border-red-200 bg-red-50 p-1.5 text-red-500 hover:bg-red-100 disabled:opacity-60"
-                        >
-                          {deleting === b.id
-                            ? <span className="h-3 w-3 animate-spin rounded-full border border-red-300 border-t-red-500" />
-                            : (
-                              <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor">
-                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                              </svg>
-                            )
-                          }
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            <div className="space-y-2 p-4" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="pp-skeleton block h-14 rounded-control" />
               ))}
             </div>
+          ) : backups.length === 0 ? (
+            <FirstRun
+              title={t({
+                fr: 'Une copie de tout, en un appui',
+                ht: 'Yon kopi tout bagay, ak yon sèl tap',
+              })}
+              hint={t({
+                fr: 'Ventes, produits, clients, dépenses : la sauvegarde prend tout, et vous la gardez sur votre téléphone ou votre ordinateur.',
+                ht: 'Vant, pwodwi, kliyan, depans : sovgad la pran tout, epi w kenbe l sou telefòn ou oswa òdinatè w.',
+              })}
+              action={
+                <Button variant="accent" onClick={() => setSheet('create')}>
+                  {t({ fr: 'Créer la première', ht: 'Kreye premye a' })}
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-border dark:divide-dark-border">
+              {backups.map((b) => {
+                const status = STATUS[b.status];
+                return (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      onClick={() => b.status === 'ready' && setActions(b)}
+                      disabled={b.status !== 'ready'}
+                      className="pressable flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface disabled:cursor-default dark:hover:bg-white/5"
+                    >
+                      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-surface bg-surface2 text-muted dark:bg-dark-surface2 dark:text-dark-muted">
+                        <Archive className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+                      </span>
+
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="min-w-0 truncate text-body text-primary dark:text-dark-text">
+                            {b.label ?? t({ fr: 'Sauvegarde', ht: 'Sovgad' })}
+                          </span>
+                          {/* L'étiquette porte un MOT : « Prête », pas un ✅. */}
+                          {b.status !== 'ready' && (
+                            <Badge tone={status.tone}>{t(status.label)}</Badge>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block truncate text-note text-muted dark:text-dark-muted">
+                          {relativeDate(b.createdAt, language)} · {formatSize(b.sizeBytes)}
+                          {b.entityCounts ? ` · ${summarize(b.entityCounts, t)}` : ''}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
+        </Card>
 
-        {/* Info card */}
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 space-y-2">
-          <h3 className="text-sm font-bold text-blue-800">ℹ️ À propos des sauvegardes</h3>
-          <ul className="space-y-1 text-xs text-blue-700">
-            <li>• Les sauvegardes incluent toutes les données de l'entreprise active</li>
-            <li>• Le fichier ZIP contient des fichiers JSON et CSV (compatibles Excel)</li>
-            <li>• La restauration remplace les données existantes — sauvegardez d'abord</li>
-            <li>• Vous pouvez importer un ZIP précédemment téléchargé pour restaurer</li>
-            <li>• Les sauvegardes sont stockées de façon sécurisée et chiffrées</li>
-          </ul>
+        <button
+          type="button"
+          onClick={() => setSheet('import')}
+          className="pressable flex min-h-touch items-center gap-2 text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
+        >
+          <Upload className="h-4 w-4" strokeWidth={2} aria-hidden />
+          {t({ fr: 'Importer un fichier ZIP', ht: 'Enpòte yon fichye ZIP' })}
+        </button>
+
+        <div className="space-y-2">
+          {[
+            {
+              fr: 'La sauvegarde couvre l’entreprise active : ventes, achats, produits, clients, fournisseurs, dépenses, employés et journal.',
+              ht: 'Sovgad la kouvri antrepriz ki aktif la : vant, acha, pwodwi, kliyan, founisè, depans, anplwaye ak jounal.',
+            },
+            {
+              fr: 'Le fichier ZIP contient du JSON et du CSV : il s’ouvre dans un tableur, sans ProfitPilot.',
+              ht: 'Fichye ZIP la gen JSON ak CSV : li louvri nan yon tablè, san ProfitPilot.',
+            },
+            {
+              fr: 'Restaurer REMPLACE les données actuelles. Faites une sauvegarde avant d’en restaurer une autre.',
+              ht: 'Restore ap RANPLASE done ki la yo. Fè yon sovgad anvan w restore yon lòt.',
+            },
+          ].map((line) => (
+            <p key={line.fr} className="flex items-start gap-2 text-note text-muted dark:text-dark-muted">
+              <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-pill bg-border dark:bg-dark-border" aria-hidden />
+              {t(line)}
+            </p>
+          ))}
         </div>
+      </Stack>
+
+      {/* ── Créer ── */}
+      <BottomSheet
+        open={sheet === 'create'}
+        onClose={() => setSheet(null)}
+        title={t({ fr: 'Nouvelle sauvegarde', ht: 'Nouvo sovgad' })}
+      >
+        <div className="space-y-5">
+          <Field
+            label={t({ fr: 'Lui donner un nom', ht: 'Ba li yon non' })}
+            hint={t({
+              fr: 'Facultatif — « avant inventaire », « fin de mois »…',
+              ht: 'Si w vle — « anvan envantè », « fen mwa »…',
+            })}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={t({ fr: 'Sans nom', ht: 'San non' })}
+          />
+
+          <Button variant="accent" size="lg" block loading={creating} onClick={create}>
+            {t({ fr: 'Créer la sauvegarde', ht: 'Kreye sovgad la' })}
+          </Button>
+        </div>
+      </BottomSheet>
+
+      {/* ── Les actions d'une sauvegarde ── */}
+      <BottomSheet
+        open={actions !== null}
+        onClose={() => setActions(null)}
+        title={actions?.label ?? t({ fr: 'Sauvegarde', ht: 'Sovgad' })}
+      >
+        {actions && (
+          <div className="space-y-2">
+            <SheetAction
+              icon={<Download className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+              label={t({ fr: 'Télécharger le ZIP', ht: 'Telechaje ZIP la' })}
+              hint={t({ fr: 'JSON et CSV, lisibles dans un tableur', ht: 'JSON ak CSV, ou ka louvri yo nan yon tablè' })}
+              busy={busyId === actions.id}
+              onClick={() => downloadZip(actions)}
+            />
+            <SheetAction
+              icon={<FileJson className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+              label={t({ fr: 'Ouvrir le fichier brut', ht: 'Louvri fichye brit la' })}
+              hint={t({ fr: 'Pour un développeur ou un comptable', ht: 'Pou yon devlopè oswa yon kontab' })}
+              onClick={() => openJson(actions)}
+            />
+            <SheetAction
+              icon={<RotateCcw className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+              label={t({ fr: 'Restaurer', ht: 'Restore' })}
+              hint={t({ fr: 'Remplace les données actuelles', ht: 'Ranplase done ki la yo' })}
+              onClick={() => { setRestore(actions); setActions(null); }}
+            />
+            <SheetAction
+              icon={<Trash2 className="h-5 w-5" strokeWidth={1.8} aria-hidden />}
+              label={t({ fr: 'Supprimer', ht: 'Efase' })}
+              danger
+              busy={busyId === actions.id}
+              onClick={() => remove(actions)}
+            />
+          </div>
+        )}
+      </BottomSheet>
+
+      <RestoreSheet backup={restore} onClose={() => setRestore(null)} onDone={load} />
+      <ImportSheet open={sheet === 'import'} onClose={() => setSheet(null)} onDone={load} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Restaurer — l'écran le plus dangereux du produit
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RestoreSheet({
+  backup, onClose, onDone,
+}: { backup: BackupRecord | null; onClose: () => void; onDone: () => void }) {
+  const { t, language } = useLanguage();
+
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy,      setBusy]      = useState(false);
+  const [done,      setDone]      = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    if (backup) { setConfirmed(false); setDone(null); }
+  }, [backup]);
+
+  async function run() {
+    if (!backup) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('backupId', backup.id);
+      const res  = await fetch('/api/backup/restore', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setDone(json.restored ?? {});
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? t({ fr: 'Restauration impossible.', ht: 'Nou pa ka restore.' }));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <BottomSheet
+      open={backup !== null}
+      onClose={onClose}
+      title={t({ fr: 'Restaurer cette sauvegarde', ht: 'Restore sovgad sa a' })}
+    >
+      {backup && (done ? (
+        <div className="space-y-5">
+          <p className="text-body text-primary dark:text-dark-text">
+            {t({ fr: 'Vos données ont été remises en place.', ht: 'Done ou yo remèt nan plas yo.' })}
+          </p>
+          <Counts counts={done} />
+          <Button variant="primary" block onClick={onClose}>
+            {t({ fr: 'Terminé', ht: 'Fini' })}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* L'avertissement est du TEXTE, pas un encadré ambre à émoji : ce
+              qu'il faut comprendre tient en une phrase (§3.2). */}
+          <p className="text-body text-text2 dark:text-dark-text2">
+            {t({
+              fr: `Tout ce qui est enregistré aujourd’hui sera remplacé par la sauvegarde du ${formatDate(backup.createdAt, language)}. On ne peut pas revenir en arrière.`,
+              ht: `Tout sa ki anrejistre jodi a ap ranplase pa sovgad ${formatDate(backup.createdAt, language)} la. Nou p ap ka retounen anyen.`,
+            })}
+          </p>
+
+          {backup.entityCounts && <Counts counts={backup.entityCounts} />}
+
+          <label className="flex min-h-touch cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-1 h-5 w-5 flex-shrink-0 rounded-control border-border accent-primary"
+            />
+            <span className="text-body text-text2 dark:text-dark-text2">
+              {t({
+                fr: 'Je comprends que mes données actuelles seront remplacées.',
+                ht: 'Mwen konprann done m yo ap ranplase.',
+              })}
+            </span>
+          </label>
+
+          <div className="flex items-center gap-3">
+            <Button variant="danger" block loading={busy} disabled={!confirmed} onClick={run}>
+              {t({ fr: 'Restaurer maintenant', ht: 'Restore kounye a' })}
+            </Button>
+            <Button variant="link" onClick={onClose}>
+              {t({ fr: 'Annuler', ht: 'Anile' })}
+            </Button>
+          </div>
+        </div>
+      ))}
+    </BottomSheet>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Importer un ZIP
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ImportSheet({
+  open, onClose, onDone,
+}: { open: boolean; onClose: () => void; onDone: () => void }) {
+  const { t } = useLanguage();
+
+  const [file,      setFile]      = useState<File | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy,      setBusy]      = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) { setFile(null); setConfirmed(false); }
+  }, [open]);
+
+  async function run() {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res  = await fetch('/api/backup/restore', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      toast.success(t({ fr: 'Fichier importé.', ht: 'Fichye a enpòte.' }));
+      onDone();
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.message ?? t({ fr: 'Import impossible.', ht: 'Nou pa ka enpòte.' }));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title={t({ fr: 'Importer un fichier ZIP', ht: 'Enpòte yon fichye ZIP' })}
+    >
+      <div className="space-y-5">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="pressable flex w-full flex-col items-center gap-2 rounded-surface border border-dashed border-border bg-surface px-4 py-8 text-center dark:border-dark-border dark:bg-dark-surface2"
+        >
+          <Upload className="h-6 w-6 text-muted dark:text-dark-muted" strokeWidth={1.8} aria-hidden />
+          <span className="text-body font-bold text-primary dark:text-dark-text">
+            {file ? file.name : t({ fr: 'Choisir un fichier', ht: 'Chwazi yon fichye' })}
+          </span>
+          <span className="text-note text-muted dark:text-dark-muted">
+            {file
+              ? formatSize(file.size)
+              : t({ fr: 'Un ZIP créé par ProfitPilot', ht: 'Yon ZIP ProfitPilot te kreye' })}
+          </span>
+        </button>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".zip"
+          className="sr-only"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+
+        {file && (
+          <label className="flex min-h-touch cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-1 h-5 w-5 flex-shrink-0 rounded-control border-border accent-primary"
+            />
+            <span className="text-body text-text2 dark:text-dark-text2">
+              {t({
+                fr: 'Je comprends que le contenu du fichier remplacera mes données actuelles.',
+                ht: 'Mwen konprann sa ki nan fichye a ap ranplase done m yo.',
+              })}
+            </span>
+          </label>
+        )}
+
+        <Button
+          variant="danger"
+          size="lg"
+          block
+          loading={busy}
+          disabled={!file || !confirmed}
+          onClick={run}
+        >
+          {t({ fr: 'Importer et remplacer', ht: 'Enpòte epi ranplase' })}
+        </Button>
       </div>
+    </BottomSheet>
+  );
+}
 
-      {/* Modals */}
-      {restoreTarget && (
-        <RestoreModal
-          backup={restoreTarget}
-          onClose={() => setRestoreTarget(null)}
-          onDone={load}
-        />
-      )}
-      {showImport && (
-        <ImportModal
-          onClose={() => setShowImport(false)}
-          onDone={load}
-        />
-      )}
-    </main>
+// ─────────────────────────────────────────────────────────────────────────────
+// Pièces communes
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SheetAction({
+  icon, label, hint, onClick, busy = false, danger = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  hint?: string;
+  onClick: () => void;
+  busy?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={[
+        'pressable flex min-h-13 w-full items-center gap-3 rounded-surface px-4 py-3 text-left',
+        'hover:bg-surface disabled:opacity-45 dark:hover:bg-white/5',
+        danger ? 'text-danger' : 'text-primary dark:text-dark-text',
+      ].join(' ')}
+    >
+      <span className={danger ? 'text-danger' : 'text-muted dark:text-dark-muted'}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-body font-bold">{label}</span>
+        {hint && <span className="block text-note text-muted dark:text-dark-muted">{hint}</span>}
+      </span>
+    </button>
+  );
+}
+
+function Counts({ counts }: { counts: Record<string, number> }) {
+  const { t } = useLanguage();
+  const rows = Object.entries(counts).filter(([, v]) => v > 0);
+  if (rows.length === 0) return null;
+
+  return (
+    <ul className="divide-y divide-border rounded-surface border border-border dark:divide-dark-border dark:border-dark-border">
+      {rows.map(([key, value]) => (
+        <li key={key} className="flex items-center justify-between px-4 py-2">
+          <span className="text-body text-text2 dark:text-dark-text2">
+            {ENTITIES[key] ? t(ENTITIES[key]) : key}
+          </span>
+          <span className="amount text-body font-bold text-primary dark:text-dark-text">
+            {value.toLocaleString('fr-FR')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** « 128 ventes · 46 produits · 12 clients » — trois postes, pas onze. */
+function summarize(counts: Record<string, number>, t: (b: Bilingual) => string): string {
+  return Object.entries(counts)
+    .filter(([key, value]) => value > 0 && key !== 'company' && key !== 'activity_logs')
+    .slice(0, 3)
+    .map(([key, value]) => `${value} ${ENTITIES[key] ? t(ENTITIES[key]).toLowerCase() : key}`)
+    .join(' · ');
+}
+
+function formatSize(bytes: number): string {
+  if (!bytes) return '—';
+  if (bytes < 1024)     return `${bytes} o`;
+  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)} Ko`;
+  return `${(bytes / 1_048_576).toFixed(1)} Mo`;
+}
+
+function formatDate(iso: string, language: 'fr' | 'ht'): string {
+  return new Date(iso).toLocaleDateString(language === 'ht' ? 'fr-HT' : 'fr-FR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
+}
+
+function relativeDate(iso: string, language: 'fr' | 'ht'): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60)     return language === 'ht' ? 'kounye a' : "à l'instant";
+  if (diff < 3_600)  return `${Math.floor(diff / 60)} min`;
+  if (diff < 86_400) {
+    const h = Math.floor(diff / 3_600);
+    return language === 'ht' ? `${h} è` : `${h} h`;
+  }
+  if (diff < 604_800) {
+    const d = Math.floor(diff / 86_400);
+    return language === 'ht' ? `${d} jou` : `${d} j`;
+  }
+  return new Date(iso).toLocaleDateString(language === 'ht' ? 'fr-HT' : 'fr-FR', {
+    day: '2-digit', month: 'short',
+  });
+}
+
+export default function BackupPage() {
+  return (
+    <ProtectedRoute>
+      <BackupInner />
+    </ProtectedRoute>
   );
 }

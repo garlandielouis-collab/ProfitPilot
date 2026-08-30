@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '../LanguageWrapper';
+import { Banknote, Landmark, Scale, TrendingUp, type LucideIcon } from 'lucide-react';
 
 interface ReportActionsProps {
   reportTitle: string;
@@ -108,8 +109,8 @@ export default function ReportActions({
         disabled={downloading}
         className="
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
-          bg-[#0F172A] text-white text-[12px] sm:text-[13px] font-semibold
-          hover:bg-[#1E293B] active:scale-[0.98]
+          bg-anthracite text-white text-note sm:text-note font-semibold
+          hover:bg-slate-800 active:scale-[0.98]
           transition-all duration-150
           disabled:opacity-60 disabled:cursor-not-allowed
           shadow-sm no-print
@@ -127,8 +128,8 @@ export default function ReportActions({
         onClick={handlePrint}
         className="
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
-          bg-white border border-[#E2E8F0] text-[#0F172A] text-[12px] sm:text-[13px] font-semibold
-          hover:bg-[#F8FAFC] hover:border-[#CBD5E1] active:scale-[0.98]
+          bg-white border border-border text-anthracite text-note sm:text-note font-semibold
+          hover:bg-surface hover:border-slate-300 active:scale-[0.98]
           transition-all duration-150
           shadow-sm no-print
         "
@@ -143,14 +144,14 @@ export default function ReportActions({
         onClick={handleCopyLink}
         className="
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
-          bg-white border border-[#E2E8F0] text-[#64748B] text-[12px] sm:text-[13px] font-medium
-          hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-[0.98]
+          bg-white border border-border text-muted text-note sm:text-note font-medium
+          hover:bg-surface hover:text-anthracite active:scale-[0.98]
           transition-all duration-150
           shadow-sm no-print
         "
       >
         <ShareIcon />
-        <span className="hidden sm:inline">{copied ? `${t({ fr: 'Lien copié', ht: 'Lyen kopiye' })} ✓` : t({ fr: 'Partager', ht: 'Pataje' })}</span>
+        <span className="hidden sm:inline">{copied ? t({ fr: 'Lien copié', ht: 'Lyen kopiye' }) : t({ fr: 'Partager', ht: 'Pataje' })}</span>
       </button>
     </div>
   );
@@ -176,11 +177,11 @@ const TAB_SUBLABEL_HT: Record<ReportType, string> = {
   equity: 'Patrimwàn · Rezilta',
 };
 
-const REPORT_TABS: { key: ReportType; label: string; sublabel: string; icon: string }[] = [
-  { key: 'income',   label: 'État des Résultats',       sublabel: 'P&L · Revenus & Charges', icon: '📈' },
-  { key: 'balance',  label: 'Bilan',                    sublabel: 'Actif · Passif · Capitaux', icon: '⚖️' },
-  { key: 'cashflow', label: 'Flux de Trésorerie',        sublabel: 'Cash · Liquidités',         icon: '💸' },
-  { key: 'equity',   label: 'Capitaux Propres',          sublabel: 'Patrimoine · Résultats',    icon: '🏛️' },
+const REPORT_TABS: { key: ReportType; label: string; sublabel: string; icon: LucideIcon }[] = [
+  { key: 'income',   label: 'État des Résultats',       sublabel: 'P&L · Revenus & Charges', icon: TrendingUp },
+  { key: 'balance',  label: 'Bilan',                    sublabel: 'Actif · Passif · Capitaux', icon: Scale },
+  { key: 'cashflow', label: 'Flux de Trésorerie',        sublabel: 'Cash · Liquidités',         icon: Banknote },
+  { key: 'equity',   label: 'Capitaux Propres',          sublabel: 'Patrimoine · Résultats',    icon: Landmark },
 ];
 
 interface ReportSelectorProps {
@@ -201,18 +202,18 @@ export function ReportTypeSelector({ active, onChange }: ReportSelectorProps) {
             flex flex-col items-start gap-1 p-4 rounded-2xl border-2 text-left
             transition-all duration-200 active:scale-[0.98]
             ${active === tab.key
-              ? 'border-[#0F172A] bg-[#0F172A] text-white shadow-lg shadow-slate-900/20'
-              : 'border-[#E2E8F0] bg-white text-[#0F172A] hover:border-[#CBD5E1] hover:bg-[#F8FAFC]'
+              ? 'border-anthracite bg-anthracite text-white shadow-lg shadow-slate-900/20'
+              : 'border-border bg-white text-anthracite hover:border-slate-300 hover:bg-surface'
             }
           `}
         >
-          <span className="text-xl leading-none">{tab.icon}</span>
-          <span className="text-[13px] font-semibold leading-tight mt-1">{t({ fr: tab.label, ht: TAB_LABEL_HT[tab.key] })}</span>
-          <span className={`text-[11px] leading-tight ${active === tab.key ? 'text-[#94A3B8]' : 'text-[#64748B]'}`}>
+          <tab.icon className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+          <span className="text-note font-semibold leading-tight mt-1">{t({ fr: tab.label, ht: TAB_LABEL_HT[tab.key] })}</span>
+          <span className={`text-note leading-tight ${active === tab.key ? 'text-slate-400' : 'text-muted'}`}>
             {t({ fr: tab.sublabel, ht: TAB_SUBLABEL_HT[tab.key] })}
           </span>
           {active === tab.key && (
-            <span className="mt-1 h-[2px] w-8 rounded-full bg-[#12B981]" />
+            <span className="mt-1 h-[2px] w-8 rounded-full bg-accent" />
           )}
         </button>
       ))}
@@ -261,11 +262,11 @@ export function PeriodPicker({ active, onChange }: PeriodPickerProps) {
           type="button"
           onClick={() => onChange(p.key)}
           className={`
-            px-3.5 py-1.5 rounded-lg text-[12px] font-semibold border
+            px-3.5 py-1.5 rounded-lg text-note font-semibold border
             transition-all duration-150
             ${active === p.key
-              ? 'bg-[#12B981] border-[#12B981] text-white shadow-sm'
-              : 'bg-white border-[#E2E8F0] text-[#64748B] hover:border-[#12B981] hover:text-[#12B981]'
+              ? 'bg-accent border-accent text-white shadow-sm'
+              : 'bg-white border-border text-muted hover:border-accent hover:text-accent'
             }
           `}
         >

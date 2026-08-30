@@ -68,7 +68,7 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
     <div className="space-y-4">
       <button
         onClick={() => print()}
-        className="inline-flex items-center gap-2 rounded-xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B] active:scale-95 print:hidden"
+        className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h active:scale-95 print:hidden"
       >
         <Printer className="h-4 w-4" />
         Enprime / Sove an PDF
@@ -79,18 +79,18 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
         ref={sheetRef}
         className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-900 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none"
       >
-        <header className="flex items-start justify-between border-b-2 border-[#001F3F] pb-4">
+        <header className="flex items-start justify-between border-b-2 border-primary pb-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#001F3F]/60">
+            <p className="text-note font-bold uppercase tracking-[0.3em] text-primary/60">
               Dosye finansye
             </p>
-            <h2 className="mt-1 text-2xl font-black text-[#001F3F]">{file.businessName}</h2>
+            <h2 className="mt-1 text-2xl font-black text-primary">{file.businessName}</h2>
             {file.ownerName && (
               <p className="mt-0.5 text-sm text-slate-600">Responsab : {file.ownerName}</p>
             )}
           </div>
           <div className="text-right text-xs text-slate-500">
-            <p className="flex items-center justify-end gap-1.5 font-semibold text-[#001F3F]">
+            <p className="flex items-center justify-end gap-1.5 font-semibold text-primary">
               <FileText className="h-3.5 w-3.5" />
               ProfitPilot
             </p>
@@ -112,22 +112,22 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
             { label: 'To mòj',             value: `${totals.marginPercent.toFixed(1)}%` },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-slate-200 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              <p className="text-note font-semibold uppercase tracking-widest text-slate-400">
                 {s.label}
               </p>
-              <p className="mt-1 text-lg font-black text-[#001F3F]">{s.value}</p>
+              <p className="mt-1 text-lg font-black text-primary">{s.value}</p>
             </div>
           ))}
         </section>
 
         {/* Historique mensuel */}
         <section className="mt-6">
-          <h3 className="mb-2 text-sm font-bold uppercase tracking-widest text-[#001F3F]">
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-widest text-primary">
             Istorik mansyèl
           </h3>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-300 text-[11px] uppercase tracking-widest text-slate-500">
+              <tr className="border-b border-slate-300 text-note uppercase tracking-widest text-slate-500">
                 <th className="py-2 text-left font-semibold">Mwa</th>
                 <th className="py-2 text-right font-semibold">Chif dafè</th>
                 <th className="py-2 text-right font-semibold">Mòj brit</th>
@@ -149,7 +149,7 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-[#001F3F] font-bold text-[#001F3F]">
+              <tr className="border-t-2 border-primary font-bold text-primary">
                 <td className="py-2">Total</td>
                 <td className="py-2 text-right tabular-nums">{fmt(totals.revenue, file.currency)}</td>
                 <td className="py-2 text-right tabular-nums">{fmt(totals.grossMargin, file.currency)}</td>
@@ -163,7 +163,7 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
         {/* Créances + score */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-200 p-4">
-            <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+            <h4 className="text-note font-bold uppercase tracking-widest text-slate-500">
               Kredi kliyan
             </h4>
             <p className="mt-2 text-sm text-slate-700">
@@ -174,16 +174,16 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
-            <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+            <h4 className="text-note font-bold uppercase tracking-widest text-slate-500">
               Skò sante finansye
             </h4>
-            <p className="mt-2 text-2xl font-black text-[#001F3F]">
+            <p className="mt-2 text-2xl font-black text-primary">
               {file.healthScore === null ? '—' : `${file.healthScore} / 100`}
             </p>
           </div>
         </section>
 
-        <footer className="mt-6 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
+        <footer className="mt-6 border-t border-slate-200 pt-3 text-note leading-relaxed text-slate-500">
           Chif sa yo soti dirèkteman nan vant ak depans ki anrejistre nan ProfitPilot.
           <b> Depans pèsonèl yo pa konte nan rezilta biznis la</b> — se sèlman aktivite
           antrepriz la ki parèt isit.

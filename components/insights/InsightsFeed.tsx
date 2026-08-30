@@ -35,7 +35,7 @@ const STYLE: Record<
   success: {
     icon: <CheckCircle2 className="h-4 w-4" />,
     card: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30',
-    accent: 'text-[#50C878]',
+    accent: 'text-accent',
   },
 };
 
@@ -65,8 +65,8 @@ export function InsightsFeed({ limit = 5, initial }: { limit?: number; initial?:
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-950">
       <div className="mb-4 flex items-center gap-2">
-        <Lightbulb className="h-4 w-4 text-[#50C878]" />
-        <h3 className="text-sm font-bold text-[#001F3F] dark:text-slate-100">
+        <Lightbulb className="h-4 w-4 text-accent" />
+        <h3 className="text-sm font-bold text-primary dark:text-slate-100">
           Ce qu'il faut remarquer
         </h3>
       </div>
@@ -79,7 +79,7 @@ export function InsightsFeed({ limit = 5, initial }: { limit?: number; initial?:
               <div className="flex gap-3">
                 <span className={`mt-0.5 flex-shrink-0 ${style.accent}`}>{style.icon}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[#001F3F] dark:text-slate-100">
+                  <p className="text-sm font-semibold text-primary dark:text-slate-100">
                     {insight.message}
                   </p>
                   {insight.action && (

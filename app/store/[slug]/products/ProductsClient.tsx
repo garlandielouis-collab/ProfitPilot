@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProductCard } from '../ProductCard';
 import type { StoreProduct, StoreCategory } from '../../../actions/store-public';
+import { Package } from 'lucide-react';
 
 type Props = {
   products:        StoreProduct[];
@@ -118,7 +119,7 @@ export function ProductsClient({
         <div className="flex-1">
           {products.length === 0 ? (
             <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 text-slate-400">
-              <p className="text-4xl">📦</p>
+              <p className="text-4xl"><Package className="h-6 w-6" strokeWidth={1.5} aria-hidden /></p>
               <p className="mt-3 text-sm">Aucun produit trouvé.</p>
               <button onClick={() => { setSearch(''); setCategory(''); apply({ search: '', category: '' }); }}
                 className="mt-3 text-sm font-medium underline">

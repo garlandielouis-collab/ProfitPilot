@@ -13,14 +13,14 @@ export default async function CookiesDebugPage() {
     <div style={{ padding: '40px', fontFamily: 'monospace' }}>
       <h1>🍪 Cookies Debug (Server-Side)</h1>
 
-      <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
+      <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#f1f5f9', borderRadius: '8px' }}>
         <h2>All Cookies ({allCookies.length} total):</h2>
         <pre>
           {allCookies.map(c => `${c.name} = ${c.value.substring(0, 50)}...`).join('\n')}
         </pre>
       </div>
 
-      <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#fff3cd', borderRadius: '8px' }}>
+      <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#fdf3e4', borderRadius: '8px' }}>
         <h2>Supabase Cookies ({supabaseCookies.length}):</h2>
         {supabaseCookies.length === 0 ? (
           <p style={{ color: 'red' }}>❌ NO SUPABASE COOKIES FOUND!</p>

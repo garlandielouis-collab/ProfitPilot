@@ -18,8 +18,8 @@ import { ROLE_ORDER, ROLE_COLORS, ROLE_LABELS } from '../../lib/rbac';
 const SYSTEM_ROLES = ROLE_ORDER;
 
 const COLOR_PRESETS = [
-  '#001F3F', '#7c3aed', '#2563eb', '#0891b2',
-  '#059669', '#d97706', '#dc2626', '#64748b',
+  '#001F3F', '#64748b', '#1d4ed8', '#0891b2',
+  '#50c878', '#d97706', '#dc2626', '#64748b',
 ];
 
 function Badge({ label, color }: { label: string; color: string }) {
@@ -171,14 +171,14 @@ export default function RolesPage() {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#001F3F]">Rôles & Permissions</h1>
+          <h1 className="text-2xl font-bold text-primary">Rôles & Permissions</h1>
           <p className="mt-1 text-sm text-slate-500">
             Définissez les accès de chaque rôle. Les modifications s&apos;appliquent immédiatement.
           </p>
         </div>
         <button
           onClick={() => setShowNewRole(true)}
-          className="flex items-center gap-2 rounded-xl bg-[#001F3F] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B]"
+          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -206,8 +206,8 @@ export default function RolesPage() {
               className={[
                 'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                 activeRole === role.name
-                  ? 'bg-[#EAF1F8] text-[#001F3F]'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-[#001F3F]',
+                  ? 'bg-nav-active text-primary'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-primary',
               ].join(' ')}
             >
               <span
@@ -241,7 +241,7 @@ export default function RolesPage() {
                 {activeRoleObj?.label?.[0] ?? '?'}
               </span>
               <div>
-                <p className="font-bold text-[#001F3F]">{activeRoleObj?.label}</p>
+                <p className="font-bold text-primary">{activeRoleObj?.label}</p>
                 <p className="text-xs text-slate-400">
                   {currentDraft.size} permission{currentDraft.size !== 1 ? 's' : ''} activée{currentDraft.size !== 1 ? 's' : ''}
                   {isOwner && ' · Rôle immuable'}
@@ -261,7 +261,7 @@ export default function RolesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || isOwner}
-                className="flex items-center gap-2 rounded-xl bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-40"
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-40"
               >
                 {saving ? <Spinner /> : null}
                 Enregistrer
@@ -283,7 +283,7 @@ export default function RolesPage() {
                     disabled={isOwner}
                     className="flex w-full items-center justify-between px-5 py-3.5 text-left hover:bg-slate-50 disabled:cursor-default"
                   >
-                    <span className="text-sm font-semibold text-[#001F3F]">{category}</span>
+                    <span className="text-sm font-semibold text-primary">{category}</span>
                     <div className="flex items-center gap-3">
                       <span className={`text-xs ${someOn ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
                         {perms.filter((p) => currentDraft.has(p.name)).length}/{perms.length}
@@ -347,7 +347,7 @@ export default function RolesPage() {
       {showNewRole && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
-            <h2 className="mb-6 text-xl font-bold text-[#001F3F]">Créer un rôle personnalisé</h2>
+            <h2 className="mb-6 text-xl font-bold text-primary">Créer un rôle personnalisé</h2>
 
             <div className="space-y-4">
               <div>
@@ -358,7 +358,7 @@ export default function RolesPage() {
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}
                   placeholder="Ex: Superviseur"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
                 />
               </div>
 
@@ -389,7 +389,7 @@ export default function RolesPage() {
               <button
                 onClick={handleCreateRole}
                 disabled={!newLabel.trim() || creating}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-40"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-40"
               >
                 {creating ? <Spinner /> : null}
                 Créer

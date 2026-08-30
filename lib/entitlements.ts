@@ -10,7 +10,8 @@
 import { cache } from 'react';
 import { getSupabaseServer } from './supabaseServerClient';
 import { getBusinessContext } from './serverAuth';
-import { normalizePlanKey, getPlanLabel, type PlanKey } from './plans';
+import { FALLBACK_PLAN_KEY, normalizePlanKey, getPlanLabel, type PlanKey } from './plans';
+import { getPreviewPlanServer } from './planPreviewServer';
 import {
   planHasFeature,
   planMaxMembers,
@@ -21,11 +22,13 @@ import {
 import { roleHasPermission, type Permission } from './rbac';
 
 /**
- * Offre appliquée quand aucun abonnement actif n'est trouvé.
- * Aligné sur le comportement d'essai actuel de `getClientTenantContext()`.
- * Passer à `null` pour couper l'accès dès la fin de l'essai.
+ * Offre appliquée quand aucun abonnement actif n'est trouvé — la même que côté
+ * client (`getClientTenantContext()`), parce qu'elle vient du même endroit.
+ * Deux replis distincts, et l'écran montrerait une chose pendant que le serveur
+ * en jugerait une autre. Passer à `null` pour couper l'accès dès la fin de
+ * l'essai.
  */
-const TRIAL_FALLBACK_PLAN: PlanKey | null = 'Expert';
+const TRIAL_FALLBACK_PLAN: PlanKey | null = FALLBACK_PLAN_KEY;
 
 export class FeatureLockedError extends Error {
   constructor(
@@ -61,6 +64,47 @@ export const getActivePlanKey = cache(async (): Promise<PlanKey | null> => {
     supabase = ctx.supabase;
   } catch {
     return null;   // non authentifié : aucune offre
+  }
+
+  // ── L'aperçu des offres ────────────────────────────────────────────────────
+  // Il court-circuite la lecture de l'abonnement pour que les écrans montrent
+  // vraiment l'offre demandée — sans quoi l'aperçu ne changerait que deux
+  // boutons, tout le reste étant filtré ici.
+  //
+  // Il n'est honoré que si l'exploitant a posé `PLAN_PREVIEW=1` sur le serveur.
+  // En production normale, `getPreviewPlanServer()` renvoie toujours `null` :
+  // écrire le cookie à la main ne donne rien. Et l'aperçu ne touche jamais la
+  // table `subscriptions` — l'abonnement réel reste intact, on n'écrase rien.
+  const preview = await getPreviewPlanServer();
+  if (preview) return preview;
+
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('plan_key')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .gte('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return normalizePlanKey(sub?.plan_key as string | undefined) ?? TRIAL_FALLBACK_PLAN;
+});
+
+/**
+ * L'offre RÉELLE du compte, sans jamais tenir compte de l'aperçu.
+ * Sert au bandeau « votre offre réelle est … » — et à tout endroit où mentir
+ * serait grave : facturation, relances, courriels.
+ */
+export const getRealPlanKey = cache(async (): Promise<PlanKey | null> => {
+  let userId: string;
+  let supabase: Awaited<ReturnType<typeof getSupabaseServer>>;
+  try {
+    const ctx = await getBusinessContext();
+    userId   = ctx.userId;
+    supabase = ctx.supabase;
+  } catch {
+    return null;
   }
 
   const { data: sub } = await supabase

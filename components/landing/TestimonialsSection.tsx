@@ -12,12 +12,12 @@ const TESTIMONIALS = [
     quote: { fr: '"ProfitPilot m\'a permis de voir exactement où part mon argent. En 3 mois, j\'ai augmenté mes marges de 22%."', ht: '"ProfitPilot te pèmèt mwen wè egzakteman kote lajan mwen al. Nan 3 mwa, mwen ogmante maj mwen pa 22%."' },
   },
   {
-    id: 2, avatar: 'MC', bg: '#7c3aed', name: 'Marie Célestin',
+    id: 2, avatar: 'MC', bg: '#64748b', name: 'Marie Célestin',
     role: { fr: 'Propriétaire Boutique', ht: 'Pwopriyetè Boutik' },
     quote: { fr: '"Le suivi des dettes et des ventes est devenu simple. Je sais enfin ce que je dois à chaque fournisseur."', ht: '"Swivi dèt ak vant yo vin senp. Mwen konn kounye a sa mwen dwe chak founisè."' },
   },
   {
-    id: 3, avatar: 'CJ', bg: '#059669', name: 'Claudel Joseph',
+    id: 3, avatar: 'CJ', bg: '#50c878', name: 'Claudel Joseph',
     role: { fr: 'Grossiste, Cap-Haïtien', ht: 'Grosist, Okap' },
     quote: { fr: '"PilotAI m\'a conseillé de réduire 2 produits lents. Ça m\'a libéré du cash que je ne savais pas avoir."', ht: '"PilotAI te konseye mwen pou rédui 2 pwodwi ki pran tan. Sa te libere lajan mwen pa t konnen mwen te genyen."' },
   },
@@ -63,16 +63,16 @@ export function TestimonialsSection() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
           className="mb-14 text-center"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-[#50c878]">
+          <p className="text-xs uppercase tracking-[0.3em] text-accent">
             {t({ fr: 'Témoignages', ht: 'Temwayaj' })}
           </p>
-          <h2 className="mt-3 text-3xl font-bold text-[#001f3f] sm:text-4xl">
+          <h2 className="mt-3 text-3xl font-bold text-primary sm:text-4xl">
             {t({ fr: 'Ils ont transformé leur business', ht: 'Yo te transfòme biznis yo' })}
           </h2>
         </motion.div>
 
         {/* Carousel */}
-        <div style={{ minHeight: 280 }} className="overflow-hidden rounded-[28px]">
+        <div style={{ minHeight: 280 }} className="overflow-hidden rounded-surface">
           <AnimatePresence mode="wait" custom={dir}>
             <motion.div
               key={idx}
@@ -81,7 +81,7 @@ export function TestimonialsSection() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: dir * -60 }}
               transition={{ duration: 0.32, ease: 'easeInOut' }}
-              className="rounded-[28px] p-8 md:p-10"
+              className="rounded-surface p-8 md:p-10"
               style={glassCard}
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
@@ -93,7 +93,7 @@ export function TestimonialsSection() {
             >
               <div className="mb-4 flex gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} size={14} fill="#f59e0b" className="text-amber-400" />
+                  <Star key={i} size={14} fill="#b45309" className="text-amber-400" />
                 ))}
               </div>
               <p className="text-base leading-8 text-slate-600 md:text-lg md:leading-9">
@@ -107,7 +107,7 @@ export function TestimonialsSection() {
                   {tm.avatar}
                 </div>
                 <div>
-                  <p className="font-semibold text-[#001f3f]">{tm.name}</p>
+                  <p className="font-semibold text-primary">{tm.name}</p>
                   <p className="text-sm text-slate-500">
                     {language === 'ht' ? tm.role.ht : tm.role.fr}
                   </p>
@@ -146,7 +146,7 @@ export function TestimonialsSection() {
                   ? (idx - 1 + TESTIMONIALS.length) % TESTIMONIALS.length
                   : (idx + 1) % TESTIMONIALS.length
                 )}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] bg-white text-slate-500 transition hover:bg-slate-50 hover:text-[#001f3f]"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white text-slate-500 transition hover:bg-slate-50 hover:text-primary"
               >
                 <Icon size={18} />
               </button>

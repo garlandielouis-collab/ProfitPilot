@@ -80,7 +80,7 @@ export default function MigratePage() {
         <button
           onClick={run}
           disabled={state.status === 'loading'}
-          className="rounded-xl bg-[#001F3F] px-6 py-3 font-semibold text-white transition hover:bg-[#002D5B] disabled:opacity-50"
+          className="rounded-xl bg-primary px-6 py-3 font-semibold text-white transition hover:bg-primary-h disabled:opacity-50"
         >
           {state.status === 'loading' ? t({ fr: 'Exécution…', ht: 'Ekzekisyon…' }) : t({ fr: '▶ Exécuter la Migration', ht: '▶ Ekzekite Migrasyon an' })}
         </button>

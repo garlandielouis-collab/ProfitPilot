@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Bot } from 'lucide-react';
 
 const WELCOME_KEY = 'pp_welcome_seen_v2';
 
 const WELCOME_STEPS = [
-  { text: { fr: 'Bonjour ! 👋', ht: 'Bonjou ! 👋' }, delay: 600 },
+  { text: { fr: 'Bonjour !', ht: 'Bonjou !' }, delay: 600 },
   { text: { fr: 'Je suis Pilot AI — votre assistant financier intelligent.', ht: 'Mwen se Pilot AI — asistans finansye entelijan ou.' }, delay: 1500 },
-  { text: { fr: 'Félicitations pour avoir choisi ProfitPilot ! 🚀', ht: 'Felisitasyon pou w chwazi ProfitPilot ! 🚀' }, delay: 1800 },
+  { text: { fr: 'Félicitations pour avoir choisi ProfitPilot !', ht: 'Felisitasyon pou w chwazi ProfitPilot !' }, delay: 1800 },
   { text: { fr: 'Prêt à dominer vos finances ?', ht: 'Pare pou domine finans ou ?' }, delay: 1400 },
 ];
 
@@ -91,7 +92,7 @@ export function WelcomeAnimation() {
               transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
               className="flex h-28 w-28 items-center justify-center rounded-3xl"
               style={{
-                background: 'linear-gradient(135deg, #001f3f 0%, #0d3566 100%)',
+                background: 'linear-gradient(135deg, #001f3f 0%, #002d5b 100%)',
                 border: '2px solid rgba(80,200,120,0.3)',
                 boxShadow: '0 0 40px rgba(80,200,120,0.2), 0 10px 40px rgba(0,0,0,0.3)',
               }}
@@ -101,7 +102,7 @@ export function WelcomeAnimation() {
                 transition={{ duration: 2, repeat: Infinity }}
                 className="text-6xl"
               >
-                🤖
+                <Bot className="h-8 w-8 text-white" strokeWidth={1.6} aria-hidden />
               </motion.span>
             </motion.div>
 

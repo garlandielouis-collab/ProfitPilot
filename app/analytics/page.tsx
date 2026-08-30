@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { usePlan } from '../../hooks/usePlan';
+import { PlanLockScreen } from '../../components/PlanLock';
+// 💰 📉 ✨ 🔮 🏆 📈 : six dessins faits par le téléphone en tête d'un écran
+// d'analyse financière. Ils passent en lucide, dans la couleur du texte (§3.5).
+import {
+  AlertTriangle, Award, LineChart, Sparkles, TrendingDown, TrendingUp, Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { getSalesAction } from '../actions/sales';
 import { getExpenses } from '../actions/expenses';
@@ -33,30 +40,21 @@ function Spinner() {
   );
 }
 
+// L'écran verrouillé est le MÊME partout (`components/PlanLock.tsx`) : une
+// seule carte, un seul ton, et le nom de l'offre lu dans le registre plutôt
+// qu'écrit en dur — celui écrit en dur devient faux le jour où une offre change
+// de nom. Le verrou de route dans `AppShell` arrive de toute façon avant ; ce
+// garde-ci reste comme filet, au cas où l'écran serait rendu hors coquille.
 function UpgradeWall() {
-  const { t } = useLanguage();
-  return (
-    <div className="flex flex-col items-center justify-center gap-5 rounded-2xl border border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20 p-14 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-100 dark:bg-purple-900/40 text-3xl">📊</div>
-      <div>
-        <h2 className="text-xl font-bold text-[var(--color-text)]">{t({ fr: 'Analyses Avancées', ht: 'Analiz Avanse' })}</h2>
-        <p className="mt-2 max-w-sm text-sm text-[var(--color-muted)]">
-          {t({ fr: 'Disponible en plan Expert. Tendances, prévisions et insights détaillés sur votre activité.', ht: 'Disponib nan plan Expert. Tandans, previzyon ak analiz sou aktivite ou.' })}
-        </p>
-      </div>
-      <Link href="/pricing" className="rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-purple-700 transition">
-        {t({ fr: 'Passer Expert', ht: 'Pase Expert' })}
-      </Link>
-    </div>
-  );
+  return <PlanLockScreen feature="advanced_analytics" />;
 }
 
-function KPICard({ label, value, sub, trend, icon }: { label: string; value: string; sub?: string; trend?: number; icon: string }) {
+function KPICard({ label, value, sub, trend, icon: Icon }: { label: string; value: string; sub?: string; trend?: number; icon: LucideIcon }) {
   const trendPos = trend !== undefined && trend >= 0;
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-5 flex flex-col gap-3">
+    <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface p-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-xl">{icon}</span>
+        <Icon className="h-5 w-5 text-muted dark:text-dark-muted" strokeWidth={1.8} aria-hidden />
         {trend !== undefined && (
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${trendPos ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
             {trendPos ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
@@ -100,7 +98,7 @@ function BarChart({ data }: { data: { label: string; revenue: number; expenses: 
                 fill="#50C878" fillOpacity="0.85" />
               {/* expense bar */}
               <rect x={x + barW + gap} y={H - eh} width={barW} height={eh} rx={3}
-                fill="#F97316" fillOpacity="0.75" />
+                fill="#B45309" fillOpacity="0.75" />
               {/* label */}
               <text x={x + barW + gap / 2} y={H + 16} textAnchor="middle"
                 fontSize="9" fill="currentColor" opacity="0.5">{d.label}</text>
@@ -109,7 +107,7 @@ function BarChart({ data }: { data: { label: string; revenue: number; expenses: 
         })}
       </svg>
       <div className="mt-1 flex items-center gap-4 text-xs text-[var(--color-muted)]">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#50C878]" /> Revenus</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-accent" /> Revenus</span>
         <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-400" /> Dépenses</span>
       </div>
     </div>
@@ -146,7 +144,7 @@ function DayHeatmap({ data }: { data: number[] }) {
               style={{ background: `rgba(80, 200, 120, ${0.1 + intensity * 0.85})` }}
               title={`${v} ventes`}
             />
-            <span className="text-[0.6rem] text-[var(--color-muted)]">{DAYS_FR[i]}</span>
+            <span className="text-note text-[var(--color-muted)]">{DAYS_FR[i]}</span>
           </div>
         );
       })}
@@ -198,7 +196,7 @@ function Donut({ slices }: { slices: { label: string; value: number; color: stri
 type SaleRow    = { total_amount: number; sale_date: string | null; created_at: string; payment_method?: string | null };
 type ExpenseRow = { amount: number; expense_date?: string; created_at?: string; category?: string };
 
-const CATEGORY_COLORS = ['#6366F1', '#F97316', '#EC4899', '#14B8A6', '#EAB308', '#8B5CF6'];
+const CATEGORY_COLORS = ['#64748B', '#B45309', '#64748B', '#50C878', '#EAB308', '#64748B'];
 
 export default function AnalyticsPage() {
   const { t } = useLanguage();
@@ -318,7 +316,7 @@ export default function AnalyticsPage() {
           <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-1 self-start">
             {([3, 6, 12] as const).map(p => (
               <button key={p} onClick={() => setPeriod(p)}
-                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition ${period === p ? 'bg-[#001F3F] text-white dark:bg-[#50C878] dark:text-[#001F3F]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}>
+                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition ${period === p ? 'bg-primary text-white dark:bg-accent dark:text-primary' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}>
                 {p}M
               </button>
             ))}
@@ -329,14 +327,14 @@ export default function AnalyticsPage() {
           <>
             {/* KPI row */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KPICard icon="💰" label={t({ fr: 'Revenus totaux', ht: 'Revni total' })} value={fmtHTG(totalRevenue)} trend={momTrend} sub={t({ fr: `${period} derniers mois`, ht: `${period} dènye mwa` })} />
-              <KPICard icon="📉" label={t({ fr: 'Dépenses totales', ht: 'Depans total' })} value={fmtHTG(totalExpenses)} />
-              <KPICard icon="✨" label={t({ fr: 'Profit net', ht: 'Pwofi nèt' })} value={fmtHTG(totalProfit)} sub={`Marge ${margin.toFixed(1)}%`} trend={totalRevenue > 0 ? margin : undefined} />
-              <KPICard icon="🔮" label={t({ fr: 'Prévision mois prochain', ht: 'Previzyon mwa pwochen' })} value={fmtHTG(forecast)} sub={t({ fr: 'Basé sur la tendance', ht: 'Base sou tandans' })} />
+              <KPICard icon={Wallet} label={t({ fr: 'Revenus totaux', ht: 'Revni total' })} value={fmtHTG(totalRevenue)} trend={momTrend} sub={t({ fr: `${period} derniers mois`, ht: `${period} dènye mwa` })} />
+              <KPICard icon={TrendingDown} label={t({ fr: 'Dépenses totales', ht: 'Depans total' })} value={fmtHTG(totalExpenses)} />
+              <KPICard icon={Sparkles} label={t({ fr: 'Profit net', ht: 'Pwofi nèt' })} value={fmtHTG(totalProfit)} sub={`Marge ${margin.toFixed(1)}%`} trend={totalRevenue > 0 ? margin : undefined} />
+              <KPICard icon={LineChart} label={t({ fr: 'Prévision mois prochain', ht: 'Previzyon mwa pwochen' })} value={fmtHTG(forecast)} sub={t({ fr: 'Basé sur la tendance', ht: 'Base sou tandans' })} />
             </div>
 
             {/* Revenue vs Expenses chart */}
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-6">
+            <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[var(--color-text)]">
                   {t({ fr: 'Revenus vs Dépenses', ht: 'Revni vs Depans' })}
@@ -356,7 +354,7 @@ export default function AnalyticsPage() {
             <div className="grid gap-4 lg:grid-cols-2">
 
               {/* Best day heatmap */}
-              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-6 space-y-4">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface p-6 space-y-4">
                 <div>
                   <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Jours les plus actifs', ht: 'Jou ki pi aktif yo' })}</h2>
                   <p className="text-xs text-[var(--color-muted)]">{t({ fr: 'Nombre de ventes par jour de la semaine', ht: 'Kantite vant pa jou nan semèn' })}</p>
@@ -366,19 +364,20 @@ export default function AnalyticsPage() {
                   const bestDay = dayTotals.indexOf(Math.max(...dayTotals));
                   return dayTotals[bestDay] > 0 ? (
                     <p className="text-xs text-[var(--color-muted)]">
-                      🏆 {t({ fr: 'Meilleur jour :', ht: 'Meyè jou :' })} <strong className="text-[var(--color-text)]">{DAYS_FR[bestDay]}</strong>
+                      <Award className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />
+                      {t({ fr: 'Meilleur jour :', ht: 'Meyè jou :' })} <strong className="text-[var(--color-text)]">{DAYS_FR[bestDay]}</strong>
                     </p>
                   ) : null;
                 })()}
               </div>
 
               {/* Best month insight */}
-              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-6 space-y-4">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface p-6 space-y-4">
                 <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Insights clés', ht: 'Insights kle' })}</h2>
                 <div className="space-y-3">
                   {bestMonth && bestMonth.revenue > 0 && (
                     <div className="flex items-start gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-3.5">
-                      <span className="text-xl">🏆</span>
+                      <Award className="h-5 w-5 flex-shrink-0 text-success" strokeWidth={1.8} aria-hidden />
                       <div>
                         <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">{t({ fr: 'Meilleur mois', ht: 'Meyè mwa' })}</p>
                         <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">{bestMonth.label} — {fmtHTG(bestMonth.revenue)}</p>
@@ -386,7 +385,9 @@ export default function AnalyticsPage() {
                     </div>
                   )}
                   <div className={`flex items-start gap-3 rounded-xl border p-3.5 ${totalProfit >= 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}>
-                    <span className="text-xl">{totalProfit >= 0 ? '📈' : '⚠️'}</span>
+                    {totalProfit >= 0
+                      ? <TrendingUp className="h-5 w-5 flex-shrink-0 text-info" strokeWidth={1.8} aria-hidden />
+                      : <AlertTriangle className="h-5 w-5 flex-shrink-0 text-warning" strokeWidth={1.8} aria-hidden />}
                     <div>
                       <p className={`text-xs font-semibold ${totalProfit >= 0 ? 'text-blue-800 dark:text-blue-300' : 'text-orange-800 dark:text-orange-300'}`}>
                         {totalProfit >= 0 ? t({ fr: 'Rentabilité positive', ht: 'Wentabilite pozitif' }) : t({ fr: 'Attention aux dépenses', ht: 'Fè atansyon ak depans yo' })}
@@ -397,7 +398,7 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-3.5">
-                    <span className="text-xl">🔮</span>
+                    <LineChart className="h-5 w-5 flex-shrink-0 text-muted dark:text-dark-muted" strokeWidth={1.8} aria-hidden />
                     <div>
                       <p className="text-xs font-semibold text-purple-800 dark:text-purple-300">{t({ fr: 'Prévision mois prochain', ht: 'Previzyon mwa pwochen' })}</p>
                       <p className="text-sm font-bold text-purple-900 dark:text-purple-200">{fmtHTG(forecast)}</p>
@@ -411,7 +412,7 @@ export default function AnalyticsPage() {
             <div className="grid gap-4 lg:grid-cols-2">
 
               {/* Expense categories */}
-              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-6 space-y-4">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface p-6 space-y-4">
                 <div>
                   <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Dépenses par catégorie', ht: 'Depans pa kategori' })}</h2>
                   <p className="text-xs text-[var(--color-muted)]">{t({ fr: 'Où va votre argent ?', ht: 'Kote kòb ou ale?' })}</p>
@@ -433,7 +434,7 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Payment methods */}
-              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] p-6 space-y-4">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface p-6 space-y-4">
                 <div>
                   <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Moyens de paiement', ht: 'Mwayen peman' })}</h2>
                   <p className="text-xs text-[var(--color-muted)]">{t({ fr: 'Comment vos clients paient-ils ?', ht: 'Kijan kliyan ou yo peye?' })}</p>
@@ -456,7 +457,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Monthly table */}
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-[#0F172A] overflow-hidden">
+            <div className="rounded-2xl border border-[var(--color-border)] bg-white dark:bg-dark-surface overflow-hidden">
               <div className="border-b border-[var(--color-border)] px-5 py-4">
                 <h2 className="text-sm font-semibold text-[var(--color-text)]">{t({ fr: 'Détail mensuel', ht: 'Detay chak mwa' })}</h2>
               </div>

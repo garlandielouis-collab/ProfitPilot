@@ -12,11 +12,13 @@ import { WeeklyDigestCard } from '../../components/reports/WeeklyDigestCard';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { getReportsDataAction, type ReportPeriod } from '../actions/reports';
+import { Button, FirstRun, NoResult } from '../../components/ds';
 
 import IncomeStatement,   { type IncomeStatementData }  from '../../components/reports/IncomeStatement';
 import BalanceSheet,      { type BalanceSheetData }      from '../../components/reports/BalanceSheet';
 import CashFlowStatement, { type CashFlowData }          from '../../components/reports/CashFlowStatement';
 import EquityStatement,   { type EquityStatementData }   from '../../components/reports/EquityStatement';
+import { CalendarDays } from 'lucide-react';
 import ReportActions, {
   ReportTypeSelector,
   PeriodPicker,
@@ -25,196 +27,20 @@ import ReportActions, {
 } from '../../components/reports/ReportActions';
 
 // ─────────────────────────────────────────────────────────────────
-// Demo data (realistic Haitian boutique / fashion business)
-// Replace with real fn_income_statement() / fn_balance_sheet() calls
+// Aucune donnée de démonstration ici — et c'est délibéré (audit §1.1, §5.10).
+//
+// Cet écran affichait quatre états financiers complets fabriqués de toutes
+// pièces — 1 285 400 HTG de ventes, 245 800 HTG en banque — dès que la période
+// choisie ne renvoyait rien. Un badge « Données démo » censé prévenir. Sauf que
+// ces états s'impriment : le marchand pouvait sortir un PDF A4 « qualité
+// comptable » de chiffres qui ne sont pas les siens et le porter à sa banque.
+//
+// « Dans un logiciel de gestion, un chiffre affiché est une promesse. »
+//
+// Les états sont donc nuls tant qu'ils n'existent pas — `null`, pas zéro : un
+// bilan à zéro reste un bilan, et un exercice sans écriture n'en a pas. À la
+// place, l'un des deux états vides du système, selon ce qui manque vraiment.
 // ─────────────────────────────────────────────────────────────────
-
-const DEMO_INCOME: IncomeStatementData = {
-  ventesMarchandises:     1_285_400,
-  prestationsServices:       82_000,
-  autresRevenus:             31_200,
-  retoursRabais:             18_500,
-
-  achatsMarchandises:       584_200,
-  variationStock:           -12_400,
-  transportAchat:            22_600,
-
-  loyers:                    85_000,
-  salaires:                 180_000,
-  chargesSociales:           18_000,
-  marketing:                 32_000,
-  transport:                 21_000,
-  electriciteInternet:       18_600,
-  fraisBancaires:             8_200,
-  autresCharges:             24_000,
-  dotationsAmortissements:   14_400,
-
-  produitsFinanciers:         4_200,
-  chargesFinancieres:        12_800,
-  impotTaxes:                28_500,
-
-  prev: {
-    ventesMarchandises:     1_120_000,
-    prestationsServices:       64_000,
-    autresRevenus:             21_000,
-    retoursRabais:             14_200,
-
-    achatsMarchandises:       512_000,
-    variationStock:             8_000,
-    transportAchat:            18_000,
-
-    loyers:                    80_000,
-    salaires:                 160_000,
-    chargesSociales:           16_000,
-    marketing:                 24_000,
-    transport:                 18_000,
-    electriciteInternet:       16_200,
-    fraisBancaires:             7_100,
-    autresCharges:             19_000,
-    dotationsAmortissements:   12_000,
-
-    produitsFinanciers:         2_800,
-    chargesFinancieres:        14_200,
-    impotTaxes:                22_000,
-  },
-};
-
-const DEMO_BALANCE: BalanceSheetData = {
-  terrains:                  250_000,
-  batimentsConstruct:              0,
-  materielInformatique:       65_000,
-  mobilierBureau:             42_000,
-  vehicules:                 280_000,
-  autresImmobilisations:      18_000,
-  amortissementsCumules:      96_000,
-
-  stocksMarchandises:        562_400,
-  creancesClients:           184_200,
-  avancesFournisseurs:        12_000,
-  tresoreriebanque:          245_800,
-  tresorerieMonCash:          68_400,
-  tresorerieNatcash:          22_100,
-  tresorerieCaisse:           45_200,
-  autresActifsCourants:        8_600,
-
-  capitalSocial:             500_000,
-  apportsProprio:            150_000,
-  reservesLegales:            48_000,
-  reportANouveau:            180_400,
-  resultatExercice:          358_700,  // net income from P&L
-  prelevementsProprietaire:   96_000,
-
-  empruntsBancairesLT:       350_000,
-  pretesLT:                       0,
-  dettesImmobilisations:           0,
-
-  detteFournisseurs:         228_400,
-  salairesPayer:              15_000,
-  onaPayer:                    3_600,
-  taxesPayer:                 28_500,
-  chargesPayer:                8_200,
-  avancesClients:             24_800,
-  autresPassifsCourants:       5_600,
-
-  prev: {
-    terrains:                  250_000,
-    batimentsConstruct:              0,
-    materielInformatique:       72_000,
-    mobilierBureau:             42_000,
-    vehicules:                 280_000,
-    autresImmobilisations:      12_000,
-    amortissementsCumules:      81_600,
-
-    stocksMarchandises:        504_800,
-    creancesClients:           148_600,
-    avancesFournisseurs:         8_000,
-    tresoreriebanque:          182_400,
-    tresorerieMonCash:          42_100,
-    tresorerieNatcash:          14_200,
-    tresorerieCaisse:           38_600,
-    autresActifsCourants:        6_200,
-
-    capitalSocial:             500_000,
-    apportsProprio:            100_000,
-    reservesLegales:            36_000,
-    reportANouveau:            112_000,
-    resultatExercice:          296_800,
-    prelevementsProprietaire:   80_000,
-
-    empruntsBancairesLT:       420_000,
-    pretesLT:                       0,
-    dettesImmobilisations:           0,
-
-    detteFournisseurs:         194_200,
-    salairesPayer:              13_500,
-    onaPayer:                    3_200,
-    taxesPayer:                 22_000,
-    chargesPayer:                6_800,
-    avancesClients:             18_400,
-    autresPassifsCourants:       3_800,
-  },
-};
-
-const DEMO_CASHFLOW: CashFlowData = {
-  encaissementsVentes:              1_268_900,
-  encaissementsServices:               82_000,
-  autresEncaissements:                125_400,
-
-  decaissementsAchats:                596_800,
-  decaissementsSalaires:              180_000,
-  decaissementsChargesSociales:        18_000,
-  decaissementsLoyers:                 85_000,
-  decaissementsMarketing:              32_000,
-  decaissementsAutres:                 71_800,
-  impotsPaies:                         28_500,
-
-  acquisitionsImmobilisations:         92_000,
-  cedImmobilisations:                   0,
-  autresInvestissements:               18_000,
-
-  empruntContractes:                       0,
-  remboursementsPrets:                 70_000,
-  apportsProprio:                      50_000,
-  prelevementsProprio:                 96_000,
-
-  tresorerieDebutExercice:            277_300,
-
-  prev: {
-    encaissementsVentes:            1_108_200,
-    encaissementsServices:             64_000,
-    autresEncaissements:               98_000,
-    decaissementsAchats:              528_000,
-    decaissementsSalaires:            160_000,
-    decaissementsChargesSociales:      16_000,
-    decaissementsLoyers:               80_000,
-    decaissementsMarketing:            24_000,
-    decaissementsAutres:               60_000,
-    impotsPaies:                       22_000,
-    acquisitionsImmobilisations:       45_000,
-    cedImmobilisations:                    0,
-    autresInvestissements:              8_000,
-    empruntContractes:                150_000,
-    remboursementsPrets:               50_000,
-    apportsProprio:                   100_000,
-    prelevementsProprio:               80_000,
-    tresorerieDebutExercice:          155_100,
-  },
-};
-
-const DEMO_EQUITY: EquityStatementData = {
-  openCapitalSocial:            500_000,
-  openApports:                  100_000,
-  openReserves:                  36_000,
-  openReportANouveau:           112_000,
-  openPrelevements:              80_000,
-  openResultatPrecedent:        296_800,
-
-  apportsNouveaux:               50_000,
-  resultatNet:                  358_700,
-  affectationReserves:           12_000,
-  dividendesDistribues:               0,
-  prelevementsExercice:          96_000,
-};
 
 // ─────────────────────────────────────────────────────────────────
 // KPI card
@@ -233,21 +59,21 @@ function KpiCard({
   trend?: string;
   color: 'green' | 'red' | 'navy' | 'blue';
 }) {
-  const bg  = color === 'green' ? 'bg-[#ECFDF5] border-[#A7F3D0]' :
-              color === 'red'   ? 'bg-[#FEF2F2] border-[#FECACA]' :
-              color === 'blue'  ? 'bg-[#EFF6FF] border-[#BFDBFE]' :
-                                  'bg-[#F8FAFC] border-[#E2E8F0]';
-  const vc  = color === 'green' ? 'text-[#065F46]' :
-              color === 'red'   ? 'text-[#991B1B]' :
-              color === 'blue'  ? 'text-[#1D4ED8]' : 'text-[#0F172A]';
+  const bg  = color === 'green' ? 'bg-accent-sub border-emerald-200' :
+              color === 'red'   ? 'bg-danger-sub border-red-200' :
+              color === 'blue'  ? 'bg-info-sub border-info-sub' :
+                                  'bg-surface border-border';
+  const vc  = color === 'green' ? 'text-accent-a' :
+              color === 'red'   ? 'text-danger' :
+              color === 'blue'  ? 'text-info' : 'text-anthracite';
 
   return (
     <div className={`rounded-xl md:rounded-2xl border-2 p-3 md:p-4 ${bg}`}>
-      <p className="text-[10px] md:text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B] line-clamp-2">{label}</p>
-      <p className={`text-lg md:text-[22px] font-bold tabular-nums mt-1 md:mt-2 break-words ${vc}`}>{value}</p>
-      {sub && <p className="text-[10px] md:text-[11px] text-[#94A3B8] mt-1 md:mt-[2px] line-clamp-1">{sub}</p>}
+      <p className="text-note md:text-note font-semibold uppercase tracking-[0.1em] text-muted line-clamp-2">{label}</p>
+      <p className={`text-lg md:text-amount font-bold tabular-nums mt-1 md:mt-2 break-words ${vc}`}>{value}</p>
+      {sub && <p className="text-note md:text-note text-slate-400 mt-1 md:mt-1 line-clamp-1">{sub}</p>}
       {trend && (
-        <p className={`text-[10px] md:text-[11px] font-semibold mt-1 ${trend.startsWith('+') ? 'text-[#12B981]' : 'text-[#EF4444]'}`}>
+        <p className={`text-note md:text-note font-semibold mt-1 ${trend.startsWith('+') ? 'text-accent' : 'text-danger'}`}>
           {trend}
         </p>
       )}
@@ -292,17 +118,17 @@ function RapportsPage() {
   const [companyTaxId, setCompanyTaxId] = useState('');
   const [periodLabel,  setPeriodLabel]  = useState(`Annuel ${currentYear}`);
   const [currency,     setCurrency]     = useState<'HTG' | 'USD'>('HTG');
-  const [isDemo,       setIsDemo]       = useState(false);
-  const [incomeData,   setIncomeData]   = useState<IncomeStatementData>(DEMO_INCOME);
-  const [balanceData,  setBalanceData]  = useState<BalanceSheetData>(DEMO_BALANCE);
-  const [cashflowData, setCashflowData] = useState<CashFlowData>(DEMO_CASHFLOW);
-  const [equityData,   setEquityData]   = useState<EquityStatementData>(DEMO_EQUITY);
-  const [kpi, setKpi] = useState({
-    caNet:     DEMO_INCOME.ventesMarchandises + DEMO_INCOME.prestationsServices + DEMO_INCOME.autresRevenus - DEMO_INCOME.retoursRabais,
-    cogs:      DEMO_INCOME.achatsMarchandises + (DEMO_INCOME.variationStock ?? 0) + DEMO_INCOME.transportAchat,
-    netProfit: DEMO_EQUITY.resultatNet,
-    cashTotal: DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash,
-  });
+  // `null` tant que la période n'a rien à montrer : voir l'encadré plus haut.
+  const [incomeData,   setIncomeData]   = useState<IncomeStatementData  | null>(null);
+  const [balanceData,  setBalanceData]  = useState<BalanceSheetData     | null>(null);
+  const [cashflowData, setCashflowData] = useState<CashFlowData         | null>(null);
+  const [equityData,   setEquityData]   = useState<EquityStatementData  | null>(null);
+  const [kpi, setKpi] = useState({ caNet: 0, cogs: 0, netProfit: 0, cashTotal: 0 });
+
+  // Les deux états vides (§5.10) : `hasAny` distingue le compte neuf — qui n'a
+  // jamais rien enregistré — de l'exercice sans activité, où il suffit de
+  // changer d'année. Deux écrans vides, deux messages, deux sorties.
+  const [hasAny, setHasAny] = useState(true);
 
   // ── Print portal always mounted — no race condition ────────────────────────
   // Portal is a direct <body> child (#pp-print-root) so the CSS rule
@@ -329,31 +155,39 @@ function RapportsPage() {
         setCompanySector( d.businessSector  ?? '');
         setCompanyTaxId(  d.businessTaxId   ?? '');
 
+        setHasAny(d.hasAnyData);
+
         if (d.hasRealData) {
-          setIsDemo(false);
           setIncomeData(d.income);
           setBalanceData(d.balance);
           setCashflowData(d.cashflow);
           setEquityData(d.equity);
           setKpi(d.kpi);
         } else {
-          setIsDemo(true);
-          // Reset to DEMO when no data exists for this period
-          setIncomeData(DEMO_INCOME);
-          setBalanceData(DEMO_BALANCE);
-          setCashflowData(DEMO_CASHFLOW);
-          setEquityData(DEMO_EQUITY);
-          setKpi({
-            caNet:     DEMO_INCOME.ventesMarchandises + DEMO_INCOME.prestationsServices + DEMO_INCOME.autresRevenus - DEMO_INCOME.retoursRabais,
-            cogs:      DEMO_INCOME.achatsMarchandises + (DEMO_INCOME.variationStock ?? 0) + DEMO_INCOME.transportAchat,
-            netProfit: DEMO_EQUITY.resultatNet,
-            cashTotal: DEMO_BALANCE.tresorerieCaisse + DEMO_BALANCE.tresoreriebanque + DEMO_BALANCE.tresorerieMonCash + DEMO_BALANCE.tresorerieNatcash,
-          });
+          // Rien sur la période : on ne remplit pas le vide, on le dit.
+          setIncomeData(null);
+          setBalanceData(null);
+          setCashflowData(null);
+          setEquityData(null);
+          setKpi({ caNet: 0, cogs: 0, netProfit: 0, cashTotal: 0 });
         }
       })
-      .catch(() => setIsDemo(true))
+      .catch(() => {
+        // Une requête qui échoue ne prouve pas que le compte est vide : on
+        // n'invente rien, on ne conclut rien, on n'affiche aucun état.
+        setIncomeData(null);
+        setBalanceData(null);
+        setCashflowData(null);
+        setEquityData(null);
+        setKpi({ caNet: 0, cogs: 0, netProfit: 0, cashTotal: 0 });
+      })
       .finally(() => setLoading(false));
   }, [period, year]); // ← refetch whenever period or year changes
+
+  // Un état financier existe ou n'existe pas. Il n'y a pas d'entre-deux, et
+  // surtout pas de version « pour donner une idée ».
+  const hasReport = incomeData !== null && balanceData !== null
+                 && cashflowData !== null && equityData !== null;
 
   const marge = kpi.caNet > 0
     ? (((kpi.caNet - kpi.cogs) / kpi.caNet) * 100).toFixed(1)
@@ -374,13 +208,13 @@ function RapportsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#F8FAFC] px-4 py-6">
+      <main className="min-h-screen bg-surface px-4 py-6">
         <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
-          <div className="h-28 bg-white rounded-3xl border border-[#E2E8F0]" />
+          <div className="h-28 bg-white rounded-3xl border border-border" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-[#E2E8F0]" />)}
+            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-border" />)}
           </div>
-          <div className="h-[600px] bg-white rounded-3xl border border-[#E2E8F0]" />
+          <div className="h-[600px] bg-white rounded-3xl border border-border" />
         </div>
       </main>
     );
@@ -388,76 +222,77 @@ function RapportsPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-[#F1F5F9] no-print">
+      <main className="min-h-screen bg-surface2 no-print">
         <div className="w-full max-w-full lg:max-w-[1160px] mx-auto px-3 md:px-4 py-4 md:py-6 space-y-4 md:space-y-6">
 
           {/* ── Page header ── */}
-          <header className="bg-white rounded-2xl md:rounded-3xl border border-[#E2E8F0] p-4 md:p-6 flex flex-col gap-4 md:gap-0 md:flex-row md:items-center md:justify-between shadow-sm">
+          <header className="bg-white rounded-2xl md:rounded-3xl border border-border p-4 md:p-6 flex flex-col gap-4 md:gap-0 md:flex-row md:items-center md:justify-between shadow-sm">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <p className="text-[10px] md:text-[11px] font-semibold uppercase tracking-[0.18em] text-[#12B981]">
-                    {t({ fr: 'Rapports Financiers', ht: 'Rapò Finansye' })}
-                  </p>
-                  {isDemo && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-500 flex-shrink-0">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                      {t({ fr: 'Données démo', ht: 'Done demo' })}
-                    </span>
-                  )}
-              </div>
-              <h1 className="text-xl md:text-[26px] font-bold text-[#0F172A] leading-tight break-words">{companyName}</h1>
-              <p className="text-[12px] md:text-[13px] text-[#64748B] mt-1">
+              {/* L'étiquette « Données démo » a disparu avec les données qu'elle
+                  signalait. Un avertissement n'a jamais rendu un faux bilan vrai. */}
+              <p className="mb-1 text-note md:text-note font-semibold uppercase tracking-[0.18em] text-accent">
+                {t({ fr: 'Rapports Financiers', ht: 'Rapò Finansye' })}
+              </p>
+              <h1 className="text-xl md:text-amount font-bold text-anthracite leading-tight break-words">{companyName}</h1>
+              <p className="text-note md:text-note text-muted mt-1">
                 Exercice {new Date().getFullYear()} · Exprimé en {getCurrencyName(currency)}
               </p>
             </div>
-            <ReportActions reportTitle={reportType} companyName={companyName} onBeforePrint={handleBeforePrint} />
+            {/* Imprimer n'a de sens que s'il y a quelque chose à imprimer. */}
+            {hasReport && (
+              <ReportActions reportTitle={reportType} companyName={companyName} onBeforePrint={handleBeforePrint} />
+            )}
           </header>
 
           {/* ── KPI strip ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-            <KpiCard label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })} value={htg(kpi.caNet, currency)}     sub={`Exercice ${new Date().getFullYear()}`} color="navy"  />
-            <KpiCard label={t({ fr: 'Marge brute', ht: 'Maj brit' })}        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
-            <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
-            <KpiCard label={t({ fr: 'Trésorerie totale', ht: 'Trezoreri total' })}  value={htg(kpi.cashTotal, currency)} sub={t({ fr: 'Disponible', ht: 'Disponib' })}                             color="blue"  />
-          </div>
+          {/* Quatre indicateurs à zéro ne sont pas une information : c'est un
+              écran qui fait semblant de fonctionner. Ils attendent leur période. */}
+          {hasReport && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+              <KpiCard label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })} value={htg(kpi.caNet, currency)}     sub={`Exercice ${new Date().getFullYear()}`} color="navy"  />
+              <KpiCard label={t({ fr: 'Marge brute', ht: 'Maj brit' })}        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
+              <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
+              <KpiCard label={t({ fr: 'Trésorerie totale', ht: 'Trezoreri total' })}  value={htg(kpi.cashTotal, currency)} sub={t({ fr: 'Disponible', ht: 'Disponib' })}                             color="blue"  />
+            </div>
+          )}
 
           {/* ── Rapport hebdo WhatsApp (Bonus 1) + dossier crédit (Bonus 5) ── */}
           <div className="grid gap-4 lg:grid-cols-2">
             <WeeklyDigestCard />
             <Link
               href="/rapports/credit"
-              className="flex flex-col justify-between rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm transition hover:border-[#001F3F]/30 hover:shadow-md"
+              className="flex flex-col justify-between rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
             >
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-[#12B981]">
+                <p className="text-note font-semibold uppercase tracking-widest text-accent">
                   {t({ fr: 'Financement', ht: 'Finansman' })}
                 </p>
-                <h3 className="mt-1 text-lg font-bold text-[#0F172A]">
+                <h3 className="mt-1 text-lg font-bold text-anthracite">
                   {t({ fr: 'Dossier crédit & microfinance', ht: 'Dosye kredi & mikwofinans' })}
                 </h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-[#64748B]">
+                <p className="mt-1 text-note leading-relaxed text-muted">
                   {t({
                     fr: "Historique de chiffre d'affaires et de marge, hors dépenses personnelles — dans un format qu'une banque peut lire.",
                     ht: 'Istorik chif dafè ak mòj, san depans pèsonèl — nan yon fòma yon bank ka li.',
                   })}
                 </p>
               </div>
-              <span className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-xl bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white">
+              <span className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white">
                 {t({ fr: 'Générer le dossier', ht: 'Jenere dosye a' })} →
               </span>
             </Link>
           </div>
 
           {/* ── Period selector ── */}
-          <div className="bg-white rounded-2xl border border-[#E2E8F0] px-5 py-4 shadow-sm">
+          <div className="bg-white rounded-2xl border border-border px-5 py-4 shadow-sm">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                  <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">
+                  <p className="text-note font-semibold text-muted uppercase tracking-wider">
                     {t({ fr: "Période d'analyse", ht: 'Periyòd analiz' })}
                   </p>
                 <div className="flex items-center gap-2">
                   {loading && (
-                    <svg className="h-4 w-4 animate-spin text-[#12B981]" fill="none" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>
@@ -466,7 +301,7 @@ function RapportsPage() {
                   <select
                     value={year}
                     onChange={(e) => setYear(Number(e.target.value))}
-                    className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0F172A] outline-none focus:border-[#12B981] focus:ring-1 focus:ring-[#12B981]"
+                    className="rounded-lg border border-border bg-white px-3 py-1.5 text-note font-semibold text-anthracite outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                   >
                     {[currentYear, currentYear - 1, currentYear - 2].map(y => (
                       <option key={y} value={y}>{y}</option>
@@ -476,53 +311,106 @@ function RapportsPage() {
               </div>
               <PeriodPicker active={period} onChange={setPeriod} />
               {/* Active period label */}
-              <p className="text-[11px] text-[#94A3B8]">
-                📅 {periodLabel}
+              <p className="text-note text-slate-400">
+                <CalendarDays className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />
+                {periodLabel}
               </p>
             </div>
           </div>
 
           {/* ── Report type tabs ── */}
-          <ReportTypeSelector active={reportType} onChange={setReportType} />
+          {/* Choisir entre quatre états qui n'existent pas n'a pas de sens. */}
+          {hasReport && <ReportTypeSelector active={reportType} onChange={setReportType} />}
 
           {/* ── Report preview (A4) ── */}
-          <div className="relative flex justify-center w-full">
-            {/* Overlay spinner on period change */}
-            {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
-                <div className="flex flex-col items-center gap-3">
-                  <svg className="h-8 w-8 animate-spin text-[#12B981]" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                  <p className="text-[12px] font-medium text-[#64748B]">{t({ fr: 'Chargement des données…', ht: 'Chajman done yo…' })}</p>
+          {hasReport && (
+            <div className="relative flex justify-center w-full">
+              {/* Overlay spinner on period change */}
+              {loading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-3">
+                    <svg className="h-8 w-8 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    <p className="text-note font-medium text-muted">{t({ fr: 'Chargement des données…', ht: 'Chajman done yo…' })}</p>
+                  </div>
                 </div>
+              )}
+              <div className="w-full overflow-x-auto overflow-y-visible rounded-2xl shadow-xl" style={{ maxWidth: '210mm' }}>
+                {reportType === 'income'   && incomeData   && <IncomeStatement   meta={meta} data={incomeData}   showPrevious />}
+                {reportType === 'balance'  && balanceData  && <BalanceSheet       meta={meta} data={balanceData}  showPrevious />}
+                {reportType === 'cashflow' && cashflowData && <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />}
+                {reportType === 'equity'   && equityData   && <EquityStatement    meta={meta} data={equityData}   />}
               </div>
-            )}
-            <div className="w-full overflow-x-auto overflow-y-visible rounded-2xl shadow-xl" style={{ maxWidth: '210mm' }}>
-              {reportType === 'income'   && <IncomeStatement   meta={meta} data={incomeData}   showPrevious />}
-              {reportType === 'balance'  && <BalanceSheet       meta={meta} data={balanceData}  showPrevious />}
-              {reportType === 'cashflow' && <CashFlowStatement  meta={meta} data={cashflowData} showPrevious />}
-              {reportType === 'equity'   && <EquityStatement    meta={meta} data={equityData}   />}
             </div>
-          </div>
+          )}
+
+          {/* ── Les deux états vides (§5.10) ──────────────────────────────────
+              Ni l'un ni l'autre n'est un écran raté : ce sont les deux seules
+              réponses honnêtes quand il n'y a pas d'états financiers à montrer.
+              Le sélecteur de période est juste au-dessus — la sortie est là. */}
+          {!hasReport && !loading && (
+            hasAny ? (
+              // Le commerce tourne, mais pas sur cet exercice. On le dit, et on
+              // ramène en un geste vers l'année en cours.
+              <NoResult
+                query={periodLabel}
+                noun={t({ fr: 'mouvement', ht: 'mouvman' })}
+                action={
+                  year !== currentYear || period !== 'FY' ? (
+                    <Button
+                      variant="primary"
+                      onClick={() => { setYear(currentYear); setPeriod('FY'); }}
+                    >
+                      {t({ fr: "Voir l'exercice " + currentYear, ht: 'Gade ane ' + currentYear })}
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              // Compte neuf : aucun bilan n'existe encore, et aucun ne sera
+              // inventé. On montre le geste qui les fera naître.
+              <FirstRun
+                title={t({
+                  fr: 'Vos états financiers se construiront ici',
+                  ht: 'Eta finansye ou yo ap bati isit la',
+                })}
+                hint={t({
+                  fr: "Compte de résultat, bilan, trésorerie : chacun se remplit tout seul à partir de vos ventes et de vos dépenses. Enregistrez la première, et l'exercice commence.",
+                  ht: 'Kont rezilta, bilan, trezoreri : chak youn ap ranpli pou kont li ak vant ak depans ou yo. Anrejistre premye a, ane a kòmanse.',
+                })}
+                action={
+                  <Link href="/sales" className="block">
+                    <Button variant="accent" block>
+                      {t({ fr: 'Enregistrer une vente', ht: 'Anrejistre yon vant' })}
+                    </Button>
+                  </Link>
+                }
+              />
+            )
+          )}
 
           {/* ── Bottom action bar ── */}
-          <div className="bg-white rounded-3xl border border-[#E2E8F0] p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
-            <div>
-              <p className="text-[13px] font-semibold text-[#0F172A]">{t({ fr: 'Télécharger tous les états financiers', ht: 'Telechaje tout eta finansye yo' })}</p>
-              <p className="text-[11px] text-[#94A3B8] mt-[2px]">{t({ fr: 'PDF A4 · Prêt à l\'impression · Qualité comptable', ht: 'PDF A4 · Pare pou enprime · Kalite kontab' })}</p>
+          {hasReport && (
+            <div className="bg-white rounded-3xl border border-border p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
+              <div>
+                <p className="text-note font-semibold text-anthracite">{t({ fr: 'Télécharger tous les états financiers', ht: 'Telechaje tout eta finansye yo' })}</p>
+                <p className="text-note text-slate-400 mt-1">{t({ fr: 'PDF A4 · Prêt à l\'impression · Qualité comptable', ht: 'PDF A4 · Pare pou enprime · Kalite kontab' })}</p>
+              </div>
+              <ReportActions reportTitle={t({ fr: 'Pack complet', ht: 'Pake konplè' })} companyName={companyName} onBeforePrint={handleBeforePrint} />
             </div>
-            <ReportActions reportTitle={t({ fr: 'Pack complet', ht: 'Pake konplè' })} companyName={companyName} onBeforePrint={handleBeforePrint} />
-          </div>
+          )}
 
         </div>
       </main>
 
-      {/* ── Print portal — always rendered, mounted as direct <body> child ── */}
+      {/* ── Print portal — mounted as direct <body> child ── */}
       {/* CSS: #pp-print-root { display:none } on screen                    */}
       {/* CSS: body > *:not(#pp-print-root) { display:none } on print       */}
-      {isMounted && createPortal(
+      {/* Le portail ne se monte que s'il y a un exercice réel à imprimer :
+          c'est par lui que passaient les PDF « qualité comptable » fabriqués. */}
+      {isMounted && incomeData && balanceData && cashflowData && equityData && createPortal(
         <div id="pp-print-root">
           <IncomeStatement   meta={meta} data={incomeData}   showPrevious />
           <BalanceSheet       meta={meta} data={balanceData}  showPrevious />

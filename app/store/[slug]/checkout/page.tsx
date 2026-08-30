@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCart } from '../StoreCartContext';
 import { createStoreOrder, getStoreBySlug } from '../../../actions/store-public';
+import { Lock, Package, ShoppingCart } from 'lucide-react';
 
 function fmt(n: number) { return new Intl.NumberFormat('fr-HT').format(n) + ' HTG'; }
 
@@ -49,7 +50,7 @@ export default function CheckoutPage() {
   if (items.length === 0) {
     return (
       <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <p className="text-4xl">🛒</p>
+        <ShoppingCart className="mx-auto h-10 w-10 text-slate-300" strokeWidth={1.5} aria-hidden />
         <p className="mt-4 text-lg font-semibold text-slate-700">Votre panier est vide</p>
         <a href={`/store/${slug}/products`} className="mt-4 inline-block text-sm underline text-slate-500">Voir les produits</a>
       </div>
@@ -123,7 +124,7 @@ export default function CheckoutPage() {
         {/* Left */}
         <div className="space-y-6">
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="mb-4 font-bold text-slate-800">📋 Informations de contact</h2>
+            <h2 className="mb-4 font-bold text-slate-800">Informations de contact</h2>
             <div className="space-y-3">
               <input className={inp} placeholder="Nom complet *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               <input className={inp} type="email" placeholder="Email *" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
@@ -131,7 +132,7 @@ export default function CheckoutPage() {
             </div>
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="mb-4 font-bold text-slate-800">🏠 Adresse de livraison</h2>
+            <h2 className="mb-4 font-bold text-slate-800">Adresse de livraison</h2>
             <div className="space-y-3">
               <input className={inp} placeholder="Adresse *" value={form.line1} onChange={(e) => setForm({ ...form, line1: e.target.value })} required />
               <input className={inp} placeholder="Apt, suite, etc." value={form.line2} onChange={(e) => setForm({ ...form, line2: e.target.value })} />
@@ -146,7 +147,7 @@ export default function CheckoutPage() {
           </section>
           {shippingModes.length > 0 && (
             <section className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="mb-4 font-bold text-slate-800">🚚 Mode de livraison</h2>
+              <h2 className="mb-4 font-bold text-slate-800">Mode de livraison</h2>
               <div className="space-y-2">
                 {shippingModes.map((mode) => (
                   <label key={mode.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-4 transition ${form.shipping_mode === mode.id ? 'border-slate-700 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
@@ -164,7 +165,7 @@ export default function CheckoutPage() {
             </section>
           )}
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="mb-4 font-bold text-slate-800">💳 Mode de paiement</h2>
+            <h2 className="mb-4 font-bold text-slate-800">Mode de paiement</h2>
             <div className="space-y-2">
               {paymentMethods.map((method) => (
                 <label key={method} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition ${form.payment === method ? 'border-slate-700 bg-slate-50' : 'border-slate-200 hover:border-slate-300'}`}>
@@ -175,7 +176,7 @@ export default function CheckoutPage() {
             </div>
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-6">
-            <h2 className="mb-4 font-bold text-slate-800">📝 Notes (optionnel)</h2>
+            <h2 className="mb-4 font-bold text-slate-800">Notes (optionnel)</h2>
             <textarea className={inp} rows={3} placeholder="Instructions spéciales…" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </section>
         </div>
@@ -183,15 +184,15 @@ export default function CheckoutPage() {
         {/* Right: summary */}
         <div>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 sticky top-24">
-            <h2 className="mb-4 font-bold text-slate-800">📦 Récapitulatif</h2>
+            <h2 className="mb-4 font-bold text-slate-800">Récapitulatif</h2>
             <div className="space-y-3">
               {items.map(({ product, quantity }) => {
                 const price = product.sale_price ?? product.price;
                 return (
                   <div key={product.id} className="flex items-center gap-3">
                     <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                      {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-lg">📦</div>}
-                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-700 text-[9px] text-white font-bold">{quantity}</span>
+                      {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><Package className="h-5 w-5" strokeWidth={1.5} aria-hidden /></div>}
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-700 text-note text-white font-bold">{quantity}</span>
                     </div>
                     <p className="flex-1 text-xs text-slate-700 line-clamp-2">{product.name}</p>
                     <p className="text-xs font-bold">{fmt(price * quantity)}</p>
@@ -213,7 +214,7 @@ export default function CheckoutPage() {
               style={{ backgroundColor: 'var(--store-primary)' }}>
               {submitting ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Traitement…</> : `Confirmer — ${fmt(orderTotal)}`}
             </button>
-            <p className="mt-3 text-center text-xs text-slate-400">🔒 Commande sécurisée</p>
+            <p className="mt-3 text-center text-xs text-slate-400"><Lock className="mr-1 inline h-3 w-3 align-[-1px]" strokeWidth={2} aria-hidden />Commande sécurisée</p>
           </div>
         </div>
       </form>

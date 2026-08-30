@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '../../StoreCartContext';
 import type { StoreProduct } from '../../../../actions/store-public';
+import { Package } from 'lucide-react';
 
 function fmt(n: number) { return new Intl.NumberFormat('fr-HT').format(n) + ' HTG'; }
 
@@ -47,7 +48,7 @@ export function ProductDetailClient({
             {img ? (
               <img src={img} alt={product.name} className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full items-center justify-center text-6xl text-slate-300">📦</div>
+              <div className="flex h-full items-center justify-center text-slate-300"><Package className="h-14 w-14" strokeWidth={1.5} aria-hidden /></div>
             )}
           </div>
           {images.length > 1 && (
@@ -70,7 +71,7 @@ export function ProductDetailClient({
           {/* Badges */}
           <div className="mb-3 flex flex-wrap gap-2">
             {product.is_featured && (
-              <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ backgroundColor: 'var(--store-primary)' }}>⭐ Vedette</span>
+              <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ backgroundColor: 'var(--store-primary)' }}>Vedette</span>
             )}
             {product.is_new && (
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Nouveau</span>
@@ -92,7 +93,7 @@ export function ProductDetailClient({
 
           {showStock && (
             <p className={`mt-2 text-sm font-medium ${product.stock > 5 ? 'text-emerald-600' : product.stock > 0 ? 'text-amber-600' : 'text-red-500'}`}>
-              {outOfStock ? '❌ Épuisé' : product.stock <= 5 ? `⚠ Seulement ${product.stock} en stock` : `✓ En stock (${product.stock})`}
+              {outOfStock ? 'Épuisé' : product.stock <= 5 ? `Seulement ${product.stock} en stock` : `En stock (${product.stock})`}
             </p>
           )}
 
@@ -120,9 +121,9 @@ export function ProductDetailClient({
               onClick={handleAdd}
               disabled={outOfStock}
               className="flex-1 rounded-2xl py-3.5 text-sm font-bold text-white transition shadow-md hover:shadow-lg disabled:opacity-40"
-              style={{ backgroundColor: added ? '#10b981' : 'var(--store-primary)' }}
+              style={{ backgroundColor: added ? '#50c878' : 'var(--store-primary)' }}
             >
-              {added ? '✓ Ajouté au panier !' : outOfStock ? 'Épuisé' : `Ajouter au panier — ${fmt(price * qty)}`}
+              {added ? 'Ajouté au panier' : outOfStock ? 'Épuisé' : `Ajouter au panier — ${fmt(price * qty)}`}
             </button>
             <Link
               href={`/store/${slug}/cart`}

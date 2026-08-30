@@ -1,5 +1,7 @@
 'use client';
 
+import { X } from 'lucide-react';
+
 import { useMemo, useState } from 'react';
 import { Button } from './Button';
 import { useLanguage } from './LanguageWrapper';
@@ -47,7 +49,7 @@ export function QuickActionForm({ open, onClose, onSave }: QuickActionFormProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
-      <div className="w-full max-w-xl overflow-hidden rounded-[32px] bg-white text-anthracite shadow-2xl sm:mx-4">
+      <div className="w-full max-w-xl overflow-hidden rounded-surface bg-white text-anthracite shadow-2xl sm:mx-4">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-primary/90">{t({ fr: 'Action rapide', ht: 'Aksyon rapid' })}</p>
@@ -58,7 +60,7 @@ export function QuickActionForm({ open, onClose, onSave }: QuickActionFormProps)
             onClick={onClose}
             className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-anthracite transition hover:bg-slate-200"
           >
-            ✕
+            <X className="h-4 w-4" strokeWidth={2} aria-hidden />
           </button>
         </div>
 
@@ -164,7 +166,11 @@ export function QuickActionForm({ open, onClose, onSave }: QuickActionFormProps)
               className={`${isValid ? 'bg-primary text-white' : 'bg-slate-200 text-anthracite cursor-not-allowed'}`}
               disabled={!isValid}
             >
-              {t({ fr: 'Enregistrer', ht: 'Sere' })}
+              {/* « Enregistrer la vente », pas « Enregistrer » : c'est
+                  l'exemple même de l'audit (§0, critère 1). */}
+              {type === 'sale'
+                ? t({ fr: 'Enregistrer la vente',   ht: 'Anrejistre vant lan' })
+                : t({ fr: 'Enregistrer la dépense', ht: 'Anrejistre depans lan' })}
             </Button>
           </div>
         </div>

@@ -9,12 +9,24 @@
 //
 // Le rafraîchissement est fait une fois par jour : le taux ne bouge pas assez
 // vite pour justifier un appel réseau à chaque ouverture du dashboard.
+//
+// ── Moment 4 (§7) ────────────────────────────────────────────────────────────
+// « Quand le taux gourde/dollar change, une bannière discrète glisse depuis le
+//   haut avec l'ancien et le nouveau taux. Elle pulse une seule fois, reste
+//   consultable, ne revient pas à chaque écran. »
+// D'où : `pp-drop` à l'entrée, l'ancien taux affiché à côté du nouveau, et le
+// cache d'un jour qui garantit qu'elle ne se rejoue pas.
+//
+// Couleurs : rouge système uniquement quand des produits se vendent à perte —
+// c'est-à-dire quand quelque chose coûte vraiment de l'argent. Sinon, ambre :
+// une échéance qui approche, pas encore une alerte (§4.2).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { AlertTriangle, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { refreshRateWithAlert, type RateAlert } from '../../app/actions/exchangeRate';
+import { Card } from '../ds';
 
 const STORAGE_KEY = 'pp_rate_alert_check';
 const ONE_DAY_MS  = 24 * 3600 * 1000;
@@ -62,62 +74,79 @@ export function RateAlertBanner({ initial }: { initial?: RateAlert | null }) {
 
   const up       = alert.variationPercent > 0;
   const critical = atLoss.length > 0;
+  const Icon     = critical ? AlertTriangle : up ? TrendingUp : TrendingDown;
 
   return (
-    <div
-      className={critical
-        ? 'relative rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30'
-        : 'relative rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30'}
-    >
+    // Elle glisse depuis le haut, une fois. Pas de pulsation permanente : une
+    // bannière qui clignote sans arrêt cesse d'être lue.
+    <Card className="pp-drop relative p-4">
       <button
+        type="button"
         onClick={() => setDismiss(true)}
-        aria-label="Fèmen alèt la"
-        className="absolute right-3 top-3 rounded-lg p-1 text-slate-400 transition hover:bg-black/5 hover:text-slate-600"
+        aria-label="Fermer l'alerte"
+        className="pressable absolute right-2 top-2 flex h-touch w-touch items-center justify-center rounded-control text-muted"
       >
-        <X className="h-4 w-4" />
+        <X className="h-4 w-4" aria-hidden />
       </button>
 
-      <div className="flex items-start gap-3 pr-8">
-        <div className={critical ? 'mt-0.5 text-red-600' : 'mt-0.5 text-amber-600'}>
-          {critical ? <AlertTriangle className="h-5 w-5" /> : up ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-        </div>
+      <div className="flex items-start gap-3 pr-touch">
+        <Icon
+          className={`mt-1 h-5 w-5 flex-shrink-0 ${critical ? 'text-danger' : 'text-warning'}`}
+          aria-hidden
+        />
 
         <div className="min-w-0 flex-1">
-          <p className={critical ? 'text-sm font-semibold text-red-800 dark:text-red-300' : 'text-sm font-semibold text-amber-800 dark:text-amber-300'}>
-            To a chanje {alert.variationPercent > 0 ? '+' : ''}{alert.variationPercent}% — 1 USD = {alert.rate} HTG
+          {/* L'ancien taux ET le nouveau : sans les deux, « le taux a changé »
+              ne dit rien d'actionnable (§1, critère du texte). */}
+          <p className="text-body font-bold text-primary dark:text-dark-text">
+            1 USD = <span className="amount">{alert.rate} HTG</span>
+            {alert.previousRate ? (
+              <span className="amount ml-2 text-note font-normal text-muted line-through">
+                {alert.previousRate}
+              </span>
+            ) : null}
+            <span className={`amount ml-2 text-note font-bold ${critical || up ? 'text-danger' : 'text-success'}`}>
+              {up ? '+' : '−'}{Math.abs(alert.variationPercent)} %
+            </span>
           </p>
 
           {critical ? (
             <>
-              <p className="mt-1 text-sm text-red-700 dark:text-red-400">
+              <p className="mt-1 text-body text-text2 dark:text-dark-text2">
                 {atLoss.length === 1
-                  ? '1 pwodwi ap vann a pèt kounye a nan nouvo to a.'
-                  : `${atLoss.length} pwodwi ap vann a pèt kounye a nan nouvo to a.`}
-                {' '}Ogmante pri yo anvan pwochèn vant la.
+                  ? '1 produit se vend à perte au nouveau taux.'
+                  : `${atLoss.length} produits se vendent à perte au nouveau taux.`}
+                {' '}Augmentez leur prix avant la prochaine vente.
               </p>
+
               <ul className="mt-2 space-y-1">
                 {atLoss.slice(0, 3).map((p) => (
-                  <li key={p.id} className="flex items-center justify-between gap-3 text-xs text-red-700 dark:text-red-400">
-                    <span className="truncate">{p.name}</span>
-                    <span className="shrink-0 font-semibold">{p.marginPercent.toFixed(1)}%</span>
+                  <li key={p.id} className="flex items-center justify-between gap-3 text-note">
+                    <span className="min-w-0 truncate text-text2 dark:text-dark-text2">{p.name}</span>
+                    <span className="amount flex-shrink-0 font-bold text-danger">
+                      {p.marginPercent.toFixed(1)} %
+                    </span>
                   </li>
                 ))}
               </ul>
+
+              {/* Une seule action, en lien : la bannière informe, elle ne
+                  dispute pas l'accent principal de l'écran (§4.1). */}
               <Link
                 href="/products"
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                className="pressable mt-3 inline-flex min-h-touch items-center text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
               >
-                Wè pwodwi yo
-                <ArrowRight className="h-3.5 w-3.5" />
+                Voir ces produits
               </Link>
             </>
           ) : (
-            <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-              Sa depase sèy {alert.threshold}% ou a. Verifye mòj pwodwi ou achte an dola yo.
+            <p className="mt-1 text-body text-text2 dark:text-dark-text2">
+              Le changement dépasse votre seuil de {alert.threshold} %. Vérifiez la marge des
+              produits achetés en dollars.
             </p>
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

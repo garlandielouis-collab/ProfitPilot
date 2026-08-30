@@ -53,9 +53,9 @@ export function PriceSimulator({ productId }: { productId: string }) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex items-center gap-3 bg-[#001F3F] px-5 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#50C878]/20">
-          <TrendingUp className="h-5 w-5 text-[#50C878]" />
+      <div className="flex items-center gap-3 bg-primary px-5 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
+          <TrendingUp className="h-5 w-5 text-accent" />
         </div>
         <div className="min-w-0">
           <h3 className="truncate text-sm font-bold text-white">
@@ -77,7 +77,7 @@ export function PriceSimulator({ productId }: { productId: string }) {
               onClick={() => setElasticity(e.value)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 elasticity === e.value
-                  ? 'bg-[#001F3F] text-white'
+                  ? 'bg-primary text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
               }`}
             >
@@ -105,11 +105,11 @@ export function PriceSimulator({ productId }: { productId: string }) {
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                   {isBase ? 'Aujourd’hui' : `+${s.increasePercent}%`}
                 </p>
-                <p className="mt-1 text-lg font-black tabular-nums text-[#001F3F] dark:text-slate-100">
+                <p className="mt-1 text-lg font-black tabular-nums text-primary dark:text-slate-100">
                   {fmt(s.newPrice, data.currency)}
                 </p>
                 <p className="mt-2 text-xs text-slate-500">Marge du mois</p>
-                <p className="text-sm font-bold tabular-nums text-[#001F3F] dark:text-slate-100">
+                <p className="text-sm font-bold tabular-nums text-primary dark:text-slate-100">
                   {fmt(s.projectedMonthlyMargin, data.currency)}
                 </p>
 
@@ -124,7 +124,7 @@ export function PriceSimulator({ productId }: { productId: string }) {
                   </p>
                 )}
 
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-note text-slate-400">
                   ≈ {s.projectedUnits} unité{s.projectedUnits > 1 ? 's' : ''}
                 </p>
               </div>

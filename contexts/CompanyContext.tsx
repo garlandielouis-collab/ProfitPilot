@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabaseClient';
 import { type Role, type Permission, roleHasPermission } from '../lib/rbac';
 import { type Feature, planHasFeature } from '../lib/planFeatures';
 import { getClientTenantContext, type ClientTenantContext, type CompanyInfo } from '../app/actions/company';
+import { getPreviewPlan, subscribePreview } from '../lib/planPreview';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -25,8 +26,12 @@ export type CompanyContextValue = {
   allCompanies: Array<{ id: string; name: string }>;
   /** Rôle de l'utilisateur dans l'entreprise active */
   role:        Role | null;
-  /** Plan d'abonnement actif */
+  /** Plan d'abonnement actif — ou l'offre simulée si un aperçu est en cours. */
   planKey:     string | null;
+  /** L'offre RÉELLE, celle du compte. Elle ne bouge jamais avec l'aperçu. */
+  realPlanKey: string | null;
+  /** L'offre simulée, ou `null` quand on voit son offre réelle. */
+  previewPlan: string | null;
   /** Vrai tant que le contexte se charge */
   loading:     boolean;
   /** Vérifie si l'utilisateur peut faire une action */
@@ -46,6 +51,8 @@ const CompanyContext = createContext<CompanyContextValue>({
   allCompanies: [],
   role:         null,
   planKey:      null,
+  realPlanKey:  null,
+  previewPlan:  null,
   loading:      true,
   can:          () => false,
   canUse:       () => false,
@@ -92,16 +99,34 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     [ctx?.role],
   );
 
+  // ── L'aperçu des offres ────────────────────────────────────────────────────
+  // Il ne remplace le plan QUE dans ce contexte, c'est-à-dire uniquement dans
+  // ce que l'écran affiche. Le serveur ne lit pas ce réglage : `assertFeature()`
+  // et les politiques RLS continuent de juger sur l'offre réelle. Voir un écran
+  // d'Elit ne donne donc pas Elit — c'est exactement ce qu'on veut d'un aperçu.
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sync = () => setPreview(getPreviewPlan());
+    sync();
+    return subscribePreview(sync);
+  }, []);
+
+  const realPlanKey = ctx?.planKey ?? null;
+  const shownPlanKey = preview ?? realPlanKey;
+
   const canUse = useCallback(
-    (feature: Feature) => planHasFeature(ctx?.planKey as any, feature),
-    [ctx?.planKey],
+    (feature: Feature) => planHasFeature(shownPlanKey as any, feature),
+    [shownPlanKey],
   );
 
   const value: CompanyContextValue = {
     company:      ctx?.company ?? null,
     allCompanies: ctx?.allCompanies ?? [],
     role:         ctx?.role ?? null,
-    planKey:      ctx?.planKey ?? null,
+    planKey:      shownPlanKey,
+    realPlanKey,
+    previewPlan:  preview,
     loading,
     can,
     canUse,

@@ -373,6 +373,44 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   };
 }
 
+// ── Total du jour ─────────────────────────────────────────────────────────────
+
+/**
+ * Le total encaissé aujourd'hui, et rien d'autre.
+ *
+ * C'est le chiffre vers lequel « vole » le montant d'une vente qu'on vient
+ * d'enregistrer (audit §7, moment 1) : le marchand voit où son argent est allé,
+ * et le total s'incrémente sous ses yeux. Une requête minuscule, parce qu'elle
+ * part depuis la feuille de vente, sur une connexion irrégulière.
+ *
+ * Silencieux en cas d'échec : un total indisponible n'est pas une erreur à
+ * montrer au milieu d'une vente. On renvoie 0 et la feuille n'affiche rien.
+ */
+export async function getTodaySalesTotal(): Promise<{ total: number; count: number; currency: string }> {
+  try {
+    const { supabase, businessId, exchangeRate, defaultCurrency } = await getBusinessContext();
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const { data } = await supabase
+      .from('sales')
+      .select('total_amount, currency')
+      .eq('business_id', businessId)
+      .gte('created_at', start.toISOString());
+
+    const rows = data ?? [];
+    const total = rows.reduce((sum: number, r: any) => {
+      const amount = parseFloat(r.total_amount ?? 0);
+      return sum + ((r.currency ?? 'HTG').toUpperCase() === 'USD' ? amount * exchangeRate : amount);
+    }, 0);
+
+    return { total: parseFloat(total.toFixed(2)), count: rows.length, currency: defaultCurrency ?? 'HTG' };
+  } catch {
+    return { total: 0, count: 0, currency: 'HTG' };
+  }
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 export type SalesMetrics = {

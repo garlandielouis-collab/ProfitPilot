@@ -114,9 +114,6 @@ const PAYMENT_METHODS = [
     description: 'Peman mobil via Digicel Haiti',
     descriptionT: { fr: 'Paiement mobile via Digicel Haïti', ht: 'Peman mobil via Digicel Haiti' },
     icon: Smartphone,
-    gradient: 'from-pink-50 to-rose-50',
-    accent: 'text-pink-600',
-    border: 'border-pink-200',
     apiLink: 'https://moncashbutton.digicelhaiti.com/Moncash-business/Login',
   },
   {
@@ -126,9 +123,6 @@ const PAYMENT_METHODS = [
     description: 'Peman mobil via Natcom Haiti',
     descriptionT: { fr: 'Paiement mobile via Natcom Haïti', ht: 'Peman mobil via Natcom Haiti' },
     icon: Smartphone,
-    gradient: 'from-purple-50 to-violet-50',
-    accent: 'text-purple-600',
-    border: 'border-purple-200',
     apiLink: null,
   },
   {
@@ -138,9 +132,6 @@ const PAYMENT_METHODS = [
     description: 'Peman pa kat kredi ou debi',
     descriptionT: { fr: 'Paiement par carte de crédit ou débit', ht: 'Peman pa kat kredi ou debi' },
     icon: Wallet,
-    gradient: 'from-blue-50 to-sky-50',
-    accent: 'text-blue-600',
-    border: 'border-blue-200',
     apiLink: null,
   },
   {
@@ -150,9 +141,6 @@ const PAYMENT_METHODS = [
     description: 'Peman an lajan kach dirèkteman',
     descriptionT: { fr: 'Paiement en espèces directement', ht: 'Peman an lajan kach dirèkteman' },
     icon: Banknote,
-    gradient: 'from-emerald-50 to-teal-50',
-    accent: 'text-emerald-600',
-    border: 'border-emerald-200',
     apiLink: null,
   },
 ] as const;
@@ -394,14 +382,11 @@ function PaymentsTab() {
             return (
               <div
                 key={pm.key}
-                className={cn(
-                  'rounded-xl border bg-gradient-to-br p-4',
-                  pm.gradient, pm.border,
-                )}
+                className="rounded-surface border border-border bg-white p-4 shadow-card"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className={cn('rounded-lg bg-slate-100 p-1.5', pm.accent)}>
+                    <div className="rounded-control bg-surface2 p-1.5 text-primary">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
@@ -409,7 +394,7 @@ function PaymentsTab() {
                       <p className="text-xs text-[var(--color-muted)]">{t(pm.descriptionT)}</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-note font-semibold text-emerald-700">
                     {t({ fr: 'Actif', ht: 'Aktif' })}
                   </span>
                 </div>
@@ -423,10 +408,7 @@ function PaymentsTab() {
                     href={pm.apiLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={cn(
-                      'mt-3 flex items-center gap-1.5 text-xs font-medium hover:underline transition',
-                      pm.accent,
-                    )}
+                    className="mt-3 flex min-h-touch items-center gap-2 text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
                   >
                     {t({ fr: 'Portail Moncash Business', ht: 'Portal Moncash Business' })}
                     <ChevronRight className="h-3 w-3" />
@@ -594,7 +576,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success(t({ fr: 'Mot de passe mis à jour ✓', ht: 'Modpas mete ajou ✓' }));
+      toast.success(t({ fr: 'Mot de passe mis à jour', ht: 'Modpas mete ajou' }));
       setPw(''); setPw2('');
     }
   };
@@ -610,7 +592,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       a.download = `profitpilot-export-${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(t({ fr: 'Export téléchargé ✓', ht: 'Ekspòtasyon telechaje ✓' }));
+      toast.success(t({ fr: 'Export téléchargé', ht: 'Ekspòtasyon telechaje' }));
     } catch (e: any) {
       toast.error(e.message ?? t({ fr: 'Export échoué', ht: 'Ekspòtasyon echwe' }));
     } finally {
@@ -791,7 +773,7 @@ function SettingsPage() {
           <p className="mb-1 text-xs font-medium uppercase tracking-widest text-emerald-500">
             {t({ fr: 'Paramètres', ht: 'Anviwònman' })}
           </p>
-          <h1 className="text-2xl font-bold text-[#001F3F] md:text-3xl">
+          <h1 className="text-2xl font-bold text-primary md:text-3xl">
             {t({ fr: 'Compte & Préférences', ht: 'Kont & Preferans' })}
           </h1>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
@@ -811,7 +793,7 @@ function SettingsPage() {
                 className={cn(
                   'flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                   active
-                    ? 'bg-[#EAF1F8] text-[#001F3F] shadow-sm'
+                    ? 'bg-nav-active text-primary shadow-sm'
                     : 'text-[var(--color-muted)] hover:text-[var(--color-text)]',
                 )}
               >

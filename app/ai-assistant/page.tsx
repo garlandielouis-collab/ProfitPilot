@@ -76,7 +76,7 @@ function MessageBubble({
       <div className={cn(
         'max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
         isUser
-          ? 'bg-[#001F3F] text-white rounded-tr-sm'
+          ? 'bg-primary text-white rounded-tr-sm'
           : 'bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)] rounded-tl-sm',
       )}>
         {streaming && !content ? (
@@ -202,7 +202,7 @@ function SidebarContent({
             className={cn(
               'group relative flex items-center gap-2 rounded-xl px-2 py-2 cursor-pointer transition',
               activeId === c.id
-                ? 'bg-[#EAF1F8] text-[#001F3F]'
+                ? 'bg-nav-active text-primary'
                 : 'text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]',
             )}
           >
@@ -228,7 +228,7 @@ function SidebarContent({
                     {c.title ?? t({ fr: 'Sans titre', ht: 'San tit' })}
                   </span>
                 )}
-                <span className="text-[10px] text-[var(--color-muted)] flex-shrink-0">
+                <span className="text-note text-[var(--color-muted)] flex-shrink-0">
                   {timeAgo(c.updated_at)}
                 </span>
                 <div className="absolute right-1.5 hidden group-hover:flex items-center gap-1 bg-white rounded-lg">
@@ -375,7 +375,7 @@ function AiAssistantPage() {
     if (!text || isStreaming) return;
     if (!activeConvId) { toast.error('Sélectionnez ou créez une conversation'); return; }
     if (!hasAI) {
-      toast('✨ Pilot AI est disponible en version Business Pilot ou Expert. Passez à Premium pour accéder à votre conseiller financier intelligent.', {
+      toast('Pilot AI est disponible en version Business Pilot ou Expert. Passez à Premium pour accéder à votre conseiller financier intelligent.', {
         duration: 6000,
         style: { background: '#001F3F', color: '#fff', borderRadius: '16px' },
       });
@@ -430,7 +430,7 @@ function AiAssistantPage() {
           </div>
           <div className="ml-auto">
             <span className={cn(
-              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium',
+              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-note font-medium',
               summary ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-100 text-[var(--color-muted)]',
             )}>
               <span className={cn(
@@ -445,7 +445,7 @@ function AiAssistantPage() {
         {/* Upsell banner — visible seulement sans plan AI */}
         {!plan.loading && !hasAI && (
           <div className="flex items-center gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-3">
-            <span className="text-lg">✨</span>
+            <Sparkles className="h-5 w-5" strokeWidth={1.8} aria-hidden />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                 {t({ fr: 'Fonctionnalité Business Pilot / Expert', ht: 'Fonksyonalite Business Pilot / Expert' })}
@@ -560,7 +560,7 @@ function AiAssistantPage() {
               </button>
             )}
           </div>
-          <p className="mt-1.5 px-1 text-[10px] text-[var(--color-muted)]">
+          <p className="mt-1.5 px-1 text-note text-[var(--color-muted)]">
             PilotAI peut faire des erreurs. Vérifiez toujours les informations importantes.
           </p>
         </div>

@@ -27,16 +27,11 @@ import {
   X,
   ChevronRight,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
+// Les deux graphiques de cet écran passaient par recharts avec des sommets
+// arrondis, un axe en 10 px et une infobulle en 12 px — l'erreur §3.8 au
+// complet, sous le plancher de 13 px du §5.2. Ils passent par PeriodBars,
+// comme partout ailleurs : barres plates, axe chiffré, valeur au toucher.
+import { PeriodBars, type BarPoint } from '../../components/ds';
 
 // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -49,16 +44,16 @@ function fmtDate(iso: string) {
 }
 
 const movementConfig: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
-  sale_out:       { label: 'Vant',         Icon: ArrowDownRight, color: '#EF4444', bg: '#FEF2F2' },
-  purchase_in:    { label: 'Acha',         Icon: ArrowUpRight,   color: '#12B981', bg: '#ECFDF5' },
-  adjustment_in:  { label: 'Ajisteman +',  Icon: ArrowUpRight,   color: '#3B82F6', bg: '#EFF6FF' },
-  adjustment_out: { label: 'Ajisteman -',  Icon: ArrowDownRight, color: '#F59E0B', bg: '#FFFBEB' },
+  sale_out:       { label: 'Vant',         Icon: ArrowDownRight, color: '#DC2626', bg: '#FDECEC' },
+  purchase_in:    { label: 'Acha',         Icon: ArrowUpRight,   color: '#50C878', bg: '#EAF7EF' },
+  adjustment_in:  { label: 'Ajisteman +',  Icon: ArrowUpRight,   color: '#1D4ED8', bg: '#EAF0FD' },
+  adjustment_out: { label: 'Ajisteman -',  Icon: ArrowDownRight, color: '#B45309', bg: '#FDF3E4' },
 };
 
 function stockLabel(qty: number): { label: string; color: string; bg: string } {
-  if (qty === 0) return { label: 'Épuisé', color: '#EF4444', bg: '#FEF2F2' };
-  if (qty <= 5)  return { label: 'Fèb',   color: '#F59E0B', bg: '#FFFBEB' };
-  return              { label: 'Bon',    color: '#12B981', bg: '#ECFDF5' };
+  if (qty === 0) return { label: 'Épuisé', color: '#DC2626', bg: '#FDECEC' };
+  if (qty <= 5)  return { label: 'Fèb',   color: '#B45309', bg: '#FDF3E4' };
+  return              { label: 'Bon',    color: '#50C878', bg: '#EAF7EF' };
 }
 
 const REASONS = [
@@ -151,7 +146,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
               min="0"
               value={newQty}
               onChange={e => setNewQty(parseInt(e.target.value) || 0)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
             />
             {diff !== 0 && (
               <p className={`mt-1.5 text-xs font-medium ${diff > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -170,7 +165,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
                   onClick={() => setReason(r)}
                   className={`text-left rounded-xl border px-4 py-2.5 text-sm transition ${
                     reason === r
-                      ? 'border-[#001F3F] bg-emerald-50 text-emerald-700 font-medium'
+                      ? 'border-primary bg-emerald-50 text-emerald-700 font-medium'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -183,7 +178,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
                 value={customReason}
                 onChange={e => setCustomReason(e.target.value)}
                 placeholder="Ekri rezon ou a..."
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
               />
             )}
           </div>
@@ -195,7 +190,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
               min="0"
               value={reorderPt}
               onChange={e => setReorderPt(parseInt(e.target.value) || 0)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/30 transition"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
             />
             <p className="mt-1 text-xs text-slate-500">Ou pral resevwa alèt lè stock tonbe anba nivo sa a.</p>
           </div>
@@ -211,7 +206,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 rounded-xl bg-[#001F3F] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#002D5B] disabled:opacity-60 transition"
+              className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-h disabled:opacity-60 transition"
             >
               {saving ? 'Sove...' : 'Sove Ajisteman'}
             </button>
@@ -297,7 +292,7 @@ export function InventoryClient({
 
   // Health score
   const healthScore = Math.max(0, 100 - outOfStockCount * 15 - lowStockCount * 5);
-  const healthColor = healthScore > 75 ? '#12B981' : healthScore > 50 ? '#F59E0B' : '#EF4444';
+  const healthColor = healthScore > 75 ? '#50C878' : healthScore > 50 ? '#B45309' : '#DC2626';
   const healthLabel = healthScore > 75 ? 'Bon' : healthScore > 50 ? 'Mwayen' : 'Kritik';
   const healthMsg = healthScore > 75
     ? 'Envantè ou an bon sante. Kontinye monitore stock yo.'
@@ -305,19 +300,24 @@ export function InventoryClient({
     ? `${lowStockCount} pwodui fèb. Konsidere rekòmande yo.`
     : `Atansyon! ${outOfStockCount} pwodui épuisé ak ${lowStockCount} ki fèb. Aksyon ijan nesesè.`;
 
-  // Chart data
-  const topByQty = topSold.map(p => ({ name: p.name, qty: p.qty }));
+  // Données des graphiques — six barres au plus : au-delà, les libellés se
+  // chevauchent sur un écran de téléphone et le graphique redevient une image.
+  const shortLabel = (name: string) => (name.length > 8 ? name.slice(0, 8) + '…' : name);
 
-  const topByValue = [...inventory]
+  const topByQty: BarPoint[] = topSold
+    .slice(0, 6)
+    .map(p => ({ label: shortLabel(p.name), value: p.qty }));
+
+  const topByValue: BarPoint[] = [...inventory]
     .sort((a, b) => b.purchase_price * b.stock_quantity - a.purchase_price * a.stock_quantity)
-    .slice(0, 8)
-    .map(p => ({ name: p.name.length > 12 ? p.name.slice(0, 12) + 'â€¦' : p.name, val: p.purchase_price * p.stock_quantity }));
+    .slice(0, 6)
+    .map(p => ({ label: shortLabel(p.name), value: p.purchase_price * p.stock_quantity }));
 
   const kpis = [
-    { label: 'Total Pwodui', value: totalProducts.toString(), icon: Package, color: '#12B981', bg: '#ECFDF5' },
-    { label: 'Valè Stock', value: fmtHTG(totalValue), icon: Warehouse, color: '#3B82F6', bg: '#EFF6FF' },
-    { label: 'Stock Fèb', value: lowStockCount.toString(), icon: TrendingDown, color: '#F59E0B', bg: '#FFFBEB' },
-    { label: 'Epuize', value: outOfStockCount.toString(), icon: AlertTriangle, color: '#EF4444', bg: '#FEF2F2' },
+    { label: 'Total Pwodui', value: totalProducts.toString(), icon: Package, color: '#50C878', bg: '#EAF7EF' },
+    { label: 'Valè Stock', value: fmtHTG(totalValue), icon: Warehouse, color: '#1D4ED8', bg: '#EAF0FD' },
+    { label: 'Stock Fèb', value: lowStockCount.toString(), icon: TrendingDown, color: '#B45309', bg: '#FDF3E4' },
+    { label: 'Epuize', value: outOfStockCount.toString(), icon: AlertTriangle, color: '#DC2626', bg: '#FDECEC' },
   ];
 
   return (
@@ -460,50 +460,29 @@ export function InventoryClient({
                   {/* Top by sales qty */}
                   <div className="rounded-2xl bg-white border border-slate-200 p-5">
                       <h3 className="text-sm font-semibold text-slate-800 mb-1 flex items-center gap-2">
-                      <BarChart3 size={16} className="text-[#001F3F]" />
+                      <BarChart3 size={16} className="text-primary" />
                       Top Pwodui — Pi Plis Vann
                     </h3>
-                    <p className="text-xs text-slate-400 mb-4">Pa kantite inite vann (tout tan)</p>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={topByQty.length ? topByQty : [{ name: 'Okenn done', qty: 0 }]} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 12 }}
-                          formatter={(v: any) => [`${v} inite`, 'Vann']}
-                        />
-                        <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
-                          {topByQty.map((_, idx) => (
-                            <Cell key={idx} fill={idx === 0 ? '#12B981' : '#A7F3D0'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <p className="text-note text-muted mb-4">Pa kantite inite vann (tout tan)</p>
+                    {topByQty.length > 0 ? (
+                      // Le produit de tête porte l'accent ; les autres restent gris.
+                      <PeriodBars data={topByQty} currency="inite" currentIndex={0} height={176} />
+                    ) : (
+                      <p className="py-8 text-center text-body text-muted">Okenn vant anrejistre pou kounye a.</p>
+                    )}
                   </div>
 
                   {/* Top by value */}
                   <div className="rounded-2xl bg-white border border-slate-200 p-5">
                       <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                      <TrendingUp size={16} className="text-[#3B82F6]" />
+                      <TrendingUp size={16} className="text-primary" />
                       Top Pwodui pa Valè
                     </h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={topByValue} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + 'k'} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', fontSize: 12 }}
-                          formatter={(v: any) => [fmtHTG(v), 'Valè']}
-                        />
-                        <Bar dataKey="val" radius={[6, 6, 0, 0]}>
-                          {topByValue.map((_, idx) => (
-                            <Cell key={idx} fill={idx === 0 ? '#3B82F6' : '#BFDBFE'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {topByValue.length > 0 ? (
+                      <PeriodBars data={topByValue} currency="HTG" currentIndex={0} height={176} />
+                    ) : (
+                      <p className="py-8 text-center text-body text-muted">Okenn pwodui an stock pou kounye a.</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -533,7 +512,7 @@ export function InventoryClient({
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E2E8F0]">
+                      <tbody className="divide-y divide-border">
                         {inventory.map((p, i) => {
                           const sl = stockStatus(p);
                           const val = p.purchase_price * p.stock_quantity;
@@ -661,9 +640,9 @@ export function InventoryClient({
 }
 
 function stockStatus(p: InventoryProduct): { label: string; color: string; bg: string } {
-  if (p.stock_quantity === 0) return { label: 'Épuisé', color: '#EF4444', bg: '#FEF2F2' };
-  if (p.alert_active || p.stock_quantity <= 5) return { label: 'Fèb', color: '#F59E0B', bg: '#FFFBEB' };
-  return { label: 'Bon', color: '#12B981', bg: '#ECFDF5' };
+  if (p.stock_quantity === 0) return { label: 'Épuisé', color: '#DC2626', bg: '#FDECEC' };
+  if (p.alert_active || p.stock_quantity <= 5) return { label: 'Fèb', color: '#B45309', bg: '#FDF3E4' };
+  return { label: 'Bon', color: '#50C878', bg: '#EAF7EF' };
 }
 
 // InventoryClient is the named export used by page.tsx

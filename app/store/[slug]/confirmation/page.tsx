@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { getOrderByNumber } from '../../../actions/store-public';
+import { Package } from 'lucide-react';
 
 function fmt(n: number) { return new Intl.NumberFormat('fr-HT').format(n) + ' HTG'; }
 
@@ -42,10 +43,10 @@ function ConfirmationInner() {
         </svg>
       </div>
 
-      <h1 className="text-3xl font-extrabold text-slate-800">Commande confirmée ! 🎉</h1>
+      <h1 className="text-3xl font-extrabold text-slate-800">Commande confirmée</h1>
       {paid ? (
         <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-800">
-          ✅ Paiement reçu et vérifié
+          Paiement reçu et vérifié
         </div>
       ) : (
         <p className="mt-3 text-slate-500">
@@ -67,7 +68,7 @@ function ConfirmationInner() {
                 <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
                   {item.product_image
                     ? <img src={item.product_image} alt={item.product_name} className="h-full w-full object-cover" />
-                    : <div className="flex h-full items-center justify-center text-xl">📦</div>}
+                    : <div className="flex h-full items-center justify-center text-slate-300"><Package className="h-5 w-5" strokeWidth={1.5} aria-hidden /></div>}
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-slate-800">{item.product_name}</p>

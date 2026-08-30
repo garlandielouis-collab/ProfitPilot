@@ -5,13 +5,25 @@
 //
 // Un objectif, une barre de progression, un rythme quotidien à tenir.
 // Le réalisé vient des ventes déjà enregistrées : rien à ressaisir.
+//
+// Passage au système (§4.3, §4.4, §3.2) : les couleurs en dur (#50C878,
+// #001F3F, #3daa62) laissent place aux tokens, les quatre tailles de texte aux
+// quatre rôles, et la carte prend l'ombre unique. La barre de progression garde
+// UNE couleur : le vert de la marque quand la trajectoire tient, l'ambre quand
+// le rythme faiblit, le rouge quand il ne suffira pas — trois états, trois
+// significations, aucune décoration (§4.2).
+//
+// Et quand l'objectif tombe, le moment 5 se déclenche : le seul plein écran de
+// célébration de l'application, une fois par mois au maximum (§7).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Target } from 'lucide-react';
+import { Target } from 'lucide-react';
 import { toast } from 'sonner';
 import { getGoalProgress, upsertGoal, type GoalProgress } from '../../app/actions/goals';
 import { GOAL_LABELS, type GoalMetric } from '../../lib/goals';
+import { Button, Card } from '../ds';
+import { GoalReached, alreadyCelebrated } from './GoalReached';
 
 const fmt = (n: number, currency: string, metric: GoalMetric): string =>
   metric === 'customers' || metric === 'sales_count'
@@ -37,6 +49,7 @@ export function MonthlyGoalCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState('');
   const [saving, setSaving]   = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +66,13 @@ export function MonthlyGoalCard({
     if (initial !== undefined) return;
     void load();
   }, [load, initial]);
+
+  // Moment 5 — un objectif tenu se fête une fois, puis plus jamais ce mois-ci.
+  useEffect(() => {
+    if (!goal || goal.progressPercent < 100) return;
+    if (alreadyCelebrated(goal.metric)) return;
+    setCelebrating(true);
+  }, [goal]);
 
   async function save() {
     const target = Number(draft);
@@ -75,24 +95,24 @@ export function MonthlyGoalCard({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-10 dark:border-slate-800 dark:bg-slate-950">
-        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-      </div>
+      <Card className="p-4">
+        <span className="pp-skeleton block h-24 rounded-control" aria-hidden />
+      </Card>
     );
   }
 
   // ── Aucun objectif fixé : invitation directe ──────────────────────────────
   if (!goal || editing) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-950">
+      <Card className="p-4">
         <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-[#50C878]" />
-          <h3 className="text-sm font-bold text-[#001F3F] dark:text-slate-100">
+          <Target className="h-4 w-4 flex-shrink-0 text-muted" aria-hidden />
+          <h3 className="text-card font-bold text-primary dark:text-dark-text">
             Objectif du mois — {GOAL_LABELS[metric]}
           </h3>
         </div>
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-4 flex gap-2">
           <input
             type="number"
             inputMode="decimal"
@@ -100,85 +120,89 @@ export function MonthlyGoalCard({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={goal ? String(goal.targetValue) : 'Ex. 150000'}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none transition
-                       focus:border-[#50C878] focus:ring-2 focus:ring-[#50C878]/20
-                       dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            aria-label={`Objectif du mois — ${GOAL_LABELS[metric]}`}
+            className="amount min-h-touch min-w-0 flex-1 rounded-surface border border-border bg-white px-4 text-body font-bold text-primary outline-none transition-colors duration-press focus:border-accent dark:border-dark-border dark:bg-dark-surface2 dark:text-dark-text"
           />
-          <button
-            type="button"
-            disabled={saving}
-            onClick={save}
-            className="rounded-xl bg-[#50C878] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#3daa62] active:scale-95 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fixer'}
-          </button>
+          {/* L'unique appel à l'action de la carte : les 10 % tombent ici. */}
+          <Button variant="accent" size="sm" loading={saving} loadingLabel="…" onClick={save}>
+            Fixer
+          </Button>
         </div>
 
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-note text-muted dark:text-dark-muted">
           Un objectif chiffré transforme « je veux grandir » en progression mesurable.
         </p>
-      </div>
+      </Card>
     );
   }
 
   // ── Objectif en cours ─────────────────────────────────────────────────────
   const progress = Math.min(goal.progressPercent, 100);
-  const barColor = goal.onTrack ? 'bg-[#50C878]' : progress >= 50 ? 'bg-amber-500' : 'bg-red-500';
+  const barColor = goal.onTrack ? 'bg-accent' : progress >= 50 ? 'bg-warning' : 'bg-danger';
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-[#50C878]" />
-            <h3 className="text-sm font-bold text-[#001F3F] dark:text-slate-100">
-              Objectif — {GOAL_LABELS[goal.metric]}
-            </h3>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">
-            {fmt(goal.actualValue, goal.currency, goal.metric)} sur{' '}
-            {fmt(goal.targetValue, goal.currency, goal.metric)}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => { setDraft(String(goal.targetValue)); setEditing(true); }}
-          className="text-xs font-semibold text-slate-400 hover:text-slate-600"
-        >
-          Modifier
-        </button>
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-baseline justify-between">
-          <span className="text-2xl font-black tabular-nums text-[#001F3F] dark:text-slate-100">
-            {goal.progressPercent}%
-          </span>
-          <span
-            className={`text-xs font-bold ${
-              goal.onTrack ? 'text-[#50C878]' : 'text-amber-600 dark:text-amber-400'
-            }`}
-          >
-            {goal.onTrack ? 'Sur la bonne trajectoire' : 'Rythme à accélérer'}
-          </span>
-        </div>
-
-        <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {goal.daysLeft > 0 && goal.progressPercent < 100 && (
-        <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-400">
-          Il reste <strong>{goal.daysLeft} jour{goal.daysLeft > 1 ? 's' : ''}</strong> — il faut
-          environ <strong>{fmt(goal.dailyPaceNeeded, goal.currency, goal.metric)}</strong> par jour
-          pour y arriver.
-        </p>
+    <>
+      {celebrating && (
+        <GoalReached
+          metric={goal.metric}
+          label={`Objectif du mois — ${GOAL_LABELS[goal.metric]}`}
+          value={fmt(goal.actualValue, goal.currency, goal.metric)}
+          onClose={() => setCelebrating(false)}
+        />
       )}
-    </div>
+
+      <Card className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 flex-shrink-0 text-muted" aria-hidden />
+              <h3 className="truncate text-card font-bold text-primary dark:text-dark-text">
+                Objectif — {GOAL_LABELS[goal.metric]}
+              </h3>
+            </div>
+            <p className="mt-1 text-note text-muted dark:text-dark-muted">
+              {fmt(goal.actualValue, goal.currency, goal.metric)} sur{' '}
+              {fmt(goal.targetValue, goal.currency, goal.metric)}
+            </p>
+          </div>
+
+          {/* Le second appel à l'action est un lien, jamais un bouton (§4.5). */}
+          <button
+            type="button"
+            onClick={() => { setDraft(String(goal.targetValue)); setEditing(true); }}
+            className="pressable min-h-touch flex-shrink-0 text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
+          >
+            Modifier
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="amount text-amount font-bold text-primary dark:text-dark-text">
+              {goal.progressPercent} %
+            </span>
+            <span className={`text-note font-bold ${goal.onTrack ? 'text-success' : 'text-warning'}`}>
+              {goal.onTrack ? 'Sur la bonne trajectoire' : 'Rythme à accélérer'}
+            </span>
+          </div>
+
+          <span className="mt-2 block h-2 overflow-hidden rounded-pill bg-surface2 dark:bg-dark-surface2">
+            <span
+              className={`block h-full rounded-pill transition-[width] duration-moment ease-pp ${barColor}`}
+              style={{ width: `${progress}%` }}
+            />
+          </span>
+        </div>
+
+        {goal.daysLeft > 0 && goal.progressPercent < 100 && (
+          <p className="mt-4 text-note text-text2 dark:text-dark-text2">
+            Il reste <strong className="font-bold text-primary dark:text-dark-text">{goal.daysLeft} jour{goal.daysLeft > 1 ? 's' : ''}</strong> — il faut environ{' '}
+            <strong className="amount font-bold text-primary dark:text-dark-text">
+              {fmt(goal.dailyPaceNeeded, goal.currency, goal.metric)}
+            </strong> par jour pour y arriver.
+          </p>
+        )}
+      </Card>
+    </>
   );
 }

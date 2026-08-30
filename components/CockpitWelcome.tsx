@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from './LanguageWrapper';
 import { useRouter } from 'next/navigation';
+import {
+  AlertTriangle, Package, TrendingDown, TrendingUp, Users, Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────
 // Types
@@ -58,8 +62,8 @@ function AILine({ text, delay = 0, speed = 18, className = '' }: {
 // Insight card
 // ─────────────────────────────────────────────────────────
 
-function InsightCard({ icon, stat, label, detail, color, delay }: {
-  icon: string; stat: string; label: string; detail: string;
+function InsightCard({ icon: Icon, stat, label, detail, color, delay }: {
+  icon: LucideIcon; stat: string; label: string; detail: string;
   color: 'emerald' | 'amber' | 'blue' | 'rose';
   delay: number;
 }) {
@@ -84,10 +88,10 @@ function InsightCard({ icon, stat, label, detail, color, delay }: {
       transition={{ delay, type: 'spring', stiffness: 200, damping: 22 }}
       className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${bg} p-4 backdrop-blur-sm`}
     >
-      <span className="mb-2 block text-xl">{icon}</span>
+      <Icon className="mb-2 h-5 w-5" strokeWidth={1.8} aria-hidden />
       <p className={`text-2xl font-bold tabular-nums ${tc}`}>{stat}</p>
       <p className="mt-0.5 text-xs font-semibold text-white/70">{label}</p>
-      <p className="mt-1.5 text-[10px] text-white/40 leading-relaxed">{detail}</p>
+      <p className="mt-1.5 text-note text-white/40 leading-relaxed">{detail}</p>
     </motion.div>
   );
 }
@@ -101,10 +105,16 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
   const [phase, setPhase] = useState<Phase>('overlay');
   const { t } = useLanguage();
 
+  // Ce message d'accueil promettait « un aperçu de vos performances simulées »,
+  // puis affichait 1 285 400 G de chiffre d'affaires, cinq clients VIP et un
+  // « Parfum Prestige » qui pesait 42 % de la marge — à quelqu'un dont le compte
+  // était vide depuis trente secondes (audit §1.1). Le mot « simulé » ne sauve
+  // rien : ce sont les chiffres qui restent en mémoire, pas l'avertissement.
+  // Le cockpit annonce désormais ce qu'il va suivre, et rien de plus.
   const MESSAGES = [
     { text: `${t({ fr: 'Cockpit de', ht: 'Cockpit' })} ${companyName} ${t({ fr: 'activé.', ht: 'aktive.' })}`, delay: 0 },
-    { text: t({ fr: "J'ai analysé votre secteur et configuré votre tableau de bord.", ht: "Mwen analize sektè ou e konfigire tablo debò ou." }), delay: 2200 },
-    { text: t({ fr: "Voici un aperçu de vos performances simulées pour ce mois.", ht: "Men yon aperçu simulation pèfòmans ou yo pou mwa sa a." }), delay: 4000 },
+    { text: t({ fr: "Votre tableau de bord est prêt : il est vide, et il le restera jusqu'à votre première vente.", ht: "Tablo debò ou pare : li vid, e l ap rete konsa jiskaske ou fè premye vant ou." }), delay: 2200 },
+    { text: t({ fr: "Voici les quatre choses que je surveillerai pour vous.", ht: "Men kat bagay m ap veye pou ou." }), delay: 4000 },
   ];
 
   useEffect(() => {
@@ -140,7 +150,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ type: 'spring', stiffness: 200, damping: 22 }}
-            className="w-full max-w-md rounded-3xl border border-white/10 bg-[#080f1a] p-7 shadow-2xl"
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-anthracite p-7 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Pilot AI header */}
@@ -165,7 +175,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
                     animate={{ opacity: [1, 0.4, 1] }}
                     transition={{ duration: 1.2, repeat: Infinity }}
                   />
-                  <span className="text-[10px] text-emerald-400">{t({ fr: 'En ligne · Analyse terminée', ht: 'An liy · Analiz fini' })}</span>
+                  <span className="text-note text-emerald-400">{t({ fr: 'En ligne · Analyse terminée', ht: 'An liy · Analiz fini' })}</span>
                 </div>
               </div>
             </div>
@@ -195,19 +205,19 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               transition={{ delay: 4.5 }}
               className="space-y-2"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">{t({ fr: 'Aperçu rapide', ht: 'Aperçu rapid' })}</p>
+              <p className="text-note font-semibold uppercase tracking-widest text-slate-600">{t({ fr: 'Ce que je surveille', ht: 'Sa m ap veye' })}</p>
               <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2.5">
-                <span className="text-base">📈</span>
+                <TrendingUp className="h-4 w-4" strokeWidth={1.8} aria-hidden />
                 <div>
-                  <p className="text-xs font-semibold text-emerald-400">{t({ fr: '+14.6% de croissance', ht: '+14.6% kwasans' })}</p>
-                  <p className="text-[10px] text-slate-500">{t({ fr: 'vs mois précédent · données de démo', ht: 'vs mwa anvan · done demo' })}</p>
+                  <p className="text-xs font-semibold text-emerald-400">{t({ fr: 'Votre marge, mois après mois', ht: 'Mòj ou, mwa apre mwa' })}</p>
+                  <p className="text-note text-slate-500">{t({ fr: 'Vendre plus et gagner moins, ça se voit ici', ht: 'Vann plis epi genyen mwens, sa parèt isit la' })}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2.5">
-                <span className="text-base">⚠️</span>
+                <AlertTriangle className="h-4 w-4" strokeWidth={1.8} aria-hidden />
                 <div>
-                  <p className="text-xs font-semibold text-amber-400">{t({ fr: '3 produits en rupture prévue', ht: '3 pwodwi an rupture prevwa' })}</p>
-                  <p className="text-[10px] text-slate-500">{t({ fr: "Stock insuffisant d'ici 5 jours", ht: 'Stock ensifizan nan 5 jou' })}</p>
+                  <p className="text-xs font-semibold text-amber-400">{t({ fr: 'Vos ruptures de stock', ht: 'Stock ou ki fini' })}</p>
+                  <p className="text-note text-slate-500">{t({ fr: "Je préviens avant que l'étagère ne soit vide", ht: 'M ap avèti w anvan etajè a vid' })}</p>
                 </div>
               </div>
             </motion.div>
@@ -220,7 +230,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               onClick={handleDismiss}
               className="mt-5 w-full rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
             >
-              {t({ fr: 'Explorer mon Cockpit →', ht: 'Eksplore Cockpit mwen →' })}
+              {t({ fr: 'Voir mon commerce', ht: 'Gade komès mwen' })}
             </motion.button>
           </motion.div>
         )}
@@ -230,13 +240,13 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
             initial={{ opacity: 0, y: 40, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ type: 'spring', stiffness: 180, damping: 22 }}
-            className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#080f1a] p-7 shadow-2xl"
+            className="w-full max-w-lg rounded-3xl border border-white/10 bg-anthracite p-7 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-6 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <p className="text-sm font-semibold text-white">{t({ fr: 'Pilot AI — Premier Insight', ht: 'Pilot AI — Premye Insight' })}</p>
+                <p className="text-sm font-semibold text-white">{t({ fr: 'Pilot AI — Ce que je vais suivre', ht: 'Pilot AI — Sa m ap swiv' })}</p>
               </div>
               <button
                 onClick={handleDismiss}
@@ -248,48 +258,52 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               </button>
             </div>
 
-            {/* AI question */}
+            {/* Ce que Pilot AI fera — au futur, parce que c'est le temps juste. */}
             <div className="mb-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-4">
               <p className="text-sm text-emerald-300 font-medium leading-relaxed">
                 <AILine
-                  text={`Votre produit "Parfum Prestige" génère 42% de votre marge brute. Voulez-vous voir comment optimiser votre stock ?`}
+                  text={t({
+                    fr: "Dès que vous aurez enregistré quelques ventes, je vous dirai quel produit fait vraiment votre marge — et lequel vous coûte de l'argent sans que ça se voie.",
+                    ht: "Depi ou fin anrejistre kèk vant, m ap di w ki pwodui ki fè mòj ou vre — e kilès k ap koute w lajan san ou pa wè l.",
+                  })}
                   delay={300}
                   speed={16}
                 />
               </p>
             </div>
 
-            {/* Metrics */}
+            {/* Les quatre veilles. Un rôle, pas un chiffre : le premier chiffre
+                affiché ici sera le premier chiffre réel du marchand. */}
             <div className="grid grid-cols-2 gap-3">
               <InsightCard
-                icon="💰"
-                stat="1,285,400 G"
-                label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })}
-                detail={t({ fr: 'Exercice en cours · +14.6% vs N-1', ht: 'Egzèsis an kou · +14.6% vs N-1' })}
+                icon={Wallet}
+                stat={t({ fr: 'La marge', ht: 'Mòj la' })}
+                label={t({ fr: 'Ce qui vous reste', ht: 'Sa ki rete pou ou' })}
+                detail={t({ fr: 'Le chiffre d\'affaires ment, la marge non', ht: 'Chif afè ka bay manti, mòj la non' })}
                 color="emerald"
                 delay={0.4}
               />
               <InsightCard
-                icon="📦"
-                stat="3 produits"
-                label={t({ fr: 'Rupture imminente', ht: 'Rupt iminan' })}
-                detail={t({ fr: 'Stock insuffisant d\'ici 5 jours', ht: 'Stock ensifizan nan 5 jou' })}
+                icon={Package}
+                stat={t({ fr: 'Le stock', ht: 'Stock la' })}
+                label={t({ fr: 'Avant la rupture', ht: 'Anvan l fini' })}
+                detail={t({ fr: 'Une alerte quand un produit va manquer', ht: 'Yon alèt lè yon pwodui pral manke' })}
                 color="amber"
                 delay={0.55}
               />
               <InsightCard
-                icon="👥"
-                stat="5 clients VIP"
-                label={t({ fr: 'Clientèle fidèle', ht: 'Kliyan fidèl' })}
-                detail={t({ fr: ">50,000 HTG d'achats totaux", ht: '>50,000 HTG acha total' })}
+                icon={Users}
+                stat={t({ fr: 'Vos clients', ht: 'Kliyan ou yo' })}
+                label={t({ fr: 'Ceux qui font vivre', ht: 'Sa ki fè w viv yo' })}
+                detail={t({ fr: 'Qui achète le plus, qui ne revient plus', ht: 'Kiyès ki achte plis, kiyès ki pa tounen' })}
                 color="blue"
                 delay={0.7}
               />
               <InsightCard
-                icon="📉"
-                stat="87,500 G"
-                label={t({ fr: 'Dettes clients', ht: 'Dèt kliyan' })}
-                detail={t({ fr: 'À recouvrer ce mois', ht: 'Pou rekipere mwa sa a' })}
+                icon={TrendingDown}
+                stat={t({ fr: 'Le crédit', ht: 'Kredi a' })}
+                label={t({ fr: 'Qui vous doit', ht: 'Kiyès ki dwe w' })}
+                detail={t({ fr: 'Combien, depuis quand, et à qui le rappeler', ht: 'Konbyen, depi kilè, e kiyès pou raple' })}
                 color="rose"
                 delay={0.85}
               />
@@ -306,7 +320,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
                 onClick={handleDismiss}
                 className="flex-1 rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
               >
-                {t({ fr: 'Voir mon Dashboard', ht: 'Wè Dashboard mwen' })}
+                {t({ fr: 'Voir mon commerce', ht: 'Gade komès mwen' })}
               </button>
               <button
                 onClick={() => { handleDismiss(); }}

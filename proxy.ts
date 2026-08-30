@@ -11,6 +11,10 @@ const publicRoutes = [
   '/auth/login',
   '/auth/register',
   '/auth/callback',
+  // Sans ces deux-là, le lien « Mot de passe oublié » renverrait vers l'écran
+  // de connexion : le chemin de récupération serait une impasse (§3.1).
+  '/auth/forgot-password',
+  '/auth/reset-password',
   '/auth/accept-invitation',
   '/api/invitations',
   '/store',

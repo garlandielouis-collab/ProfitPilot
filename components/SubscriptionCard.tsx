@@ -18,7 +18,7 @@ type SubscriptionCardProps = {
 export function SubscriptionCard({ plan, selected, onSelect }: SubscriptionCardProps) {
   const { t } = useLanguage();
   return (
-    <div className={`rounded-[28px] border p-6 shadow-sm transition ${selected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
+    <div className={`rounded-surface border p-6 shadow-sm transition ${selected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-primary/90">{plan.key}</p>
@@ -41,7 +41,7 @@ export function SubscriptionCard({ plan, selected, onSelect }: SubscriptionCardP
         ))}
       </div>
 
-      <Button type="button" onClick={() => onSelect(plan.key)} className="mt-6 w-full bg-primary text-white hover:bg-[#004799]">
+      <Button type="button" onClick={() => onSelect(plan.key)} className="mt-6 w-full bg-primary text-white hover:bg-primary-h">
         {selected ? t({ fr: 'Plan choisi', ht: 'Plan chwazi' }) : t({ fr: 'Sélectionner', ht: 'Seleksyone' })}
       </Button>
     </div>

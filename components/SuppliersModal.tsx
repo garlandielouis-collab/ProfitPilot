@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from './Button';
 import { useLanguage } from './LanguageWrapper';
+import { Mail, MapPin, Smartphone, X } from 'lucide-react';
 
 type Supplier = {
   id: string;
@@ -63,7 +64,7 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white shadow-lg">
+      <div className="w-full max-w-2xl rounded-surface border border-slate-200 bg-white shadow-lg">
         {/* Header */}
         <div className="border-b border-slate-200 px-6 py-4 sm:px-8">
           <div className="flex items-center justify-between">
@@ -79,7 +80,7 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
               onClick={onClose}
               className="text-2xl text-anthracite/60 hover:text-anthracite"
             >
-              ✕
+              <X className="h-4 w-4" strokeWidth={2} aria-hidden />
             </button>
           </div>
         </div>
@@ -88,7 +89,7 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
         <div className="max-h-[60vh] overflow-y-auto px-6 py-6 sm:px-8">
           {/* Form */}
           {showForm && (
-            <div className="mb-6 rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-6 rounded-surface border border-slate-200 bg-slate-50 p-4">
               <h3 className="mb-4 font-semibold text-anthracite">
                 {t({ fr: 'Ajouter un fournisseur', ht: 'Ajoute yon founise' })}
               </h3>
@@ -145,7 +146,7 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
                     onClick={handleAddSupplier}
                     className="flex-1 bg-primary text-white hover:bg-primary/90"
                   >
-                    {t({ fr: 'Ajouter', ht: 'Ajoute' })}
+                    {t({ fr: 'Ajouter le fournisseur', ht: 'Ajoute founisè a' })}
                   </Button>
                   <Button
                     type="button"
@@ -164,7 +165,7 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
 
           {/* Suppliers List */}
           {suppliers.length === 0 && !showForm ? (
-            <div className="rounded-[28px] border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-anthracite/80">
+            <div className="rounded-surface border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-anthracite/80">
               {t({ fr: 'Aucun fournisseur enregistré. Cliquez sur le bouton pour en ajouter.', ht: 'Pa gen okenn founise anrejistre.' })}
             </div>
           ) : (
@@ -177,17 +178,17 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
                       <div className="mt-2 space-y-1 text-sm text-anthracite/70">
                         {supplier.email && (
                           <p>
-                            📧 <span className="font-medium">{supplier.email}</span>
+                            <Mail className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={1.8} aria-hidden /> <span className="font-medium">{supplier.email}</span>
                           </p>
                         )}
                         {supplier.phone && (
                           <p>
-                            📱 <span className="font-medium">{supplier.phone}</span>
+                            <Smartphone className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={1.8} aria-hidden /> <span className="font-medium">{supplier.phone}</span>
                           </p>
                         )}
                         {supplier.address && (
                           <p>
-                            📍 <span className="font-medium">{supplier.address}</span>
+                            <MapPin className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={1.8} aria-hidden /> <span className="font-medium">{supplier.address}</span>
                           </p>
                         )}
                       </div>
@@ -196,7 +197,7 @@ export function SuppliersModal({ open, onClose }: SuppliersModalProps) {
                       onClick={() => handleDelete(supplier.id)}
                       className="text-lg text-danger hover:opacity-80"
                     >
-                      ✕
+                      <X className="h-4 w-4" strokeWidth={2} aria-hidden />
                     </button>
                   </div>
                 </div>

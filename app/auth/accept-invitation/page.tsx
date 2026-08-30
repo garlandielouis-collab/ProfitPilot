@@ -122,7 +122,7 @@ function AcceptInvitationInner() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#001F3F]/40 focus:ring-2 focus:ring-[#001F3F]/10';
+  const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary/40 focus:ring-2 focus:ring-primary/10';
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50/30 px-4 py-12">
@@ -132,7 +132,7 @@ function AcceptInvitationInner() {
         <div className="mb-8 flex flex-col items-center gap-3">
           <Logo size="h-14 w-14" />
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-[#001F3F]">ProfitPilot</h1>
+            <h1 className="text-2xl font-bold text-primary">ProfitPilot</h1>
             <p className="mt-1 text-sm text-slate-500">Invitation d&apos;équipe</p>
           </div>
         </div>
@@ -157,7 +157,7 @@ function AcceptInvitationInner() {
               <h2 className="text-lg font-bold text-slate-800">Invitation invalide</h2>
               <p className="mt-2 text-sm text-slate-500">{state.message}</p>
             </div>
-            <a href="/auth/login" className="inline-block rounded-xl bg-[#001F3F] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B]">
+            <a href="/auth/login" className="inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h">
               Se connecter
             </a>
           </div>
@@ -170,20 +170,20 @@ function AcceptInvitationInner() {
             {/* Invitation header */}
             <div className="mb-6 rounded-2xl bg-blue-50 border border-blue-100 px-5 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#001F3F]">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary">
                   <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-widest text-blue-500">Invitation reçue</p>
-                  <p className="text-sm font-bold text-[#001F3F]">{state.companyName}</p>
+                  <p className="text-sm font-bold text-primary">{state.companyName}</p>
                   <p className="text-xs text-slate-500">{state.email}</p>
                 </div>
               </div>
             </div>
 
-            <h2 className="mb-1 text-xl font-bold text-[#001F3F]">Choisissez votre mot de passe</h2>
+            <h2 className="mb-1 text-xl font-bold text-primary">Choisissez votre mot de passe</h2>
             <p className="mb-6 text-sm text-slate-500">
               Créez un mot de passe sécurisé pour votre compte. Minimum 8 caractères.
             </p>
@@ -255,7 +255,7 @@ function AcceptInvitationInner() {
                   <p className="mt-1 text-xs text-red-500">Les mots de passe ne correspondent pas.</p>
                 )}
                 {confirm && password === confirm && confirm.length >= 8 && (
-                  <p className="mt-1 text-xs text-emerald-600">✓ Les mots de passe correspondent.</p>
+                  <p className="mt-1 text-xs text-emerald-600">Les mots de passe correspondent.</p>
                 )}
               </div>
 
@@ -268,7 +268,7 @@ function AcceptInvitationInner() {
               <button
                 type="submit"
                 disabled={submitting || !password || !confirm}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001F3F] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-[#002D5B] disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-sm font-bold text-white transition hover:bg-primary-h disabled:opacity-50"
               >
                 {submitting ? (
                   <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Création du compte…</>
@@ -278,7 +278,7 @@ function AcceptInvitationInner() {
 
             <p className="mt-4 text-center text-xs text-slate-400">
               Déjà un compte ?{' '}
-              <a href="/auth/login" className="text-[#001F3F] font-semibold hover:underline">
+              <a href="/auth/login" className="text-primary font-semibold hover:underline">
                 Se connecter
               </a>
             </p>
@@ -294,9 +294,9 @@ function AcceptInvitationInner() {
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[#001F3F]">Compte créé avec succès ! 🎉</h2>
+              <h2 className="text-xl font-bold text-primary">Compte créé.</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Bienvenue dans <strong className="text-[#001F3F]">{state.companyName}</strong>.<br />
+                Bienvenue dans <strong className="text-primary">{state.companyName}</strong>.<br />
                 Vous allez être redirigé vers le tableau de bord…
               </p>
             </div>
@@ -304,7 +304,7 @@ function AcceptInvitationInner() {
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
               Redirection en cours…
             </div>
-            <a href="/dashboard" className="inline-block rounded-xl bg-[#001F3F] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#002D5B]">
+            <a href="/dashboard" className="inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h">
               Aller au tableau de bord →
             </a>
           </div>

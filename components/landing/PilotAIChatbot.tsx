@@ -204,7 +204,7 @@ export function PilotAIChatbot() {
       <motion.button
         onClick={() => setOpen(v => !v)}
         className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full text-2xl shadow-2xl"
-        style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%)' }}
+        style={{ background: 'linear-gradient(135deg,#1d4ed8 0%,#64748b 100%)' }}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.92 }}
         animate={{
@@ -252,7 +252,7 @@ export function PilotAIChatbot() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
-            className="fixed bottom-24 right-6 z-50 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[24px] shadow-2xl"
+            className="fixed bottom-24 right-6 z-50 w-[340px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-surface shadow-2xl"
             style={{ background: '#0d1526', border: '1px solid rgba(59,130,246,0.22)' }}
           >
             {/* Header */}
@@ -268,7 +268,7 @@ export function PilotAIChatbot() {
                 <p className="text-sm font-semibold text-white">PilotAI</p>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                   <p className="text-[11px] text-emerald-400">{t({ fr: 'En ligne', ht: 'An liy' })}</p>
+                   <p className="text-note text-emerald-400">{t({ fr: 'En ligne', ht: 'An liy' })}</p>
                 </div>
               </div>
             </div>
@@ -284,7 +284,7 @@ export function PilotAIChatbot() {
                       style={{ width: `${Math.min(100, Math.round((buyerStep / 3) * 100))}%` }}
                     />
                   </div>
-                  <div className="mt-1 text-[11px] text-white/80">{t({ fr: 'Progression', ht: 'Pwogresyon' })}: {Math.min(100, Math.round((buyerStep / 3) * 100))}%</div>
+                  <div className="mt-1 text-note text-white/80">{t({ fr: 'Progression', ht: 'Pwogresyon' })}: {Math.min(100, Math.round((buyerStep / 3) * 100))}%</div>
                 </div>
               )}
               {/* Quick choice buttons shown when no flow selected */}
@@ -306,7 +306,7 @@ export function PilotAIChatbot() {
                     className="max-w-[82%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed"
                     style={
                       msg.role === 'user'
-                        ? { background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', color: 'white' }
+                        ? { background: 'linear-gradient(135deg,#1d4ed8,#64748b)', color: 'white' }
                         : {
                             background: 'rgba(255,255,255,0.06)',
                             color: '#cbd5e1',
@@ -357,13 +357,13 @@ export function PilotAIChatbot() {
                   <div className="flex w-full justify-center gap-2">
                     <button
                       onClick={() => handlePageNavigation('/dashboard', 'Dashboard')}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-primary"
                     >
                       {t({ fr: 'Dashboard', ht: 'Dashboard' })}
                     </button>
                     <button
                       onClick={() => handlePageNavigation('/inventory', 'Inventaire')}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-primary"
                     >
                       {t({ fr: 'Inventaire', ht: 'Envantè' })}
                     </button>
@@ -371,19 +371,19 @@ export function PilotAIChatbot() {
                   <div className="flex w-full justify-center gap-2">
                     <button
                       onClick={() => handlePageNavigation('/rapports', 'Analyse')}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-primary"
                     >
                       {t({ fr: 'Analyse', ht: 'Analiz' })}
                     </button>
                     <button
                       onClick={() => handlePageNavigation('/settings', 'Paramètres')}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#001f3f]"
+                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-primary"
                     >
                       {t({ fr: 'Paramètres', ht: 'Paramèt' })}
                     </button>
                   </div>
                   <div className="flex w-full justify-center gap-2">
-                    <Link href="/auth/register" className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#001f3f]">
+                    <Link href="/auth/register" className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary">
                       {t({ fr: 'Créer un compte', ht: 'Kreye yon kont' })}
                     </Link>
                     <button
@@ -401,7 +401,7 @@ export function PilotAIChatbot() {
 
               {showSignupForm && (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-white">
-                  <p className="mb-2 text-[11px] uppercase tracking-[0.3em] text-slate-300">{t({ fr: 'Inscription rapide', ht: 'Enskripsyon rapid' })}</p>
+                  <p className="mb-2 text-note uppercase tracking-[0.3em] text-slate-300">{t({ fr: 'Inscription rapide', ht: 'Enskripsyon rapid' })}</p>
                   <input
                     type="email"
                     value={signupEmail}
@@ -423,7 +423,7 @@ export function PilotAIChatbot() {
                   >
                     {signupLoading ? t({ fr: 'En cours...', ht: 'Ap chaje...' }) : t({ fr: 'S\'inscrire', ht: 'Enskri' })}
                   </button>
-                  {signupStatus && <p className="text-[11px] text-slate-300">{signupStatus}</p>}
+                  {signupStatus && <p className="text-note text-slate-300">{signupStatus}</p>}
                 </div>
               )}
             </div>
@@ -444,7 +444,7 @@ export function PilotAIChatbot() {
                 onClick={send}
                 disabled={!input.trim()}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-90 disabled:opacity-40"
-                style={{ background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)' }}
+                style={{ background: 'linear-gradient(135deg,#1d4ed8,#64748b)' }}
                 aria-label={t({ fr: 'Envoyer', ht: 'Voye' })}
               >
                 <Send size={14} color="white" />

@@ -38,12 +38,12 @@ function generateStoreHTML(settings: any, products: any[]): string {
          </div>` : '';
 
     const stockLine = showStock
-      ? `<p style="font-size:.7rem;font-weight:600;margin-top:4px;color:${p.stock_quantity > 5 ? '#10b981' : p.stock_quantity > 0 ? '#f59e0b' : '#ef4444'};">
+      ? `<p style="font-size:.7rem;font-weight:600;margin-top:4px;color:${p.stock_quantity > 5 ? '#50c878' : p.stock_quantity > 0 ? '#b45309' : '#dc2626'};">
            ${p.stock_quantity > 0 ? p.stock_quantity + ' en stock' : 'Épuisé'}
          </p>` : '';
 
     const discBadge = hasDisc
-      ? `<span style="position:absolute;top:8px;left:8px;background:#ef4444;color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:6px;">-${discPct}%</span>`
+      ? `<span style="position:absolute;top:8px;left:8px;background:#dc2626;color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:6px;">-${discPct}%</span>`
       : '';
 
     const outBadge = outOfStock

@@ -63,7 +63,7 @@ export default function CreditPurchasesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-primary/90">{t({ fr: 'Achats à crédit', ht: 'Acha a kredi' })}</p>
@@ -76,7 +76,7 @@ export default function CreditPurchasesPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="overflow-x-auto rounded-surface border border-slate-200 bg-white p-4 shadow-sm">
         {loading ? (
           <p className="py-10 text-center text-anthracite/70">{t({ fr: 'Chargement des achats à crédit…', ht: 'Chajman acha a kredi…' })}</p>
         ) : credits.length === 0 ? (

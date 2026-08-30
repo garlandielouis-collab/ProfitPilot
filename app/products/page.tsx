@@ -18,6 +18,9 @@ export default async function ProductsPage() {
       .from('businesses')
       .select('exchange_rate')
       .eq('owner_id', user?.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
     if (biz?.exchange_rate) exchangeRate = Number(biz.exchange_rate);
   } catch { /* use default */ }

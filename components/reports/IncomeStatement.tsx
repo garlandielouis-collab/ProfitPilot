@@ -120,7 +120,7 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
 
   return (
     <ReportLayout meta={{ ...meta, reportTitle: t({ fr: 'ÉTAT DES RÉSULTATS', ht: 'KONTE REZILTA' }) }}>
-      <div className="text-[13px]">
+      <div className="text-note">
 
         {/* ── Column headers ── */}
         <ColumnHeaders showPrevious={!!prev} currency={meta.currency ?? 'HTG'} currentYear={meta.currentYear} previousYear={meta.previousYear} />
@@ -129,8 +129,8 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
             I. REVENUS D'EXPLOITATION
         ════════════════════════════════════ */}
         <div className="mt-3">
-          <div className="px-4 py-[5px]">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#12B981]">
+          <div className="px-4 py-1">
+            <span className="text-note font-bold uppercase tracking-[0.14em] text-accent">
               {t({ fr: 'I — Revenus d\'exploitation', ht: 'I — Revni eksplwatasyon' })}
             </span>
           </div>
@@ -152,8 +152,8 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
             II. COÛT DES MARCHANDISES VENDUES
         ════════════════════════════════════ */}
         <div className="mt-2">
-          <div className="px-4 py-[5px]">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#EF4444]">
+          <div className="px-4 py-1">
+            <span className="text-note font-bold uppercase tracking-[0.14em] text-danger">
               {t({ fr: 'II — Coût des marchandises vendues', ht: 'II — Pri machandiz vann' })}
             </span>
           </div>
@@ -184,14 +184,14 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
           />
           {/* Margin % inline note */}
           <div className="flex gap-2 px-4 pb-1">
-            <span className="flex-1 pl-0 text-[11px] text-[#64748B] italic">
+            <span className="flex-1 pl-0 text-note text-muted italic">
               {t({ fr: 'Taux de marge brute', ht: 'To maj brit' })}
             </span>
-            <span className="w-28 text-right text-[11px] font-semibold text-[#12B981]">
+            <span className="w-28 text-right text-note font-semibold text-accent">
               {c.caNet > 0 ? ((c.margeBrute / c.caNet) * 100).toFixed(1) : '0.0'}%
             </span>
             {prev && (
-              <span className="w-28 text-right text-[11px] text-[#94A3B8]">
+              <span className="w-28 text-right text-note text-slate-400">
                 {prev.caNet > 0 ? ((prev.margeBrute / prev.caNet) * 100).toFixed(1) : '0.0'}%
               </span>
             )}
@@ -202,8 +202,8 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
             III. CHARGES D'EXPLOITATION
         ════════════════════════════════════ */}
         <div className="mt-2">
-          <div className="px-4 py-[5px]">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#EF4444]">
+          <div className="px-4 py-1">
+            <span className="text-note font-bold uppercase tracking-[0.14em] text-danger">
               {t({ fr: 'III — Charges d\'exploitation', ht: 'III — Chaj eksplwatasyon' })}
             </span>
           </div>
@@ -242,8 +242,8 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
             IV. PRODUITS & CHARGES FINANCIERS
         ════════════════════════════════════ */}
         <div className="mt-2">
-          <div className="px-4 py-[5px]">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#64748B]">
+          <div className="px-4 py-1">
+            <span className="text-note font-bold uppercase tracking-[0.14em] text-muted">
               {t({ fr: 'IV — Résultat financier', ht: 'IV — Rezilta finansye' })}
             </span>
           </div>
@@ -286,14 +286,14 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
           />
           {/* Net margin % */}
           <div className="flex gap-2 px-4 pt-1 pb-3">
-            <span className="flex-1 text-[11px] text-[#64748B] italic">
+            <span className="flex-1 text-note text-muted italic">
               {t({ fr: 'Marge nette', ht: 'Maj net' })}
             </span>
-            <span className={`w-28 text-right text-[11px] font-bold ${c.margeNetPct >= 0 ? 'text-[#12B981]' : 'text-[#EF4444]'}`}>
+            <span className={`w-28 text-right text-note font-bold ${c.margeNetPct >= 0 ? 'text-accent' : 'text-danger'}`}>
               {c.margeNetPct.toFixed(1)}%
             </span>
             {prev && (
-              <span className="w-28 text-right text-[11px] text-[#94A3B8]">
+              <span className="w-28 text-right text-note text-slate-400">
                 {prev.margeNetPct.toFixed(1)}%
               </span>
             )}
@@ -303,11 +303,11 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
         {/* ════════════════════════════════════
             NOTES BLOCK
         ════════════════════════════════════ */}
-        <div className="mt-4 pt-3 border-t border-[#E2E8F0]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748B] mb-2">
+        <div className="mt-4 pt-3 border-t border-border">
+          <p className="text-note font-semibold uppercase tracking-[0.1em] text-muted mb-2">
             {t({ fr: 'Notes explicatives', ht: 'Nòt eksplikatif' })}
           </p>
-          <p className="text-[10px] text-[#94A3B8] leading-relaxed">
+          <p className="text-note text-slate-400 leading-relaxed">
             {t({ fr: '(1) Inclut les ventes en boutique, WhatsApp et Instagram.&nbsp;&nbsp;(2) Services de livraison et commissions.&nbsp;&nbsp;(3) Revenus divers et produits exceptionnels.&nbsp;&nbsp;Les chiffres entre parenthèses représentent des montants négatifs. Les comparatifs 2024 sont présentés à titre indicatif.', ht: '(1) Enkli vant nan boutik, WhatsApp ak Instagram.&nbsp;&nbsp;(2) Sèvis livrezon ak komisyon.&nbsp;&nbsp;(3) Revni divè ak pwodui eksepsyonèl.&nbsp;&nbsp;Chif ant parantèz yo reprezante montan negatif. Konparatif 2024 yo prezante endikatif.' })}
           </p>
         </div>

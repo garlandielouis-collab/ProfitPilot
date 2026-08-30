@@ -31,7 +31,7 @@ function whatsappLink(invoice: InvoiceData, businessName: string): string {
     `*TOTAL: ${fmtAmt(invoice.total, invoice.currency)}*`,
     `Peman: ${invoice.payment_method}`,
     '',
-    `Mèsi pou w fè konfyans ak ${businessName} 🙏`,
+    `Mèsi pou w fè konfyans ak ${businessName}.`,
   ].filter(l => l !== null);
 
   return `https://api.whatsapp.com/send?text=${encodeURIComponent(lines.join('\n'))}`;
@@ -90,16 +90,16 @@ function InvoiceSkeleton() {
 function InvoicePrintView({ invoice, businessName }: { invoice: InvoiceData; businessName: string }) {
   const { t } = useLanguage();
   return (
-    <div id="pp-invoice-print" className="bg-white text-[#212529]">
+    <div id="pp-invoice-print" className="bg-white text-anthracite">
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#0056b3] tracking-tight">{businessName}</h1>
+          <h1 className="text-2xl font-extrabold text-primary tracking-tight">{businessName}</h1>
           <p className="mt-1 text-xs text-slate-400 uppercase tracking-widest">{t({ fr: 'Facture Officielle', ht: 'Fakti Ofisyèl' })}</p>
         </div>
         <div className="text-right">
           <p className="text-xs text-slate-400 uppercase tracking-wider">{t({ fr: 'Facture N°', ht: 'Fakti #' })}</p>
-          <p className="font-bold text-[#212529] font-mono">{invoice.invoice_number}</p>
+          <p className="font-bold text-anthracite font-mono">{invoice.invoice_number}</p>
           <p className="mt-1 text-xs text-slate-500">{fmtDate(invoice.date)}</p>
         </div>
       </div>
@@ -107,13 +107,13 @@ function InvoicePrintView({ invoice, businessName }: { invoice: InvoiceData; bus
       {/* Client info */}
       <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 mb-6">
         <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">{t({ fr: 'Facturé à', ht: 'Faktire pou' })}</p>
-        <p className="font-semibold text-[#212529] text-lg">{invoice.client_name ?? t({ fr: 'Client Anonyme', ht: 'Kliyan Anonim' })}</p>
+        <p className="font-semibold text-anthracite text-lg">{invoice.client_name ?? t({ fr: 'Client Anonyme', ht: 'Kliyan Anonim' })}</p>
       </div>
 
       {/* Items table */}
       <table className="w-full text-sm mb-6 border-collapse">
         <thead>
-          <tr className="bg-[#0056b3] text-white">
+          <tr className="bg-primary text-white">
             <th className="px-3 py-2.5 text-left font-semibold rounded-tl-lg">{t({ fr: 'Produit', ht: 'Pwodui' })}</th>
             <th className="px-3 py-2.5 text-right font-semibold">{t({ fr: 'Qté', ht: 'Kte' })}</th>
             <th className="px-3 py-2.5 text-right font-semibold">{t({ fr: 'Prix Unitaire', ht: 'Pri Inite' })}</th>
@@ -124,13 +124,13 @@ function InvoicePrintView({ invoice, businessName }: { invoice: InvoiceData; bus
         <tbody>
           {invoice.items.map((item, i) => (
             <tr key={item.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-              <td className="px-3 py-2.5 font-medium text-[#212529] border-b border-slate-100">{item.product_name}</td>
+              <td className="px-3 py-2.5 font-medium text-anthracite border-b border-slate-100">{item.product_name}</td>
               <td className="px-3 py-2.5 text-right text-slate-600 border-b border-slate-100">{item.quantity}</td>
               <td className="px-3 py-2.5 text-right text-slate-600 border-b border-slate-100">{fmtAmt(item.unit_price, invoice.currency)}</td>
               <td className="px-3 py-2.5 text-right text-red-500 border-b border-slate-100">
                 {item.discount_percent > 0 ? `${item.discount_percent}%` : '—'}
               </td>
-              <td className="px-3 py-2.5 text-right font-semibold text-[#212529] border-b border-slate-100">{fmtAmt(item.line_total, invoice.currency)}</td>
+              <td className="px-3 py-2.5 text-right font-semibold text-anthracite border-b border-slate-100">{fmtAmt(item.line_total, invoice.currency)}</td>
             </tr>
           ))}
         </tbody>
@@ -149,16 +149,16 @@ function InvoicePrintView({ invoice, businessName }: { invoice: InvoiceData; bus
               <span>−{fmtAmt(invoice.discount_amount, invoice.currency)}</span>
             </div>
           )}
-          <div className="flex justify-between items-center border-t-2 border-[#0056b3] pt-2">
-            <span className="font-extrabold text-lg text-[#212529]">{t({ fr: 'TOTAL', ht: 'TOTAL' })}</span>
-            <span className="font-extrabold text-2xl text-[#0056b3]">{fmtAmt(invoice.total, invoice.currency)}</span>
+          <div className="flex justify-between items-center border-t-2 border-primary pt-2">
+            <span className="font-extrabold text-lg text-anthracite">{t({ fr: 'TOTAL', ht: 'TOTAL' })}</span>
+            <span className="font-extrabold text-2xl text-primary">{fmtAmt(invoice.total, invoice.currency)}</span>
           </div>
         </div>
       </div>
 
       {/* Payment info */}
       <div className="mt-6 flex gap-4 text-xs text-slate-500">
-        <span>{t({ fr: 'Méthode de paiement:', ht: 'Metòd Peman:' })} <strong className="text-[#212529]">{invoice.payment_method}</strong></span>
+        <span>{t({ fr: 'Méthode de paiement:', ht: 'Metòd Peman:' })} <strong className="text-anthracite">{invoice.payment_method}</strong></span>
         <span>·</span>
         <span>{t({ fr: 'Statut:', ht: 'Estati:' })} <strong className={invoice.payment_status === 'paid' || invoice.payment_status === 'Payé' ? 'text-emerald-600' : 'text-amber-600'}>
           {invoice.payment_status === 'paid' ? t({ fr: 'Payé', ht: 'Peye' }) : invoice.payment_status === 'credit' ? t({ fr: 'À Crédit', ht: 'À Kredi' }) : invoice.payment_status}
@@ -224,7 +224,7 @@ export function InvoiceModal({ invoiceNumber, onClose }: InvoiceModalProps) {
         {/* Modal header */}
         <div className="no-print flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
           <div>
-            <h2 className="font-bold text-[#212529]">{t({ fr: 'Facture Officielle', ht: 'Fakti Ofisyèl' })}</h2>
+            <h2 className="font-bold text-anthracite">{t({ fr: 'Facture Officielle', ht: 'Fakti Ofisyèl' })}</h2>
             {invoice && <p className="text-xs text-slate-400 mt-0.5 font-mono">{invoice.invoice_number}</p>}
           </div>
           <button onClick={onClose}
@@ -248,7 +248,7 @@ export function InvoiceModal({ invoiceNumber, onClose }: InvoiceModalProps) {
             <div className="flex gap-2">
               {/* Print */}
               <button onClick={handlePrint}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0056b3] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0047a1] transition">
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-h transition">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                 </svg>
@@ -266,7 +266,7 @@ export function InvoiceModal({ invoiceNumber, onClose }: InvoiceModalProps) {
 
               {/* Email */}
               <a href={mailtoLink(invoice, businessName)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#212529] hover:bg-slate-50 transition">
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-anthracite hover:bg-slate-50 transition">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                 </svg>

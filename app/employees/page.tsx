@@ -94,13 +94,13 @@ function EmployeesPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#001F3F]">Équipe</h1>
+        <h1 className="text-2xl font-bold text-primary">Équipe</h1>
         <p className="text-sm text-slate-500 mt-1">Gérez les membres de votre boutique et leurs accès.</p>
       </div>
 
       {/* Invite form */}
-      <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm p-6 space-y-4">
-        <h2 className="text-sm font-semibold text-[#001F3F] flex items-center gap-2">
+      <div className="rounded-surface border border-slate-200 bg-white shadow-sm p-6 space-y-4">
+        <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
           <UserPlus className="h-4 w-4" />
           Inviter un employé
         </h2>
@@ -111,12 +111,12 @@ function EmployeesPage() {
             onChange={(e) => setInviteEmail(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
             placeholder="adresse@email.com"
-            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0047AB] transition"
+            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-primary transition"
           />
           <select
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value as EmployeeRole)}
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#0047AB] transition bg-white"
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-primary transition bg-white"
           >
             <option value="cashier">Caissier</option>
             <option value="manager">Gérant</option>
@@ -126,7 +126,7 @@ function EmployeesPage() {
             type="button"
             onClick={handleInvite}
             disabled={isPending || !inviteEmail.trim()}
-            className="flex items-center gap-2 rounded-xl bg-[#0047AB] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#003d96] transition disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-h transition disabled:opacity-50"
           >
             <Mail className="h-4 w-4" />
             Inviter
@@ -138,9 +138,9 @@ function EmployeesPage() {
       </div>
 
       {/* Employee list */}
-      <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-surface border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-[#001F3F] flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
             <Users className="h-4 w-4" />
             Membres ({employees.length})
           </h2>
@@ -148,7 +148,7 @@ function EmployeesPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0047AB] border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : employees.length === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-slate-400">Aucun membre. Invitez votre premier employé ci-dessus.</p>
@@ -163,7 +163,7 @@ function EmployeesPage() {
                     {(emp.full_name ?? emp.email ?? '?').slice(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#001F3F] truncate">{displayName}</p>
+                    <p className="text-sm font-medium text-primary truncate">{displayName}</p>
                     {emp.email && emp.full_name && (
                       <p className="text-xs text-slate-400 truncate">{emp.email}</p>
                     )}
@@ -183,7 +183,7 @@ function EmployeesPage() {
                         value={emp.role}
                         onChange={(e) => handleRoleChange(emp.id, e.target.value as EmployeeRole)}
                         disabled={isPending}
-                        className="rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none bg-white hover:border-[#0047AB] transition"
+                        className="rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none bg-white hover:border-primary transition"
                       >
                         <option value="manager">Gérant</option>
                         <option value="cashier">Caissier</option>

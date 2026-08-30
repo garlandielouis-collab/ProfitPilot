@@ -73,7 +73,7 @@ export function Navbar() {
           >
             PP
           </div>
-          <span className="text-sm font-semibold text-[#001f3f]">ProfitPilot</span>
+          <span className="text-sm font-semibold text-primary">ProfitPilot</span>
         </div>
 
         {/* Desktop links */}
@@ -82,7 +82,7 @@ export function Navbar() {
             <a
               key={lk.href}
               href={lk.href}
-              className="text-sm text-slate-500 transition hover:text-[#001f3f]"
+              className="text-sm text-slate-500 transition hover:text-primary"
             >
               {t(lk.label)}
             </a>
@@ -113,7 +113,7 @@ export function Navbar() {
             <>
               <Link
                 href="/auth/login"
-                className="hidden rounded-xl border border-[#E2E8F0] px-4 py-2 text-sm text-slate-600 transition hover:border-[#001f3f]/20 hover:text-[#001f3f] sm:block"
+                className="hidden rounded-xl border border-border px-4 py-2 text-sm text-slate-600 transition hover:border-primary/20 hover:text-primary sm:block"
               >
                 {t({ fr: 'Se connecter', ht: 'Konekte' })}
               </Link>
@@ -138,7 +138,7 @@ export function Navbar() {
           <button
             onClick={() => setOpen(v => !v)}
             aria-label="Menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-slate-500 transition hover:bg-slate-50 md:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-white text-slate-500 transition hover:bg-slate-50 md:hidden"
           >
             {open ? <X size={18} /> : <Menu size={18} />}
           </button>
@@ -166,7 +166,7 @@ export function Navbar() {
                   key={lk.href}
                   href={lk.href}
                   onClick={() => setOpen(false)}
-                  className="py-2 text-sm text-slate-600 transition hover:text-[#001f3f]"
+                  className="py-2 text-sm text-slate-600 transition hover:text-primary"
                 >
                   {t(lk.label)}
                 </a>

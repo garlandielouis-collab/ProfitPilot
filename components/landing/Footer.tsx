@@ -41,7 +41,7 @@ export function Footer() {
   const inView = useInView(ref, { once: true, margin: '-60px' });
 
   return (
-    <footer className="border-t border-[#E2E8F0] bg-[#001f3f]">
+    <footer className="border-t border-border bg-primary">
       <motion.div
         ref={ref}
         initial={{ opacity: 0, y: 20 }}
@@ -64,7 +64,7 @@ export function Footer() {
                   if (fb) fb.style.display = 'flex';
                 }}
               />
-              <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-[#50c878] text-xs font-bold text-[#001f3f]">
+              <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-accent text-xs font-bold text-primary">
                 PP
               </div>
               <span className="font-bold text-white text-lg">ProfitPilot</span>
@@ -79,7 +79,7 @@ export function Footer() {
 
             {/* Service Client */}
             <div className="mt-6">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-[#50c878]">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-accent">
                 {t({ fr: 'Service Client', ht: 'Sèvis Kliyan' })}
               </p>
               <div className="flex flex-col gap-3">
@@ -87,23 +87,23 @@ export function Footer() {
                   href="https://wa.me/50935045946"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-[#50c878]"
+                  className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-accent"
                 >
-                  <MessageSquare size={14} className="text-[#50c878]" />
+                  <MessageSquare size={14} className="text-accent" />
                   WhatsApp: +509 3504-5946
                 </a>
                 <a
                   href="mailto:garlandielouis178@gmail.com"
-                  className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-[#50c878]"
+                  className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-accent"
                 >
-                  <Mail size={14} className="text-[#50c878]" />
+                  <Mail size={14} className="text-accent" />
                   garlandielouis178@gmail.com
                 </a>
                 <a
                   href="tel:+50935045946"
-                  className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-[#50c878]"
+                  className="inline-flex items-center gap-2 text-sm text-white/70 transition hover:text-accent"
                 >
-                  <Phone size={14} className="text-[#50c878]" />
+                  <Phone size={14} className="text-accent" />
                   +509 3504-5946
                 </a>
               </div>
@@ -113,7 +113,7 @@ export function Footer() {
           {/* Link columns */}
           {COLS.map(col => (
             <div key={col.title.fr}>
-              <p className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-[#50c878]">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-accent">
                 {t(col.title)}
               </p>
               <ul className="space-y-3">
@@ -137,7 +137,7 @@ export function Footer() {
             © {new Date().getFullYear()} ProfitPilot.{' '}
             {t({ fr: 'Tous droits réservés.', ht: 'Tout dwa rezève.' })}
           </p>
-          <p className="text-xs font-semibold text-[#50c878]">
+          <p className="text-xs font-semibold text-accent">
             {t({ fr: 'Fait avec ❤️ pour Haïti', ht: 'Fèt ak ❤️ pou Ayiti' })}
           </p>
         </div>

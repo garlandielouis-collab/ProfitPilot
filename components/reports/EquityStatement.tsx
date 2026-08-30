@@ -140,46 +140,46 @@ interface MRowProps {
 const COL_W = 'min-w-[70px]';
 
 function MatrixRow({ label, data, highlight, bold, isDelta, italic }: MRowProps) {
-  const bg   = highlight === 'green' ? 'bg-[#ECFDF5]' :
-               highlight === 'navy'  ? 'bg-[#0F172A]' :
-               highlight === 'gray'  ? 'bg-[#F8FAFC]' : 'bg-white';
+  const bg   = highlight === 'green' ? 'bg-accent-sub' :
+               highlight === 'navy'  ? 'bg-anthracite' :
+               highlight === 'gray'  ? 'bg-surface' : 'bg-white';
   const tc   = highlight === 'navy' ? 'text-white' :
-               highlight === 'green' ? 'text-[#065F46]' : 'text-[#0F172A]';
-  const nc   = highlight === 'navy' ? 'text-[#6EE7B7]' :
-               highlight === 'green' ? 'text-[#065F46]' : '';
+               highlight === 'green' ? 'text-accent-a' : 'text-anthracite';
+  const nc   = highlight === 'navy' ? 'text-emerald-300' :
+               highlight === 'green' ? 'text-accent-a' : '';
 
   const f = isDelta ? fmtDelta : fmt;
   const totalColor = data.total >= 0
-    ? (highlight === 'navy' ? 'text-[#6EE7B7]' : 'text-[#12B981]')
-    : 'text-[#EF4444]';
+    ? (highlight === 'navy' ? 'text-emerald-300' : 'text-accent')
+    : 'text-danger';
 
   return (
-    <div className={`flex items-center py-[6px] px-2 ${bg} border-b border-[#F1F5F9]`}>
-      <div className={`flex-1 text-[11px] ${bold ? 'font-semibold' : italic ? 'italic' : ''} ${tc} pr-2`}>
+    <div className={`flex items-center py-2 px-2 ${bg} border-b border-surface2`}>
+      <div className={`flex-1 text-note ${bold ? 'font-semibold' : italic ? 'italic' : ''} ${tc} pr-2`}>
         {label}
       </div>
-      <div className={`${COL_W} text-right text-[11px] tabular-nums ${bold ? 'font-semibold' : ''} ${nc || (isDelta && data.capital > 0 ? 'text-[#12B981]' : isDelta && data.capital < 0 ? 'text-[#EF4444]' : tc)}`}>
+      <div className={`${COL_W} text-right text-note tabular-nums ${bold ? 'font-semibold' : ''} ${nc || (isDelta && data.capital > 0 ? 'text-accent' : isDelta && data.capital < 0 ? 'text-danger' : tc)}`}>
         {f(data.capital)}
       </div>
-      <div className={`${COL_W} text-right text-[11px] tabular-nums ${bold ? 'font-semibold' : ''} ${nc || tc}`}>
+      <div className={`${COL_W} text-right text-note tabular-nums ${bold ? 'font-semibold' : ''} ${nc || tc}`}>
         {f(data.apports)}
       </div>
-      <div className={`${COL_W} text-right text-[11px] tabular-nums ${bold ? 'font-semibold' : ''} ${nc || tc}`}>
+      <div className={`${COL_W} text-right text-note tabular-nums ${bold ? 'font-semibold' : ''} ${nc || tc}`}>
         {f(data.reserves)}
       </div>
-      <div className={`${COL_W} text-right text-[11px] tabular-nums ${bold ? 'font-semibold' : ''} ${nc || tc}`}>
+      <div className={`${COL_W} text-right text-note tabular-nums ${bold ? 'font-semibold' : ''} ${nc || tc}`}>
         {f(data.reportANouveau)}
       </div>
-      <div className={`${COL_W} text-right text-[11px] tabular-nums font-semibold ${
-        data.resultat > 0 ? 'text-[#12B981]' : data.resultat < 0 ? 'text-[#EF4444]' : (nc || tc)
+      <div className={`${COL_W} text-right text-note tabular-nums font-semibold ${
+        data.resultat > 0 ? 'text-accent' : data.resultat < 0 ? 'text-danger' : (nc || tc)
       }`}>
         {f(data.resultat)}
       </div>
-      <div className={`${COL_W} text-right text-[11px] tabular-nums ${bold ? 'font-semibold' : ''} ${data.prelevements > 0 ? 'text-[#EF4444]' : (nc || tc)}`}>
+      <div className={`${COL_W} text-right text-note tabular-nums ${bold ? 'font-semibold' : ''} ${data.prelevements > 0 ? 'text-danger' : (nc || tc)}`}>
         {data.prelevements !== 0 ? `(${fmt(data.prelevements)})` : '—'}
       </div>
       {/* Total — always prominent */}
-      <div className={`min-w-[84px] text-right text-[12px] tabular-nums font-bold ${totalColor} pl-1 border-l border-[#E2E8F0] ml-1`}>
+      <div className={`min-w-[84px] text-right text-note tabular-nums font-bold ${totalColor} pl-1 border-l border-border ml-1`}>
         {fmt(data.total, true)}
       </div>
     </div>
@@ -216,25 +216,25 @@ function EquityStatement({ meta, data }: Props) {
     <ReportLayout meta={{ ...meta, reportTitle: t({ fr: 'ÉTAT DES CAPITAUX PROPRES', ht: 'ETA KAPITAL PWOP' }) }}>
       <div>
         {/* Description */}
-        <p className="text-[11px] text-[#64748B] mb-4 leading-relaxed">
+        <p className="text-note text-muted mb-4 leading-relaxed">
           {t({ fr: `Cet état présente les variations survenues dans les capitaux propres au cours de l'exercice clos le 31 décembre ${meta.currentYear ?? new Date().getFullYear()}, incluant le résultat net, les apports, les affectations et les prélèvements du propriétaire.`, ht: `Eta sa a prezante varyasyon ki te fèt nan kapital pwòp yo pandan egzèsis la ki fèmen 31 desanm ${meta.currentYear ?? new Date().getFullYear()}, ki gen ladan rezilta nèt, apò yo, afektasyon yo ak prelevman pwopriyetè a.` })}
         </p>
 
         {/* Matrix table — scrollable on small screens */}
-        <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
+        <div className="overflow-x-auto rounded-lg border border-border">
 
           {/* Column header */}
-          <div className="flex items-center bg-[#0F172A] py-2 px-2 min-w-max">
-            <div className="flex-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#94A3B8] pr-2">
+          <div className="flex items-center bg-anthracite py-2 px-2 min-w-max">
+            <div className="flex-1 text-note font-bold uppercase tracking-[0.1em] text-slate-400 pr-2">
               Événement
             </div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Capital', ht: 'Kapital' })}</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Apports', ht: 'Apò' })}</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Réserves', ht: 'Rezèv' })}</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Report RAN', ht: 'Rapò RAN' })}</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-[#6EE7B7]`}>{t({ fr: 'Résultat', ht: 'Rezilta' })}</div>
-            <div className={`${COL_W} text-right text-[9px] font-bold uppercase tracking-wide text-[#FCA5A5]`}>{t({ fr: 'Prélèvt.', ht: 'Prelev.' })}</div>
-            <div className="min-w-[84px] text-right text-[9px] font-bold uppercase tracking-wide text-[#6EE7B7] pl-1 border-l border-[#334155] ml-1">
+            <div className={`${COL_W} text-right text-note font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Capital', ht: 'Kapital' })}</div>
+            <div className={`${COL_W} text-right text-note font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Apports', ht: 'Apò' })}</div>
+            <div className={`${COL_W} text-right text-note font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Réserves', ht: 'Rezèv' })}</div>
+            <div className={`${COL_W} text-right text-note font-bold uppercase tracking-wide text-white`}>{t({ fr: 'Report RAN', ht: 'Rapò RAN' })}</div>
+            <div className={`${COL_W} text-right text-note font-bold uppercase tracking-wide text-emerald-300`}>{t({ fr: 'Résultat', ht: 'Rezilta' })}</div>
+            <div className={`${COL_W} text-right text-note font-bold uppercase tracking-wide text-red-300`}>{t({ fr: 'Prélèvt.', ht: 'Prelev.' })}</div>
+            <div className="min-w-[84px] text-right text-note font-bold uppercase tracking-wide text-emerald-300 pl-1 border-l border-slate-700 ml-1">
               {t({ fr: 'Total CP', ht: 'Total CP' })}
             </div>
           </div>
@@ -274,37 +274,37 @@ function EquityStatement({ meta, data }: Props) {
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3 mt-5">
           {/* Résultat */}
-          <div className={`rounded-xl border-2 p-3 ${data.resultatNet >= 0 ? 'border-[#12B981] bg-[#ECFDF5]' : 'border-[#EF4444] bg-[#FEF2F2]'}`}>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Résultat net</div>
-            <div className={`text-[18px] font-bold mt-1 ${data.resultatNet >= 0 ? 'text-[#065F46]' : 'text-[#991B1B]'}`}>
+          <div className={`rounded-xl border-2 p-3 ${data.resultatNet >= 0 ? 'border-accent bg-accent-sub' : 'border-danger bg-danger-sub'}`}>
+            <div className="text-note font-semibold uppercase tracking-wider text-muted">Résultat net</div>
+            <div className={`text-card font-bold mt-1 ${data.resultatNet >= 0 ? 'text-accent-a' : 'text-danger'}`}>
               {fmt(data.resultatNet, true)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: `Exercice ${meta.currentYear ?? new Date().getFullYear()} ·`, ht: `Egzèsis ${meta.currentYear ?? new Date().getFullYear()} ·` })} {meta.currency ?? 'HTG'}</div>
+            <div className="text-note text-slate-400 mt-1">{t({ fr: `Exercice ${meta.currentYear ?? new Date().getFullYear()} ·`, ht: `Egzèsis ${meta.currentYear ?? new Date().getFullYear()} ·` })} {meta.currency ?? 'HTG'}</div>
           </div>
 
           {/* Variation CP */}
-          <div className="rounded-xl border-2 border-[#3B82F6] bg-[#EFF6FF] p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">{t({ fr: 'Variation CP', ht: 'Varyasyon CP' })}</div>
-            <div className={`text-[18px] font-bold mt-1 ${closing.total - opening.total >= 0 ? 'text-[#1D4ED8]' : 'text-[#DC2626]'}`}>
+          <div className="rounded-xl border-2 border-info bg-info-sub p-3">
+            <div className="text-note font-semibold uppercase tracking-wider text-muted">{t({ fr: 'Variation CP', ht: 'Varyasyon CP' })}</div>
+            <div className={`text-card font-bold mt-1 ${closing.total - opening.total >= 0 ? 'text-info' : 'text-danger'}`}>
               {fmtDelta(closing.total - opening.total)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: 'vs. ouverture ·', ht: 'vs. ouvèti ·' })} {meta.currency ?? 'HTG'}</div>
+            <div className="text-note text-slate-400 mt-1">{t({ fr: 'vs. ouverture ·', ht: 'vs. ouvèti ·' })} {meta.currency ?? 'HTG'}</div>
           </div>
 
           {/* Total capitaux propres */}
-          <div className="rounded-xl border-2 border-[#0F172A] bg-[#F8FAFC] p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">{t({ fr: 'Total capitaux', ht: 'Total kapital' })}</div>
-            <div className="text-[18px] font-bold mt-1 text-[#0F172A]">
+          <div className="rounded-xl border-2 border-anthracite bg-surface p-3">
+            <div className="text-note font-semibold uppercase tracking-wider text-muted">{t({ fr: 'Total capitaux', ht: 'Total kapital' })}</div>
+            <div className="text-card font-bold mt-1 text-anthracite">
               {fmt(closing.total, true)}
             </div>
-            <div className="text-[9px] text-[#94A3B8] mt-[2px]">{t({ fr: `Au 31 déc. ${meta.currentYear ?? new Date().getFullYear()} ·`, ht: `31 des. ${meta.currentYear ?? new Date().getFullYear()} ·` })} {meta.currency ?? 'HTG'}</div>
+            <div className="text-note text-slate-400 mt-1">{t({ fr: `Au 31 déc. ${meta.currentYear ?? new Date().getFullYear()} ·`, ht: `31 des. ${meta.currentYear ?? new Date().getFullYear()} ·` })} {meta.currency ?? 'HTG'}</div>
           </div>
         </div>
 
         {/* Notes */}
-        <div className="mt-4 pt-3 border-t border-[#E2E8F0]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#64748B] mb-1">{t({ fr: 'Notes', ht: 'Nòt' })}</p>
-          <p className="text-[10px] text-[#94A3B8] leading-relaxed">
+        <div className="mt-4 pt-3 border-t border-border">
+          <p className="text-note font-semibold uppercase tracking-[0.1em] text-muted mb-1">{t({ fr: 'Notes', ht: 'Nòt' })}</p>
+          <p className="text-note text-slate-400 leading-relaxed">
             {t({ fr: `Le capital social représente l'investissement initial de l'entrepreneur. Les prélèvements du propriétaire réduisent les capitaux propres (compte 4580). Le résultat de l'exercice sera reporté en « Report à nouveau » à l'ouverture ${(meta.currentYear ?? new Date().getFullYear()) + 1}. Conformément au PCG-HT (Plan Comptable Général Haïti), adapté de SYSCOHADA.`, ht: `Kapital sosyal la reprezante envestisman inisyal antreprenè a. Prelevman pwopriyetè a redwi kapital pwòp yo (kont 4580). Rezilta egzèsis la pral rapòte nan « Rapò a nouvo » nan ouvèti ${(meta.currentYear ?? new Date().getFullYear()) + 1}. Konfòman ak PCG-HT (Plan Kontab Jeneral Ayiti), adapte SYSCOHADA.` })}
           </p>
         </div>

@@ -22,7 +22,15 @@ import { cn } from '../../lib/utils';
 import { markSubscriptionActive } from '../../hooks/useSubscription';
 import { useLanguage } from '../../components/LanguageWrapper';
 
-// ─── Payment methods config ───────────────────────────────────────────────────
+// ─── Modes de paiement ────────────────────────────────────────────────────────
+//
+// Chaque méthode portait sa propre teinte : dégradé orange pour MonCash,
+// émeraude-teal pour NatCash, bleu-indigo pour Visa, plus un fond, une bordure,
+// un texte et un point de la même famille. Trois méthodes, quinze décisions de
+// couleur — et un écran d'encaissement où l'œil ne sait plus où se poser.
+//
+// Il ne reste que ce qui distingue vraiment les méthodes : leur nom, leur
+// numéro, ce qu'elles sont. La forme, elle, est commune (§3.4).
 
 const PAYMENT_METHODS = [
   {
@@ -31,12 +39,6 @@ const PAYMENT_METHODS = [
     displayNumber: '509 37 30 45 41',
     rawNumber: '50937304541',
     description: 'Paiement mobile Digicel',
-    gradient: 'from-orange-400 to-orange-600',
-    selectedBorder: 'border-orange-400',
-    selectedBg: 'bg-orange-50',
-    textAccent: 'text-orange-600',
-    numberBg: 'bg-orange-50 border border-orange-200',
-    dot: 'bg-orange-400',
     label: 'M',
   },
   {
@@ -45,12 +47,6 @@ const PAYMENT_METHODS = [
     displayNumber: '509 35 95 12 52',
     rawNumber: '50935951252',
     description: 'Paiement mobile Natcom',
-    gradient: 'from-emerald-500 to-teal-600',
-    selectedBorder: 'border-emerald-400',
-    selectedBg: 'bg-emerald-50',
-    textAccent: 'text-emerald-600',
-    numberBg: 'bg-emerald-50 border border-emerald-200',
-    dot: 'bg-emerald-500',
     label: 'N',
   },
   {
@@ -59,12 +55,6 @@ const PAYMENT_METHODS = [
     displayNumber: null as null,
     rawNumber: null as null,
     description: 'Carte de crédit ou débit',
-    gradient: 'from-blue-700 to-indigo-800',
-    selectedBorder: 'border-blue-500',
-    selectedBg: 'bg-blue-50',
-    textAccent: 'text-blue-700',
-    numberBg: null as null,
-    dot: 'bg-blue-600',
     label: null,
   },
 ] as const;
@@ -80,16 +70,19 @@ function PlanSummary({ plan, currency }: { plan: Plan; currency: 'HTG' | 'USD' }
   const price = currency === 'HTG' ? plan.priceG : plan.priceUsd;
 
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
       {plan.popular && (
         <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-          ✦ {t({ fr: 'Populaire', ht: 'Popilè' })}
+          {t({ fr: 'Populaire', ht: 'Popilè' })}
         </span>
       )}
+      {/* Le nom commercial, pas la clé technique : le marchand a cliqué sur
+          « Kwasans », il doit payer « Kwasans ». */}
       <h2 className={cn('text-2xl font-bold text-anthracite', plan.popular ? 'mt-2' : 'mt-0')}>
-        {plan.key}
+        {plan.label}
       </h2>
-      <p className="mt-1 text-sm text-anthracite/70">{plan.description}</p>
+      <p className="mt-0.5 text-sm font-semibold italic text-primary">{plan.stage.kreyol}</p>
+      <p className="mt-1 text-sm text-anthracite/70">{t(plan.description)}</p>
 
       <div className="mt-5 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 p-4">
         <p className="text-xs uppercase tracking-wider text-anthracite/50">{t({ fr: 'Total mensuel', ht: 'Total chak mwa' })}</p>
@@ -103,11 +96,11 @@ function PlanSummary({ plan, currency }: { plan: Plan; currency: 'HTG' | 'USD' }
       <div className="mt-5 space-y-2.5">
         <p className="text-xs font-semibold uppercase tracking-wider text-anthracite/40">{t({ fr: 'Inclus', ht: 'Enkli' })}</p>
         {plan.features.map((feature) => (
-          <div key={feature} className="flex items-center gap-3 text-sm">
-            <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <div key={feature.fr} className="flex items-start gap-3 text-sm">
+            <span className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
               <Check className="h-3 w-3 text-primary" />
             </span>
-            <span className="text-anthracite/90">{feature}</span>
+            <span className="text-anthracite/90">{t(feature)}</span>
           </div>
         ))}
       </div>
@@ -164,7 +157,7 @@ function MobilePaymentFlow({
             t({ fr: 'Revenez ici et cliquez sur "J\'ai effectué le paiement"', ht: 'Retounen isit epi klike sou "Mwen fè peman an"' }),
           ].map((step, i) => (
             <li key={i} className="flex gap-3 text-sm text-anthracite/70">
-              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+              <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-note font-bold text-white">
                 {i + 1}
               </span>
               <span>{step}</span>
@@ -174,7 +167,7 @@ function MobilePaymentFlow({
       </div>
 
       {/* Payment number */}
-      <div className={cn('rounded-2xl p-4', method.numberBg)}>
+      <div className="rounded-surface border border-border bg-surface p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-anthracite/50">
           {t({ fr: 'Numéro', ht: 'Nimewo' })} {method.name}
         </p>
@@ -230,7 +223,7 @@ function MobilePaymentFlow({
         whileTap={{ scale: 0.98 }}
         onClick={onConfirm}
         disabled={isLoading}
-        className="flex w-full items-center justify-center gap-2 rounded-3xl bg-primary px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#004799] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-3xl bg-primary px-6 py-4 text-sm font-semibold text-white transition hover:bg-primary-h disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isLoading ? (
           <>
@@ -371,9 +364,11 @@ function SuccessView({ reference, planKey }: { reference: string; planKey: strin
       >
         <Link
           href="/dashboard"
-          className="rounded-3xl bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#004799]"
+          className="rounded-3xl bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-h"
         >
-          {t({ fr: 'Aller au Dashboard', ht: 'Ale nan Dashboard' })}
+          {/* L'application appelle cet écran « Accueil » dans sa barre de
+              navigation : elle ne lui donne pas un second nom ici. */}
+          {t({ fr: "Aller à l'accueil", ht: 'Ale nan akèy la' })}
         </Link>
         <Link
           href="/settings"
@@ -429,7 +424,7 @@ function CheckoutContent() {
           </p>
           <Link
             href="/pricing"
-            className="mt-5 inline-flex items-center gap-2 rounded-3xl bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#004799]"
+            className="mt-5 inline-flex items-center gap-2 rounded-3xl bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-h"
           >
             {t({ fr: 'Voir les tarifs', ht: 'Wè pri yo' })}
           </Link>
@@ -524,7 +519,7 @@ function CheckoutContent() {
 
           {/* Right — Payment flow */}
           <div>
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
               <AnimatePresence mode="wait">
                 {/* Step 1 — Select method */}
                 {step === 'method' && (
@@ -554,19 +549,23 @@ function CheckoutContent() {
                             whileTap={{ scale: 0.99 }}
                             type="button"
                             onClick={() => setSelectedMethod(method.id)}
+                            // Trois méthodes, UN seul style : la sélection se
+                            // marque par le contraste, pas par une teinte par
+                            // méthode — orange, émeraude, bleu se disputaient
+                            // les 10 % de la palette (§3.4, §4.2).
                             className={cn(
-                              'w-full rounded-2xl border-2 p-4 text-left transition',
+                              'pressable w-full rounded-surface border p-4 text-left transition-colors duration-press ease-pp',
                               isSelected
-                                ? `${method.selectedBorder} ${method.selectedBg}`
-                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                ? 'border-primary bg-surface2'
+                                : 'border-border bg-white hover:bg-surface'
                             )}
                           >
                             <div className="flex items-center gap-4">
-                              {/* Icon */}
+                              {/* Une icône de trait, jamais un dégradé (§3.2) */}
                               <div
                                 className={cn(
-                                  'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white',
-                                  method.gradient
+                                  'flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-surface',
+                                  isSelected ? 'bg-primary text-white' : 'bg-surface2 text-primary'
                                 )}
                               >
                                 {method.id === 'visa' ? (
@@ -606,7 +605,7 @@ function CheckoutContent() {
                                 className="mt-3 overflow-hidden rounded-xl bg-white/70 px-3 py-2"
                               >
                                 <p className="text-xs text-anthracite/50">{t({ fr: 'Numéro', ht: 'Nimewo' })}</p>
-                                <p className={cn('font-mono font-semibold', method.textAccent)}>
+                                <p className="amount font-bold text-primary">
                                   {method.displayNumber}
                                 </p>
                               </motion.div>
@@ -621,7 +620,7 @@ function CheckoutContent() {
                       whileTap={{ scale: 0.98 }}
                       onClick={handleContinue}
                       disabled={!selectedMethod}
-                      className="w-full rounded-3xl bg-primary px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#004799] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-full rounded-3xl bg-primary px-6 py-4 text-sm font-semibold text-white transition hover:bg-primary-h disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {t({ fr: 'Continuer →', ht: 'Kontinye →' })}
                     </motion.button>

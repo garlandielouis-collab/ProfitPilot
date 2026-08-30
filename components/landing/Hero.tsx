@@ -13,8 +13,8 @@ function DashboardMockup() {
   return (
     <div className="relative w-full max-w-[580px]">
       {/* Glow effects */}
-      <div className="pointer-events-none absolute -top-12 -right-12 h-48 w-48 rounded-full bg-[#50c878]/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-[#001f3f]/10 blur-2xl" />
+      <div className="pointer-events-none absolute -top-12 -right-12 h-48 w-48 rounded-full bg-accent/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
 
       <motion.div
         initial={{ opacity: 0, y: 32, scale: 0.97 }}
@@ -22,29 +22,29 @@ function DashboardMockup() {
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
       >
         {/* Browser frame */}
-        <div className="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_32px_80px_rgba(0,31,63,0.14),0_0_0_1px_rgba(0,31,63,0.04)]">
+        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_32px_80px_rgba(0,31,63,0.14),0_0_0_1px_rgba(0,31,63,0.04)]">
           {/* Browser chrome */}
-          <div className="flex items-center gap-2 border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+          <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
             <div className="flex gap-1.5">
               <div className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
               <div className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]" />
               <div className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
             </div>
-            <div className="mx-auto flex h-6 w-56 items-center gap-2 rounded-md bg-white px-3 shadow-sm border border-[#E2E8F0]">
-              <div className="h-2 w-2 rounded-full bg-[#50c878]" />
-              <span className="text-[10px] text-slate-400">app.profitpilot.ht/dashboard</span>
+            <div className="mx-auto flex h-6 w-56 items-center gap-2 rounded-md bg-white px-3 shadow-sm border border-border">
+              <div className="h-2 w-2 rounded-full bg-accent" />
+              <span className="text-note text-slate-400">app.profitpilot.ht/dashboard</span>
             </div>
           </div>
 
           {/* Dashboard content */}
-          <div className="bg-[#F8FAFC] p-4">
+          <div className="bg-surface p-4">
             {/* Header */}
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-[#50c878]">ProfitPilot</p>
-                <p className="text-sm font-semibold text-[#001f3f]">Bonjour, Marie 👋</p>
+                <p className="text-note font-bold uppercase tracking-widest text-accent">ProfitPilot</p>
+                <p className="text-sm font-semibold text-primary">Bonjour, Marie 👋</p>
               </div>
-              <span className="rounded-full bg-[#50c878]/10 px-2.5 py-1 text-[9px] font-semibold text-[#50c878]">
+              <span className="rounded-full bg-accent/10 px-2.5 py-1 text-note font-semibold text-accent">
                 ● En direct
               </span>
             </div>
@@ -54,28 +54,28 @@ function DashboardMockup() {
               {[
                 { label: 'Ventes aujourd\'hui', value: '48 500', unit: 'HTG', color: '#50c878', up: '+14%' },
                 { label: 'Profit net', value: '12 800', unit: 'HTG', color: '#001f3f', up: '+8%' },
-                { label: 'Stock critique', value: '3', unit: 'alertes', color: '#f59e0b', up: null },
+                { label: 'Stock critique', value: '3', unit: 'alertes', color: '#b45309', up: null },
               ].map((k, i) => (
-                <div key={i} className="rounded-xl bg-white p-2.5 shadow-sm border border-[#E2E8F0]">
-                  <p className="text-[7.5px] text-slate-400 mb-1">{k.label}</p>
+                <div key={i} className="rounded-xl bg-white p-2.5 shadow-sm border border-border">
+                  <p className="text-note text-slate-400 mb-1">{k.label}</p>
                   <div className="flex items-end gap-1">
                     <p className="text-sm font-bold" style={{ color: k.color }}>{k.value}</p>
-                    <p className="text-[7px] text-slate-400 mb-0.5">{k.unit}</p>
+                    <p className="text-note text-slate-400 mb-0.5">{k.unit}</p>
                   </div>
                   {k.up && (
-                    <span className="text-[7px] font-semibold text-[#50c878]">↑ {k.up}</span>
+                    <span className="text-note font-semibold text-accent">↑ {k.up}</span>
                   )}
                 </div>
               ))}
             </div>
 
             {/* Chart */}
-            <div className="rounded-xl bg-white p-3 shadow-sm border border-[#E2E8F0] mb-3">
+            <div className="rounded-xl bg-white p-3 shadow-sm border border-border mb-3">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-[9px] font-semibold text-[#001f3f]">Ventes — 10 derniers jours</p>
-                <span className="text-[7.5px] text-slate-400">HTG</span>
+                <p className="text-note font-semibold text-primary">Ventes — 10 derniers jours</p>
+                <span className="text-note text-slate-400">HTG</span>
               </div>
-              <div className="flex h-16 items-end gap-[3px]">
+              <div className="flex h-16 items-end gap-1">
                 {bars.map((h, i) => (
                   <motion.div
                     key={i}
@@ -95,15 +95,15 @@ function DashboardMockup() {
 
             {/* AI insight */}
             <motion.div
-              className="rounded-xl border border-[#50c878]/20 bg-gradient-to-r from-[#001f3f]/5 to-[#50c878]/10 p-3"
+              className="rounded-xl border border-accent/20 bg-gradient-to-r from-primary/5 to-accent/10 p-3"
               animate={{ borderColor: ['rgba(80,200,120,0.2)', 'rgba(80,200,120,0.4)', 'rgba(80,200,120,0.2)'] }}
               transition={{ duration: 3, repeat: Infinity }}
             >
               <div className="flex items-start gap-2">
                 <span className="text-base">🤖</span>
                 <div>
-                  <p className="text-[8px] font-semibold text-[#001f3f] mb-0.5">Pilot AI</p>
-                  <p className="text-[8px] text-slate-600 leading-relaxed">
+                  <p className="text-note font-semibold text-primary mb-0.5">Pilot AI</p>
+                  <p className="text-note text-slate-600 leading-relaxed">
                     Votre produit <strong>Savon Karité</strong> génère 34% de votre marge.
                     Augmentez votre stock de 50 unités avant dimanche.
                   </p>
@@ -116,25 +116,25 @@ function DashboardMockup() {
 
       {/* Floating KPI cards */}
       <motion.div
-        className="absolute -left-10 top-20 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-xl hidden lg:block"
+        className="absolute -left-10 top-20 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl hidden lg:block"
         animate={{ y: [0, -8, 0] }}
         transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
         initial={{ opacity: 0, x: -20 }}
         whileInView={{ opacity: 1, x: 0 }}
       >
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#50c878]/10">
-            <TrendingUp size={12} className="text-[#50c878]" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/10">
+            <TrendingUp size={12} className="text-accent" />
           </div>
           <div>
-            <p className="text-[8px] text-slate-400">Profit ce mois</p>
-            <p className="text-sm font-bold text-[#001f3f]">+18%</p>
+            <p className="text-note text-slate-400">Profit ce mois</p>
+            <p className="text-sm font-bold text-primary">+18%</p>
           </div>
         </div>
       </motion.div>
 
       <motion.div
-        className="absolute -right-8 top-32 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-xl hidden lg:block"
+        className="absolute -right-8 top-32 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl hidden lg:block"
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
         initial={{ opacity: 0, x: 20 }}
@@ -145,26 +145,26 @@ function DashboardMockup() {
             <AlertCircle size={12} className="text-amber-600" />
           </div>
           <div>
-            <p className="text-[8px] text-slate-400">Stock Savon</p>
+            <p className="text-note text-slate-400">Stock Savon</p>
             <p className="text-sm font-bold text-amber-600">3 restants</p>
           </div>
         </div>
       </motion.div>
 
       <motion.div
-        className="absolute -bottom-4 left-16 rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 shadow-xl hidden lg:block"
+        className="absolute -bottom-4 left-16 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl hidden lg:block"
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
       >
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#001f3f]/10">
-            <DollarSign size={12} className="text-[#001f3f]" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+            <DollarSign size={12} className="text-primary" />
           </div>
           <div>
-            <p className="text-[8px] text-slate-400">Vente enregistrée</p>
-            <p className="text-sm font-bold text-[#001f3f]">5 200 HTG ✓</p>
+            <p className="text-note text-slate-400">Vente enregistrée</p>
+            <p className="text-sm font-bold text-primary">5 200 HTG ✓</p>
           </div>
         </div>
       </motion.div>
@@ -194,8 +194,8 @@ export function Hero() {
         }}
       />
       {/* Gradient blobs */}
-      <div className="pointer-events-none absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-[#50c878]/8 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 left-0 h-[300px] w-[400px] rounded-full bg-[#001f3f]/5 blur-[80px]" />
+      <div className="pointer-events-none absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-accent/8 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 left-0 h-[300px] w-[400px] rounded-full bg-primary/5 blur-[80px]" />
 
       <div className="relative mx-auto grid max-w-7xl items-center gap-16 lg:grid-cols-2">
         {/* Left: copy */}
@@ -207,7 +207,7 @@ export function Hero() {
         >
           {/* Badge */}
           <motion.div variants={fadeUp}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#50c878]/30 bg-[#50c878]/10 px-4 py-2 text-xs font-semibold text-[#50c878]">
+            <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-xs font-semibold text-accent">
               <Sparkles size={11} />
               {t({ fr: 'Propulsé par Pilot AI — Intelligence artificielle financière', ht: 'Propulse pa Pilot AI — Entèlijans atifisyèl finansye' })}
             </span>
@@ -216,7 +216,7 @@ export function Hero() {
           {/* Headline */}
           <motion.h1
             variants={fadeUp}
-            className="text-4xl font-extrabold leading-[1.1] tracking-tight text-[#001f3f] sm:text-5xl lg:text-[3.4rem]"
+            className="text-4xl font-extrabold leading-[1.1] tracking-tight text-primary sm:text-5xl"
           >
             Pilotez votre
             <br />
@@ -239,20 +239,20 @@ export function Hero() {
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
             <Link
               href="/onboarding"
-              className="group relative inline-flex items-center gap-3 overflow-hidden rounded-2xl px-7 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] hover:shadow-[#50c878]/40 active:scale-95"
+              className="group relative inline-flex items-center gap-3 overflow-hidden rounded-2xl px-7 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] hover:shadow-accent/40 active:scale-95"
               style={{
-                background: 'linear-gradient(135deg, #001f3f 0%, #0d3566 100%)',
+                background: 'linear-gradient(135deg, #001f3f 0%, #002d5b 100%)',
                 boxShadow: '0 0 0 1px rgba(0,31,63,0.2), 0 16px 48px rgba(0,31,63,0.25)',
               }}
             >
               <span className="pointer-events-none absolute inset-0 translate-x-[-120%] skew-x-[-20deg] bg-white/10 transition-transform duration-700 group-hover:translate-x-[120%]" />
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#50c878]/20 text-[#50c878] text-sm">✦</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-accent text-sm">✦</span>
               {t({ fr: 'Commencer gratuitement', ht: 'Kòmanse gratis' })}
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
             </Link>
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-2 rounded-2xl border border-[#E2E8F0] bg-white px-7 py-4 text-base font-semibold text-[#001f3f] transition hover:border-[#50c878]/40 hover:bg-[#50c878]/5 active:scale-95 shadow-sm"
+              className="inline-flex items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-primary transition hover:border-accent/40 hover:bg-accent/5 active:scale-95 shadow-sm"
             >
               {t({ fr: 'Voir la démo', ht: 'Wè demo a' })}
             </Link>
@@ -261,8 +261,8 @@ export function Hero() {
           {/* Social proof mini */}
           <motion.div variants={fadeUp} className="flex items-center gap-4 pt-2">
             <div className="flex -space-x-2">
-              {['#1d4ed8', '#7c3aed', '#059669', '#b45309', '#dc2626'].map((c, i) => (
-                <div key={i} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white" style={{ background: c }}>
+              {['#1d4ed8', '#64748b', '#50c878', '#b45309', '#dc2626'].map((c, i) => (
+                <div key={i} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-note font-bold text-white" style={{ background: c }}>
                   {['J', 'M', 'C', 'R', 'A'][i]}
                 </div>
               ))}
@@ -270,11 +270,11 @@ export function Hero() {
             <div>
               <div className="flex items-center gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className="text-[#50c878] text-sm">★</span>
+                  <span key={i} className="text-accent text-sm">★</span>
                 ))}
               </div>
               <p className="text-xs text-slate-500">
-                <span className="font-semibold text-[#001f3f]">250+</span> {t({ fr: 'commerçants haïtiens nous font confiance', ht: 'machann ayisyen fè nou konfyans' })}
+                <span className="font-semibold text-primary">250+</span> {t({ fr: 'commerçants haïtiens nous font confiance', ht: 'machann ayisyen fè nou konfyans' })}
               </p>
             </div>
           </motion.div>

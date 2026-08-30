@@ -56,7 +56,7 @@ export default function DebugPage() {
         )}
       </div>
 
-      <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0' }}>
+      <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f1f5f9' }}>
         <h3>What This Means:</h3>
         {user && (
           <ul>
@@ -76,7 +76,7 @@ export default function DebugPage() {
         )}
       </div>
 
-      <div style={{ marginTop: '20px', backgroundColor: '#ffffcc', padding: '10px' }}>
+      <div style={{ marginTop: '20px', backgroundColor: '#fdf3e4', padding: '10px' }}>
         <h3>Console Output:</h3>
         <p>Open DevTools (F12) → Console tab to see the log messages</p>
         <code>✅ User detected: [your-user-id]</code>

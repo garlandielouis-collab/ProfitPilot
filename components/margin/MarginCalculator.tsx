@@ -65,8 +65,8 @@ function NumberField({
           step={step}
           value={Number.isFinite(value) ? value : 0}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-[#001F3F] outline-none transition
-                     focus:border-[#50C878] focus:ring-2 focus:ring-[#50C878]/20
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-primary outline-none transition
+                     focus:border-accent focus:ring-2 focus:ring-accent/20
                      dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         />
         {suffix && (
@@ -141,9 +141,9 @@ export function MarginCalculator({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-950">
       {/* En-tête navy */}
-      <div className="flex items-center gap-3 bg-[#001F3F] px-5 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#50C878]/20">
-          <TrendingUp className="h-5 w-5 text-[#50C878]" />
+      <div className="flex items-center gap-3 bg-primary px-5 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
+          <TrendingUp className="h-5 w-5 text-accent" />
         </div>
         <div>
           <h3 className="text-sm font-bold text-white">Calculateur de marge</h3>
@@ -172,7 +172,7 @@ export function MarginCalculator({
                   onClick={() => setCostCurrency(c)}
                   className={`flex-1 rounded-lg px-2 py-1 text-xs font-semibold transition ${
                     costCurrency === c
-                      ? 'bg-[#001F3F] text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
                   }`}
                 >
@@ -198,7 +198,7 @@ export function MarginCalculator({
           className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300"
         >
           <span>Frais annexes (livraison, emballage, commission)</span>
-          <span className="text-[#50C878]">{showExtras ? '−' : '+'}</span>
+          <span className="text-accent">{showExtras ? '−' : '+'}</span>
         </button>
 
         {showExtras && (
@@ -258,7 +258,7 @@ export function MarginCalculator({
             )}
             <div className="flex justify-between border-t border-black/5 pt-1 dark:border-white/10">
               <dt className="font-semibold text-slate-600 dark:text-slate-300">Coût réel complet</dt>
-              <dd className="font-bold tabular-nums text-[#001F3F] dark:text-slate-100">
+              <dd className="font-bold tabular-nums text-primary dark:text-slate-100">
                 {fmt(result.landedCost, result.currency)}
               </dd>
             </div>
@@ -266,9 +266,9 @@ export function MarginCalculator({
         </div>
 
         {/* Prix conseillé */}
-        <div className="rounded-2xl border border-[#001F3F]/10 bg-gradient-to-br from-[#001F3F] to-[#003B7A] p-4">
+        <div className="rounded-surface bg-primary p-4">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#50C878]" />
+            <Sparkles className="h-4 w-4 text-accent" />
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-300">
               Prix conseillé
             </span>
@@ -285,7 +285,7 @@ export function MarginCalculator({
                   setSalePrice(suggested);
                   onApplyPrice(suggested);
                 }}
-                className="rounded-xl bg-[#50C878] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#3daa62] active:scale-95"
+                className="rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white transition hover:bg-accent-h active:scale-95"
               >
                 Appliquer
               </button>
@@ -303,7 +303,7 @@ export function MarginCalculator({
                   onClick={() => setTargetMargin(m)}
                   className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
                     targetMargin === m
-                      ? 'bg-[#50C878] text-white'
+                      ? 'bg-accent text-white'
                       : 'bg-white/10 text-slate-300 hover:bg-white/20'
                   }`}
                 >

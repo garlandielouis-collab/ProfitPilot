@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from './ProtectedRoute';
 import { supabase } from '../lib/supabaseClient';
 import { upsertExpense, deleteExpense, getExpenses } from '../app/actions/expenses';
+import { Button, FirstRun, NoResult, closestMatch } from './ds';
+// Les modes de paiement étaient annoncés par 💵 💳 📱 — trois dessins faits par
+// le téléphone, jamais les mêmes d'un appareil à l'autre, et illisibles en
+// plein soleil. Le mot suffisait déjà ; l'icône, quand elle reste, est en
+// lucide et de la couleur du texte (§3.5).
+import { Banknote, Building2, CreditCard, Smartphone } from 'lucide-react';
 import {
   businessShareOf, personalShareOf, SCOPE_LABELS, type ExpenseScope,
 } from '../lib/expenseScope';
@@ -38,72 +44,39 @@ const CATEGORIES = [
   { value: 'Salaire',               label: 'Salè',                    badge: 'bg-blue-100 text-blue-700',       dot: '#60A5FA' },
   { value: 'Loyer',                 label: 'Lwaye',                   badge: 'bg-violet-100 text-violet-700',   dot: '#A78BFA' },
   { value: 'Stock',                 label: 'Achte Stock',             badge: 'bg-cyan-100 text-cyan-700',       dot: '#22D3EE' },
-  { value: 'Marketing',             label: 'Marketing',               badge: 'bg-pink-100 text-pink-700',       dot: '#EC4899' },
-  { value: 'Publicité',             label: 'Réklam',                  badge: 'bg-red-100 text-red-700',         dot: '#EF4444' },
-  { value: 'Téléphone',             label: 'Telepòn/Internet',        badge: 'bg-teal-100 text-teal-700',       dot: '#14B8A6' },
+  { value: 'Marketing',             label: 'Marketing',               badge: 'bg-pink-100 text-pink-700',       dot: '#64748B' },
+  { value: 'Publicité',             label: 'Réklam',                  badge: 'bg-red-100 text-red-700',         dot: '#DC2626' },
+  { value: 'Téléphone',             label: 'Telepòn/Internet',        badge: 'bg-teal-100 text-teal-700',       dot: '#50C878' },
   { value: 'Électricité',           label: 'Elektrisite',             badge: 'bg-yellow-100 text-yellow-700',   dot: '#FBBF24' },
-  { value: 'Internet',              label: 'Entènèt',                 badge: 'bg-indigo-100 text-indigo-700',   dot: '#6366F1' },
-  { value: 'Frais Entretien',       label: 'Frè Antretyen',           badge: 'bg-emerald-100 text-emerald-700', dot: '#10B981' },
-  { value: 'Frais Bancaires',       label: 'Frè Bank',                badge: 'bg-amber-100 text-amber-700',     dot: '#F59E0B' },
+  { value: 'Internet',              label: 'Entènèt',                 badge: 'bg-indigo-100 text-indigo-700',   dot: '#64748B' },
+  { value: 'Frais Entretien',       label: 'Frè Antretyen',           badge: 'bg-emerald-100 text-emerald-700', dot: '#50C878' },
+  { value: 'Frais Bancaires',       label: 'Frè Bank',                badge: 'bg-amber-100 text-amber-700',     dot: '#B45309' },
   { value: 'Matériel Bureau',       label: 'Materyal Biwo',           badge: 'bg-fuchsia-100 text-fuchsia-700', dot: '#D946EF' },
   { value: 'Fournitures',           label: 'Founiti',                 badge: 'bg-lime-100 text-lime-700',       dot: '#84CC16' },
   { value: 'Achat Équipement',      label: 'Ach Ekipman',             badge: 'bg-rose-100 text-rose-700',       dot: '#F43F5E' },
-  { value: 'Véhicule',              label: 'Veyikil',                 badge: 'bg-cyan-100 text-cyan-700',       dot: '#06B6D4' },
-  { value: 'Terrain/Bâtiment',      label: 'Tèren/Batisman',          badge: 'bg-orange-100 text-orange-700',   dot: '#FB923C' },
-  { value: 'Remboursements',        label: 'Rembòsman Dèt',           badge: 'bg-orange-100 text-orange-700',   dot: '#FB923C' },
+  { value: 'Véhicule',              label: 'Veyikil',                 badge: 'bg-cyan-100 text-cyan-700',       dot: '#64748B' },
+  { value: 'Terrain/Bâtiment',      label: 'Tèren/Batisman',          badge: 'bg-orange-100 text-orange-700',   dot: '#B45309' },
+  { value: 'Remboursements',        label: 'Rembòsman Dèt',           badge: 'bg-orange-100 text-orange-700',   dot: '#B45309' },
   { value: 'Autre',                 label: 'Lòt',                     badge: 'bg-slate-100 text-slate-400',     dot: '#94A3B8' },
 ] as const;
 
 const STATUS_CFG: Record<PayStatus, { label: string; cls: string }> = {
-  'Payé':       { label: '✓ Payé',        cls: 'bg-emerald-100 text-emerald-700' },
-  'En attente': { label: '⏳ En attente',  cls: 'bg-amber-100 text-amber-700'    },
-  'Dette':      { label: '⚠ Dette',       cls: 'bg-red-100 text-red-600'        },
+  'Payé':       { label: 'Payé',        cls: 'bg-emerald-100 text-emerald-700' },
+  'En attente': { label: 'En attente',  cls: 'bg-amber-100 text-amber-700'    },
+  'Dette':      { label: 'Dette',       cls: 'bg-red-100 text-red-600'        },
 };
 
 const catOf = (v: string) => CATEGORIES.find(c => c.value === v) ?? CATEGORIES[4];
 
-// ── Mock data (visible until real DB data loads) ──────────────────────────────
-
-const MOCK_SUPPLIERS: Supplier[] = [
-  { id: 'mock-sup-1', name: 'Founisè Mizik SA' },
-  { id: 'mock-sup-2', name: 'Founisè Tekstil Kreyòl' },
-  { id: 'mock-sup-3', name: 'Founisè Bati Lakay' },
-];
-
-const MOCK_EXPENSES: ExpenseRecord[] = [
-  {
-    id: 'demo-1', date: '2026-05-02', description: 'Salè Janvye — Équipe boutik',
-    category: 'Salaire', amount: 85000, currency: 'HTG',
-    payment_status: 'Payé', payment_method: 'Espèces', supplier_id: null,
-    scope: 'business', business_share_pct: 100,
-  },
-  {
-    id: 'demo-2', date: '2026-05-06', description: 'Lwaye boutik Pétionville',
-    category: 'Loyer', amount: 35000, currency: 'HTG',
-    payment_status: 'En attente', payment_method: 'Carte', supplier_id: null,
-    scope: 'business', business_share_pct: 100,
-  },
-  {
-    id: 'demo-3', date: '2026-05-14', description: 'Rembòsman Dèt Founisè Mizik SA',
-    category: 'Remboursements', amount: 12500, currency: 'USD',
-    payment_status: 'Dette', payment_method: 'Mobile',
-    supplier_id: 'mock-sup-1', supplier_name: 'Founisè Mizik SA',
-    scope: 'business', business_share_pct: 100,
-  },
-  {
-    id: 'demo-4', date: '2026-05-18', description: 'Achte Stock Materyèl elektwonik',
-    category: 'Stock', amount: 65000, currency: 'HTG',
-    payment_status: 'Payé', payment_method: 'Espèces', supplier_id: null,
-    scope: 'business', business_share_pct: 100,
-  },
-  {
-    id: 'demo-5', date: '2026-05-20', description: 'Peman Dèt Founisè Tekstil',
-    category: 'Remboursements', amount: 24000, currency: 'HTG',
-    payment_status: 'Dette', payment_method: 'Carte',
-    supplier_id: 'mock-sup-2', supplier_name: 'Founisè Tekstil Kreyòl',
-    scope: 'business', business_share_pct: 100,
-  },
-];
+// ── Aucune dépense de démonstration (audit §1.1, §5.10) ──────────────────────
+//
+// Cinq dépenses inventées — un salaire de 85 000 HTG, un loyer de Pétionville,
+// une dette fournisseur en dollars — et trois fournisseurs qui n'existaient pas,
+// affichés tant que la base ne répondait pas, et laissés en place quand elle
+// échouait. La page était intitulée « Suivi des sorties de trésorerie » : elle
+// suivait celles de personne.
+//
+// « Dans un logiciel de gestion, un chiffre affiché est une promesse. »
 
 // ── Helper: format amount with currency ──────────────────────────────────────
 
@@ -167,8 +140,9 @@ function ExpenseModal({
     setForm(f => ({ ...f, [k]: v }));
 
   const isDebt = form.category === 'Remboursements';
-  // Filter out mock suppliers from the real dropdown
-  const realSuppliers = suppliers.filter(s => !s.id.startsWith('mock-'));
+  // Plus de fournisseurs fictifs à écarter : la liste ne contient que ceux
+  // que le marchand a lui-même saisis.
+  const realSuppliers = suppliers;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -204,19 +178,19 @@ function ExpenseModal({
     </div>
   );
 
-  const input = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-[var(--color-muted)] focus:ring-[#001F3F]/30';
+  const input = 'w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-text)] outline-none ring-1 ring-transparent transition placeholder:text-[var(--color-muted)] focus:ring-primary/30';
   const sel   = `${input} appearance-none pr-10`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white shadow-2xl">
+      <div className="w-full max-w-lg overflow-hidden rounded-surface border border-[var(--color-border)] bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">
               {record ? 'Modifye' : 'Nouvo dépense'}
             </p>
-            <h3 className="mt-0.5 text-xl font-semibold text-[#001F3F]">
+            <h3 className="mt-0.5 text-xl font-semibold text-primary">
               {record ? 'Modifye dépense' : 'Ajoute yon dépense'}
             </h3>
           </div>
@@ -263,8 +237,8 @@ function ExpenseModal({
                     onClick={() => set('scope', s)}
                     className={
                       form.scope === s
-                        ? 'rounded-2xl border-2 border-[#001F3F] bg-[#001F3F] px-3 py-2.5 text-sm font-semibold text-white transition'
-                        : 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm font-medium text-[var(--color-text)] transition hover:border-[#001F3F]/40'
+                        ? 'rounded-2xl border-2 border-primary bg-primary px-3 py-2.5 text-sm font-semibold text-white transition'
+                        : 'rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm font-medium text-[var(--color-text)] transition hover:border-primary/40'
                     }
                   >
                     {SCOPE_LABELS[s].label}
@@ -276,16 +250,16 @@ function ExpenseModal({
               </p>
 
               {form.scope === 'mixed' && (
-                <div className="mt-3 rounded-2xl border border-[#001F3F]/15 bg-[#001F3F]/5 p-4">
+                <div className="mt-3 rounded-2xl border border-primary/15 bg-primary/5 p-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium text-[var(--color-text)]">Pati biznis la</span>
-                    <span className="font-bold text-[#001F3F]">{form.share}%</span>
+                    <span className="font-bold text-primary">{form.share}%</span>
                   </div>
                   <input
                     type="range" min="0" max="100" step="5"
                     value={form.share}
                     onChange={e => set('share', e.target.value)}
-                    className="mt-2 w-full accent-[#50C878]"
+                    className="mt-2 w-full accent-accent"
                   />
                   <p className="mt-1 text-xs text-[var(--color-muted)]">
                     Egzanp : yon fòfè telefòn 60% pou biznis la, 40% pou lakay.
@@ -323,7 +297,7 @@ function ExpenseModal({
                 {(['HTG', 'USD'] as Currency[]).map(c => (
                   <button key={c} type="button" onClick={() => set('currency', c)}
                     className={`px-4 py-3 font-bold transition ${form.currency === c
-                      ? 'bg-[#001F3F] text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-50'}`}>
                     {c}
                   </button>
@@ -340,9 +314,9 @@ function ExpenseModal({
             {field('Estati',
               <div className="relative">
                 <select value={form.payment_status} onChange={e => set('payment_status', e.target.value as PayStatus)} className={sel}>
-                  <option value="Payé">✓ Payé</option>
-                  <option value="En attente">⏳ En attente</option>
-                  <option value="Dette">⚠ Dette</option>
+                  <option value="Payé">Payé</option>
+                  <option value="En attente">En attente</option>
+                  <option value="Dette">Dette</option>
                 </select>
                 <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -352,9 +326,9 @@ function ExpenseModal({
             {field('Metòd',
               <div className="relative">
                 <select value={form.payment_method} onChange={e => set('payment_method', e.target.value as PayMethod)} className={sel}>
-                  <option value="Espèces">💵 Espèces</option>
-                  <option value="Carte">💳 Carte</option>
-                  <option value="Mobile">📱 Mobile</option>
+                  <option value="Espèces">Espèces</option>
+                  <option value="Carte">Carte</option>
+                  <option value="Mobile">Mobile</option>
                 </select>
                 <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -376,7 +350,7 @@ function ExpenseModal({
               Anile
             </button>
             <button type="submit" disabled={saving}
-              className="flex-1 rounded-2xl bg-[#001F3F] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] disabled:opacity-50">
+              className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-h disabled:opacity-50">
               {saving ? 'Anrejistreman…' : record ? 'Sove Chanjman' : 'Ajoute Dépense'}
             </button>
           </div>
@@ -396,41 +370,34 @@ function DeleteModal({
   onConfirm: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const isDemo = record.id.startsWith('demo-');
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-sm overflow-hidden rounded-surface border border-[var(--color-border)] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
           <svg className="h-6 w-6 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-[#001F3F]">Efase dépense?</h3>
+        <h3 className="text-lg font-semibold text-primary">Efase dépense?</h3>
         <p className="mt-2 text-sm text-[var(--color-muted)]">
           <span className="font-medium text-[var(--color-text)]">{record.description}</span>
           {' '}—{' '}
           <span className="font-semibold text-red-400">{fmtAmt(record.amount, record.currency)}</span>
           {' '}pral efase pou toujou.
         </p>
-        {isDemo && (
-          <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-            Enfo: sa a se yon done demo — li pa nan baz de done reyèl.
-          </p>
-        )}
         <div className="mt-5 flex gap-3">
           <button onClick={onClose}
             className="flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100">
             Anile
           </button>
-          {!isDemo && (
-            <button
-              onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }}
-              disabled={busy}
-              className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
-              {busy ? 'Efasman…' : 'Wi, Efase'}
-            </button>
-          )}
+          <button
+            onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }}
+            disabled={busy}
+            className="flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50">
+            {busy ? 'Efasman…' : 'Wi, Efase'}
+          </button>
         </div>
       </div>
     </div>
@@ -440,11 +407,10 @@ function DeleteModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function ExpensesPage() {
-  const [expenses,  setExpenses]  = useState<ExpenseRecord[]>(MOCK_EXPENSES);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(MOCK_SUPPLIERS);
+  const [expenses,  setExpenses]  = useState<ExpenseRecord[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [ownerId,   setOwnerId]   = useState<string | null>(null);
-  const [isDemo,    setIsDemo]    = useState(true);
 
   // Modal states
   const [showModal,   setShowModal]   = useState(false);
@@ -476,37 +442,33 @@ export function ExpensesPage() {
         supabase.from('suppliers').select('id,name').order('name'),
       ]);
 
-      if (supRes.data?.length) {
-        setSuppliers(supRes.data as Supplier[]);
-      }
+      setSuppliers((supRes.data ?? []) as Supplier[]);
 
       const supMap: Record<string, string> = {};
       for (const s of supRes.data ?? []) supMap[s.id] = s.name;
 
-      if (expenses.length > 0) {
-        setExpenses(
-          expenses.map((e: any) => ({
-            id:             e.id,
-            description:    e.description,
-            category:       e.category       ?? 'Autre',
-            amount:         Number(e.amount),
-            currency:       (e.currency      ?? 'HTG') as Currency,
-            payment_status: (e.payment_status ?? 'Payé') as PayStatus,
-            payment_method: (e.payment_method ?? 'Espèces') as PayMethod,
-            date:           e.date,
-            supplier_id:    e.supplier_id ?? null,
-            supplier_name:  e.supplier_id ? supMap[e.supplier_id] : undefined,
-            scope:              (e.scope ?? 'business') as ExpenseScope,
-            business_share_pct: Number(e.business_share_pct ?? 100),
-          }))
-        );
-        setIsDemo(false);
-      } else {
-        setIsDemo(true);
-      }
+      // Zéro dépense est une réponse valide : c'est un mois sans sortie, ou un
+      // compte neuf. Dans les deux cas la liste reste vide.
+      setExpenses(
+        expenses.map((e: any) => ({
+          id:             e.id,
+          description:    e.description,
+          category:       e.category       ?? 'Autre',
+          amount:         Number(e.amount),
+          currency:       (e.currency      ?? 'HTG') as Currency,
+          payment_status: (e.payment_status ?? 'Payé') as PayStatus,
+          payment_method: (e.payment_method ?? 'Espèces') as PayMethod,
+          date:           e.date,
+          supplier_id:    e.supplier_id ?? null,
+          supplier_name:  e.supplier_id ? supMap[e.supplier_id] : undefined,
+          scope:              (e.scope ?? 'business') as ExpenseScope,
+          business_share_pct: Number(e.business_share_pct ?? 100),
+        }))
+      );
     } catch (e: any) {
       console.error('[ExpensesPage] loadAll:', e?.message);
-      setIsDemo(true);
+      setExpenses([]);
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
@@ -577,14 +539,14 @@ export function ExpensesPage() {
     icon: React.ReactNode; accent: string;
   }) {
     return (
-      <div className={`relative overflow-hidden rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm`}>
+      <div className={`relative overflow-hidden rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm`}>
         <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-10 blur-2xl ${accent}`} />
         <div className="relative">
           <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-opacity-20`}>
             {icon}
           </div>
           <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">{label}</p>
-          <p className="mt-2 text-3xl font-semibold text-[#001F3F]">{value}</p>
+          <p className="mt-2 text-3xl font-semibold text-primary">{value}</p>
           <p className="mt-1 text-xs text-[var(--color-muted)]">{sub}</p>
         </div>
       </div>
@@ -601,23 +563,24 @@ export function ExpensesPage() {
           {/* ── Page header ── */}
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.32em] text-[var(--color-muted)]">Depans</p>
-              <h1 className="mt-2 text-3xl font-semibold text-[#001F3F] md:text-4xl">
-                Suivi des sorties de trésorerie
+              {/* Trois lignes disaient la même chose, dont une en anglais :
+                  « Depans », « Suivi des sorties de trésorerie », puis
+                  « Contrôlez tous vos cash outflows en temps réel ». Le marchand
+                  qui ouvre cet écran sait déjà qu'il vient voir ses dépenses ;
+                  ce qu'il ne sait pas, c'est ce qu'il doit en faire (audit §9,
+                  contrôles 1 et 10). */}
+              <h1 className="text-3xl font-semibold text-primary md:text-4xl">
+                Dépenses
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-muted)]">
-                Contrôlez tous vos cash outflows en temps réel — salaires, loyers, stocks et remboursements.
+                Chaque dépense notée est une dépense qui cesse de manger votre marge sans qu'on sache où.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {isDemo && (
-                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400">
-                  📊 Données démo
-                </span>
-              )}
+
               <button
                 onClick={openAdd}
-                className="flex items-center gap-2 rounded-2xl bg-[#001F3F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002D5B] active:scale-95"
+                className="flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-h active:scale-95"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -635,8 +598,8 @@ export function ExpensesPage() {
               sub={stats.personalMonth > 0
                 ? `+ ${fmtAmt(stats.personalMonth, 'HTG')} pèsonèl (pa nan rezilta a)`
                 : 'Sèlman sa ki nan rezilta antrepriz la'}
-              accent="bg-[#001F3F]"
-              icon={<svg className="h-5 w-5 text-[#001F3F]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
+              accent="bg-primary"
+              icon={<svg className="h-5 w-5 text-primary" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
             />
             <StatCard
               label="Total Salè"
@@ -662,19 +625,19 @@ export function ExpensesPage() {
           </div>
 
           {/* ── Filters ── */}
-          <div className="rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <div className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
             {/* Quick filters */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {([
                 { k: 'tout',    label: 'Tout afficher' },
-                { k: 'salaire', label: '💼 Sèlman Salè' },
-                { k: 'dette',   label: '💳 Sèlman Dèt' },
-                { k: 'attente', label: '⏳ Sèlman En Attente' },
+                { k: 'salaire', label: 'Salaires seulement' },
+                { k: 'dette',   label: 'Dettes seulement' },
+                { k: 'attente', label: 'En attente seulement' },
               ] as const).map(({ k, label }) => (
                 <button key={k} type="button" onClick={() => setQuickFilter(k)}
                   className={`rounded-2xl px-4 py-2 text-xs font-semibold transition ${
                     quickFilter === k
-                      ? 'bg-[#001F3F] text-white shadow-sm'
+                      ? 'bg-primary text-white shadow-sm'
                       : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:bg-slate-100 hover:text-[var(--color-text)]'
                   }`}>
                   {label}
@@ -699,14 +662,14 @@ export function ExpensesPage() {
                 <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Rechèch</label>
                 <input value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Chèche pa deskripsyon…"
-                  className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-muted)] focus:border-[#001F3F]/50 focus:ring-1 focus:ring-[#6b5cff]/30" />
+                  className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-muted)] focus:border-primary/50 focus:ring-1 focus:ring-muted/30" />
               </div>
               {/* Category */}
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Kategori</label>
                 <div className="relative">
                   <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-                    className="w-full appearance-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 pr-9 text-sm text-[var(--color-text)] outline-none focus:border-[#001F3F]/50">
+                    className="w-full appearance-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 pr-9 text-sm text-[var(--color-text)] outline-none focus:border-primary/50">
                     <option value="">Tout</option>
                     {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
@@ -718,11 +681,11 @@ export function ExpensesPage() {
                 <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Estati</label>
                 <div className="relative">
                   <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                    className="w-full appearance-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 pr-9 text-sm text-[var(--color-text)] outline-none focus:border-[#001F3F]/50">
+                    className="w-full appearance-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 pr-9 text-sm text-[var(--color-text)] outline-none focus:border-primary/50">
                     <option value="">Tout</option>
-                    <option value="Payé">✓ Payé</option>
-                    <option value="En attente">⏳ En attente</option>
-                    <option value="Dette">⚠ Dette</option>
+                    <option value="Payé">Payé</option>
+                    <option value="En attente">En attente</option>
+                    <option value="Dette">Dette</option>
                   </select>
                   <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </div>
@@ -731,17 +694,17 @@ export function ExpensesPage() {
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-[var(--color-muted)]">Mwa</label>
                 <input value={filterMonth} onChange={e => setFilterMonth(e.target.value)} type="month"
-                  className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-[#001F3F]/50" />
+                  className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-sm text-[var(--color-text)] outline-none focus:border-primary/50" />
               </div>
             </div>
           </div>
 
           {/* ── Transactions table ── */}
-          <div className="rounded-[32px] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
+          <div className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
             {/* Table header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
               <div>
-                <h2 className="text-xl font-semibold text-[#001F3F]">Istorik Tranzaksyon yo</h2>
+                <h2 className="text-xl font-semibold text-primary">Istorik Tranzaksyon yo</h2>
                 <p className="mt-0.5 text-sm text-[var(--color-muted)]">
                   {filtered.length} rezilta
                   {filtered.length !== expenses.length
@@ -759,16 +722,33 @@ export function ExpensesPage() {
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#6b5cff]" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#64748b]" />
               </div>
+            ) : expenses.length === 0 ? (
+              /* Premier accueil : aucune dépense n'a jamais été saisie (§5.10). */
+              <FirstRun
+                title="Vos sorties d'argent s'inscriront ici"
+                hint="Loyer, salaires, stock, transport : chaque dépense notée est une dépense qui cesse de manger votre marge sans qu'on sache où."
+                action={
+                  <Button variant="accent" block onClick={openAdd}>
+                    Noter une dépense
+                  </Button>
+                }
+              />
             ) : filtered.length === 0 ? (
-              <div className="py-16 text-center">
-                <svg className="mx-auto mb-4 h-12 w-12 text-slate-200" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                </svg>
-                <p className="text-sm font-medium text-[var(--color-muted)]">Okenn rezilta koresponn ak filtè yo</p>
-                <p className="mt-1 text-xs text-slate-400">Ajiste filtè yo oswa ajoute yon nouvo dépense</p>
-              </div>
+              search ? (
+                <NoResult
+                  query={search}
+                  noun="mouvement"
+                  suggestion={closestMatch(search, expenses.map(e => e.description))}
+                  onUseSuggestion={setSearch}
+                  onClear={() => setSearch('')}
+                />
+              ) : (
+                <p className="px-4 py-16 text-center text-body text-[var(--color-muted)]">
+                  Aucune dépense ne correspond à ces filtres.
+                </p>
+              )
             ) : (
               <>
                 {/* Mobile-scrollable table */}
@@ -777,7 +757,7 @@ export function ExpensesPage() {
                     <thead>
                       <tr className="border-b border-[var(--color-border)]">
                         {['Dat', 'Deskripsyon', 'Kategori', 'Montan', 'Metòd', 'Estati', ''].map(h => (
-                          <th key={h} className="whitespace-nowrap px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-muted)]">
+                          <th key={h} className="whitespace-nowrap px-5 py-4 text-note font-semibold uppercase tracking-[0.24em] text-[var(--color-muted)]">
                             {h}
                           </th>
                         ))}
@@ -802,21 +782,22 @@ export function ExpensesPage() {
                                 {exp.description}
                               </p>
                               {exp.supplier_name && (
-                                <p className="mt-0.5 text-[11px] text-[var(--color-muted)]">
-                                  🏢 {exp.supplier_name}
+                                <p className="mt-0.5 text-note text-[var(--color-muted)]">
+                                  <Building2 className="mr-1 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={1.8} aria-hidden />
+                                  {exp.supplier_name}
                                 </p>
                               )}
                             </td>
                             {/* Category badge + périmètre business/personnel */}
                             <td className="px-5 py-4">
-                              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ${cat.badge}`}>
+                              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-note font-semibold ${cat.badge}`}>
                                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: cat.dot }} />
                                 {cat.label}
                               </span>
                               {exp.scope !== 'business' && (
                                 <span className={exp.scope === 'personal'
-                                  ? 'ml-1.5 inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600'
-                                  : 'ml-1.5 inline-flex items-center rounded-full bg-indigo-100 px-2 py-1 text-[10px] font-semibold text-indigo-700'}
+                                  ? 'ml-1.5 inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-note font-semibold text-slate-600'
+                                  : 'ml-1.5 inline-flex items-center rounded-full bg-indigo-100 px-2 py-1 text-note font-semibold text-indigo-700'}
                                 >
                                   {exp.scope === 'personal'
                                     ? 'Pèsonèl'
@@ -830,12 +811,16 @@ export function ExpensesPage() {
                             </td>
                             {/* Method */}
                             <td className="whitespace-nowrap px-5 py-4 text-xs text-[var(--color-muted)]">
-                              {exp.payment_method === 'Espèces' ? '💵' : exp.payment_method === 'Carte' ? '💳' : '📱'}
-                              {' '}{exp.payment_method}
+                              {exp.payment_method === 'Espèces'
+                                ? <Banknote className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />
+                                : exp.payment_method === 'Carte'
+                                  ? <CreditCard className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />
+                                  : <Smartphone className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />}
+                              {exp.payment_method}
                             </td>
                             {/* Status badge */}
                             <td className="px-5 py-4">
-                              <span className={`inline-block rounded-full px-3 py-1 text-[11px] font-semibold ${sts.cls}`}>
+                              <span className={`inline-block rounded-full px-3 py-1 text-note font-semibold ${sts.cls}`}>
                                 {sts.label}
                               </span>
                             </td>
@@ -845,7 +830,7 @@ export function ExpensesPage() {
                                 <button
                                   onClick={() => openEdit(exp)}
                                   title="Modifye"
-                                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-[#EAF1F8] hover:text-[#001F3F]">
+                                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-nav-active hover:text-primary">
                                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
@@ -872,9 +857,9 @@ export function ExpensesPage() {
                   <span className="text-xs text-[var(--color-muted)]">
                     {filtered.length} dépense{filtered.length > 1 ? 's' : ''}
                   </span>
-                  <span className="text-sm font-bold text-[#001F3F]">
+                  <span className="text-sm font-bold text-primary">
                     Total :{' '}
-                    <span className="text-[#001F3F]">
+                    <span className="text-primary">
                       {fmtAmt(filtered.reduce((s, e) => s + e.amount, 0), 'HTG')}
                     </span>
                   </span>
