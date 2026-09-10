@@ -46,7 +46,7 @@ export function WeeklyDigestCard() {
   const period = `${new Date(digest.periodStart).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} → ${new Date(digest.periodEnd).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <div className="flex items-center gap-3 bg-primary px-5 py-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
           <MessageCircle className="h-5 w-5 text-accent" />
@@ -58,7 +58,7 @@ export function WeeklyDigestCard() {
         <button
           onClick={load}
           aria-label="Rafrechi"
-          className="rounded-lg p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
+          className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg p-2 text-white/60 transition hover:bg-white/10 hover:text-white"
         >
           <RefreshCw className="h-4 w-4" />
         </button>

@@ -88,7 +88,7 @@ function CopyBtn({ text }: { text: string }) {
       }}
       className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition"
     >
-      {copied ? <Check className="h-3 w-3 inline" /> : <Copy className="h-3 w-3 inline" />}
+      {copied ? <Check className="h-4 w-4 inline" /> : <Copy className="h-4 w-4 inline" />}
       <span className="ml-1">{copied ? t({ fr: 'Copié', ht: 'Kopiye' }) : t({ fr: 'Copier', ht: 'Kopiye' })}</span>
     </button>
   );
@@ -294,7 +294,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
                 type="button"
                 onClick={fetchLiveRate}
                 disabled={rateLoading}
-                className="flex-shrink-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-muted)] hover:text-emerald-400 transition disabled:opacity-50"
+                className="min-h-touch min-w-touch flex-shrink-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-muted)] hover:text-emerald-400 transition disabled:opacity-50"
                 title={t({ fr: 'Taux en direct', ht: 'To an dirèk' })}
               >
                 <RefreshCw className={cn('h-4 w-4', rateLoading && 'animate-spin')} />
@@ -349,7 +349,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
           type="button"
           onClick={handleSave}
           disabled={profile.mutation.isPending}
-          className="flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition disabled:opacity-50"
+          className="flex items-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink shadow-lg shadow-emerald-500/20 hover:bg-accent-h transition disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
           {profile.mutation.isPending ? t({ fr: 'Sauvegarde…', ht: 'Sovgad…' }) : t({ fr: 'Enregistrer le profil', ht: 'Anrejistre pwofil la' })}
@@ -382,7 +382,7 @@ function PaymentsTab() {
             return (
               <div
                 key={pm.key}
-                className="rounded-surface border border-border bg-white p-4 shadow-card"
+                className="rounded-surface border border-border bg-white p-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -532,7 +532,7 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
           type="button"
           onClick={handleSave}
           disabled={prefs.mutation.isPending}
-          className="flex items-center gap-2 rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 transition disabled:opacity-50"
+          className="flex items-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink shadow-lg shadow-emerald-500/20 hover:bg-accent-h transition disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
           {prefs.mutation.isPending ? t({ fr: 'Sauvegarde…', ht: 'Sovgad…' }) : t({ fr: 'Enregistrer les préférences', ht: 'Anrejistre preferans yo' })}

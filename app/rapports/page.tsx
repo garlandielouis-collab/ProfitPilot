@@ -226,7 +226,7 @@ function RapportsPage() {
         <div className="w-full max-w-full lg:max-w-[1160px] mx-auto px-3 md:px-4 py-4 md:py-6 space-y-4 md:space-y-6">
 
           {/* ── Page header ── */}
-          <header className="bg-white rounded-2xl md:rounded-3xl border border-border p-4 md:p-6 flex flex-col gap-4 md:gap-0 md:flex-row md:items-center md:justify-between shadow-sm">
+          <header className="bg-white rounded-2xl md:rounded-3xl border border-border p-4 md:p-6 flex flex-col gap-4 md:gap-0 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0">
               {/* L'étiquette « Données démo » a disparu avec les données qu'elle
                   signalait. Un avertissement n'a jamais rendu un faux bilan vrai. */}
@@ -261,7 +261,7 @@ function RapportsPage() {
             <WeeklyDigestCard />
             <Link
               href="/rapports/credit"
-              className="flex flex-col justify-between rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+              className="flex flex-col justify-between rounded-2xl border border-border bg-white p-5 transition hover:border-primary/30 hover:shadow-md"
             >
               <div>
                 <p className="text-note font-semibold uppercase tracking-widest text-accent">
@@ -284,7 +284,7 @@ function RapportsPage() {
           </div>
 
           {/* ── Period selector ── */}
-          <div className="bg-white rounded-2xl border border-border px-5 py-4 shadow-sm">
+          <div className="bg-white rounded-2xl border border-border px-5 py-4">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                   <p className="text-note font-semibold text-muted uppercase tracking-wider">
@@ -393,7 +393,7 @@ function RapportsPage() {
 
           {/* ── Bottom action bar ── */}
           {hasReport && (
-            <div className="bg-white rounded-3xl border border-border p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
+            <div className="bg-white rounded-3xl border border-border p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <p className="text-note font-semibold text-anthracite">{t({ fr: 'Télécharger tous les états financiers', ht: 'Telechaje tout eta finansye yo' })}</p>
                 <p className="text-note text-slate-400 mt-1">{t({ fr: 'PDF A4 · Prêt à l\'impression · Qualité comptable', ht: 'PDF A4 · Pare pou enprime · Kalite kontab' })}</p>

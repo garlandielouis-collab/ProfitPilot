@@ -209,7 +209,7 @@ export async function refreshRateWithAlert(): Promise<RateAlert | null> {
   const liveRate = await fetchLiveRate();
   if (!liveRate) return null;
 
-  const { supabase, businessId, userId, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency } = await getBusinessContext();
 
   const { data: biz } = await supabase
     .from('businesses')
@@ -242,7 +242,7 @@ export async function refreshRateWithAlert(): Promise<RateAlert | null> {
     const { data: usdProducts } = await supabase
       .from('products')
       .select('id, name, purchase_price, sale_price, currency, delivery_cost, packaging_cost, other_cost, commission_percent')
-      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .eq('currency', 'USD');
 
     for (const p of usdProducts ?? []) {

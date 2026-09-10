@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/useAuth';
 import { upsertCustomer, deleteCustomer, markCustomerCreditPaid } from '../actions/customers';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { Button, FirstRun, NoResult, closestMatch } from '../../components/ds';
+import { EntityDocuments } from '../../components/documents/EntityDocuments';
 // Une seule bibliothèque d'icônes, en contour, à épaisseur constante (§3.5) :
 // l'étoile ⭐ et le trombone 📋 étaient dessinés par le téléphone, pas par nous.
 import { CalendarDays, CheckCircle2, FileText, Hash, Mail, Phone, Star } from 'lucide-react';
@@ -130,7 +131,7 @@ function ClientModal({
               {client ? t({ fr: 'Modifier Client', ht: 'Modifye Kliyan' }) : t({ fr: 'Ajouter un Client', ht: 'Ajoute yon Kliyan' })}
             </h3>
           </div>
-          <button onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-white">
+          <button onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-white">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -623,7 +624,7 @@ function ClientsCRMInner() {
               {/* Actions */}
               <div className="flex shrink-0 items-center gap-1.5">
                 <button onClick={handlePrint} title={t({ fr: 'Imprimer', ht: 'Enprime' })}
-                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
+                  className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
                   <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 </button>
                 <button onClick={() => { setEditClient(selected); setShowModal(true); }} title={t({ fr: 'Modifier', ht: 'Modifye' })}
@@ -695,7 +696,7 @@ function ClientsCRMInner() {
                         <div className="flex items-center gap-3">
                           <p className="font-bold text-red-400">{fmt(cc.amount, cc.currency)}</p>
                           <button onClick={() => handlePayCredit(cc.id)} disabled={busyCredit.has(cc.id)}
-                            className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50">
+                            className="rounded-xl bg-accent px-3 py-1.5 text-xs font-bold text-accent-ink transition hover:bg-accent-h disabled:opacity-50">
                             {busyCredit.has(cc.id) ? '…' : t({ fr: 'Encaisser', ht: 'Touche' })}
                           </button>
                         </div>
@@ -755,6 +756,15 @@ function ClientsCRMInner() {
                   </span>
                 </div>
               </section>
+
+              {/* ── Documents rattachés (§37) ──────────────────────────────
+                  Après l'historique : ce qu'on vient chercher sur une fiche
+                  client, c'est d'abord ce qu'il doit et ce qu'il a acheté. */}
+              <EntityDocuments
+                entityType="customer"
+                entityId={selected.id}
+                entityName={selected.name}
+              />
 
             </div>{/* end detail content */}
           </div>

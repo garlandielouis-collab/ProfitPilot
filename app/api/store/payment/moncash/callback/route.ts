@@ -1,5 +1,23 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/store/payment/moncash/callback
+//
+// MonCash renvoie l'acheteur ici après le paiement. On vérifie la transaction
+// auprès de MonCash — jamais sur la foi des paramètres d'URL — puis on encaisse.
+//
+// « Encaisser » veut dire : marquer la commande payée ET la confirmer, ce qui
+// crée la vente ProfitPilot, décrémente le stock et écrit le mouvement
+// d'inventaire. La version précédente se contentait d'écrire
+// `status = 'confirmed'` dans `orders` : la commande payée n'apparaissait ni
+// dans les ventes, ni dans les rapports, et le stock ne bougeait pas.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseService } from '../../../../../../lib/supabaseServiceClient';
+import {
+  readGatewayCredentials,
+  settleGatewayOrder,
+  storeSlugOf,
+} from '../../../../../../lib/storePaymentGateway';
 
 const MC_PROD = 'https://moncashbutton.digicelgroup.com/Api';
 const MC_SAND = 'https://sandbox.moncashbutton.digicelgroup.com/Api';
@@ -33,42 +51,26 @@ async function verifyMoncashTransaction(token: string, sandbox: boolean, transac
   return await res.json();
 }
 
-// ── GET /api/store/payment/moncash/callback ───────────────────────────────────
-// Called by MonCash after customer completes payment.
-// Query params: transactionId (from MonCash)
-// The order UUID is retrieved via MonCash's orderId field.
-
 export async function GET(req: NextRequest) {
   const svc = getSupabaseService();
   const { searchParams } = req.nextUrl;
   const transactionId = searchParams.get('transactionId');
+  // Posé par la route d'initiation sur l'URL de retour : sans lui on ne sait
+  // pas de quelle commande — donc de quel marchand — il s'agit, et on ne peut
+  // pas récupérer les identifiants pour vérifier.
+  const orderDbId = searchParams.get('orderId');
 
   if (!transactionId) {
     return NextResponse.redirect(new URL('/store?error=missing_transaction', req.url));
   }
+  if (!orderDbId) {
+    return NextResponse.redirect(new URL('/store?error=missing_order', req.url));
+  }
 
   try {
-    // 1. We need credentials to verify — but we don't know the business yet.
-    //    Strategy: MonCash returns orderId in the verify response, which is our order UUID.
-    //    We first try to find a store with MonCash creds to do the verify.
-    //    Best approach: call verify with any valid MonCash token from any configured store.
-    //    Since orderId = our DB order UUID, we look up the order to get the business.
-
-    // 2. Find any store with MonCash credentials configured to get a token
-    //    (We'll use the order's own business credentials once we have the order ID)
-    //
-    // Problem: we need a token to get the orderId, but need the orderId to get creds.
-    // Solution: store the orderId in a pending_payments table, OR use a two-step approach.
-    // Pragmatic fix: The caller passes orderId as an extra query param (set in initiate route).
-    const orderDbId = searchParams.get('orderId');
-    if (!orderDbId) {
-      return NextResponse.redirect(new URL('/store?error=missing_order', req.url));
-    }
-
-    // 3. Look up the order to get business_id
     const { data: order } = await svc
       .from('orders')
-      .select('id, business_id, order_number, total, payment_status')
+      .select('id, business_id, order_number, payment_status')
       .eq('id', orderDbId)
       .maybeSingle();
 
@@ -76,71 +78,55 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL('/store?error=order_not_found', req.url));
     }
 
+    const slug = await storeSlugOf(order.business_id);
+
+    // Déjà encaissée : on renvoie vers la confirmation sans rappeler MonCash.
     if (order.payment_status === 'paid') {
-      // Already processed — idempotent redirect to confirmation
-      const slug = await getSlug(svc, order.business_id);
       return NextResponse.redirect(
-        new URL(`/store/${slug}/confirmation?order=${order.order_number}&biz=${order.business_id}`, req.url)
+        new URL(
+          `/store/${slug}/confirmation?id=${order.id}&paid=1`,
+          req.url,
+        ),
       );
     }
 
-    // 4. Get MonCash credentials for this business
-    const { data: settings } = await svc
-      .from('store_settings')
-      .select('payment_credentials, slug')
-      .eq('business_id', order.business_id)
-      .maybeSingle();
-
-    const creds = (settings?.payment_credentials as any)?.moncash;
-    if (!creds?.client_id || !creds?.client_secret) {
+    const creds = await readGatewayCredentials(order.business_id, 'moncash');
+    if (!creds) {
       return NextResponse.redirect(new URL('/store?error=no_credentials', req.url));
     }
 
-    const sandbox = creds.sandbox === true;
+    const accessToken  = await getMoncashToken(creds.client_id, creds.client_secret, creds.sandbox);
+    const verification = await verifyMoncashTransaction(accessToken, creds.sandbox, transactionId);
 
-    // 5. Verify the transaction with MonCash
-    const accessToken = await getMoncashToken(creds.client_id, creds.client_secret, sandbox);
-    const verification = await verifyMoncashTransaction(accessToken, sandbox, transactionId);
-
-    // MonCash returns: { payment: { reference, transactionId, cost, message, payer }, timestamp, status }
-    const payment = verification?.payment;
-    const mcStatus = payment?.message; // 'successful' on success
+    // MonCash renvoie : { payment: { reference, transactionId, cost, message, payer }, timestamp, status }
+    const payment  = verification?.payment;
+    const mcStatus = payment?.message; // 'successful' en cas de succès
 
     if (mcStatus !== 'successful' && verification?.status !== 200) {
-      console.error('[moncash callback] verification failed:', verification);
-      const slug = settings?.slug ?? await getSlug(svc, order.business_id);
+      console.error('[moncash callback] vérification refusée:', verification);
       return NextResponse.redirect(
-        new URL(`/store/${slug}/checkout?error=payment_failed`, req.url)
+        new URL(`/store/${slug}/checkout?error=payment_failed`, req.url),
       );
     }
 
-    // 6. Mark order as paid
-    await svc
-      .from('orders')
-      .update({
-        payment_status:        'paid',
-        payment_transaction_id: transactionId,
-        payment_gateway:       'moncash',
-        status:                'confirmed',
-      })
-      .eq('id', order.id);
+    const settled = await settleGatewayOrder({
+      orderId:       order.id,
+      gateway:       'moncash',
+      transactionId,
+    });
 
-    // 7. Redirect to confirmation
-    const slug = settings?.slug ?? await getSlug(svc, order.business_id);
+    if (!settled.ok) {
+      return NextResponse.redirect(new URL('/store?error=order_not_found', req.url));
+    }
+
     return NextResponse.redirect(
-      new URL(`/store/${slug}/confirmation?order=${order.order_number}&biz=${order.business_id}&paid=1`, req.url)
+      new URL(
+        `/store/${settled.slug}/confirmation?id=${settled.orderId}&paid=1`,
+        req.url,
+      ),
     );
   } catch (err: any) {
     console.error('[moncash callback] error:', err.message);
     return NextResponse.redirect(new URL('/store?error=payment_error', req.url));
   }
-}
-
-async function getSlug(svc: any, businessId: string): Promise<string> {
-  const { data } = await svc
-    .from('store_settings')
-    .select('slug')
-    .eq('business_id', businessId)
-    .maybeSingle();
-  return data?.slug ?? '';
 }

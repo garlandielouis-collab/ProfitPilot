@@ -139,7 +139,7 @@ function AcceptInvitationInner() {
 
         {/* ── Loading ── */}
         {state.phase === 'loading' && (
-          <div className="flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white p-10 shadow-sm">
+          <div className="flex flex-col items-center gap-4 rounded-3xl border border-slate-200 bg-white p-10">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[#001F3F]" />
             <p className="text-sm text-slate-500">Vérification de l&apos;invitation…</p>
           </div>
@@ -147,7 +147,7 @@ function AcceptInvitationInner() {
 
         {/* ── Invalid ── */}
         {state.phase === 'invalid' && (
-          <div className="rounded-3xl border border-red-200 bg-white p-8 shadow-sm text-center space-y-4">
+          <div className="rounded-3xl border border-red-200 bg-white p-8 text-center space-y-4">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100">
               <svg className="h-7 w-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -165,7 +165,7 @@ function AcceptInvitationInner() {
 
         {/* ── Form ── */}
         {state.phase === 'form' && (
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8">
 
             {/* Invitation header */}
             <div className="mb-6 rounded-2xl bg-blue-50 border border-blue-100 px-5 py-4">
@@ -287,7 +287,7 @@ function AcceptInvitationInner() {
 
         {/* ── Success ── */}
         {state.phase === 'success' && (
-          <div className="rounded-3xl border border-emerald-200 bg-white p-8 shadow-sm text-center space-y-5">
+          <div className="rounded-3xl border border-emerald-200 bg-white p-8 text-center space-y-5">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
               <svg className="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

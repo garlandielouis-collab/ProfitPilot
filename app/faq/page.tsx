@@ -51,7 +51,7 @@ export default function FAQPage() {
           <h1 className="mt-2 text-3xl font-extrabold text-primary">{t({ fr: 'Questions fréquentes', ht: 'Kesyon Souvan Poze' })}</h1>
           <p className="mt-3 text-slate-500">Tout repon ou bezwen sou ProfitPilot.</p>
         </div>
-        <div className="rounded-2xl border border-border bg-white px-6 shadow-sm">
+        <div className="rounded-2xl border border-border bg-white px-6">
           {FAQS.map((f, i) => <FAQItem key={i} q={f.q} a={f.a} />)}
         </div>
         <div className="mt-10 rounded-2xl border border-accent/20 bg-accent/5 p-6 text-center">

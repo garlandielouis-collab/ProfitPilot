@@ -35,7 +35,11 @@ export type Feature =
   | 'basic_dashboard'
   | 'low_stock_badge'
   | 'data_export'
-  | 'ai_taster'
+  // Déposer ses papiers et les retrouver n'est pas un service premium : c'est
+  // le même geste que sortir du cahier. Un marchand dont la licence expire sans
+  // qu'on l'ait prévenu perd son commerce, pas une fonctionnalité. Ce qui se
+  // paie plus haut, c'est ce que l'application FAIT de ces documents.
+  | 'documents'
   // ── Croissance (Kwasans) — comprendre pour grandir ──
   | 'unlimited_products'
   | 'fx_rate_of_day'
@@ -63,6 +67,14 @@ export type Feature =
   | 'online_store'
   | 'employees'
   | 'activity_log'
+  // Les documents cessent d'être rangés pour devenir lus : modèles, contrats
+  // suivis, conformité surveillée, extraction automatique, note de santé.
+  | 'document_templates'
+  | 'document_contracts'
+  | 'document_compliance'
+  | 'document_approvals'
+  | 'document_ai_extraction'
+  | 'document_health'
   // ── Élite (Elit) — diriger comme un patron ──
   | 'multi_stores'
   | 'multi_user_roles'
@@ -80,7 +92,14 @@ export type Feature =
   | 'priority_support'
   | 'advanced_analytics'
   | 'automation'
-  | 'api_access';
+  | 'api_access'
+  // Le document devient matière première : l'IA les rédige, les analyse, et
+  // finit par répondre à leur place (§72).
+  | 'document_ai_studio'
+  | 'document_intelligence'
+  | 'business_knowledge_base'
+  | 'document_advanced_sharing'
+  | 'cross_company_documents';
 
 /**
  * Esansyel — le socle. Tout ce qui remplace le cahier papier pour UN marchand,
@@ -110,10 +129,18 @@ const ESANSYEL: Feature[] = [
   'low_stock_badge',
   // Ses chiffres lui appartiennent : l'export survit même à la résiliation.
   'data_export',
-  // L'IA se dose par quota, jamais par interdiction — trois questions offertes
-  // valent mieux qu'une porte fermée : personne n'achète une fonction qu'il n'a
-  // jamais vue tourner sur ses propres chiffres.
-  'ai_taster',
+  // Déposer, ranger, retrouver, et être prévenu avant qu'une licence n'expire.
+  // Le reste — modèles, contrats suivis, extraction, note de santé — commence à
+  // Kwasans.
+  'documents',
+  // Pilot AI n'est PAS dans le socle : il commence à Kwasans (`ai_assistant`).
+  // Un « avant-goût » de trois questions avait été posé ici ; il ne servait à
+  // rien — la route `/api/ai/chat` exige depuis toujours un abonnement actif
+  // parmi `plansWithFeature('ai_assistant')`. L'écran s'ouvrait donc en grand
+  // pour un marchand d'Esansyel, et sa première question revenait en 403.
+  // Mieux vaut une porte fermée qui explique que l'illusion d'une porte
+  // ouverte : le verrou d'écran dit maintenant à partir de quelle offre
+  // l'assistant répond, et ce qu'il fait.
 ];
 
 /** Kwasans = Esansyel + les chiffres deviennent des décisions. */
@@ -153,6 +180,15 @@ const KWASANS: Feature[] = [
   // rôles et les permissions, eux, attendent Elit.
   'employees',
   'activity_log',
+  // Le centre documentaire cesse d'être un rangement : il lit, il surveille,
+  // il note. L'extraction IA est ici et pas plus bas parce qu'elle coûte de
+  // l'argent réel par document, comme l'assistant.
+  'document_templates',
+  'document_contracts',
+  'document_compliance',
+  'document_approvals',
+  'document_ai_extraction',
+  'document_health',
 ];
 
 /** Elit = Kwasans + déléguer, se multiplier, prévoir. */
@@ -177,6 +213,13 @@ const ELIT: Feature[] = [
   'advanced_analytics',
   'automation',
   'api_access',
+  'document_ai_studio',
+  'document_intelligence',
+  'business_knowledge_base',
+  'document_advanced_sharing',
+  // Le partage entre entreprises suit `multi_stores` : il n'a de sens que pour
+  // qui en possède plusieurs, et reste soumis à une permission explicite (§77).
+  'cross_company_documents',
 ];
 
 const PLAN_FEATURES: Record<PlanKey, Feature[]> = {
@@ -221,11 +264,23 @@ export const PLAN_AI_QUESTIONS: Record<PlanKey, number> = {
   'Expert':         UNLIMITED,
 };
 
-/** Questions offertes une seule fois, à la découverte (Esansyel). */
-export const PLAN_AI_TASTER: Record<PlanKey, number> = {
-  'Ti Machann':     3,
-  'Business Pilot': 0,
-  'Expert':         0,
+/**
+ * Crédits IA du Commerce, par mois. Retouche photo, rédaction de fiche,
+ * analyse de catalogue, proposition de lot : la grille de coûts vit en base
+ * (`ai_credit_costs`), le réservoir vit ici.
+ *
+ * Pourquoi un second compteur à côté de `PLAN_AI_QUESTIONS` : ces deux
+ * réservoirs ne se remplissent pas au même prix. Une question à l'assistant
+ * coûte quelques centimes de jetons ; une photo studio coûte un appel à un
+ * générateur d'images, deux ordres de grandeur au-dessus. Les mettre dans le
+ * même seau ferait payer les bavards pour les photographes, ou l'inverse.
+ *
+ * Zéro à Esansyel n'est pas une punition : le Commerce entier y est fermé.
+ */
+export const PLAN_AI_CREDITS: Record<PlanKey, number> = {
+  'Ti Machann':     0,
+  'Business Pilot': 100,
+  'Expert':         500,
 };
 
 /**
@@ -281,6 +336,11 @@ export function planMaxProducts(planKey: PlanKey | string | null | undefined): n
 export function planAiQuestions(planKey: PlanKey | string | null | undefined): number {
   const key = normalizePlanKey(typeof planKey === 'string' ? planKey : planKey ?? null);
   return key ? PLAN_AI_QUESTIONS[key] : 0;
+}
+
+export function planAiCredits(planKey: PlanKey | string | null | undefined): number {
+  const key = normalizePlanKey(typeof planKey === 'string' ? planKey : planKey ?? null);
+  return key ? PLAN_AI_CREDITS[key] : 0;
 }
 
 export function planHistoryMonths(planKey: PlanKey | string | null | undefined): number {

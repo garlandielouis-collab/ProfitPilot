@@ -41,7 +41,7 @@ export function ProblemSection() {
           initial="hidden" animate={inView ? 'visible' : 'hidden'} variants={fadeUp}
           className="mb-4 flex justify-center"
         >
-          <span className="rounded-full border border-primary/10 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary/50 shadow-sm">
+          <span className="rounded-full border border-primary/10 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary/50">
             {t({ fr: 'La réalité', ht: 'Realite a' })}
           </span>
         </motion.div>
@@ -73,7 +73,7 @@ export function ProblemSection() {
             initial={{ opacity: 0, x: -30 }}
             animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ delay: 0.3, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="rounded-3xl border border-red-100 bg-white p-8 shadow-sm"
+            className="rounded-3xl border border-red-100 bg-white p-8"
           >
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-50">
@@ -114,7 +114,7 @@ export function ProblemSection() {
             initial={{ opacity: 0, x: 30 }}
             animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ delay: 0.4, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="rounded-3xl border border-accent/20 bg-white p-8 shadow-sm relative overflow-hidden"
+            className="rounded-3xl border border-accent/20 bg-white p-8 relative overflow-hidden"
           >
             <div className="pointer-events-none absolute top-0 right-0 h-48 w-48 rounded-full bg-accent/5 blur-2xl" />
             <div className="mb-6 flex items-center gap-3">

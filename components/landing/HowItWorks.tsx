@@ -28,7 +28,7 @@ export function HowItWorks() {
           transition={{ duration: 0.6 }}
           className="mb-16 text-center"
         >
-          <span className="mb-4 inline-block rounded-full border border-primary/10 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary/50 shadow-sm">
+          <span className="mb-4 inline-block rounded-full border border-primary/10 bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary/50">
             {t({ fr: 'Comment ça marche', ht: 'Kijan li fonksyone' })}
           </span>
           <h2 className="mt-4 text-3xl font-extrabold text-primary sm:text-4xl">
@@ -57,14 +57,14 @@ export function HowItWorks() {
                 <div className="relative z-10 flex shrink-0 flex-col items-center">
                   <motion.div
                     whileHover={{ scale: 1.1 }}
-                    className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-accent/20 bg-white shadow-md text-2xl"
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-accent/20 bg-white text-2xl"
                   >
                     {step.icon}
                   </motion.div>
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 rounded-2xl border border-border bg-white p-5 shadow-sm transition-all hover:border-accent/20 hover:shadow-md">
+                <div className="flex-1 rounded-2xl border border-border bg-white p-5 transition-all hover:border-accent/20 hover:shadow-md">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <span className="text-note font-bold uppercase tracking-widest text-accent">

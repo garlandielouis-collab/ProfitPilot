@@ -77,7 +77,7 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
       {/* La feuille imprimée : fond blanc et texte noir quel que soit le thème. */}
       <div
         ref={sheetRef}
-        className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-900 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none"
+        className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-900 print:rounded-none print:border-0 print:p-0 print:shadow-none"
       >
         <header className="flex items-start justify-between border-b-2 border-primary pb-4">
           <div>

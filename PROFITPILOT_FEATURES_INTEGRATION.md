@@ -222,7 +222,8 @@ export async function getProductProfitability() {
 | `ai.getDashboardV2Action` | `hasFeature('basic_dashboard')` | renvoie vide |
 | `ai.getWeeklySummaryAction` | `hasFeature('ai_assistant')` | renvoie vide |
 | `reports.getReportsDataAction` | `hasFeature('advanced_reports')` | renvoie `emptyReports()` |
-| `api/ai/chat` | abonnement actif ∈ `plansWithFeature('ai_assistant')` | `403` |
+| `api/ai/chat` | abonnement actif ∈ `plansWithFeature('ai_assistant')` **ou** paquet de questions gagné par parrainage, puis `consume_ai_question()` | `403` sans porte, `429` quota épuisé |
+| `products.createProductAction` | `productAllowance()` = `PLAN_MAX_PRODUCTS` + bonus parrainage | lève `PlanLimitError` |
 | `employees.inviteEmployee` | `assertFeature('employees')` + `assertSeatAvailable()` | lève |
 | `employees.updateEmployeeRole` | `assertFeature('multi_user_roles')` | lève |
 | `invitations.sendHrInvitation` | `assertFeature('employees')` + `assertSeatAvailable()` | lève |

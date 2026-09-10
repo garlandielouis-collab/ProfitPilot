@@ -20,7 +20,7 @@
 
 import { useState } from 'react';
 import { chartColors } from '../../theme.config';
-import { formatAmount } from '../ds';
+import { barGap, formatAmount, showsLabel } from '../ds';
 import { cn } from '../../lib/utils';
 
 export type FlowPoint = { label: string; cashIn: number; cashOut: number };
@@ -55,6 +55,10 @@ export function CashflowChart({
   }
 
   const max = Math.max(...data.flatMap((d) => [d.cashIn, d.cashOut]), 1);
+  // Un mois compte trente et un jours : à écart fixe, il ne restait que deux
+  // pixels et demi par barre sur un téléphone. L'écart suit donc le nombre de
+  // périodes — c'est la même règle pour tous les graphiques du produit.
+  const gap = barGap(data.length);
   const ticks = [max, max * 0.5, 0];
   const active = touched ?? currentIndex ?? null;
   const shown = active !== null ? data[active] : null;
@@ -95,7 +99,7 @@ export function CashflowChart({
             />
           ))}
 
-          <div className="absolute inset-0 flex items-end gap-1">
+          <div className="absolute inset-0 flex items-end" style={{ gap }}>
             {data.map((d, i) => {
               const isCurrent = i === currentIndex;
               return (
@@ -132,18 +136,37 @@ export function CashflowChart({
       {/* Libellés courts — une étiquette par période, pas une de plus */}
       <div className="mt-2 flex gap-3">
         <span className="w-10 flex-shrink-0" aria-hidden />
-        <div className="flex min-w-0 flex-1 gap-1">
-          {data.map((d, i) => (
-            <span
-              key={d.label + i}
-              className={cn(
-                'min-w-0 flex-1 truncate text-center text-note',
-                i === currentIndex ? 'font-bold text-primary dark:text-dark-text' : 'text-muted',
-              )}
-            >
-              {data.length > 8 && i % 2 === 1 ? '' : d.label}
-            </span>
-          ))}
+        <div className="flex min-w-0 flex-1" style={{ gap }}>
+          {data.map((d, i) => {
+            const shown = showsLabel(i, data.length);
+            // La case d'un libellé fait la largeur d'une barre — huit pixels sur
+            // un mois complet. Le texte doit donc pouvoir DÉBORDER de sa case
+            // sans la déformer : il est posé en absolu, la case garde sa largeur,
+            // et les barres restent alignées sur leurs noms.
+            //
+            // Aux deux extrémités il s'aligne sur le bord au lieu de se centrer :
+            // centré, il dépasserait du graphique — et un écran qui défile de
+            // trois pixels sur le côté est un écran cassé.
+            const anchor =
+              i === 0                 ? 'left-0'
+              : i === data.length - 1 ? 'right-0'
+              : 'left-1/2 -translate-x-1/2';
+
+            return (
+              <span
+                key={d.label + i}
+                className={cn(
+                  'relative min-w-0 flex-1 text-center text-note',
+                  i === currentIndex ? 'font-bold text-primary dark:text-dark-text' : 'text-muted',
+                )}
+              >
+                &nbsp;
+                {shown && (
+                  <span className={cn('absolute top-0 whitespace-nowrap', anchor)}>{d.label}</span>
+                )}
+              </span>
+            );
+          })}
         </div>
       </div>
 

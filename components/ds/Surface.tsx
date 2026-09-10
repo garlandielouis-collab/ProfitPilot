@@ -32,7 +32,11 @@ export function Card({
   return (
     <Tag
       className={cn(
-        'rounded-surface border border-border bg-white shadow-card',
+        // Ombre OU bordure, jamais les deux (masterclass §24) : « une ombre
+        // douce plus une bordure claire créent une ligne floue ». La carte de
+        // ProfitPilot porte des chiffres sur des écrans denses — le cours pose
+        // le style plat à bordures pour ce cas. L'ombre reste au flottant.
+        'rounded-surface border border-border bg-white',
         'dark:border-dark-border dark:bg-dark-surface',
         interactive && 'pressable cursor-pointer hover:border-slate-300 dark:hover:border-slate-600',
         className,

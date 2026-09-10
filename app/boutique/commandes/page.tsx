@@ -31,6 +31,10 @@ export default function CommandesPage() {
   const [updating,   startUpdating] = useTransition();
   const [newStatus,  setNewStatus]  = useState('');
   const [tracking,   setTracking]   = useState('');
+  // Confirmer une commande crée la vente et décrémente le stock : l'opération
+  // peut légitimement refuser (stock devenu insuffisant, produit supprimé du
+  // catalogue). Sans cet état, le marchand cliquait et rien ne se passait.
+  const [updateError, setUpdateError] = useState('');
 
   function load(s: string, q: string) {
     setLoading(true);
@@ -46,10 +50,20 @@ export default function CommandesPage() {
 
   function handleUpdateStatus() {
     if (!selected || !newStatus) return;
+    setUpdateError('');
     startUpdating(async () => {
-      await updateOrderStatus(selected.id, newStatus, tracking || undefined);
-      setSelected(null);
-      load(status, search);
+      try {
+        await updateOrderStatus(selected.id, newStatus, tracking || undefined);
+        setSelected(null);
+        load(status, search);
+      } catch (err) {
+        // Le message vient du serveur et nomme le produit en cause
+        // (« Stock insuffisant pour « Savon karité » : 2 en stock… ») : on le
+        // montre tel quel, et la commande reste dans son statut précédent.
+        setUpdateError(
+          err instanceof Error ? err.message : "La mise à jour n'a pas abouti.",
+        );
+      }
     });
   }
 
@@ -94,7 +108,7 @@ export default function CommandesPage() {
           <p className="mt-2 text-sm">Aucune commande trouvée.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-widest text-slate-400">
               <tr>
@@ -188,6 +202,11 @@ export default function CommandesPage() {
                 </select>
                 {(newStatus === 'shipped' || newStatus === 'delivered') && (
                   <input className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none" placeholder="Numéro de suivi (optionnel)" value={tracking} onChange={(e) => setTracking(e.target.value)} />
+                )}
+                {updateError && (
+                  <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    {updateError}
+                  </p>
                 )}
                 <button onClick={handleUpdateStatus} disabled={updating}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition hover:bg-primary-h disabled:opacity-50">

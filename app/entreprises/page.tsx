@@ -248,11 +248,11 @@ function DeleteModal({ company, onClose, onDeleted }: { company: CompanyRow; onC
         </p>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+          <button onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
             Annuler
           </button>
           <button onClick={handleDelete} disabled={pending}
-            className="flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-50">
+            className="min-h-touch min-w-touch flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-50">
             {pending && <Spinner sm />}
             Supprimer
           </button>

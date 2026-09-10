@@ -15,12 +15,15 @@ import { cn } from '../../lib/utils';
 type Size = 'note' | 'body' | 'card' | 'amount' | 'amount-lg';
 type Tone = 'default' | 'muted' | 'up' | 'down';
 
+// Masterclass §11 : semibold (600) porte les montants importants ; le 700
+// reste au SEUL montant héro — celui qui domine le tableau de bord. Un montant
+// de ligne de liste en 700, répété quarante fois, ne hiérarchise plus rien.
 const SIZE: Record<Size, string> = {
   note:        'text-note',
   body:        'text-body',
-  card:        'text-card font-bold',
-  amount:      'text-amount font-bold',
-  'amount-lg': 'text-amount-lg font-bold',
+  card:        'text-card font-semibold',
+  amount:      'text-amount font-semibold',
+  'amount-lg': 'text-amount-lg font-hero',
 };
 
 const TONE: Record<Tone, string> = {

@@ -10,6 +10,9 @@ export { FirstRun, NoResult, closestMatch } from './EmptyState';
 export { BottomSheet } from './BottomSheet';
 export { PaymentPicker, PAYMENT_METHODS, type PaymentKey } from './PaymentPicker';
 export { PeriodBars, type BarPoint } from './PeriodBars';
+// L'écart entre les barres et l'espacement des libellés : les mêmes décisions
+// pour tous les graphiques, sinon deux d'un même écran ne se ressemblent plus.
+export { barGap, labelStep, showsLabel } from './chartScale';
 export { Stat, StatRow } from './Stat';
 // L'interrupteur : deux écrans le redessinaient, avec deux cibles trop petites.
 export { Switch } from './Switch';

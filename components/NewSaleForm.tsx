@@ -347,7 +347,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
 
         {/* ── Catalogue ── */}
-        <section className="rounded-surface border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <section className="rounded-surface border border-slate-200 bg-white p-4 md:p-6">
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold text-anthracite">{t({ fr: 'Catalogue', ht: 'Katalòg' })}</h2>
@@ -408,7 +408,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
         {/* ── Panier ── */}
         <aside className="sticky top-6 h-fit">
-          <section className="rounded-surface border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <section className="rounded-surface border border-slate-200 bg-white p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-anthracite">
                 Panier <span className="ml-1 text-sm text-anthracite/50">({cart.length})</span>
@@ -575,7 +575,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                                   type="button"
                                   onClick={handleSaveNewClient}
                                   disabled={!newClientName.trim() || savingClient}
-                                  className="flex-1 rounded-xl bg-primary py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-primary-h"
+                                  className="min-h-touch min-w-touch flex-1 rounded-xl bg-primary py-1.5 text-xs font-semibold text-white disabled:opacity-50 hover:bg-primary-h"
                                 >
                                   {savingClient
                                     ? t({ fr: 'Création…', ht: 'Ap kreye…' })
@@ -667,7 +667,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       {/* Invoice modal — shown after successful sale */}
       {invoiceData && (
         <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/60 p-4">
-          <div className="mb-4 flex w-full max-w-2xl items-center justify-between rounded-2xl bg-emerald-600 px-6 py-4 text-white shadow-lg">
+          <div className="mb-4 flex w-full max-w-2xl items-center justify-between rounded-2xl bg-accent px-6 py-4 text-accent-ink shadow-lg">
             <div className="flex items-center gap-3">
               <CheckIcon className="h-6 w-6" strokeWidth={2.5} aria-hidden />
               <div>

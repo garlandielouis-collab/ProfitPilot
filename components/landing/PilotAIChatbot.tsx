@@ -290,8 +290,8 @@ export function PilotAIChatbot() {
               {/* Quick choice buttons shown when no flow selected */}
               {flow == null && (
                 <div className="flex gap-2">
-                  <button onClick={startDemo} className="rounded-full bg-blue-500 px-3 py-1 text-xs text-white">{t({ fr: 'Explorer la démo', ht: 'Eksplore demo a' })}</button>
-                  <button onClick={startBuyer} className="rounded-full bg-emerald-500 px-3 py-1 text-xs text-white">{t({ fr: 'Démarrer mon business', ht: 'Kòmanse biznis mwen' })}</button>
+                  <button onClick={startDemo} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full bg-blue-500 px-3 py-1 text-xs text-white">{t({ fr: 'Explorer la démo', ht: 'Eksplore demo a' })}</button>
+                  <button onClick={startBuyer} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full bg-accent px-3 py-1 text-xs text-accent-ink">{t({ fr: 'Démarrer mon business', ht: 'Kòmanse biznis mwen' })}</button>
                 </div>
               )}
               {messages.map((msg, i) => (
@@ -345,7 +345,7 @@ export function PilotAIChatbot() {
                 <div className="mt-2 flex w-full justify-center">
                   <button
                     onClick={advanceGuide}
-                    className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white"
+                    className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-ink"
                   >
                     {t({ fr: 'Continuer', ht: 'Kontinye' })}
                   </button>
@@ -419,7 +419,7 @@ export function PilotAIChatbot() {
                   <button
                     onClick={submitSignup}
                     disabled={signupLoading}
-                    className="mb-2 w-full rounded-full bg-emerald-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                    className="min-h-touch min-w-touch mb-2 w-full rounded-full bg-accent px-3 py-2 text-xs font-semibold text-accent-ink disabled:opacity-60"
                   >
                     {signupLoading ? t({ fr: 'En cours...', ht: 'Ap chaje...' }) : t({ fr: 'S\'inscrire', ht: 'Enskri' })}
                   </button>
@@ -443,7 +443,7 @@ export function PilotAIChatbot() {
               <button
                 onClick={send}
                 disabled={!input.trim()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-90 disabled:opacity-40"
+                className="min-h-touch min-w-touch flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition active:scale-90 disabled:opacity-40"
                 style={{ background: 'linear-gradient(135deg,#1d4ed8,#64748b)' }}
                 aria-label={t({ fr: 'Envoyer', ht: 'Voye' })}
               >

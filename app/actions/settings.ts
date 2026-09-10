@@ -162,9 +162,11 @@ export async function exportUserData() {
     supabase.from('user_preferences').select('*').eq('user_id', user.id).maybeSingle(),
     supabase.from('sales').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
     supabase.from('expenses').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
-    supabase.from('products').select('*').eq('user_id', user.id),
+    supabase.from('products').select('*').eq('business_id', businessId),
     supabase.from('purchases').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
-    supabase.from('customers').select('*').eq('business_id', businessId).is('deleted_at', null),
+    // `customers` n'a pas de colonne `deleted_at` — le filtre faisait échouer
+    // la requête et l'export ne contenait aucun client.
+    supabase.from('customers').select('*').eq('business_id', businessId),
   ]);
 
   return {

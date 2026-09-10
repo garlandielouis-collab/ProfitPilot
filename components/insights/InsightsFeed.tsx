@@ -63,7 +63,7 @@ export function InsightsFeed({ limit = 5, initial }: { limit?: number; initial?:
   if (items.length === 0) return null;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card dark:border-slate-800 dark:bg-slate-950">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
       <div className="mb-4 flex items-center gap-2">
         <Lightbulb className="h-4 w-4 text-accent" />
         <h3 className="text-sm font-bold text-primary dark:text-slate-100">

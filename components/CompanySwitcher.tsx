@@ -152,7 +152,7 @@ export function CompanySwitcher({ onNavigate }: { onNavigate?: () => void }) {
                       type="button"
                       onClick={handleCreate}
                       disabled={isPending || !newName.trim()}
-                      className="rounded-lg bg-primary px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                      className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg bg-primary px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
                     >
                       OK
                     </button>

@@ -38,6 +38,7 @@ import { recordLogin } from '../../../hooks/useSubscription';
 import { useLanguage } from '../../../components/LanguageWrapper';
 import { recordLoginSession } from '../../actions/security';
 import { ensurePhoneLinked, resolvePhoneLogin } from '../../actions/phoneAuth';
+import { ensureReferralClaimed } from '../../actions/referrals';
 import { Button, Field, PhoneField } from '../../../components/ds';
 
 type Mode = 'phone' | 'email';
@@ -117,6 +118,10 @@ function LoginForm() {
     // confirmation par e-mail : sans cela, la connexion par numéro ne marcherait
     // jamais pour ces comptes-là.
     void ensurePhoneLinked();
+    // Même rattrapage pour le code de parrainage laissé en métadonnées :
+    // sans lui, aucun parrainage ne serait jamais compté sur une
+    // installation qui exige la confirmation par e-mail — la nôtre.
+    void ensureReferralClaimed();
     // On laisse la session se propager avant de naviguer.
     await new Promise((resolve) => setTimeout(resolve, 300));
     void data;

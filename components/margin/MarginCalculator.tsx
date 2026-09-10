@@ -139,7 +139,7 @@ export function MarginCalculator({
       : { bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900', text: 'text-emerald-600 dark:text-emerald-400' };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-950">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       {/* En-tête navy */}
       <div className="flex items-center gap-3 bg-primary px-5 py-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
@@ -285,7 +285,7 @@ export function MarginCalculator({
                   setSalePrice(suggested);
                   onApplyPrice(suggested);
                 }}
-                className="rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white transition hover:bg-accent-h active:scale-95"
+                className="rounded-xl bg-accent px-3 py-2 text-xs font-bold text-accent-ink transition hover:bg-accent-h active:scale-95"
               >
                 Appliquer
               </button>
@@ -303,7 +303,7 @@ export function MarginCalculator({
                   onClick={() => setTargetMargin(m)}
                   className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
                     targetMargin === m
-                      ? 'bg-accent text-white'
+                      ? 'bg-accent text-accent-ink'
                       : 'bg-white/10 text-slate-300 hover:bg-white/20'
                   }`}
                 >

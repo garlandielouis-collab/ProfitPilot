@@ -16,8 +16,9 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { getPlanByKey, type Plan } from '../../lib/plans';
-import { createPendingPayment } from '../actions/payments';
+import { USD_RATE, getPlanByKey, type Plan } from '../../lib/plans';
+import { createPendingPayment, getCheckoutQuote } from '../actions/payments';
+import type { CheckoutQuote } from '../../lib/referral';
 import { cn } from '../../lib/utils';
 import { markSubscriptionActive } from '../../hooks/useSubscription';
 import { useLanguage } from '../../components/LanguageWrapper';
@@ -63,14 +64,51 @@ type MethodId = 'moncash' | 'natcash' | 'visa';
 type Step = 'method' | 'payment' | 'success';
 type MobileMethod = typeof PAYMENT_METHODS[0] | typeof PAYMENT_METHODS[1];
 
-// ─── Plan Summary ─────────────────────────────────────────────────────────────
+// ─── Le devis ─────────────────────────────────────────────────────────────────
+//
+// Le prix affiché n'est plus toujours celui du catalogue : un filleul paie son
+// premier mois à −50 %, un parrain paie l'offre du dessus jusqu'à −60 %. Quand
+// une réduction s'applique, l'écran montre les DEUX chiffres — le tarif barré
+// et ce qui est réellement dû — et dit d'où vient la différence. Un prix remisé
+// sans explication se lit comme une erreur, et on n'appelle pas le support
+// pour se plaindre d'une erreur en sa faveur : on n'achète pas, c'est tout.
 
-function PlanSummary({ plan, currency }: { plan: Plan; currency: 'HTG' | 'USD' }) {
+function DiscountNote({ quote }: { quote: CheckoutQuote }) {
   const { t } = useLanguage();
-  const price = currency === 'HTG' ? plan.priceG : plan.priceUsd;
+  const fromWelcome  = quote.applied.some((c) => c.source === 'welcome');
+  const referrals    = quote.applied.filter((c) => c.source !== 'welcome').length;
 
   return (
-    <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+    <p className="mt-2 text-xs font-semibold text-success">
+      −{quote.percentOff} %{' '}
+      {fromWelcome && referrals === 0
+        ? t({ fr: 'sur votre premier mois, grâce au marchand qui vous a invité', ht: 'sou premye mwa ou, gras a machann ki envite w la' })
+        : referrals > 0 && !fromWelcome
+          ? t({
+              fr: `grâce à ${referrals} filleul${referrals > 1 ? 's' : ''} qui pai${referrals > 1 ? 'ent' : 'e'}`,
+              ht: `gras a ${referrals} moun ou mennen k ap peye`,
+            })
+          : t({ fr: 'grâce à votre parrainage', ht: 'gras a parennaj ou' })}
+    </p>
+  );
+}
+
+function PlanSummary({
+  plan,
+  currency,
+  quote,
+}: {
+  plan: Plan;
+  currency: 'HTG' | 'USD';
+  quote: CheckoutQuote | null;
+}) {
+  const { t } = useLanguage();
+  const discounted = quote && quote.percentOff > 0;
+  const priceG = quote?.amountHtg ?? plan.priceG;
+  const price  = currency === 'HTG' ? priceG : priceG * USD_RATE;
+
+  return (
+    <div className="rounded-surface border border-slate-200 bg-white p-6">
       {plan.popular && (
         <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
           {t({ fr: 'Populaire', ht: 'Popilè' })}
@@ -86,11 +124,21 @@ function PlanSummary({ plan, currency }: { plan: Plan; currency: 'HTG' | 'USD' }
 
       <div className="mt-5 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 p-4">
         <p className="text-xs uppercase tracking-wider text-anthracite/50">{t({ fr: 'Total mensuel', ht: 'Total chak mwa' })}</p>
-        <p className="mt-1 text-3xl font-bold text-primary">
-          {currency === 'HTG'
-            ? `G ${price.toLocaleString('fr-FR')}`
-            : `$${price.toFixed(2)} USD`}
+        <p className="mt-1 flex items-baseline gap-2">
+          <span className="text-3xl font-bold text-primary">
+            {currency === 'HTG'
+              ? `G ${price.toLocaleString('fr-FR')}`
+              : `$${price.toFixed(2)} USD`}
+          </span>
+          {discounted && (
+            <span className="text-base font-semibold text-anthracite/40 line-through">
+              {currency === 'HTG'
+                ? `G ${plan.priceG.toLocaleString('fr-FR')}`
+                : `$${plan.priceUsd.toFixed(2)}`}
+            </span>
+          )}
         </p>
+        {discounted && <DiscountNote quote={quote!} />}
       </div>
 
       <div className="mt-5 space-y-2.5">
@@ -98,7 +146,7 @@ function PlanSummary({ plan, currency }: { plan: Plan; currency: 'HTG' | 'USD' }
         {plan.features.map((feature) => (
           <div key={feature.fr} className="flex items-start gap-3 text-sm">
             <span className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-              <Check className="h-3 w-3 text-primary" />
+              <Check className="h-4 w-4 text-primary" />
             </span>
             <span className="text-anthracite/90">{t(feature)}</span>
           </div>
@@ -117,13 +165,16 @@ function PlanSummary({ plan, currency }: { plan: Plan; currency: 'HTG' | 'USD' }
 
 function MobilePaymentFlow({
   method,
-  plan,
+  dueHtg,
   reference,
   onConfirm,
   isLoading,
 }: {
   method: MobileMethod;
-  plan: Plan;
+  /** Ce qu'il doit envoyer, réductions comprises — jamais le tarif catalogue.
+      Un marchand qui envoie 2 500 quand on attend 1 000 crée un litige que
+      personne ne peut trancher : le virement, lui, n'a pas de mémoire. */
+  dueHtg: number;
   reference: string;
   onConfirm: () => void;
   isLoading: boolean;
@@ -152,7 +203,7 @@ function MobilePaymentFlow({
         <ol className="space-y-2.5">
           {[
             t({ fr: `Ouvrez votre application ${method.name}`, ht: `Louvri aplikasyon ${method.name} ou` }),
-            t({ fr: `Envoyez exactement G ${plan.priceG.toLocaleString('fr-FR')} au numéro ci-dessous`, ht: `Voye egzakteman G ${plan.priceG.toLocaleString('fr-FR')} nan nimewo ki anba a` }),
+            t({ fr: `Envoyez exactement G ${dueHtg.toLocaleString('fr-FR')} au numéro ci-dessous`, ht: `Voye egzakteman G ${dueHtg.toLocaleString('fr-FR')} nan nimewo ki anba a` }),
             t({ fr: 'Ajoutez la référence dans le champ "message" ou "note"', ht: 'Ajoute referans nan jaden "message" oswa "note"' }),
             t({ fr: 'Revenez ici et cliquez sur "J\'ai effectué le paiement"', ht: 'Retounen isit epi klike sou "Mwen fè peman an"' }),
           ].map((step, i) => (
@@ -181,7 +232,7 @@ function MobilePaymentFlow({
             className={cn(
               'flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition',
               copiedNumber
-                ? 'bg-success text-white'
+                ? 'bg-success text-primary'
                 : 'border border-slate-200 bg-white text-anthracite hover:bg-slate-50'
             )}
           >
@@ -197,7 +248,7 @@ function MobilePaymentFlow({
           {t({ fr: 'Montant exact à envoyer', ht: 'Montan egzak pou voye' })}
         </p>
         <p className="text-2xl font-bold text-primary">
-          G {plan.priceG.toLocaleString('fr-FR')}
+          G {dueHtg.toLocaleString('fr-FR')}
         </p>
       </div>
 
@@ -391,6 +442,9 @@ function CheckoutContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [reference, setReference] = useState('');
   const [currency, setCurrency] = useState<'HTG' | 'USD'>('HTG');
+  // Le devis vient du serveur, jamais d'un calcul local : les bons de réduction
+  // sont dans la base, et un prix calculé dans le navigateur n'engage personne.
+  const [quote, setQuote] = useState<CheckoutQuote | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -399,6 +453,18 @@ function CheckoutContent() {
     const rand = Math.random().toString(36).toUpperCase().slice(2, 5);
     setReference(`PP-${ts}-${rand}`);
   }, []);
+
+  // Le devis est demandé au serveur dès que l'offre est connue. Tant qu'il n'est
+  // pas revenu, l'écran affiche le plein tarif : annoncer une réduction qu'on
+  // n'a pas encore vérifiée, c'est promettre un prix qu'on devra reprendre.
+  useEffect(() => {
+    if (!planKey) return;
+    let cancelled = false;
+    getCheckoutQuote(planKey)
+      .then((q) => { if (!cancelled) setQuote(q); })
+      .catch(() => { /* plein tarif : la caisse doit rester ouverte */ });
+    return () => { cancelled = true; };
+  }, [planKey]);
 
   const plan = getPlanByKey(planKey);
 
@@ -417,7 +483,7 @@ function CheckoutContent() {
   if (!plan) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 px-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
           <p className="text-lg font-semibold text-anthracite">{t({ fr: 'Plan introuvable', ht: 'Plan pa jwenn' })}</p>
           <p className="mt-2 text-sm text-anthracite/60">
             {t({ fr: 'Le plan sélectionné n\'existe pas. Choisissez-en un valide.', ht: 'Plan chwazi a pa egziste. Chwazi yon plan valid.' })}
@@ -458,7 +524,9 @@ function CheckoutContent() {
         userId:    user?.id ?? 'anonymous',
         userEmail: user?.email ?? undefined,
         userName:  user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? undefined,
-        amountHtg: plan.priceG,
+        // Indicatif : le serveur recalcule le montant dû à partir des bons
+        // réellement détenus. Un prix qui vient du navigateur ne s'encaisse pas.
+        amountHtg: quote?.amountHtg ?? plan.priceG,
         reference,
       });
 
@@ -514,12 +582,12 @@ function CheckoutContent() {
                 ))}
               </div>
             </div>
-            <PlanSummary plan={plan} currency={currency} />
+            <PlanSummary plan={plan} currency={currency} quote={quote} />
           </div>
 
           {/* Right — Payment flow */}
           <div>
-            <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="rounded-surface border border-slate-200 bg-white p-6">
               <AnimatePresence mode="wait">
                 {/* Step 1 — Select method */}
                 {step === 'method' && (
@@ -626,7 +694,7 @@ function CheckoutContent() {
                     </motion.button>
 
                     <div className="flex items-center justify-center gap-2 text-xs text-anthracite/40">
-                      <Lock className="h-3 w-3" />
+                      <Lock className="h-4 w-4" />
                       <span>{t({ fr: 'Paiement 100 % sécurisé', ht: 'Peman 100 % an sekirite' })}</span>
                     </div>
                   </motion.div>
@@ -662,7 +730,7 @@ function CheckoutContent() {
                     ) : (
                       <MobilePaymentFlow
                         method={selectedMethodData as MobileMethod}
-                        plan={plan}
+                        dueHtg={quote?.amountHtg ?? plan.priceG}
                         reference={reference}
                         onConfirm={handleConfirmPayment}
                         isLoading={isLoading}

@@ -380,7 +380,7 @@ function ModalWrapper({ title, children, onClose }: {
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h3 className="font-semibold text-anthracite">{title}</h3>
           <button type="button" onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-anthracite/40 hover:bg-slate-100 hover:text-anthracite transition">
+            className="min-h-touch min-w-touch flex h-7 w-7 items-center justify-center rounded-full text-anthracite/40 hover:bg-slate-100 hover:text-anthracite transition">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -549,7 +549,7 @@ export function NewPurchaseForm() {
 
   return (
     <>
-      <section className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-surface border border-slate-200 bg-white p-6">
 
         {/* Header */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

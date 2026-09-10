@@ -246,7 +246,7 @@ function Row({
             {item.customerName}
           </span>
           <span className="mt-1 flex flex-wrap items-center gap-2">
-            {/* 13 px minimum : ce qui ne se lit pas debout dans une boutique
+            {/* 12 px minimum (§12) : ce qui ne se lit pas debout dans une boutique
                 ne se livre pas (§5.2). */}
             <span className="text-note text-muted dark:text-dark-muted">{ageLabel(item.saleDate)}</span>
             {late && <Badge tone={status.tone}>{status.label}</Badge>}
@@ -383,7 +383,11 @@ function ActionSheet({
               placeholder={`0 ${item.currency}`}
               className="amount min-h-13 min-w-0 flex-1 rounded-surface border border-border bg-surface px-4 text-body text-primary outline-none placeholder:text-muted focus:border-accent dark:border-dark-border dark:bg-dark-surface2 dark:text-dark-text"
             />
-            <Button variant="outline" size="lg" loading={busy === 'partial'} onClick={payPartial}>
+            {/* La paire du §21 : « Encaisser » est le second couteau de
+                « Tout est payé ». Il s'efface par la LUMINOSITÉ de la même
+                teinte, pas par une bordure seule — un bouton fantôme se lit
+                sur une maquette et disparaît au soleil, sur le trottoir. */}
+            <Button variant="soft" size="lg" loading={busy === 'partial'} onClick={payPartial}>
               Encaisser
             </Button>
           </div>

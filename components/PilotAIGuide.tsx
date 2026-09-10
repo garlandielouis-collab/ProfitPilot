@@ -126,7 +126,7 @@ export function PilotAIGuide() {
             <Bot className="h-4 w-4" strokeWidth={1.8} aria-hidden />
             <p className="flex-1 text-note leading-5 text-white/85">{guide.text}</p>
             <button onClick={dismiss} title="Fermer"
-              className="-mr-1 -mt-1 rounded p-1 text-white/30 transition hover:text-white/70">
+              className="min-h-touch min-w-touch inline-flex items-center justify-center -mr-1 -mt-1 rounded p-1 text-white/30 transition hover:text-white/70">
               <X size={12} />
             </button>
           </div>

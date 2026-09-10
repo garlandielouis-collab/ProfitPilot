@@ -320,7 +320,7 @@ function ProductModal({
               {isEdit ? 'Mete ajou enfòmasyon ak foto pwodwi ou a' : 'Ajoute yon nouvo pwodwi ak foto li'}
             </p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-slate-100 transition-colors">
+          <button onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-slate-100 transition-colors">
             <X size={18} className="text-slate-500" />
           </button>
         </div>
@@ -699,7 +699,7 @@ function ProductCard({
               </span>
           <button
             onClick={onEdit}
-            className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
+            className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition"
           >
             <Upload size={10} className="inline mr-1" />
             Foto
@@ -797,7 +797,7 @@ export function ProductsClient({
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 space-y-6">
 
         {/* â”€â”€ Header â”€â”€ */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-primary/70">Katalòg</p>
             <h1 className="mt-1 text-2xl font-semibold text-slate-800">Pwodwi & Katalòg</h1>
@@ -860,7 +860,7 @@ export function ProductsClient({
             { label: 'Mwayèn Mòj',   value: avgMargin.toFixed(1) + '%',  icon: TrendingUp, accent: 'bg-purple-100 text-purple-800' },
             { label: 'Foto Mete',     value: `${withPhotos}/${products.length}`, icon: Star, accent: 'bg-amber-100 text-amber-800' },
           ].map(k => (
-            <div key={k.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div key={k.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
               <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${k.accent}`}>
                 <k.icon size={18} />
               </div>

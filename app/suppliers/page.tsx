@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { formatCurrency } from '../../lib/utils';
 import { upsertSupplier, deleteSupplier, markPurchasePaid } from '../actions/suppliers';
 import { useLanguage } from '../../components/LanguageWrapper';
+import { EntityDocuments } from '../../components/documents/EntityDocuments';
 import {
   ChevronDown, ChevronUp, CreditCard, Edit2, Loader2, Plus,
   Trash2, Users, X,
@@ -80,7 +81,7 @@ function EditModal({
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-anthracite">Modifier le fournisseur</h3>
-          <button onClick={onClose} className="rounded-full p-1 hover:bg-slate-100">
+          <button onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full p-1 hover:bg-slate-100">
             <X className="h-4 w-4 text-slate-500" />
           </button>
         </div>
@@ -364,7 +365,7 @@ export default function SuppliersPage() {
         <div className="mx-auto w-full max-w-7xl space-y-6">
 
           {/* ── Page header ── */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <p className="text-sm uppercase tracking-[0.3em] text-primary/90">{t({ fr: 'Fournisseurs', ht: 'Founisè yo' })}</p>
             <h1 className="mt-1 text-2xl font-semibold text-anthracite md:text-3xl">
               Gestion des Fournisseurs
@@ -377,7 +378,7 @@ export default function SuppliersPage() {
           {/* ── Inline add form (horizontal) ── */}
           <form
             onSubmit={handleAdd}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-2xl border border-slate-200 bg-white p-4"
           >
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
               {t({ fr: 'Ajouter un fournisseur', ht: 'Ajoute yon founisè' })}
@@ -448,7 +449,7 @@ export default function SuppliersPage() {
 
           {/* ── Analytics cards ── */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100">
                 <Users className="h-6 w-6 text-primary" />
               </div>
@@ -459,7 +460,7 @@ export default function SuppliersPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100">
                 <CreditCard className="h-6 w-6 text-red-500" />
               </div>
@@ -476,7 +477,7 @@ export default function SuppliersPage() {
           </div>
 
           {/* ── Suppliers table ── */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 p-5">
               <h2 className="text-lg font-semibold text-anthracite">Liste des Fournisseurs</h2>
               <p className="text-sm text-anthracite/60">
@@ -645,7 +646,7 @@ export default function SuppliersPage() {
                                             <button
                                               onClick={() => handlePurchasePaid(p.id)}
                                               disabled={busyPurchases.has(p.id)}
-                                              className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                              className="flex items-center gap-1 rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-accent-ink hover:bg-accent-h disabled:opacity-50"
                                             >
                                               {busyPurchases.has(p.id) ? (
                                                 <Loader2 size={10} className="animate-spin" />
@@ -677,6 +678,16 @@ export default function SuppliersPage() {
                               </div>
                             </>
                           )}
+
+                          {/* ── Documents rattachés (§37) ────────────────────
+                              Dans le repli, pas dans la ligne : le bloc ne se
+                              charge que pour le fournisseur qu'on a ouvert. */}
+                          <EntityDocuments
+                            className="mt-4"
+                            entityType="supplier"
+                            entityId={sup.id}
+                            entityName={sup.name}
+                          />
                         </div>
                       )}
                     </div>

@@ -18,8 +18,9 @@
 
 import {
   Activity, BarChart3, Bell, Boxes, Building2, ClipboardList, Code2, Database,
-  FileText, HandCoins, Home, Landmark, Lock, MoreHorizontal, Package, Plus,
-  Receipt, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Store,
+  FileText, FolderOpen, Gift, HandCoins, Home, Landmark, Layers, Lock, MessageSquare,
+  MoreHorizontal, Package, Palette, Plus,
+  Receipt, Rocket, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Store,
   TrendingUp, Truck, UserCog, Users, Wallet,
   type LucideIcon,
 } from 'lucide-react';
@@ -94,6 +95,13 @@ export const MORE_SECTIONS: MoreSection[] = [
         hint: { fr: 'Ce que vous devez, et à qui', ht: 'Sa w dwe, ak kiyès' }, icon: Wallet },
       { href: '/customers', label: { fr: 'Clients', ht: 'Kliyan' },
         hint: { fr: 'Coordonnées et historique', ht: 'Kontak ak istorik acha' }, icon: Users },
+      // UNE entrée, et douze destinations derrière. Le §2 du cahier des charges
+      // documentaire en demandait douze au menu ; une barre latérale qui en
+      // gagne douze d'un coup redevient exactement le placard que la refonte a
+      // vidé. Les onze autres sont des onglets, des filtres et des actions à
+      // l'intérieur de `/documents`.
+      { href: '/documents', label: { fr: 'Documents', ht: 'Dokiman' },
+        hint: { fr: 'Patente, contrats, papiers importants', ht: 'Patant, kontra, papye enpòtan' }, icon: FolderOpen },
     ],
   },
   {
@@ -118,8 +126,32 @@ export const MORE_SECTIONS: MoreSection[] = [
 MORE_SECTIONS.push({
   title: { fr: 'Compte', ht: 'Kont' },
   entries: [
+    // Ouvert à toutes les offres, et c'est le but : c'est au marchand
+    // d'Esansyel que le mois de Rapports offert profite le plus.
+    { href: '/parrainage',    label: { fr: 'Parrainage', ht: 'Parennaj' },
+      hint: { fr: 'Amenez un marchand, gagnez les Rapports', ht: 'Mennen yon machann, genyen Rapò yo' }, icon: Gift },
     { href: '/boutique',      label: { fr: 'Boutique en ligne', ht: 'Boutik anliy' },
       hint: { fr: 'Vendre en dehors du comptoir', ht: 'Vann deyò kontwa a' }, icon: Store },
+    // Deux entrées pour la boutique, et c'est délibéré : « Boutique en ligne »
+    // règle les paiements, la livraison et les commandes reçues ; celle-ci
+    // décide de ce que le CLIENT voit — le gabarit, les couleurs, les produits
+    // publiés, les photos. Deux tâches, deux moments, deux entrées. Les cacher
+    // sous un seul écran est exactement ce qui a rendu le créateur de vitrine
+    // introuvable jusqu'ici.
+    { href: '/boutique/builder', label: { fr: 'Vitrine et gabarits', ht: 'Vitrin ak modèl' },
+      hint: { fr: 'Design, produits publiés, Studio photo', ht: 'Desen, pwodwi pibliye, Estidyo foto' }, icon: Palette },
+    // Une quatrième entrée, et la seule qui répond à « où en suis-je ? ». Le
+    // §43 en fait la porte d'entrée du module : onze étapes tant que la boutique
+    // se monte, une note et ses recommandations une fois qu'elle tourne.
+    { href: '/boutique/lancement', label: { fr: 'Lancement et santé', ht: 'Lansman ak sante' },
+      hint: { fr: 'Les 11 étapes, puis la note sur 100', ht: '11 etap yo, apre nòt sou 100' }, icon: Rocket },
+    { href: '/boutique/merchandising', label: { fr: 'Merchandising', ht: 'Machandiz' },
+      hint: { fr: 'Ce qui manque au catalogue, et les lots', ht: 'Sa ki manke nan katalòg la, ak pakè yo' }, icon: Layers },
+    // Les avis ont leur entrée, et pas un onglet sous la vitrine : un avis en
+    // attente est une tâche à faire, pas un réglage. Tant que personne ne le
+    // relit, la note n'apparaît sur aucune fiche — la chaîne s'arrête là.
+    { href: '/boutique/avis', label: { fr: 'Avis clients', ht: 'Avi kliyan' },
+      hint: { fr: 'Relire, publier — les étoiles des fiches', ht: 'Reli, pibliye — zetwal fich yo' }, icon: MessageSquare },
     { href: '/entreprises',   label: { fr: 'Entreprises', ht: 'Antrepriz' },
       hint: { fr: 'Basculer entre vos commerces', ht: 'Chanje ant komès ou yo' }, icon: Building2 },
     { href: '/employes',      label: { fr: 'Employés', ht: 'Anplwaye' },
@@ -169,11 +201,29 @@ export const ALL_ENTRIES: Entry[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ROUTE_FEATURE: Record<string, Feature> = {
+  // ── Esansyel — le socle documentaire ──
+  //
+  // `documents` est ouverte à toutes les offres : ranger ses papiers n'est pas
+  // une fonctionnalité avancée, c'est la raison pour laquelle le marchand ouvre
+  // l'application un jour de contrôle. L'entrée est ici quand même, parce que
+  // les écrans qui se grefferont sur `/documents/…` en Phase 5 — Studio IA,
+  // plan d'affaires — devront s'y ajouter, et qu'une table où le cas simple
+  // manque est une table qu'on oublie de compléter.
+  '/documents':             'documents',
+  // Écrire un document (§20) ne coûte pas d'offre : c'est la contrepartie du
+  // dépôt, pas une fonctionnalité avancée. Le MODÈLE, lui, est ce qui fait
+  // gagner l'heure de rédaction — d'où sa place dans la colonne Kwasans.
+  '/documents/creer':       'documents',
+
   // ── Kwasans — comprendre pour grandir ──
+  '/documents/modeles':     'document_templates',
+  '/documents/conformite':  'document_compliance',
+  '/documents/contrats':    'document_contracts',
   '/rapports':              'monthly_reports',
   '/rapports/comptabilite': 'advanced_reports',
   '/rentabilite':           'product_profitability',
   '/boutique':              'online_store',
+  '/ai-assistant':          'ai_assistant',
   '/employes':              'employees',
   // Même écran, ancienne adresse : elle n'est plus au menu mais reste
   // atteignable, donc elle se verrouille comme l'autre.
@@ -193,11 +243,6 @@ export const ROUTE_FEATURE: Record<string, Feature> = {
  * La fonctionnalité exigée par une adresse — `/rapports/comptabilite` est jugée
  * sur elle-même, pas sur `/rapports` : c'est le chemin le PLUS long qui gagne,
  * sinon une sous-page hériterait toujours du verrou de sa parente.
- *
- * Pilot AI n'est volontairement pas dans la table : les trois questions
- * offertes d'Esansyel se dosent par quota dans l'écran, pas par une porte
- * fermée. Personne n'achète une fonction qu'il n'a jamais vue tourner sur ses
- * propres chiffres.
  */
 export function featureForPath(pathname: string | null | undefined): Feature | undefined {
   if (!pathname) return undefined;

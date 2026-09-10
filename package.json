@@ -9,9 +9,9 @@
   "scripts": {
     "predev": "node scripts/clean-worktree-caches.js",
     "dev": "next dev",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build",
     "start": "next start",
-    "typecheck": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
+    "typecheck": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
     "check:supabase": "node scripts/check-supabase.js"
   },
   "dependencies": {
@@ -54,6 +54,7 @@
     "@types/react-dom": "18.3.0",
     "autoprefixer": "10.4.19",
     "dotenv": "^17.4.1",
+    "playwright-core": "^1.63.0",
     "postcss": "^8.5.15",
     "tailwindcss": "3.4.5",
     "typescript": "5.6.2"

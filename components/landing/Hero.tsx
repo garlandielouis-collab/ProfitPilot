@@ -30,7 +30,7 @@ function DashboardMockup() {
               <div className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]" />
               <div className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
             </div>
-            <div className="mx-auto flex h-6 w-56 items-center gap-2 rounded-md bg-white px-3 shadow-sm border border-border">
+            <div className="mx-auto flex h-6 w-56 items-center gap-2 rounded-md bg-white px-3 border border-border">
               <div className="h-2 w-2 rounded-full bg-accent" />
               <span className="text-note text-slate-400">app.profitpilot.ht/dashboard</span>
             </div>
@@ -56,7 +56,7 @@ function DashboardMockup() {
                 { label: 'Profit net', value: '12 800', unit: 'HTG', color: '#001f3f', up: '+8%' },
                 { label: 'Stock critique', value: '3', unit: 'alertes', color: '#b45309', up: null },
               ].map((k, i) => (
-                <div key={i} className="rounded-xl bg-white p-2.5 shadow-sm border border-border">
+                <div key={i} className="rounded-xl bg-white p-2.5 border border-border">
                   <p className="text-note text-slate-400 mb-1">{k.label}</p>
                   <div className="flex items-end gap-1">
                     <p className="text-sm font-bold" style={{ color: k.color }}>{k.value}</p>
@@ -70,7 +70,7 @@ function DashboardMockup() {
             </div>
 
             {/* Chart */}
-            <div className="rounded-xl bg-white p-3 shadow-sm border border-border mb-3">
+            <div className="rounded-xl bg-white p-3 border border-border mb-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-note font-semibold text-primary">Ventes — 10 derniers jours</p>
                 <span className="text-note text-slate-400">HTG</span>
@@ -252,7 +252,7 @@ export function Hero() {
             </Link>
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-primary transition hover:border-accent/40 hover:bg-accent/5 active:scale-95 shadow-sm"
+              className="inline-flex items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-primary transition hover:border-accent/40 hover:bg-accent/5 active:scale-95"
             >
               {t({ fr: 'Voir la démo', ht: 'Wè demo a' })}
             </Link>

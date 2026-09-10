@@ -28,7 +28,7 @@ export default function UpdatesPage() {
         <div className="space-y-6">
           {UPDATES.map((u, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
-              className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+              className="rounded-2xl border border-border bg-white p-6">
               <div className="mb-4 flex items-center gap-3">
                 <span className="text-xl font-black text-primary">{u.version}</span>
                 <span className={`rounded-full px-2.5 py-1 text-note font-bold ${u.color}`}>{t({ fr: { Nouvo: 'Nouveau', Amelyorasyon: 'Amélioration', Korekson: 'Correction', Fonksyon: 'Fonctionnalité', Majè: 'Majeure' }[u.badge] || u.badge, ht: u.badge })}</span>

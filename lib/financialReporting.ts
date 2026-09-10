@@ -224,10 +224,15 @@ async function getTransactionsForPeriod(
   }
 
   // Récupère les achats
+  //
+  // La colonne s'appelle `total_amount`, pas `total_purchase_amount` — ce nom
+  // n'existe nulle part dans la table. La requête échouait, `purchases`
+  // arrivait `undefined`, et aucun achat n'entrait dans le rapport.
   const { data: purchases } = await supabaseServer
     .from('purchases')
-    .select('id,total_purchase_amount,currency,payment_status,purchase_date')
+    .select('id,total_amount,currency,payment_status,purchase_date')
     .eq('business_id', businessId)
+    .is('deleted_at', null)
     .gte('purchase_date', startDate)
     .lte('purchase_date', endDate);
 
@@ -236,7 +241,7 @@ async function getTransactionsForPeriod(
       ...purchases.map((p: any) => ({
         id: p.id,
         type: 'Purchase' as const,
-        amount: p.total_purchase_amount,
+        amount: p.total_amount,
         currency: p.currency,
         date: p.purchase_date,
         payment_method: p.payment_status,
@@ -245,12 +250,19 @@ async function getTransactionsForPeriod(
   }
 
   // Récupère les dépenses
+  //
+  // `expenses` n'a ni `date` ni `category` : la date est `expense_date` et la
+  // catégorie est une clé étrangère `category_id` vers `expense_categories`.
+  // Les trois colonnes inventées faisaient échouer la requête, `expenses`
+  // arrivait `undefined`, et AUCUNE dépense n'entrait dans le rapport
+  // financier — les charges y étaient donc systématiquement à zéro.
   const { data: expenses } = await supabaseServer
     .from('expenses')
-    .select('id,amount,currency,category,date,description')
+    .select('id,amount,currency,expense_date,description,expense_categories(name)')
     .eq('business_id', businessId)
-    .gte('date', startDate)
-    .lte('date', endDate);
+    .is('deleted_at', null)
+    .gte('expense_date', startDate)
+    .lte('expense_date', endDate);
 
   if (expenses) {
     transactions.push(
@@ -259,8 +271,8 @@ async function getTransactionsForPeriod(
         type: 'Expense' as const,
         amount: e.amount,
         currency: e.currency,
-        date: e.date,
-        category: e.category,
+        date: e.expense_date,
+        category: e.expense_categories?.name ?? null,
         description: e.description,
       }))
     );
@@ -405,17 +417,24 @@ export async function generateBalanceSheet(
   }
 
   // Récupère les comptes créditeurs (Accounts Payable)
+  //
+  // Deux erreurs cumulées ici : la colonne (`total_amount`) et la valeur
+  // filtrée. En base, `payment_status` vaut `'credit'` — « À Crédit » est le
+  // libellé de l'interface, traduit à l'écriture (app/actions/purchases.ts:51).
+  // Filtrer sur le libellé ne remontait donc jamais rien : la dette fournisseur
+  // du bilan restait à zéro même avec des achats à crédit ouverts.
   const { data: payables } = await supabaseServer
     .from('purchases')
-    .select('total_purchase_amount, currency, payment_status')
+    .select('total_amount, currency, payment_status')
     .eq('business_id', businessId)
-    .eq('payment_status', 'À Crédit')
+    .is('deleted_at', null)
+    .eq('payment_status', 'credit')
     .lte('purchase_date', asOfDate);
 
   let accountsPayable = 0;
   if (payables) {
     accountsPayable = payables.reduce((sum: number, p: any) => {
-      const converted = convertCurrency(p.total_purchase_amount, p.currency, currency, exchangeRate);
+      const converted = convertCurrency(p.total_amount, p.currency, currency, exchangeRate);
       return sum + converted;
     }, 0);
   }
@@ -436,11 +455,14 @@ export async function generateBalanceSheet(
     }, 0);
   }
 
+  // `expense_date`, pas `date` — même erreur qu'au-dessus, même conséquence :
+  // les dépenses ne sortaient pas, et le solde de caisse ne retranchait rien.
   const { data: allExpenses } = await supabaseServer
     .from('expenses')
     .select('amount, currency')
     .eq('business_id', businessId)
-    .lte('date', asOfDate);
+    .is('deleted_at', null)
+    .lte('expense_date', asOfDate);
 
   let cashUsed = 0;
   if (allExpenses) {

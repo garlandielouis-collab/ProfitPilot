@@ -8,7 +8,7 @@ import { type Feature, planHasFeature, planMaxStores } from '../../lib/planFeatu
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { getPreviewPlanServer } from '../../lib/planPreviewServer';
-import { FALLBACK_PLAN_KEY, normalizePlanKey } from '../../lib/plans';
+import { resolvePlanKey } from '../../lib/trial';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,6 +47,13 @@ export type ClientTenantContext = {
   realPlanKey: string | null;
   /** Offre simulée, ou `null` quand on voit son offre réelle. */
   previewPlan: string | null;
+  /**
+   * Les capacités offertes temporairement — un mois de Rapports gagné par
+   * parrainage, par exemple. Elles s'ajoutent à l'offre sans la changer, et
+   * l'écran doit les connaître : sinon il verrouille une page que le serveur,
+   * lui, laisse passer.
+   */
+  grants:      string[];
   allCompanies: Array<{ id: string; name: string }>;
 };
 
@@ -120,28 +127,35 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
       role = (memberEntry?.role as Role) ?? 'viewer';
     }
 
-    const now = new Date().toISOString();
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('plan_key')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .gte('expires_at', now)
-      .order('expires_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
     // Sans abonnement actif en base, l'offre est le SOCLE — pas la plus haute.
     // Le repli « Expert » posé pour un test donnait toutes les fonctionnalités à
     // tout le monde : c'est ce qui empêchait l'interface de changer d'une offre
     // à l'autre. Le repli est désormais unique, et il vit dans `plans.ts`.
-    const realPlanKey = normalizePlanKey(sub?.plan_key as string | undefined) ?? FALLBACK_PLAN_KEY;
+    //
+    // Avant le repli, il reste une chose à vérifier : un compte qui n'a JAMAIS
+    // eu d'abonnement est en essai, et son essai doit exister en base pour que
+    // le verrouillage le voie (`lib/trial.ts`). Sans cette ligne, tout compte
+    // neuf était traité en Esansyel dès la première seconde — Boutique en
+    // ligne et Vitrine comprises.
+    const realPlanKey = await resolvePlanKey(
+      supabase,
+      user.id,
+      isOwner ? company.id : null,
+    );
 
     // L'aperçu des offres remplace ce que les écrans AFFICHENT, jamais ce que
     // le compte possède : `realPlanKey` part à côté, intact, et c'est lui que
     // le bandeau d'aperçu annonce. Le cookie n'est honoré que si l'exploitant a
     // posé `PLAN_PREVIEW=1` — sinon `getPreviewPlanServer()` rend `null`.
     const preview = await getPreviewPlanServer();
+
+    // Les droits temporaires (parrainage). Une requête de plus, mais sans
+    // elle l'écran verrouillerait un mois que le marchand a réellement gagné.
+    const { data: grantRows } = await supabase
+      .from('feature_grants')
+      .select('feature')
+      .eq('user_id', user.id)
+      .gt('expires_at', new Date().toISOString());
 
     return {
       company,
@@ -150,6 +164,7 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
       planKey: preview ?? realPlanKey,
       realPlanKey,
       previewPlan: preview,
+      grants: (grantRows ?? []).map((r: { feature: string }) => r.feature),
       allCompanies: allCompanies.map((c) => ({ id: c.id, name: c.name })),
     };
   } catch {
@@ -162,18 +177,10 @@ export async function listCompanies(): Promise<CompanyRow[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  // Get plan to enforce max-store limit
-  const now = new Date().toISOString();
-  const { data: sub } = await supabase
-    .from('subscriptions')
-    .select('plan_key')
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .gte('expires_at', now)
-    .order('expires_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const planKey = normalizePlanKey(sub?.plan_key as string | undefined) ?? FALLBACK_PLAN_KEY;
+  // Get plan to enforce max-store limit. Même lecture que partout ailleurs —
+  // sans ouvrir d'essai ici : cette fonction compte des boutiques, elle
+  // n'accorde rien.
+  const planKey = await resolvePlanKey(supabase, user.id, null);
   // Le plafond vient du registre (`PLAN_MAX_STORES`), jamais d'une copie
   // locale : deux tables de quotas finissent toujours par diverger, et celle
   // qui diverge ici couperait des boutiques bien réelles.

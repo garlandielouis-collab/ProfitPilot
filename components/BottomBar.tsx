@@ -137,7 +137,7 @@ export function BottomBar({ onNewSale }: { onNewSale: () => void }) {
           className="pressable flex w-touch flex-col items-center justify-center pt-2"
           aria-label={t({ fr: 'Enregistrer une vente', ht: 'Anrejistre yon vant' })}
         >
-          <span className="flex h-13 w-13 items-center justify-center rounded-pill bg-accent text-white shadow-card">
+          <span className="flex h-13 w-13 items-center justify-center rounded-pill bg-accent text-accent-ink shadow-card">
             <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
           </span>
           <span className="mt-1 text-note font-bold text-primary dark:text-dark-text">

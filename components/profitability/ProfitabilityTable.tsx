@@ -33,25 +33,25 @@ const VERDICT: Record<
     label: 'Pouse l',
     hint: 'Bon mòj — mete plis kapital ladan l',
     className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
-    icon: <TrendingUp className="h-3 w-3" />,
+    icon: <TrendingUp className="h-4 w-4" />,
   },
   surveiller: {
     label: 'Siveye',
     hint: 'Mòj mwayen — kenbe je sou li',
     className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
-    icon: <AlertTriangle className="h-3 w-3" />,
+    icon: <AlertTriangle className="h-4 w-4" />,
   },
   reduire: {
     label: 'Redwi',
     hint: 'Mòj twò fèb — ogmante pri a oswa sispann',
     className: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
-    icon: <TrendingDown className="h-3 w-3" />,
+    icon: <TrendingDown className="h-4 w-4" />,
   },
   dormant: {
     label: 'Kapital dòmi',
     hint: 'Nan stock men pa janm vann — lajan bloke',
     className: 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-    icon: <PackageX className="h-3 w-3" />,
+    icon: <PackageX className="h-4 w-4" />,
   },
 };
 

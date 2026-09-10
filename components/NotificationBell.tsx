@@ -144,7 +144,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={handleOpen}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-slate-500 transition hover:bg-slate-100 dark:hover:bg-white/5"
+        className="min-h-touch min-w-touch relative flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-slate-500 transition hover:bg-slate-100 dark:hover:bg-white/5"
         aria-label="Notifications"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

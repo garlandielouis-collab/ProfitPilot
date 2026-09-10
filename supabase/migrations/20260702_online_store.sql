@@ -1,6 +1,12 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- BOUTIQUE EN LIGNE — ProfitPilot Premium
 -- Tables: store_settings, customers, customer_addresses, orders, order_items, store_pages
+--
+-- ⚠ Rendue idempotente le 2026-09-04. Elle contenait
+-- `DROP TABLE customers CASCADE` et `DROP TABLE orders CASCADE` : rejouée sur
+-- une base en service, elle effaçait la base clients et l'historique des
+-- commandes. Le comportement sur une base neuve est inchangé — les tables sont
+-- créées à l'identique — mais un second passage ne détruit plus rien.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ── 0. Helper (idempotent) ────────────────────────────────────────────────────
@@ -10,8 +16,7 @@ BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$;
 
 -- ── 1. store_settings ─────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS store_settings CASCADE;
-CREATE TABLE store_settings (
+CREATE TABLE IF NOT EXISTS store_settings (
   id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id         UUID        NOT NULL UNIQUE REFERENCES businesses(id) ON DELETE CASCADE,
   slug                TEXT        NOT NULL UNIQUE,
@@ -43,12 +48,12 @@ CREATE TABLE store_settings (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+DROP TRIGGER IF EXISTS trg_store_settings_updated_at ON store_settings;
 CREATE TRIGGER trg_store_settings_updated_at BEFORE UPDATE ON store_settings
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 -- ── 2. customers ──────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS customers CASCADE;
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   email       TEXT        NOT NULL,
@@ -62,8 +67,7 @@ CREATE INDEX idx_customers_business ON customers(business_id);
 CREATE INDEX idx_customers_email    ON customers(business_id, email);
 
 -- ── 3. customer_addresses ─────────────────────────────────────────────────────
-DROP TABLE IF EXISTS customer_addresses CASCADE;
-CREATE TABLE customer_addresses (
+CREATE TABLE IF NOT EXISTS customer_addresses (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id   UUID        NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   business_id   UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -80,8 +84,7 @@ CREATE TABLE customer_addresses (
 CREATE INDEX idx_customer_addresses_customer ON customer_addresses(customer_id);
 
 -- ── 4. orders ─────────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS orders CASCADE;
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id      UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   order_number     TEXT        NOT NULL,
@@ -118,12 +121,12 @@ CREATE TABLE orders (
 CREATE INDEX idx_orders_business ON orders(business_id);
 CREATE INDEX idx_orders_status   ON orders(business_id, status);
 CREATE INDEX idx_orders_created  ON orders(business_id, created_at DESC);
+DROP TRIGGER IF EXISTS trg_orders_updated_at ON orders;
 CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON orders
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 -- ── 5. order_items ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS order_items CASCADE;
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
   id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id      UUID          NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   business_id   UUID          NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -140,8 +143,7 @@ CREATE INDEX idx_order_items_business ON order_items(business_id);
 CREATE INDEX idx_order_items_product  ON order_items(product_id) WHERE product_id IS NOT NULL;
 
 -- ── 6. store_pages (CMS) ─────────────────────────────────────────────────────
-DROP TABLE IF EXISTS store_pages CASCADE;
-CREATE TABLE store_pages (
+CREATE TABLE IF NOT EXISTS store_pages (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id UUID        NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   slug        TEXT        NOT NULL,
@@ -152,6 +154,7 @@ CREATE TABLE store_pages (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (business_id, slug)
 );
+DROP TRIGGER IF EXISTS trg_store_pages_updated_at ON store_pages;
 CREATE TRIGGER trg_store_pages_updated_at BEFORE UPDATE ON store_pages
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
@@ -164,57 +167,71 @@ ALTER TABLE order_items        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE store_pages        ENABLE ROW LEVEL SECURITY;
 
 -- store_settings: public read active stores; owner full access
+DROP POLICY IF EXISTS "ss_public_read" ON store_settings;
 CREATE POLICY "ss_public_read" ON store_settings
   FOR SELECT USING (is_active = TRUE);
 
+DROP POLICY IF EXISTS "ss_owner_all" ON store_settings;
 CREATE POLICY "ss_owner_all" ON store_settings
   FOR ALL USING (
     EXISTS (SELECT 1 FROM businesses b WHERE b.id = store_settings.business_id AND b.owner_id = auth.uid())
   );
 
 -- customers: owner full access; public insert (guest checkout)
+DROP POLICY IF EXISTS "customers_owner_all" ON customers;
 CREATE POLICY "customers_owner_all" ON customers
   FOR ALL USING (
     EXISTS (SELECT 1 FROM businesses b WHERE b.id = customers.business_id AND b.owner_id = auth.uid())
   );
+DROP POLICY IF EXISTS "customers_public_insert" ON customers;
 CREATE POLICY "customers_public_insert" ON customers
   FOR INSERT WITH CHECK (TRUE);
 
 -- customer_addresses: owner access
+DROP POLICY IF EXISTS "addresses_owner_all" ON customer_addresses;
 CREATE POLICY "addresses_owner_all" ON customer_addresses
   FOR ALL USING (
     EXISTS (SELECT 1 FROM businesses b WHERE b.id = customer_addresses.business_id AND b.owner_id = auth.uid())
   );
+DROP POLICY IF EXISTS "addresses_public_insert" ON customer_addresses;
 CREATE POLICY "addresses_public_insert" ON customer_addresses
   FOR INSERT WITH CHECK (TRUE);
 
 -- orders: owner full access; public insert (guest checkout)
+DROP POLICY IF EXISTS "orders_owner_all" ON orders;
 CREATE POLICY "orders_owner_all" ON orders
   FOR ALL USING (
     EXISTS (SELECT 1 FROM businesses b WHERE b.id = orders.business_id AND b.owner_id = auth.uid())
   );
+DROP POLICY IF EXISTS "orders_member_read" ON orders;
 CREATE POLICY "orders_member_read" ON orders
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM business_members bm WHERE bm.business_id = orders.business_id AND bm.user_id = auth.uid() AND bm.is_active = TRUE)
   );
+DROP POLICY IF EXISTS "orders_public_insert" ON orders;
 CREATE POLICY "orders_public_insert" ON orders
   FOR INSERT WITH CHECK (TRUE);
 
 -- order_items: owner full access; public insert
+DROP POLICY IF EXISTS "order_items_owner_all" ON order_items;
 CREATE POLICY "order_items_owner_all" ON order_items
   FOR ALL USING (
     EXISTS (SELECT 1 FROM businesses b WHERE b.id = order_items.business_id AND b.owner_id = auth.uid())
   );
+DROP POLICY IF EXISTS "order_items_member_read" ON order_items;
 CREATE POLICY "order_items_member_read" ON order_items
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM business_members bm WHERE bm.business_id = order_items.business_id AND bm.user_id = auth.uid() AND bm.is_active = TRUE)
   );
+DROP POLICY IF EXISTS "order_items_public_insert" ON order_items;
 CREATE POLICY "order_items_public_insert" ON order_items
   FOR INSERT WITH CHECK (TRUE);
 
 -- store_pages: public read published; owner all
+DROP POLICY IF EXISTS "pages_public_read" ON store_pages;
 CREATE POLICY "pages_public_read" ON store_pages
   FOR SELECT USING (is_published = TRUE);
+DROP POLICY IF EXISTS "pages_owner_all" ON store_pages;
 CREATE POLICY "pages_owner_all" ON store_pages
   FOR ALL USING (
     EXISTS (SELECT 1 FROM businesses b WHERE b.id = store_pages.business_id AND b.owner_id = auth.uid())

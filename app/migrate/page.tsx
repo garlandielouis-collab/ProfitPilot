@@ -71,7 +71,7 @@ export default function MigratePage() {
       <h1 className="text-2xl font-bold">Administration</h1>
 
       {/* ── Migration SQL ── */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 className="mb-2 text-lg font-semibold">{t({ fr: 'Migration RLS Products', ht: 'Migrasyon RLS Pwodui yo' })}</h2>
         <p className="mb-4 text-sm text-slate-600">
           Applique le fix RLS + trigger sur la table <code>products</code>.
@@ -112,7 +112,7 @@ export default function MigratePage() {
       </div>
 
       {/* ── Cleanup orphelins ── */}
-      <div className="rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-red-200 bg-white p-6">
         <h2 className="mb-2 text-lg font-semibold text-red-700">🧹 Nettoyage Données Orphelines</h2>
         <p className="mb-4 text-sm text-slate-600">
           Supprime les enregistrements (clients, produits, ventes, dépenses, achats, préférences, conversations AI)

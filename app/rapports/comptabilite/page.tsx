@@ -412,7 +412,7 @@ function ComptabiliteInner() {
         </AnimatePresence>
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-1 rounded-2xl bg-white border border-border p-1.5 shadow-sm">
+        <div className="flex flex-wrap gap-1 rounded-2xl bg-white border border-border p-1.5">
           {[
             { id: 'journal', label: 'Journal' },
             { id: 'ledger',  label: 'Grand livre' },
@@ -429,13 +429,13 @@ function ComptabiliteInner() {
 
         {/* ── JOURNAL TAB ── */}
         {tab === 'journal' && (
-          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-border bg-white overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 className="font-semibold text-anthracite">Journal Général</h2>
                 <p className="text-xs text-slate-400 mt-0.5">{entries.length} écriture(s)</p>
               </div>
-              <button onClick={loadJournal} className="rounded-xl border border-border p-2 hover:bg-slate-50 transition">
+              <button onClick={loadJournal} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-xl border border-border p-2 hover:bg-slate-50 transition">
                 <RefreshCw size={14} className={`text-slate-400 ${entriesLoad ? 'animate-spin' : ''}`} />
               </button>
             </div>
@@ -545,7 +545,7 @@ function ComptabiliteInner() {
 
         {/* ── BALANCE TAB ── */}
         {tab === 'balance' && (
-          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-border bg-white overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 className="font-semibold text-anthracite">Balance de Vérification</h2>
@@ -621,7 +621,7 @@ function ComptabiliteInner() {
           <div className="grid gap-4 lg:grid-cols-4">
             {/* Account list */}
             <div className="lg:col-span-1">
-              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-border bg-white overflow-hidden">
                 <div className="border-b border-border px-4 py-3 flex items-center justify-between">
                   <p className="text-sm font-semibold text-anthracite">Comptes</p>
                   <button onClick={loadLedger} className="text-slate-400 hover:text-anthracite transition">
@@ -656,7 +656,7 @@ function ComptabiliteInner() {
 
             {/* Account detail */}
             <div className="lg:col-span-3">
-              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-border bg-white overflow-hidden">
                 {!selectedAcct ? (
                   <div className="p-12 text-center text-slate-400 text-sm">Chwazi yon kont pou wè Grand Liv li</div>
                 ) : (() => {
@@ -724,7 +724,7 @@ function ComptabiliteInner() {
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-500">Données basées sur les écritures du Journal Général</p>
-              <button onClick={loadBilan} className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition">
+              <button onClick={loadBilan} className="min-h-touch min-w-touch inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition">
                 <RefreshCw size={13} className={bilanLoad ? 'animate-spin' : ''} /> Actualiser
               </button>
             </div>
@@ -738,7 +738,7 @@ function ComptabiliteInner() {
             ) : (
               <div className="grid gap-5 lg:grid-cols-2">
                 {/* BILAN */}
-                <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                <div className="rounded-2xl border border-border bg-white overflow-hidden">
                   <div className="bg-anthracite px-5 py-4">
                     <h3 className="font-bold text-white">Bilan</h3>
                     <p className="text-xs text-white/50 mt-0.5">Au {new Date().toLocaleDateString('fr-FR')}</p>
@@ -800,7 +800,7 @@ function ComptabiliteInner() {
 
                 {/* COMPTE DE RÉSULTAT */}
                 {incomeStmt && (
-                  <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                  <div className="rounded-2xl border border-border bg-white overflow-hidden">
                     <div className="bg-anthracite px-5 py-4">
                       <h3 className="font-bold text-white">Compte de Résultat</h3>
                       <p className="text-xs text-white/50 mt-0.5">Exercice {new Date().getFullYear()}</p>
@@ -853,7 +853,7 @@ function ComptabiliteInner() {
           <div className="grid gap-5 lg:grid-cols-3">
             {/* Left: Pilot AI assistant */}
             <div className="lg:col-span-1 space-y-4">
-              <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-border bg-white p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--color-surface2)] text-muted">
                     <Sparkles size={16} strokeWidth={1.8} aria-hidden />
@@ -910,7 +910,7 @@ function ComptabiliteInner() {
                       </div>
                       <p className="text-note text-slate-500 mb-3 italic">{t({ fr: aiSuggestion.label, ht: aiSuggestion.label_ht })}</p>
                       <button onClick={applyAISuggestion}
-                        className="w-full rounded-lg bg-anthracite py-2 text-xs font-semibold text-white hover:bg-anthracite/90 transition">
+                        className="min-h-touch min-w-touch w-full rounded-lg bg-anthracite py-2 text-xs font-semibold text-white hover:bg-anthracite/90 transition">
                         Aplike sujestyon sa a →
                       </button>
                     </motion.div>
@@ -928,7 +928,7 @@ function ComptabiliteInner() {
                     </div>
                     {!balanced && (
                       <button onClick={autoBalance}
-                        className="rounded-lg bg-red-600 px-2 py-1 text-note font-bold text-white hover:bg-red-700 transition">
+                        className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg bg-red-600 px-2 py-1 text-note font-bold text-white hover:bg-red-700 transition">
                         Auto-équilibrer
                       </button>
                     )}
@@ -942,7 +942,7 @@ function ComptabiliteInner() {
               </div>
 
               {/* Rules card */}
-              <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-border bg-white p-5">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Règles fondamentales</p>
                 <div className="space-y-2 text-xs text-slate-600">
                   {([
@@ -965,7 +965,7 @@ function ComptabiliteInner() {
 
             {/* Right: Form */}
             <div className="lg:col-span-2">
-              <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+              <div className="rounded-2xl border border-border bg-white p-6">
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="font-semibold text-anthracite">Écriture Manuelle</h2>
                   <div>

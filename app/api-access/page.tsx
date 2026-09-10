@@ -90,7 +90,7 @@ function ApiAccessInner() {
                 href={SUPPORT_WHATSAPP}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="pressable flex min-h-13 flex-1 items-center justify-center gap-2 rounded-surface bg-accent text-body font-bold text-white shadow-card hover:bg-accent-h"
+                className="pressable flex min-h-13 flex-1 items-center justify-center gap-2 rounded-surface bg-accent text-body font-bold text-accent-ink shadow-card hover:bg-accent-h"
               >
                 <MessageCircle className="h-5 w-5" strokeWidth={2} aria-hidden />
                 {t({ fr: 'Demander un accès', ht: 'Mande yon aksè' })}

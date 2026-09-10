@@ -2,8 +2,11 @@ import { NextRequest } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { streamText } from 'ai';
 import { getSupabaseServer } from '../../../../lib/supabaseServerClient';
+import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
 import { plansWithFeature } from '../../../../lib/planFeatures';
 import { getPlanLabel } from '../../../../lib/plans';
+import { aiMonthlyAllowance, quotaBonusFor } from '../../../../lib/quotas';
+import { SIGNUP_AI_QUESTIONS } from '../../../../lib/referral';
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -126,7 +129,15 @@ export async function POST(request: NextRequest) {
     .gte('expires_at', now)
     .in('plan_key', plansWithFeature('ai_assistant'))
     .maybeSingle();
-  if (!sub) {
+  // Le paquet de questions gagné par parrainage est la SECONDE porte. Un
+  // marchand Esansyel qui a amené un ami a dix questions à lui ; les lui
+  // refuser au motif qu'il n'a pas l'offre reviendrait à afficher une
+  // récompense qu'on ne sert pas. Elles restent comptées à l'unité juste en
+  // dessous : la porte est ouverte, le couloir est court, et c'est exactement
+  // ce qu'un avant-goût doit être.
+  const bonusQuestions = await quotaBonusFor(user.id, 'ai_questions');
+
+  if (!sub && bonusQuestions <= 0) {
     const required = plansWithFeature('ai_assistant').map(getPlanLabel).join(' ou ');
     return new Response(JSON.stringify({ error: `Offre ${required} requise pour Pilot AI` }), { status: 403 });
   }
@@ -161,6 +172,50 @@ export async function POST(request: NextRequest) {
   let history = conversationHistory;
   if (conversationId && history.length === 0) {
     history = await getRecentMessages(conversationId);
+  }
+
+  // ── Le quota mensuel de questions ─────────────────────────────────────────
+  //
+  // La page de prix promet « 30 questions par mois » sur Kwasans depuis le
+  // premier jour, et rien ne les comptait : la route vérifiait l'offre, jamais
+  // le nombre. Le parrainage a forcé la main — « +10 questions par filleul »
+  // au-dessus d'un plafond inexistant n'aurait été qu'une phrase.
+  //
+  // Le décompte se fait ICI, juste avant l'appel au modèle : c'est là que la
+  // question coûte de l'argent, qu'elle finisse enregistrée dans une
+  // conversation ou non. Le test et l'incrément sont une seule instruction
+  // côté base, sans quoi deux onglets ouverts passeraient la 30ᵉ question deux
+  // fois.
+  //
+  // La clé de service, parce qu'un marchand qui pourrait appeler la fonction
+  // lui-même choisirait son propre plafond.
+  const allowance = aiMonthlyAllowance((sub?.plan_key as string | undefined) ?? null);
+  const service   = getSupabaseService();
+
+  const { data: quota, error: quotaError } = await service.rpc('consume_ai_question', {
+    p_user:      user.id,
+    // `Infinity` ne traverse pas le JSON : l'illimité se dit avec un négatif.
+    p_allowance: Number.isFinite(allowance) ? allowance : -1,
+  });
+
+  // Table absente (migration non jouée) : on laisse passer. Un compteur qui
+  // n'existe pas encore ne doit pas fermer l'assistant à ceux qui le paient.
+  if (!quotaError) {
+    const row = Array.isArray(quota) ? quota[0] : quota;
+    if (row && row.allowed === false) {
+      // Deux situations, deux phrases. Dire « vos 0 questions sont épuisées »
+      // à un marchand Esansyel qui vient de finir son paquet de parrainage
+      // serait à la fois faux et décourageant : ce qu'il doit lire, c'est
+      // comment en obtenir d'autres.
+      const error = allowance > 0
+        ? `Vous avez utilisé vos ${allowance} questions de ce mois-ci. Elles se rechargent le 1er du mois — ou tout de suite avec ${getPlanLabel('Expert')}, sans compteur.`
+        : `Vos questions offertes sont épuisées. Amenez un marchand avec votre code pour en recevoir ${SIGNUP_AI_QUESTIONS} de plus, ou passez à ${getPlanLabel('Business Pilot')}.`;
+
+      return new Response(
+        JSON.stringify({ error, quota: { used: row.used, allowance } }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
   }
 
   // Inject context block into the last user message

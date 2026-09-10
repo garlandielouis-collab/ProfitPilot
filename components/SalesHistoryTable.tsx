@@ -180,7 +180,7 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <>
-      <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-surface border border-slate-200 bg-white p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-anthracite">Istorik Vant yo</h2>

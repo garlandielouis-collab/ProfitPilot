@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseService } from '../../../../../lib/supabaseServiceClient';
+import { readGatewayCredentials } from '../../../../../lib/storePaymentGateway';
 import { createStoreOrder } from '../../../../actions/store-public';
 
 // ── MonCash API helpers ───────────────────────────────────────────────────────
@@ -64,36 +64,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Données manquantes' }, { status: 400 });
     }
 
-    const svc = getSupabaseService();
-
-    // 1. Get MonCash credentials from store_settings
-    const { data: settings, error: settErr } = await svc
-      .from('store_settings')
-      .select('payment_credentials')
-      .eq('business_id', businessId)
-      .maybeSingle();
-
-    if (settErr || !settings) {
-      return NextResponse.json({ error: 'Boutique introuvable' }, { status: 404 });
-    }
-
-    const creds = (settings.payment_credentials as any)?.moncash;
-    if (!creds?.client_id || !creds?.client_secret) {
+    // 1. Les identifiants du marchand
+    const creds = await readGatewayCredentials(businessId, 'moncash');
+    if (!creds) {
       return NextResponse.json({
         error: 'Identifiants MonCash non configurés. Allez dans Boutique → Paiement pour les ajouter.',
       }, { status: 400 });
     }
 
-    const sandbox = creds.sandbox === true;
+    const sandbox = creds.sandbox;
 
-    // 2. Create the order with payment_status: 'unpaid'
-    const { orderId: orderDbId, orderNumber } = await createStoreOrder(orderData);
+    // 2. La commande, avec son total calculé par la base
+    //
+    // `orderData.total` venait du navigateur : on demandait à la passerelle
+    // d'encaisser un montant que l'acheteur pouvait choisir. C'est `total`
+    // ci-dessous qui part chez MonCash — celui des prix relus dans le catalogue.
+    const { orderId: orderDbId, orderNumber, total } = await createStoreOrder(orderData);
 
     // 3. Get MonCash OAuth token
     const accessToken = await getMoncashToken(creds.client_id, creds.client_secret, sandbox);
 
     // 4. Create MonCash payment — orderId = our DB order UUID for verification
-    const paymentToken = await createMoncashPayment(accessToken, sandbox, orderData.total, orderDbId);
+    const paymentToken = await createMoncashPayment(accessToken, sandbox, total, orderDbId);
 
     // 5. Build redirect URL
     // We append orderId so our callback can look up the order without a second MonCash call.

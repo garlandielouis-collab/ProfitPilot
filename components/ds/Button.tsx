@@ -19,14 +19,24 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 
-type Variant = 'primary' | 'accent' | 'quiet' | 'outline' | 'danger' | 'link';
+type Variant = 'primary' | 'accent' | 'soft' | 'quiet' | 'outline' | 'danger' | 'link';
 type Size = 'sm' | 'md' | 'lg';
 
 const VARIANT: Record<Variant, string> = {
   // L'action structurante — 30 % de la palette.
   primary: 'bg-primary text-white hover:bg-primary-h active:bg-primary-a shadow-card',
   // L'action principale de l'écran — les 10 %. Une seule par zone.
-  accent:  'bg-accent text-white hover:bg-accent-h active:bg-accent-a shadow-card',
+  //
+  // Le texte est MARINE, pas blanc (masterclass §31). Le blanc sur l'émeraude
+  // de marque donne 2,1:1 : c'est invisible sur un Android à midi, dehors —
+  // exactement le bouton qui porte un montant, exactement le client de
+  // ProfitPilot. Le marine sur la même émeraude donne 7,7:1 (AAA), et la
+  // couleur de marque reste intacte.
+  accent:  'bg-accent text-accent-ink hover:bg-accent-h active:bg-accent-a shadow-card',
+  // La paire du §21 : le secondaire est la MÊME teinte, montée en luminosité.
+  // Pas un bouton fantôme (bordure seule) — lisible en maquette, invisible au
+  // soleil.
+  soft:    'bg-accent-sub text-primary hover:bg-accent/20 active:bg-accent/30',
   quiet:   'bg-surface2 text-primary hover:bg-border dark:bg-dark-surface2 dark:text-dark-text dark:hover:bg-dark-border',
   outline: 'border border-border bg-white text-primary hover:bg-surface dark:border-dark-border dark:bg-transparent dark:text-dark-text dark:hover:bg-white/5',
   // Le rouge n'apparaît que pour supprimer. Jamais pour se déconnecter (§4.2).
@@ -35,11 +45,17 @@ const VARIANT: Record<Variant, string> = {
   link:    'text-primary underline underline-offset-4 hover:text-primary-h dark:text-dark-text',
 };
 
-// Toute cible fait au moins 44 px de côté (§5.9).
+// Trois hauteurs, jamais plus (masterclass §8) — 44 pour un contrôle
+// contextuel, 48 pour une action secondaire, 56 pour l'action principale de
+// l'écran. Toute cible fait au moins 44 px de côté (§5.9).
+//
+// Les marges latérales suivent la règle des W (§19) : deux « W » de chaque côté
+// du libellé. Le texte est centré par le layout — jamais par des marges figées,
+// sinon « Anrejistre vant lan » décentre ce que « Ankese » avait bien placé.
 const SIZE: Record<Size, string> = {
   sm: 'min-h-touch px-4 text-note rounded-control gap-2',
-  md: 'min-h-touch px-5 text-body rounded-surface gap-2',
-  lg: 'min-h-13 px-6 text-body rounded-surface gap-2',
+  md: 'min-h-action px-5 text-body rounded-surface gap-2',
+  lg: 'min-h-hero px-6 text-body rounded-surface gap-2',
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

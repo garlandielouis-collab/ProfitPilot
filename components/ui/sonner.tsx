@@ -26,7 +26,7 @@ const Toaster = ({ theme = 'dark', ...props }: ToasterProps) => (
           'group-[.toaster]:border group-[.toaster]:border-white/10 group-[.toaster]:shadow-xl',
         description: 'group-[.toast]:text-slate-400',
         actionButton:
-          'group-[.toast]:bg-emerald-500 group-[.toast]:text-white',
+          'group-[.toast]:bg-accent group-[.toast]:text-accent-ink',
         cancelButton:
           'group-[.toast]:bg-slate-800 group-[.toast]:text-slate-300',
       },

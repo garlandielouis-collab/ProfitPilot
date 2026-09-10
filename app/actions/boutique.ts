@@ -3,42 +3,131 @@
 import { revalidatePath } from 'next/cache';
 import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
+import { assertFeature } from '../../lib/entitlements';
+import { confirmStoreOrder } from './store-public';
 import type { StoreSettings, ShippingMode } from './store-public';
+
+// ─── Identifiants de passerelle ───────────────────────────────────────────────
+//
+// Ils vivent dans `store_payment_credentials`, une table sans aucune politique
+// RLS : seule la clé service la lit. Ils étaient auparavant une colonne de
+// `store_settings`, laquelle porte un GRANT à `authenticated` — n'importe quel
+// marchand connecté pouvait lire les identifiants MonCash de tous les autres.
+//
+// Vers l'écran de réglages, le secret part MASQUÉ. L'écran le réaffiche tel
+// quel et le renvoie à l'enregistrement : recevoir le masque signifie donc
+// « ne change pas ce secret ». Le marchand qui tape une nouvelle valeur, lui,
+// l'enregistre normalement.
+
+const SECRET_MASK = '••••••••';
+
+type GatewayCreds = { client_id?: string; client_secret?: string; sandbox?: boolean };
+type PaymentCredentials = Record<string, GatewayCreds>;
+
+async function readCredentials(businessId: string): Promise<PaymentCredentials> {
+  const svc = getSupabaseService();
+  const { data } = await svc
+    .from('store_payment_credentials')
+    .select('credentials')
+    .eq('business_id', businessId)
+    .maybeSingle();
+  return ((data as any)?.credentials ?? {}) as PaymentCredentials;
+}
+
+function maskCredentials(creds: PaymentCredentials): PaymentCredentials {
+  const out: PaymentCredentials = {};
+  for (const [gateway, c] of Object.entries(creds ?? {})) {
+    out[gateway] = {
+      ...c,
+      client_secret: c?.client_secret ? SECRET_MASK : '',
+    };
+  }
+  return out;
+}
+
+/** Remet les vrais secrets là où l'écran a renvoyé le masque. */
+function unmaskCredentials(
+  incoming: PaymentCredentials,
+  stored: PaymentCredentials,
+): PaymentCredentials {
+  const out: PaymentCredentials = {};
+  for (const [gateway, c] of Object.entries(incoming ?? {})) {
+    const secret =
+      !c?.client_secret || c.client_secret === SECRET_MASK
+        ? stored?.[gateway]?.client_secret ?? ''
+        : c.client_secret;
+    out[gateway] = { ...c, client_secret: secret };
+  }
+  return out;
+}
 
 // ─── Store settings ───────────────────────────────────────────────────────────
 
-export async function getMyStoreSettings(): Promise<StoreSettings | null> {
+/**
+ * Ce que l'écran de réglages reçoit : la vitrine, plus ses identifiants de
+ * passerelle avec les secrets masqués. Un type distinct de `StoreSettings`,
+ * qui sert à la vitrine publique et ne doit rien savoir des passerelles.
+ */
+export type AdminStoreSettings = StoreSettings & {
+  payment_credentials: PaymentCredentials;
+};
+
+export async function getMyStoreSettings(): Promise<AdminStoreSettings | null> {
   const { supabase, businessId } = await getBusinessContext();
   const { data } = await supabase
     .from('store_settings')
     .select('*')
     .eq('business_id', businessId)
     .maybeSingle();
-  return (data as StoreSettings | null);
+
+  if (!data) return null;
+
+  return {
+    ...(data as StoreSettings),
+    payment_credentials: maskCredentials(await readCredentials(businessId)),
+  };
 }
 
 export async function upsertStoreSettings(
-  settings: Partial<Omit<StoreSettings, 'id' | 'business_id' | 'slug'>> & { slug?: string },
+  settings: Partial<Omit<StoreSettings, 'id' | 'business_id' | 'slug'>> & {
+    slug?: string;
+    payment_credentials?: PaymentCredentials;
+  },
 ): Promise<void> {
+  await assertFeature('online_store');
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
   const svc = getSupabaseService();
 
+  // Les identifiants ne passent pas par `store_settings` : ils sont extraits
+  // ici et écrits à part.
+  const { payment_credentials, ...storeFields } = settings;
+
   // Generate slug from business name if not provided
-  if (!settings.slug) {
+  if (!storeFields.slug) {
     const { data: biz } = await svc
       .from('businesses')
       .select('name')
       .eq('id', businessId)
       .single();
-    settings.slug = slugify((biz as any)?.name ?? businessId);
+    storeFields.slug = slugify((biz as any)?.name ?? businessId);
   }
 
   const { error: upsertErr } = await svc.from('store_settings').upsert(
-    { ...settings, business_id: businessId },
+    { ...storeFields, business_id: businessId },
     { onConflict: 'business_id' },
   );
   if (upsertErr) throw new Error('Erreur sauvegarde boutique: ' + upsertErr.message);
+
+  if (payment_credentials) {
+    const merged = unmaskCredentials(payment_credentials, await readCredentials(businessId));
+    const { error: credErr } = await svc.from('store_payment_credentials').upsert(
+      { business_id: businessId, credentials: merged },
+      { onConflict: 'business_id' },
+    );
+    if (credErr) throw new Error('Erreur sauvegarde des identifiants: ' + credErr.message);
+  }
+
   revalidatePath('/boutique');
 }
 
@@ -57,15 +146,14 @@ export async function getStorePreviewData(): Promise<{
     stock_quantity: number; is_featured: boolean; created_at: string;
   }>;
 }> {
-  // Products are created with user_id, not business_id — query by user_id
-  const { supabase, userId, businessId } = await getBusinessContext();
+  const { supabase, businessId } = await getBusinessContext();
 
   const [settingsRes, productsRes] = await Promise.all([
     supabase.from('store_settings').select('*').eq('business_id', businessId).maybeSingle(),
     supabase
       .from('products')
       .select('id, name, category, sale_price, purchase_price, image_url, stock_quantity, currency, created_at')
-      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .order('name', { ascending: true })
       .limit(100),
   ]);
@@ -191,104 +279,60 @@ export async function getOrder(orderId: string): Promise<OrderRow | null> {
   return data as OrderRow | null;
 }
 
+/**
+ * Fait avancer une commande.
+ *
+ * Confirmer est le seul statut qui touche autre chose que la commande : il crée
+ * la vente ProfitPilot, décrémente le stock et écrit le mouvement d'inventaire.
+ * Tout cela vit dans `confirm_store_order`, une seule transaction — c'était
+ * auparavant une suite de lectures et d'écritures séparées, où deux
+ * confirmations simultanées perdaient un décrément de stock.
+ *
+ * L'ordre compte : on confirme D'ABORD (donc on vérifie le stock), et on marque
+ * la commande ensuite. L'inverse laissait une commande « confirmée » alors que
+ * la vente n'avait pas pu se faire.
+ */
 export async function updateOrderStatus(
   orderId: string,
   status: string,
   trackingNumber?: string,
 ): Promise<void> {
+  // Pas de `assertFeature` ici, volontairement.
+  //
+  // Le reste du module est verrouillé par l'offre — construire la vitrine,
+  // publier des produits, retoucher des photos. Mais une commande DÉJÀ passée
+  // est de l'argent déjà engagé par un vrai client. Un marchand dont
+  // l'abonnement expire un mardi doit pouvoir honorer les commandes du lundi :
+  // la boutique cesse d'en prendre de nouvelles, elle ne prend pas les
+  // anciennes en otage.
   await requirePermission('sales:update');
   const { businessId } = await getBusinessContext();
   const svc = getSupabaseService();
 
-  const update: any = { status };
+  // La commande appartient-elle bien à l'entreprise ouverte ? La clé service
+  // contourne RLS : sans cette vérification, un identifiant deviné suffirait.
+  const { data: owned } = await svc
+    .from('orders')
+    .select('id')
+    .eq('id', orderId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  if (!owned) throw new Error('Commande introuvable.');
+
+  if (status === 'confirmed') {
+    // Lève si le stock ne suit pas — et laisse alors la commande en attente,
+    // ce qui est la vérité : elle n'est pas honorable en l'état.
+    await confirmStoreOrder(orderId);
+  }
+
+  const update: Record<string, unknown> = { status };
   if (trackingNumber) update.tracking_number = trackingNumber;
   if (status === 'confirmed') update.payment_status = 'paid';
 
   await svc.from('orders').update(update).eq('id', orderId).eq('business_id', businessId);
 
-  // When confirming: create ProfitPilot sale + decrement stock
-  if (status === 'confirmed') {
-    await confirmOrderAsSale(orderId, businessId);
-  }
-
   revalidatePath('/boutique/commandes');
-}
-
-async function confirmOrderAsSale(orderId: string, businessId: string) {
-  const svc = getSupabaseService();
-
-  const { data: order } = await svc
-    .from('orders')
-    .select('*, order_items(*)')
-    .eq('id', orderId)
-    .maybeSingle();
-
-  if (!order || order.sale_id) return; // already integrated
-
-  // Get exchange rate
-  const { data: biz } = await svc
-    .from('businesses')
-    .select('exchange_rate, default_currency')
-    .eq('id', businessId)
-    .single();
-
-  const exchangeRate = Number((biz as any)?.exchange_rate ?? 130);
-
-  // Create sale
-  const year = new Date().getFullYear();
-  const { count } = await svc.from('sales').select('*', { count: 'exact', head: true }).eq('business_id', businessId);
-  const invoiceNumber = `INV-${year}-${String((count ?? 0) + 1).padStart(5, '0')}`;
-
-  const items = (order.order_items ?? []) as any[];
-  const subtotal = items.reduce((s: number, i: any) => s + Number(i.total_price), 0);
-
-  const { data: sale } = await svc
-    .from('sales')
-    .insert({
-      business_id:     businessId,
-      invoice_number:  invoiceNumber,
-      client_name:     order.customer_name,
-      sale_date:       new Date().toISOString().split('T')[0],
-      total_amount:    parseFloat(order.total),
-      discount_amount: 0,
-      currency:        order.currency ?? 'HTG',
-      exchange_rate:   exchangeRate,
-      payment_method:  order.payment_method ?? 'cash',
-      notes:           `Commande boutique #${order.order_number}`,
-    })
-    .select('id')
-    .single();
-
-  if (!sale) return;
-
-  // Create sale items and decrement stock
-  for (const item of items) {
-    await svc.from('sale_items').insert({
-      sale_id:      sale.id,
-      business_id:  businessId,
-      product_id:   item.product_id,
-      product_name: item.product_name,
-      quantity:     item.quantity,
-      unit_price:   Number(item.unit_price),
-      total_price:  Number(item.total_price),
-    }); // ignore if sale_items doesn't exist
-
-    // Decrement stock
-    if (item.product_id) {
-      const { data: prod } = await svc
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', item.product_id)
-        .maybeSingle();
-      if (prod) {
-        const newStock = Math.max(0, Number((prod as any).stock_quantity ?? 0) - item.quantity);
-        await svc.from('products').update({ stock_quantity: newStock }).eq('id', item.product_id);
-      }
-    }
-  }
-
-  // Link sale to order
-  await svc.from('orders').update({ sale_id: sale.id }).eq('id', orderId);
 }
 
 // ─── Statistics ───────────────────────────────────────────────────────────────

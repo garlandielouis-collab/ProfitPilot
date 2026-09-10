@@ -121,8 +121,41 @@ export const getRealPlanKey = cache(async (): Promise<PlanKey | null> => {
 });
 
 /** `true` si l'offre active donne accès à la fonctionnalité. */
+/**
+ * Les droits TEMPORAIRES du compte — ceux qui ne viennent pas de l'offre.
+ *
+ * Un mois de Rapports gagné par parrainage n'est pas un changement d'offre :
+ * le marchand reste sur Esansyel, sa facture ne bouge pas, et à l'échéance il
+ * retombe exactement où il était. D'où une source distincte, lue en plus de
+ * l'offre — jamais à sa place.
+ *
+ * `cache()` pour la même raison que le reste : une action qui vérifie deux
+ * capacités ne doit pas relire la table deux fois.
+ *
+ * Table absente (migration non jouée) : aucun droit. Le produit fonctionne,
+ * simplement personne n'a de cadeau en cours.
+ */
+export const getActiveGrants = cache(async (): Promise<Feature[]> => {
+  try {
+    const { supabase, userId } = await getBusinessContext();
+
+    const { data, error } = await supabase
+      .from('feature_grants')
+      .select('feature')
+      .eq('user_id', userId)
+      .gt('expires_at', new Date().toISOString());
+
+    if (error) return [];
+    return (data ?? []).map((row) => (row as { feature: string }).feature as Feature);
+  } catch {
+    return [];
+  }
+});
+
+/** `true` si l'offre active OU un droit temporaire couvre la fonctionnalité. */
 export async function hasFeature(feature: Feature): Promise<boolean> {
-  return planHasFeature(await getActivePlanKey(), feature);
+  if (planHasFeature(await getActivePlanKey(), feature)) return true;
+  return (await getActiveGrants()).includes(feature);
 }
 
 /**
@@ -132,6 +165,23 @@ export async function hasFeature(feature: Feature): Promise<boolean> {
 export async function assertFeature(feature: Feature): Promise<void> {
   if (await hasFeature(feature)) return;
   throw new FeatureLockedError(feature, requiredPlanFor(feature));
+}
+
+/** Fin du droit temporaire sur une capacité, ou `null` s'il n'y en a pas. */
+export async function grantExpiryFor(feature: Feature): Promise<string | null> {
+  try {
+    const { supabase, userId } = await getBusinessContext();
+    const { data } = await supabase
+      .from('feature_grants')
+      .select('expires_at')
+      .eq('user_id', userId)
+      .eq('feature', feature)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    return (data as { expires_at?: string } | null)?.expires_at ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Lève une erreur si le rôle de l'utilisateur n'a pas la permission RBAC. */

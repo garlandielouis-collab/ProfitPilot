@@ -16,7 +16,7 @@ export default function TermsPage() {
           <h1 className="mt-2 text-3xl font-extrabold text-primary">{t({ fr: "Conditions d'Utilisation", ht: 'Kondisyon Itilizasyon' })}</h1>
           <p className="mt-2 text-sm text-slate-400">Dènye mizajou: 1 Jen 2026</p>
         </div>
-        <div className="rounded-2xl border border-border bg-white p-8 shadow-sm space-y-6 text-sm leading-7 text-slate-600">
+        <div className="rounded-2xl border border-border bg-white p-8 space-y-6 text-sm leading-7 text-slate-600">
           <section><h2 className="font-bold text-primary mb-2">{t({ fr: '1. Acceptation des Conditions', ht: '1. Akseptasyon Kondisyon yo' })}</h2><p>Lè ou itilize ProfitPilot, ou aksepte kondisyon sa yo. Si ou pa dakò, tanpri pa itilize sèvis la.</p></section>
           <section><h2 className="font-bold text-primary mb-2">{t({ fr: '2. Description du Service', ht: '2. Deskripsyon Sèvis la' })}</h2><p>ProfitPilot se yon aplikasyon jèsyon biznis pou antreprenè ayisyen. Li ofri jesyon envantè, vant, acha, depans ak rapò finansye.</p></section>
           <section><h2 className="font-bold text-primary mb-2">3. Kont Itilizatè</h2><p>Ou responsab pou pwoteje kont ou ak modpas ou. ProfitPilot p ap janm mande modpas ou pa SMS oswa email.</p></section>

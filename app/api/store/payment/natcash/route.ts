@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseService } from '../../../../../lib/supabaseServiceClient';
+import { readGatewayCredentials } from '../../../../../lib/storePaymentGateway';
 import { createStoreOrder } from '../../../../actions/store-public';
 
 // ── NatCash (Natcom Haiti) API helpers ────────────────────────────────────────
@@ -61,36 +61,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Données manquantes' }, { status: 400 });
     }
 
-    const svc = getSupabaseService();
-
-    const { data: settings, error: settErr } = await svc
-      .from('store_settings')
-      .select('payment_credentials')
-      .eq('business_id', businessId)
-      .maybeSingle();
-
-    if (settErr || !settings) {
-      return NextResponse.json({ error: 'Boutique introuvable' }, { status: 404 });
-    }
-
-    const creds = (settings.payment_credentials as any)?.natcash;
-    if (!creds?.client_id || !creds?.client_secret) {
+    const creds = await readGatewayCredentials(businessId, 'natcash');
+    if (!creds) {
       return NextResponse.json({
         error: 'Identifiants NatCash non configurés. Allez dans Boutique → Paiement pour les ajouter.',
       }, { status: 400 });
     }
 
-    const sandbox   = creds.sandbox === true;
-    const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
+    const sandbox = creds.sandbox;
+    const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
 
-    // Create the order
-    const { orderId: orderDbId, orderNumber } = await createStoreOrder(orderData);
+    // La commande, et son total calculé par la base — pas celui du navigateur.
+    const { orderId: orderDbId, orderNumber, total } = await createStoreOrder(orderData);
 
     const returnUrl = `${appUrl}/api/store/payment/natcash/callback?orderId=${orderDbId}`;
 
     const accessToken = await getNatcashToken(creds.client_id, creds.client_secret, sandbox);
     const { paymentUrl } = await createNatcashPayment(
-      accessToken, sandbox, orderData.total, orderDbId, returnUrl,
+      accessToken, sandbox, total, orderDbId, returnUrl,
     );
 
     return NextResponse.json({ redirectUrl: paymentUrl, orderNumber, orderId: orderDbId });

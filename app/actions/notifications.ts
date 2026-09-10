@@ -38,9 +38,22 @@ export async function listNotifications(opts?: {
   const limit  = opts?.limit  ?? 30;
   const offset = opts?.offset ?? 0;
 
+  // Les noms de colonnes lus ici ne sont PAS ceux de la table.
+  //
+  //   code          table
+  //   ────────────  ─────────────────
+  //   company_id    business_id
+  //   entity        reference_type
+  //   entity_id     reference_id
+  //   data          metadata
+  //   triggered_by  (n'existe pas)
+  //
+  // PostgREST rejette la requête entière dès la première colonne inconnue :
+  // la cloche restait donc vide quoi qu'il arrive. On garde le nom des champs
+  // renvoyés — les composants s'appuient dessus — et on corrige la lecture.
   let q = supabase
     .from('notifications')
-    .select('id, company_id, type, title, body, entity, entity_id, data, read_at, created_at, triggered_by')
+    .select('id, business_id, type, title, body, reference_type, reference_id, metadata, read_at, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -50,16 +63,16 @@ export async function listNotifications(opts?: {
   const { data } = await q;
   return (data ?? []).map((r: any): Notification => ({
     id:          r.id,
-    companyId:   r.company_id,
+    companyId:   r.business_id,
     type:        r.type,
     title:       r.title,
     body:        r.body ?? null,
-    entity:      r.entity ?? null,
-    entityId:    r.entity_id ?? null,
-    data:        r.data ?? null,
+    entity:      r.reference_type ?? null,
+    entityId:    r.reference_id ?? null,
+    data:        r.metadata ?? null,
     readAt:      r.read_at ?? null,
     createdAt:   r.created_at,
-    triggeredBy: r.triggered_by ?? null,
+    triggeredBy: null,
   }));
 }
 
@@ -88,7 +101,7 @@ export async function markAsRead(id: string): Promise<void> {
 
   await supabase
     .from('notifications')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: new Date().toISOString(), is_read: true })
     .eq('id', id)
     .eq('user_id', user.id)
     .is('read_at', null);
@@ -101,7 +114,7 @@ export async function markAllAsRead(): Promise<void> {
 
   await supabase
     .from('notifications')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: new Date().toISOString(), is_read: true })
     .eq('user_id', user.id)
     .is('read_at', null);
 
@@ -109,6 +122,31 @@ export async function markAllAsRead(): Promise<void> {
 }
 
 // ── Preferences ───────────────────────────────────────────────────────────────
+
+// `notification_preferences` ne stocke PAS une ligne par type. Elle stocke une
+// ligne par (entreprise, utilisateur) et une colonne booléenne par type :
+// low_stock, payment_due, new_sale, new_purchase, new_expense, ai_insights,
+// weekly_summary. Le code lisait `type` / `enabled` / `company_id` — trois
+// colonnes inexistantes — donc la liste revenait toujours vide et l'écriture
+// échouait sans bruit : aucune préférence n'était ni lue ni enregistrée.
+//
+// Les valeurs reprennent les DEFAULT de la table (20260526_complete_schema_v2)
+// afin que l'écran affiche, avant toute ligne enregistrée, exactement ce que la
+// base appliquera : les trois notifications d'activité courante sont muettes par
+// défaut, les alertes qui demandent une action ne le sont pas.
+// Constantes volontairement NON exportées : ce fichier est `'use server'`, et
+// tout export y doit être une fonction asynchrone.
+const PREFERENCE_DEFAULTS = {
+  low_stock:      true,
+  payment_due:    true,
+  new_sale:       false,
+  new_purchase:   false,
+  new_expense:    false,
+  ai_insights:    true,
+  weekly_summary: true,
+} as const;
+
+const PREFERENCE_COLUMNS = Object.keys(PREFERENCE_DEFAULTS) as (keyof typeof PREFERENCE_DEFAULTS)[];
 
 export async function getNotifPreferences(): Promise<NotifPreference[]> {
   try {
@@ -118,11 +156,15 @@ export async function getNotifPreferences(): Promise<NotifPreference[]> {
 
     const { data } = await supabase
       .from('notification_preferences')
-      .select('type, enabled')
+      .select(PREFERENCE_COLUMNS.join(','))
       .eq('user_id', user.id)
-      .eq('company_id', businessId);
+      .eq('business_id', businessId)
+      .maybeSingle();
 
-    return (data ?? []).map((r: any) => ({ type: r.type, enabled: r.enabled }));
+    return PREFERENCE_COLUMNS.map((type) => ({
+      type,
+      enabled: (data as any)?.[type] ?? PREFERENCE_DEFAULTS[type],
+    }));
   } catch {
     return [];
   }
@@ -130,6 +172,10 @@ export async function getNotifPreferences(): Promise<NotifPreference[]> {
 
 export async function setNotifPreference(type: string, enabled: boolean): Promise<void> {
   try {
+    // Le nom du type devient un nom de colonne : on n'accepte que la liste
+    // connue, jamais une chaîne venue de l'appelant.
+    if (!(PREFERENCE_COLUMNS as readonly string[]).includes(type)) return;
+
     const { supabase, businessId } = await getBusinessContext();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -137,8 +183,8 @@ export async function setNotifPreference(type: string, enabled: boolean): Promis
     await supabase
       .from('notification_preferences')
       .upsert(
-        { user_id: user.id, company_id: businessId, type, enabled },
-        { onConflict: 'user_id,company_id,type' },
+        { user_id: user.id, business_id: businessId, [type]: enabled },
+        { onConflict: 'business_id,user_id' },
       );
   } catch { /* swallow */ }
 }

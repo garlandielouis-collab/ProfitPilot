@@ -37,7 +37,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onNewSale}
-          className="pressable mb-6 flex min-h-13 w-full items-center justify-center gap-2 rounded-surface bg-accent text-body font-bold text-white shadow-card hover:bg-accent-h"
+          className="pressable mb-6 flex min-h-13 w-full items-center justify-center gap-2 rounded-surface bg-accent text-body font-bold text-accent-ink shadow-card hover:bg-accent-h"
         >
           <Plus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
           {t({ fr: 'Nouvelle vente', ht: 'Nouvo vant' })}

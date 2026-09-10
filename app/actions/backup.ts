@@ -34,7 +34,9 @@ async function ensureBucket() {
 export async function collectCompanyData(businessId: string, supabase: any) {
   const tables = [
     { key: 'company',         q: supabase.from('businesses').select('*').eq('id', businessId).limit(1) },
-    { key: 'customers',       q: supabase.from('customers').select('*').eq('business_id', businessId).is('deleted_at', null) },
+    // Pas de `.is('deleted_at', null)` ici : la colonne n'existe pas sur
+    // `customers`, et le filtre vidait la sauvegarde de tous ses clients.
+    { key: 'customers',       q: supabase.from('customers').select('*').eq('business_id', businessId) },
     { key: 'products',        q: supabase.from('products').select('*').eq('business_id', businessId) },
     { key: 'suppliers',       q: supabase.from('suppliers').select('*').eq('business_id', businessId).is('deleted_at', null) },
     { key: 'sales',           q: supabase.from('sales').select('*').eq('business_id', businessId) },

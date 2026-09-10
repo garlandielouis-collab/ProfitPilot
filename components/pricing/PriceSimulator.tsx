@@ -52,7 +52,7 @@ export function PriceSimulator({ productId }: { productId: string }) {
   const baseline = data.scenarios.find((s) => s.increasePercent === 0);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-950">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <div className="flex items-center gap-3 bg-primary px-5 py-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
           <TrendingUp className="h-5 w-5 text-accent" />

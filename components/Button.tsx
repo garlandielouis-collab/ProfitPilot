@@ -17,7 +17,7 @@ const variantClasses: Record<ButtonVariant, string> = {
     'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/50',
 
   secondary:
-    'bg-accent text-white shadow-sm ' +
+    'bg-accent text-accent-ink shadow-sm ' +
     'hover:bg-accent-h hover:-translate-y-px ' +
     'active:scale-[0.98] active:bg-accent-a ' +
     'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/50',

@@ -1,5 +1,19 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/store/payment/natcash/callback
+//
+// Même contrat que le rappel MonCash : on vérifie la transaction auprès de
+// NatCash, puis on encaisse via `settleGatewayOrder` — qui marque la commande
+// payée ET la confirme, c'est-à-dire crée la vente ProfitPilot et décrémente le
+// stock dans une seule transaction.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseService } from '../../../../../../lib/supabaseServiceClient';
+import {
+  readGatewayCredentials,
+  settleGatewayOrder,
+  storeSlugOf,
+} from '../../../../../../lib/storePaymentGateway';
 
 const NC_PROD = 'https://www.natcash.com/api/v1';
 const NC_SAND = 'https://sandbox.natcash.com/api/v1';
@@ -29,8 +43,6 @@ async function verifyNatcashPayment(token: string, sandbox: boolean, transaction
   return await res.json();
 }
 
-// ── GET /api/store/payment/natcash/callback ───────────────────────────────────
-
 export async function GET(req: NextRequest) {
   const svc = getSupabaseService();
   const { searchParams } = req.nextUrl;
@@ -44,61 +56,56 @@ export async function GET(req: NextRequest) {
   try {
     const { data: order } = await svc
       .from('orders')
-      .select('id, business_id, order_number, total, payment_status')
+      .select('id, business_id, order_number, payment_status')
       .eq('id', orderDbId)
       .maybeSingle();
 
     if (!order) return NextResponse.redirect(new URL('/store?error=order_not_found', req.url));
 
+    const slug = await storeSlugOf(order.business_id);
+
     if (order.payment_status === 'paid') {
-      const slug = await getSlug(svc, order.business_id);
       return NextResponse.redirect(
-        new URL(`/store/${slug}/confirmation?order=${order.order_number}&biz=${order.business_id}`, req.url)
+        new URL(
+          `/store/${slug}/confirmation?id=${order.id}&paid=1`,
+          req.url,
+        ),
       );
     }
 
-    const { data: settings } = await svc
-      .from('store_settings')
-      .select('payment_credentials, slug')
-      .eq('business_id', order.business_id)
-      .maybeSingle();
-
-    const creds = (settings?.payment_credentials as any)?.natcash;
-    if (!creds?.client_id || !creds?.client_secret) {
+    const creds = await readGatewayCredentials(order.business_id, 'natcash');
+    if (!creds) {
       return NextResponse.redirect(new URL('/store?error=no_credentials', req.url));
     }
 
-    const sandbox     = creds.sandbox === true;
-    const accessToken = await getNatcashToken(creds.client_id, creds.client_secret, sandbox);
-    const result      = await verifyNatcashPayment(accessToken, sandbox, transactionId);
+    const accessToken = await getNatcashToken(creds.client_id, creds.client_secret, creds.sandbox);
+    const result      = await verifyNatcashPayment(accessToken, creds.sandbox, transactionId);
 
     const success = result?.status === 'success' || result?.message === 'successful';
     if (!success) {
-      const slug = settings?.slug ?? await getSlug(svc, order.business_id);
-      return NextResponse.redirect(new URL(`/store/${slug}/checkout?error=payment_failed`, req.url));
+      return NextResponse.redirect(
+        new URL(`/store/${slug}/checkout?error=payment_failed`, req.url),
+      );
     }
 
-    await svc
-      .from('orders')
-      .update({
-        payment_status:         'paid',
-        payment_transaction_id: transactionId,
-        payment_gateway:        'natcash',
-        status:                 'confirmed',
-      })
-      .eq('id', order.id);
+    const settled = await settleGatewayOrder({
+      orderId:       order.id,
+      gateway:       'natcash',
+      transactionId,
+    });
 
-    const slug = settings?.slug ?? await getSlug(svc, order.business_id);
+    if (!settled.ok) {
+      return NextResponse.redirect(new URL('/store?error=order_not_found', req.url));
+    }
+
     return NextResponse.redirect(
-      new URL(`/store/${slug}/confirmation?order=${order.order_number}&biz=${order.business_id}&paid=1`, req.url)
+      new URL(
+        `/store/${settled.slug}/confirmation?id=${settled.orderId}&paid=1`,
+        req.url,
+      ),
     );
   } catch (err: any) {
     console.error('[natcash callback] error:', err.message);
     return NextResponse.redirect(new URL('/store?error=payment_error', req.url));
   }
-}
-
-async function getSlug(svc: any, businessId: string): Promise<string> {
-  const { data } = await svc.from('store_settings').select('slug').eq('business_id', businessId).maybeSingle();
-  return data?.slug ?? '';
 }

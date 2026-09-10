@@ -60,7 +60,7 @@ export async function getProductProfitability(opts?: {
   limit?: number;
 }): Promise<ProfitabilityReport> {
   await assertFeature('product_profitability');
-  const { supabase, businessId, userId, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency } = await getBusinessContext();
 
   const [{ data: rows, error }, { data: products }] = await Promise.all([
     supabase
@@ -70,7 +70,7 @@ export async function getProductProfitability(opts?: {
     supabase
       .from('products')
       .select('id, name, stock_quantity, reorder_point')
-      .eq('user_id', userId),
+      .eq('business_id', businessId),
   ]);
 
   if (error) throw new Error(error.message);
@@ -158,7 +158,7 @@ export type ProductMarginDetail = {
 
 export async function getProductMargin(productId: string): Promise<ProductMarginDetail> {
   await assertFeature('margin_calculator');
-  const { supabase, userId, exchangeRate, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, exchangeRate, defaultCurrency } = await getBusinessContext();
 
   const { data: p, error } = await supabase
     .from('products')
@@ -166,7 +166,7 @@ export async function getProductMargin(productId: string): Promise<ProductMargin
       'id, name, purchase_price, sale_price, currency, delivery_cost, packaging_cost, other_cost, commission_percent, target_margin_percent',
     )
     .eq('id', productId)
-    .eq('user_id', userId)
+    .eq('business_id', businessId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -238,7 +238,7 @@ export async function simulateProductPrice(
   elasticity = 0.5,
 ): Promise<PriceSimulation> {
   await assertFeature('price_simulator');
-  const { supabase, businessId, userId, exchangeRate, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, exchangeRate, defaultCurrency } = await getBusinessContext();
 
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
 
@@ -249,7 +249,7 @@ export async function simulateProductPrice(
         'id, name, purchase_price, sale_price, currency, delivery_cost, packaging_cost, other_cost, commission_percent',
       )
       .eq('id', productId)
-      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .maybeSingle(),
     supabase
       .from('sale_items')

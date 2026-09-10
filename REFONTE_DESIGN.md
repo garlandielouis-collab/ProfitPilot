@@ -14,14 +14,17 @@ sessions, et rien dans le code ne dit à lui seul où l'on s'est arrêté.
 
 | Mesure | Avant | Règle senior | Aujourd'hui |
 |---|---|---|---|
-| Tailles de police distinctes | 14 | 4 | **4 rôles** (`note` 13 · `body` 15 · `card` 17 · `screen` 22) + variante montants |
-| Textes sous 11 px | 184 | 0 sous 13 px | **0** — aucune taille brute ne subsiste dans le code |
-| Graisses | 6 | 2 | **2** — les six noms Tailwind sont repliés sur 400/700 |
-| Rayons de bordure | 7 | 2–3 | **3** (`control` 8 · `surface` 12 · `pill`) ; aucun rayon brut |
-| Niveaux d'ombre | 6 | 1–2 | **2** (`card`, `pop`) ; deux valeurs brutes restent, toutes deux sur la page d'accueil publique |
+| Tailles de police distinctes | 14 | 4 (+1 héro) | **4 rôles aux valeurs du §12** (`note` 12 · `body` 14 · `card` 16 · `screen` 24) + le héro à 32 ; les variantes montants reprennent la taille du titre |
+| Textes sous 11 px | 184 | 0 sous 12 px | **0** — aucune taille brute ne subsiste dans le code |
+| Graisses | 6 | 2 | **2** — 400 / 600, plus `font-hero` (700) réservé au montant héro. *Les six noms retombaient tous sur 400/700 : une seule graisse lourde, corrigée vague 6* |
+| Rayons de bordure | 7 | 2–3 | **3 + 1** (`inner` 4 · `control` 8 · `surface` 12 · `pill`), **en échelle emboîtée** ; aucun rayon brut. *Les alias `lg`/`xl`/`2xl` valaient tous 12 : pas d'échelle, corrigé vague 6* |
+| Niveaux d'ombre | 6 | 1–2 | **2** (`card`, `pop`), à la recette du §24 : marine, X 0, blur = 2×Y, spread négatif. Deux valeurs brutes restent, sur la page d'accueil publique |
 | Espacements hors grille de 8 | ≈ 600 | 0 | **0** — les quatre crans fautifs de Tailwind sont redéfinis sur la grille |
 | Entrées de navigation | 25 | 5 max | **4 + une action centrale**, le reste dans « Plus » |
 | Couleurs des boutons de paiement | 5 saturées | 1 accent | **1 composant**, sélection par contraste |
+| Cibles tactiles sous 44 px | 51 (mesurées, vague 6) | 0 | **0** |
+| Icônes dessinées sous 16 px | 17 | 0 | **0** (2 chevrons à 12, exception du §9) |
+| Paires figure/fond sous AA | 1 (`success`) | 0 | **0** — les 19 paires mesurées |
 | Fichier du tableau de bord | ≈ 1 780 l. + fausses données | découpé, états vides | **493 lignes**, huit sections, deux états vides |
 
 La méthode qui a rendu tout cela tenable mérite d'être retenue : plutôt que de
@@ -98,7 +101,7 @@ requête initiale était en fait passée.
 | # | Point | État |
 |---|---|---|
 | 5.1 | 25 entrées → 5 + page « Plus » | **fait** — `nav.tsx`, `BottomBar`, `Sidebar`, `/plus` |
-| 5.2 | Le texte grossit, plancher 13 px | **fait** — par les alias de l'échelle |
+| 5.2 | Le texte grossit, plancher 12 px | **fait** — par les alias de l'échelle |
 | 5.3 | Une direction de défilement par section | **fait** — tableau de bord en pile verticale |
 | 5.4 | **Les quatre briques nommées dans le code** | **fait** — `Card`, `Money`/`Stat`, `EmptyState`, et **`Field`** qui manquait : chaque écran redessinait son champ |
 | 5.5 | Pas de cartes imbriquées | **fait** — `Section` groupe par l'espace, `Card` reste au niveau de la donnée |
@@ -177,7 +180,7 @@ le réglage « réduire les animations » du téléphone fait autorité.
 |---|---|---|---|
 | 1 | Le texte | Bloquant | ✅ passe de micro-copie complète |
 | 2 | Aucune donnée fictive | Bloquant | ⚠️ deux rechutes trouvées **après** la purge, et corrigées : un jeu de contrôles fictifs et un identifiant fabriqué (vague 5) |
-| 3 | Typographie | Bloquant | ✅ 4 tailles, 2 graisses, plancher 13 px |
+| 3 | Typographie | Bloquant | ✅ 4 tailles (12/14/16/24 + 32), 2 graisses, plancher 12 px |
 | 4 | Couleurs | Bloquant | ✅ 60/30/10, dégradés retirés des données |
 | 5 | Espacement | Bloquant | ✅ grille de 8 |
 | 6 | Composants | Bloquant | ✅ tokens, plus de composant dupliqué divergent |
@@ -312,6 +315,201 @@ couleurs, trois formulations, le nom de l'offre écrit en dur.
   et « À regarder » cèdent la place à un encart, **à la même place** — un écran
   qui se recompose sous l'œil fait croire à un bogue.
 
+### Deux corrections d'offre, après coup
+
+**Pilot AI.** Le registre laissait un « avant-goût » de trois questions à
+Esansyel (`ai_taster`), et `/ai-assistant` n'était pas dans `ROUTE_FEATURE` —
+choix d'implémentation, pas décision produit. Il ne tenait pas : la route
+`/api/ai/chat` exige depuis toujours un abonnement actif parmi
+`plansWithFeature('ai_assistant')`. L'écran s'ouvrait donc en grand pour un
+marchand d'Esansyel, et sa première question revenait en 403. Pilot AI commence
+maintenant à Kwasans, à l'écran comme au serveur, et le verrou explique à partir
+de quelle offre l'assistant répond.
+
+**Le parrainage.** « Un marchand inscrit avec votre code, et les Rapports vous
+sont offerts trente jours. » Il a fallu une idée nouvelle : un droit peut venir
+d'ailleurs que de l'offre.
+
+- `feature_grants` porte un droit temporaire, POSÉ PAR-DESSUS l'offre. Écrire
+  le cadeau dans `subscriptions` aurait fait passer le marchand pour un abonné
+  Kwasans auprès de la facturation, des relances et de la page de prix — un
+  cadeau qui ment sur ce qu'il est finit par se facturer à quelqu'un.
+- `hasFeature()` (serveur) et `canUse()` (écran) lisent l'offre **et** les
+  droits. Sans les deux, l'écran verrouille une page que le serveur laisse
+  passer.
+- La récompense s'écrit avec la clé de service : elle appartient au parrain, pas
+  au filleul qui la déclenche. `grant_feature_days()` fait le calcul de
+  l'échéance dans la base — deux filleuls inscrits en même temps donnent deux
+  mois, pas un.
+- L'écran verrouillé des Rapports propose la deuxième porte : celui qui n'a pas
+  les 2 500 gourdes ce mois-ci connaît souvent quelqu'un qui cherche la même
+  chose.
+
+**Le parrainage, deuxième étage — l'échelle.** La version précédente payait
+l'INSCRIPTION d'un filleul par un mois de Rapports. Une inscription ne coûte
+rien à fabriquer : la récompense la plus chère était accrochée au barreau le
+moins cher. Trois barreaux, désormais, du moins cher au plus cher.
+
+- **Inscrit** — +10 questions à l'assistant et +10 fiches produits (jusqu'à
+  +50). `quota_grants` DÉPLACE UN MUR là où `feature_grants` ouvre une porte :
+  l'un répond « combien ? », l'autre « oui ou non ? ». Le paquet de questions
+  ouvre aussi `ai_assistant` trois mois — un avant-goût qu'on ne peut pas
+  goûter n'en est pas un — et reste borné par les questions elles-mêmes.
+- **Actif** — sept jours d'une capacité de l'étage AU-DESSUS, après sept jours
+  et cinq ventes réelles. `auto_reminders` était le choix évident pour un
+  parrain Kwasans ; aucun écran ne l'interroge, l'offrir n'aurait rien ouvert.
+  C'est `advanced_analytics` qui est servi : elle se voit le jour même.
+- **Payant** — le seul barreau qui coûte de l'argent, et le seul qui exige un
+  encaissement constaté. Il donne le mois de Rapports ET un bon de réduction
+  sur l'offre du dessus (`upgrade_credits`), jamais sur celle qu'il paie déjà.
+
+Deux règles tiennent le reste. Le montant dû se calcule **au serveur**, à partir
+des bons réellement détenus : `createPendingPayment()` recevait `amountHtg` du
+navigateur, ce qui devenait une faille dès qu'un prix pouvait légitimement
+baisser. Et les bons sont **retenus** au devis, **consommés** à l'approbation :
+un paiement MonCash reste en attente jusqu'à ce qu'un humain le constate, et un
+bon brûlé sur un virement qui n'arrive jamais est un cadeau repris.
+
+Le compteur de questions (`ai_usage`) et le plafond du catalogue existent enfin.
+Ils étaient écrits dans `planFeatures.ts` depuis le premier jour et personne ne
+les lisait : la page de prix promettait « 30 questions par mois » et « jusqu'à
+50 produits » sans que rien ne les tienne. Un « +10 » posé au-dessus d'un
+plafond qui n'existe pas n'est pas une récompense, c'est une phrase.
+
+
+## Vague 6 — la masterclass UI, les leçons que la configuration masquait
+
+Nouveau document de référence : **« Masterclass UI → ProfitPilot »**, trente-deux
+leçons chiffrées. Il recouvre largement l'audit précédent, mais il est plus
+prescriptif sur cinq points — et c'est exactement là que le code se révélait
+encore en écart. La constitution demandée par son §5 existe désormais :
+**`CONSTITUTION_VISUELLE.md`**, une page, tableau de contraste inclus.
+
+Le fil de cette vague est le même que celui de la vague 5, poussé d'un cran :
+*ce qu'une configuration rattrape à distance, et ce qu'elle masque*. La vague 5
+avait trouvé ce qu'une classe ne peut pas atteindre — un émoji, un interrupteur
+qui ne commande rien. Celle-ci trouve pire : **des tokens justes, servis à
+plat**, qui donnent l'apparence d'un système sans en produire l'effet.
+
+### Trois systèmes qui existaient sans fonctionner
+
+| Système | Ce que la configuration disait | Ce que l'écran rendait |
+|---|---|---|
+| **§11 · deux graisses** | `normal 400`, `semibold 700` | `semibold`, `bold`, `extrabold` et `black` valaient **tous 700**. 1 151 classes, **une seule graisse lourde**. « Si tout est en gras, rien n'est en gras » : le piège du §11, écrit dans le fichier de tokens. Désormais 400 / 600, et le 700 devient `font-hero` — un token nommé, porté par le seul montant héro. |
+| **§23 · trois rayons** | `control 8`, `surface 12`, `pill` | Les alias hérités `lg`, `xl` et `2xl` retombaient **tous sur 12**. La carte, le bouton qu'elle contient et la pastille posée dessus portaient le même rayon : l'échelle descendante que le §23 exige n'existait nulle part. Rétablie dans les alias — **12 contient 8 contient 4** — plus le token `rounded-inner` qui manquait. |
+| **§24 · deux ombres** | deux tokens, adoptés partout | Teintées **anthracite** (15,23,42) — le gris neutre que le §15 chasse par ailleurs — et sans géométrie : 1/2, puis 4/12, puis 16/40. La recette du §24 est maintenant tenue à la lettre : couleur = la marque assombrie, X = 0, **blur = 2 × Y**, spread légèrement négatif. |
+
+### Les variables CSS, restées hors palette
+
+La vague 5 avait ramené 1 179 couleurs littérales sur les tokens — dans les
+**classes Tailwind**. Les **variables CSS** de `globals.css` n'avaient pas été
+touchées, et 534 usages les lisaient :
+
+- `--color-danger` valait encore **`#DC2626`**, le rouge vif. Le code portait
+  donc **deux rouges** : la brique `#B23A2F` dans les classes, le vif dans les
+  variables. « Une couleur, une fonction » (§17) ne survit pas à deux valeurs
+  pour la même fonction — l'œil voit deux alertes là où il n'y en a qu'une.
+- Les sept neutres (`--color-text`, `--color-muted`, `--color-border`…) étaient
+  restés sur les gris de Tailwind, alors que la famille `slate-*` avait été
+  redirigée vers la teinte marine. Deux gris différents pour le même rôle, l'un
+  teinté, l'autre non, et le second tirant vers le violet à côté du premier.
+
+### Le bloc d'impression, dernier refuge des valeurs littérales
+
+`@media print` portait encore treize couleurs Tailwind écrites en dur —
+`#12B981`, `#EF4444`, `#94A3B8`… Les sélecteurs gardent leur nom (ce sont les
+classes des composants de rapport) ; la couleur rendue rentre dans la palette.
+
+Deux raisons, et la seconde pèse plus que la première. Un même bilan ne peut pas
+être vert `#0B7F54` à l'écran et vert `#12B981` sur le papier. Et `#94A3B8` sur
+blanc donne **2,7:1** : à l'écran c'est déjà une faute, sur une feuille sortie
+d'une imprimante presque vide c'est illisible — or cette feuille-là est celle
+que le marchand pose sur le bureau de son banquier.
+
+### La seule paire de la palette qui échouait au contraste
+
+Le §31 exige de passer chaque paire figure/fond dans un vérificateur. Fait, les
+dix-neuf : **le vert de confirmation `#0E9F6E` ne donnait que 3,4:1** sur blanc
+et 3,0:1 sur son propre fond clair — sous le plancher AA de 4,5.
+
+« En dessous → on ajuste la saturation ou la luminosité de l'une des deux. »
+Teinte (158°) et saturation (84 %) conservées à l'identique, luminosité
+descendue de 34 à 27 : **`#0B7F54`**, soit 5,0:1 et 4,5:1. La couleur portait le
+message « l'argent est rentré » — celui qu'un marchand lit au comptoir, en plein
+soleil, avant de rendre la monnaie.
+
+Les dix-huit autres paires passent, dont le bouton principal à 7,8:1 (AAA). Le
+tableau complet est dans `CONSTITUTION_VISUELLE.md`.
+
+### Les cibles tactiles, mesurées et non plus estimées
+
+Le §6 ne se négocie pas non plus : *zéro élément tactile sous 44 × 44*. Un
+premier comptage par les classes en annonçait 112 — il était faux. Après la
+refonte de l'échelle d'espacement, `py-2.5` vaut 12 px et donne déjà 46 px de
+haut : compter les classes, c'est mesurer l'ancien barème.
+
+Le comptage refait sur les **hauteurs calculées** (padding résolu sur la grille
++ interligne réel du rôle typographique) en trouve **51**, dans 30 fichiers. Les
+plus petites faisaient 26 px — une croix de fermeture de modale à `py-1`.
+
+Les 51 sont reprises selon le §7 : **on agrandit la zone, pas le dessin.**
+`min-h-touch min-w-touch`, plus une mise en page souple là où l'icône se serait
+collée dans l'angle de sa nouvelle zone. Aucun dessin d'icône n'a grossi.
+
+Et dans l'autre sens, dix-sept icônes étaient dessinées à **12 px**, sous le
+plancher de 16 du §7 (`Lock`, `Trash2`, `AlertTriangle`…). Remontées à 16. Les
+deux chevrons restent à 12 : le §9 les nomme explicitement comme des indices
+visuels, et c'est la ligne entière qui est tactile, pas le chevron.
+
+### Vérifié
+
+- `tsc --noEmit` passe.
+- La configuration est **rendue par Tailwind**, pas seulement compilée : `font-hero`
+  sort à 700 et `font-bold` à 600 ; `min-h-touch` à 2,75rem et `min-w-touch`
+  aussi (Tailwind 3.4 fait bien hériter l'échelle d'espacement à `minHeight` et
+  `minWidth` — sans quoi tout le système de cibles était muet) ; `rounded-xl`
+  sort à 8 et `rounded-2xl` à 12, donc l'échelle emboîtée existe pour de bon.
+- Nouveau comptage des cibles : **0 sous 44 px**.
+
+### L'échelle typographique, alignée sur les valeurs du §12
+
+L'échelle tenait **13 / 15 / 17 / 22 + 32** là où la masterclass demande
+**12 / 14 / 16 / 24 + 32**. Le compromis se défendait — plancher relevé d'un
+point pour le plein soleil, titre abaissé de deux — et il respectait le NOMBRE
+de tailles. Mais il ne respectait aucune de leurs VALEURS, et le §12 ne donne
+pas une fourchette : il donne quatre nombres. Une échelle inventée, même
+raisonnable, reste un jugement personnel — précisément ce que « UI is not art »
+(§5) demande de retirer du travail. Décision prise : aligner.
+
+Ce que le passage change vraiment, et qui n'est pas ce qu'on croit : le corps
+descend de 15 à 14 et les mentions de 13 à 12, mais **le titre d'écran monte de
+22 à 24**. L'écart entre la plus petite et la plus grande taille passe de 9 à
+12 points — la hiérarchie se lit **mieux**, pas moins bien. C'est le titre, pas
+la mention, qui la porte.
+
+Les interlignes suivent la règle du §13 (1,3 à 1,4 × la taille), arrondis au
+multiple de 4 pour que le rythme vertical retombe sur la grille du §1 :
+12/16, 14/20, 16/24, 24/32. Le corps de 14 prend 20 — la valeur que le cours
+donne lui-même en exemple.
+
+Et les deux variantes montants **reprennent la taille du titre d'écran** (24)
+au lieu d'introduire un 22 qui n'appartenait à personne : le §12 veut quatre
+tailles, pas quatre plus deux pour les chiffres. Seul l'interligne se resserre,
+parce qu'un montant tient sur une ligne.
+
+**Le risque, vérifié.** Un bouton dont la hauteur vient de `padding + interligne`
+vient de perdre 2 px : une échelle qui rétrécit peut faire repasser des cibles
+sous les 44. Nouveau comptage sur les hauteurs calculées, barème d'interlignes
+mis à jour : **0 bouton et 0 champ sous 44 px**. C'est le `min-h-touch` posé à
+la vague 6 qui tient — un plancher dur ne bouge pas quand la typographie bouge,
+là où un `py-2.5` bien dosé aurait cédé en silence.
+
+*(`components/ui/input.tsx` reste à `h-10` : c'est un reste de gabarit shadcn,
+importé par aucun écran, et ses classes ne sont même pas valides. Il n'a pas été
+corrigé — il devrait être supprimé.)*
+
+---
+
 ## Ce qui reste
 
 **Le contrôle 12 ne peut pas être coché depuis un éditeur.** « Écran relu sur un
@@ -341,6 +539,13 @@ Puis, par ordre de poids :
 **Fait depuis** : `app/actions/financialReporting.ts` passe désormais par
 `getBusinessContext()` — il prenait « la plus ancienne boutique du
 propriétaire », donc le mauvais bilan pour un compte multi-entreprises.
+
+**Chantier suivant, tenu ailleurs** : le tableau de bord ne fait plus le même
+écran pour les trois offres. Trois compositions — `components/dashboard/`
+`esansyel/`, `kwasans/`, `elit/` — sur un socle de briques partagées. Le suivi
+vit dans **`DASHBOARDS_PAR_PLAN.md`**, parce qu'il suit un autre document que
+l'audit de design. La ligne « fichier du tableau de bord » du §1.1 ci-dessus se
+lit désormais : 100 lignes d'orchestration, treize briques, trois compositions.
 
 ---
 

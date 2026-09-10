@@ -352,11 +352,11 @@ export async function POST(req: NextRequest) {
     // Use the real saved settings — no defaults
     const settings = rawSettings;
 
-    // ── 3. Fetch products — use user_id (how products are created) ────────────
+    // ── 3. Fetch products — cadré par l'entreprise de la vitrine ─────────────
     const { data: products, error: prodErr } = await svc
       .from('products')
       .select('id, name, category, sale_price, purchase_price, image_url, stock_quantity, currency, created_at')
-      .eq('user_id', user.id)
+      .eq('business_id', settings.business_id)
       .order('name', { ascending: true })
       .limit(500);
 

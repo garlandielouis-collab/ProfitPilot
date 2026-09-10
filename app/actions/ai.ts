@@ -129,21 +129,23 @@ export async function getDashboardV2Action(
       .is('deleted_at', null)
       .gte('purchase_date', dateFrom)
       .lte('purchase_date', dateTo),
-    // products are scoped by user_id; low_stock_alerts by business_id (see getInventory)
     supabase
       .from('products')
       .select('id, name, stock_quantity, sale_price, purchase_price, category')
-      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .order('name'),
     supabase
       .from('low_stock_alerts')
       .select('product_id, reorder_point')
       .eq('business_id', businessId),
+    // `customers` n'a pas de `deleted_at` : la suppression y est définitive
+    // (app/actions/customers.ts:159). Le filtre faisait échouer la requête
+    // entière — « column customers.deleted_at does not exist » — et l'AI Pilot
+    // recevait donc un nombre de clients nul.
     supabase
       .from('customers')
       .select('id', { count: 'exact', head: true })
-      .eq('business_id', businessId)
-      .is('deleted_at', null),
+      .eq('business_id', businessId),
     supabase
       .from('sales')
       .select('id', { count: 'exact', head: true })

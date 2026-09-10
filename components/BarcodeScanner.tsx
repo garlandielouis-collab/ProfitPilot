@@ -65,7 +65,7 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
           <div className="flex items-center gap-2 text-lg font-semibold text-anthracite">
             <Camera className="h-5 w-5" /> {t({ fr: 'Scanner de code-barres', ht: 'Skyane kòd-bar' })}
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-anthracite transition hover:bg-slate-100">
+          <button type="button" onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full p-2 text-anthracite transition hover:bg-slate-100">
             <X className="h-5 w-5" />
           </button>
         </div>

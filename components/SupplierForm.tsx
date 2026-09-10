@@ -73,7 +73,7 @@ export function SupplierForm({ onSaved }: SupplierFormProps) {
   };
 
   return (
-    <section className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-surface border border-slate-200 bg-white p-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-anthracite">{t({ fr: 'Ajouter un fournisseur', ht: 'Ajoute yon founisè' })}</h2>
         <p className="mt-1 text-sm text-anthracite/70">{t({ fr: 'Créez un fournisseur pour vos achats à crédit et achats fournisseurs.', ht: 'Kreye yon founisè pou acha a kredi ak acha founisè yo.' })}</p>

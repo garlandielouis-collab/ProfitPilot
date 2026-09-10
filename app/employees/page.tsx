@@ -99,7 +99,7 @@ function EmployeesPage() {
       </div>
 
       {/* Invite form */}
-      <div className="rounded-surface border border-slate-200 bg-white shadow-sm p-6 space-y-4">
+      <div className="rounded-surface border border-slate-200 bg-white p-6 space-y-4">
         <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
           <UserPlus className="h-4 w-4" />
           Inviter un employé
@@ -138,7 +138,7 @@ function EmployeesPage() {
       </div>
 
       {/* Employee list */}
-      <div className="rounded-surface border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-surface border border-slate-200 bg-white overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-primary flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -173,7 +173,7 @@ function EmployeesPage() {
                   </div>
 
                   <span className={`hidden sm:flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${ROLE_COLORS[emp.role]}`}>
-                    <RoleIcon className="h-3 w-3" />
+                    <RoleIcon className="h-4 w-4" />
                     {ROLE_LABELS[emp.role]}
                   </span>
 

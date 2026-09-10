@@ -15,7 +15,7 @@ const accentStyles = {
 
 export function ReportCard({ label, value, accent, description }: ReportCardProps) {
   return (
-    <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-surface border border-slate-200 bg-white p-6">
       <p className="text-sm uppercase tracking-[0.24em] text-slate-500">{label}</p>
       <p className="mt-4 text-3xl font-semibold text-anthracite">{value}</p>
       {description ? <p className="mt-3 text-sm text-slate-600">{description}</p> : null}

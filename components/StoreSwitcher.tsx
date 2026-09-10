@@ -73,7 +73,7 @@ export function StoreSwitcher() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
+        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
       >
         <Store className="h-3.5 w-3.5 text-primary" />
         <span className="max-w-[120px] truncate">{active?.name ?? 'Boutique'}</span>
@@ -119,7 +119,7 @@ export function StoreSwitcher() {
                     type="button"
                     onClick={handleCreate}
                     disabled={isPending || !newName.trim()}
-                    className="rounded-lg bg-primary px-2 py-1 text-xs text-white disabled:opacity-50"
+                    className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg bg-primary px-2 py-1 text-xs text-white disabled:opacity-50"
                   >
                     OK
                   </button>

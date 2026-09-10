@@ -664,7 +664,7 @@ function DettesInner() {
                           <button
                             onClick={() => handlePayDebt(debt.id)}
                             disabled={payingId === debt.id}
-                            className="rounded-lg bg-emerald-600/80 hover:bg-emerald-600 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition">
+                            className="rounded-lg bg-accent hover:bg-accent-h disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-accent-ink transition">
                             {payingId === debt.id ? '…' : t({ fr: 'Payer', ht: 'Peye' })}
                           </button>
                         ) : (

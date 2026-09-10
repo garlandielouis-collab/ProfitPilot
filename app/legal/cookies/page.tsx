@@ -16,7 +16,7 @@ export default function CookiesPage() {
           <h1 className="mt-2 text-3xl font-extrabold text-primary">Politik Cookies</h1>
           <p className="mt-2 text-sm text-slate-400">Dènye mizajou: 1 Jen 2026</p>
         </div>
-        <div className="rounded-2xl border border-border bg-white p-8 shadow-sm space-y-6 text-sm leading-7 text-slate-600">
+        <div className="rounded-2xl border border-border bg-white p-8 space-y-6 text-sm leading-7 text-slate-600">
           <section><h2 className="font-bold text-primary mb-2">Ki sa Cookies ye?</h2><p>Cookies se ti fichye ki estoke nan navigatè ou pou kenbe sesyon ou ak preferans ou yo.</p></section>
           <section><h2 className="font-bold text-primary mb-2">Cookies Nou Itilize</h2>
             <ul className="space-y-2 mt-2">

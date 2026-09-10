@@ -34,7 +34,7 @@ export default function GuidePage() {
         <div className="space-y-4">
           {STEPS.map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-              className="flex gap-5 rounded-2xl border border-border bg-white p-6 shadow-sm hover:border-accent/30 transition-colors">
+              className="flex gap-5 rounded-2xl border border-border bg-white p-6 hover:border-accent/30 transition-colors">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-lg font-black text-accent">
                 {s.n}
               </div>

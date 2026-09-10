@@ -196,7 +196,7 @@ function ExpenseModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-[var(--color-text)]"
+            className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-[var(--color-text)]"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -539,7 +539,7 @@ export function ExpensesPage() {
     icon: React.ReactNode; accent: string;
   }) {
     return (
-      <div className={`relative overflow-hidden rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm`}>
+      <div className={`relative overflow-hidden rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-6`}>
         <div className={`absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-10 blur-2xl ${accent}`} />
         <div className="relative">
           <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-opacity-20`}>
@@ -700,7 +700,7 @@ export function ExpensesPage() {
           </div>
 
           {/* ── Transactions table ── */}
-          <div className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
+          <div className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)]">
             {/* Table header */}
             <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-5">
               <div>

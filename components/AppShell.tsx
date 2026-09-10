@@ -19,6 +19,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Languages, LogOut, Search } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { isStorefrontHost } from '../lib/storeTheme';
 import { useLanguage } from './LanguageWrapper';
 import { Logo } from './Logo';
 import { useSubscriptionCheck, resetTrialTimer } from '../hooks/useSubscription';
@@ -60,10 +61,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [saleOpen, setSaleOpen]         = useState(false);
   const userMenuRef                     = useRef<HTMLDivElement>(null);
 
-  const isAuthPage       = pathname?.startsWith('/auth');
-  const isLandingPage    = pathname === '/';
-  const isOnboardingPage = pathname?.startsWith('/onboarding');
-  const isPublicPage     = isLandingPage || isOnboardingPage || isAuthPage;
+  // ── Quel chemin, exactement ? ─────────────────────────────────────────────
+  //
+  // `usePathname()` suffit tant qu'il répond. Il ne répond pas toujours : au
+  // premier rendu client d'une hydratation qui a échoué, il peut valoir `null`,
+  // et `null?.startsWith('/store/')` vaut `undefined` — donc « pas une
+  // vitrine ». Le garde-fou d'en bas (`if (!user) → /auth/login`) partait alors
+  // sur la fiche produit d'un marchand, et son client se retrouvait devant
+  // l'écran de connexion de ProfitPilot. Constaté en test : jamais sur une
+  // visite isolée, systématiquement au quatrième écran d'un parcours.
+  //
+  // L'adresse réelle du navigateur tranche donc en second recours, et
+  // l'inconnu est traité comme PUBLIC : entre laisser passer un visiteur qui
+  // aurait dû être redirigé — le serveur, lui, ne s'y trompe pas et
+  // redirigera — et éjecter le client d'une boutique vers un écran de
+  // connexion qui ne le concerne pas, le second est le seul vrai dégât.
+  const browserPath = typeof window === 'undefined' ? null : window.location.pathname;
+  const path = pathname ?? browserPath;
+
+  // Et l'hôte, pour les vitrines servies sur le domaine du marchand : là, le
+  // chemin visible n'est PAS `/store/…`, c'est `/produits`. Voir
+  // `isStorefrontHost`.
+  const onStoreHost = typeof window !== 'undefined'
+    && isStorefrontHost(window.location.host);
+
+  const isAuthPage       = path?.startsWith('/auth') ?? false;
+  const isLandingPage    = path === '/';
+  const isOnboardingPage = path?.startsWith('/onboarding') ?? false;
+  // La vitrine d'un marchand s'adresse à SES clients, qui n'ont pas de compte
+  // ProfitPilot et n'en auront jamais. Sans cette ligne, le visiteur d'une
+  // boutique tombe sur `if (!user) → /auth/login` quelques lignes plus bas :
+  // la vitrine est publique côté serveur, et injoignable côté navigateur.
+  // C'est aussi la route que le middleware sert derrière les sous-domaines et
+  // les domaines personnalisés.
+  const isStorefront     = (path?.startsWith('/store/') ?? false) || onStoreHost;
+  // L'aperçu de gabarit rend une VITRINE, pas un écran de l'application : la
+  // barre de navigation et la barre latérale du tableau de bord posées autour
+  // fausseraient précisément ce que le marchand est venu juger. Il n'est pas
+  // public pour autant — le middleware exige une session sur `/apercu`, et la
+  // page relit l'entreprise du sélecteur.
+  const isPreview        = path?.startsWith('/apercu') ?? false;
+  const isPublicPage     = pathname == null
+    || isLandingPage || isOnboardingPage || isAuthPage || isStorefront || isPreview;
 
   useEffect(() => { resetTrialTimer(); }, []);
 

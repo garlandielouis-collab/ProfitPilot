@@ -22,36 +22,54 @@ export default function CreditPurchasesPage() {
 
   useEffect(() => {
     async function loadCredits() {
-      const [purchasesResponse, suppliersResponse, productsResponse] = await Promise.all([
+      // Trois erreurs se cumulaient ici et vidaient la page en toutes
+      // circonstances :
+      //
+      //   • `product_id` et `quantity` ne sont pas sur `purchases` — un achat
+      //     porte plusieurs lignes, qui vivent dans `purchase_items` ;
+      //   • le montant s'appelle `total_amount`, pas `total_purchase_amount` ;
+      //   • `payment_status` vaut `'credit'` en base, « À Crédit » n'étant que
+      //     le libellé affiché (app/actions/purchases.ts:51).
+      //
+      // La première suffisait déjà à faire échouer la requête entière.
+      const [purchasesResponse, suppliersResponse] = await Promise.all([
         supabase
           .from('purchases')
-          .select('id,supplier_id,product_id,quantity,total_purchase_amount,purchase_date')
-          .eq('payment_status', 'À Crédit')
+          .select('id,supplier_id,total_amount,purchase_date,purchase_items(product_name,quantity)')
+          .eq('payment_status', 'credit')
+          .is('deleted_at', null)
           .order('purchase_date', { ascending: false }),
         supabase.from('suppliers').select('id,name'),
-        supabase.from('products').select('id,name'),
       ]);
 
       const purchaseData = purchasesResponse.data ?? [];
       const suppliersData = suppliersResponse.data ?? [];
-      const productsData = productsResponse.data ?? [];
 
       const supplierMap = new Map(suppliersData.map((supplier: any) => [supplier.id, supplier.name]));
-      const productMap = new Map(productsData.map((product: any) => [product.id, product.name]));
 
       if (purchasesResponse.error) {
         console.error('[CreditPurchasesPage] erreur', purchasesResponse.error.message);
         setCredits([]);
       } else {
         setCredits(
-          purchaseData.map((item: any) => ({
-            id: item.id,
-            supplier_name: supplierMap.get(item.supplier_id) ?? '—',
-            product_name: productMap.get(item.product_id) ?? '—',
-            quantity: Number(item.quantity),
-            total_purchase_amount: Number(item.total_purchase_amount),
-            purchase_date: item.purchase_date,
-          }))
+          purchaseData.map((item: any) => {
+            const lines = item.purchase_items ?? [];
+            return {
+              id: item.id,
+              supplier_name: supplierMap.get(item.supplier_id) ?? '—',
+              // Un achat peut couvrir plusieurs produits : on nomme le premier
+              // et on signale les autres plutôt que de n'en montrer qu'un seul
+              // en laissant croire que c'est tout.
+              product_name: lines.length === 0
+                ? '—'
+                : lines.length === 1
+                  ? (lines[0].product_name ?? '—')
+                  : `${lines[0].product_name ?? '—'} +${lines.length - 1}`,
+              quantity: lines.reduce((sum: number, l: any) => sum + Number(l.quantity ?? 0), 0),
+              total_purchase_amount: Number(item.total_amount),
+              purchase_date: item.purchase_date,
+            };
+          })
         );
       }
 
@@ -63,7 +81,7 @@ export default function CreditPurchasesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-surface border border-slate-200 bg-white p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-primary/90">{t({ fr: 'Achats à crédit', ht: 'Acha a kredi' })}</p>
@@ -76,7 +94,7 @@ export default function CreditPurchasesPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-surface border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="overflow-x-auto rounded-surface border border-slate-200 bg-white p-4">
         {loading ? (
           <p className="py-10 text-center text-anthracite/70">{t({ fr: 'Chargement des achats à crédit…', ht: 'Chajman acha a kredi…' })}</p>
         ) : credits.length === 0 ? (

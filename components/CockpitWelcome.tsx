@@ -228,7 +228,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               animate={{ opacity: 1 }}
               transition={{ delay: 5.2 }}
               onClick={handleDismiss}
-              className="mt-5 w-full rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
+              className="mt-5 w-full rounded-2xl bg-accent py-3 text-sm font-semibold text-accent-ink transition hover:bg-accent-h shadow-lg shadow-emerald-500/20"
             >
               {t({ fr: 'Voir mon commerce', ht: 'Gade komès mwen' })}
             </motion.button>
@@ -250,7 +250,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
               </div>
               <button
                 onClick={handleDismiss}
-                className="rounded-lg p-1 text-slate-600 hover:text-slate-400 transition"
+                className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg p-1 text-slate-600 hover:text-slate-400 transition"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -318,7 +318,7 @@ export function CockpitWelcome({ companyName }: { companyName: string }) {
             >
               <button
                 onClick={handleDismiss}
-                className="flex-1 rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
+                className="flex-1 rounded-2xl bg-accent py-3 text-sm font-semibold text-accent-ink transition hover:bg-accent-h shadow-lg shadow-emerald-500/20"
               >
                 {t({ fr: 'Voir mon commerce', ht: 'Gade komès mwen' })}
               </button>

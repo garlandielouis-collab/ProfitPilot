@@ -98,12 +98,12 @@ export function PilotAISection() {
                 onClick={() => selectConversation(i)}
                 className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition-all duration-200 ${
                   active === i
-                    ? 'border-accent/30 bg-accent/5 shadow-sm'
+                    ? 'border-accent/30 bg-accent/5'
                     : 'border-border bg-white hover:border-accent/20 hover:bg-accent/3'
                 }`}
               >
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                  active === i ? 'bg-accent text-white' : 'bg-slate-100 text-slate-400'
+                  active === i ? 'bg-accent text-accent-ink' : 'bg-slate-100 text-slate-400'
                 }`}>
                   <Send size={12} />
                 </div>

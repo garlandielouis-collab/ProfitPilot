@@ -40,14 +40,14 @@ export type InventoryMovement = {
 // ── getInventory ──────────────────────────────────────────────────────────────
 
 export async function getInventory(): Promise<InventoryProduct[]> {
-  const { supabase, businessId, userId } = await getBusinessContext();
+  const { supabase, businessId } = await getBusinessContext();
 
-  // products use user_id, low_stock_alerts use business_id
+  // Tout est cadré par entreprise : produits comme alertes.
   const [prodRes, alertRes] = await Promise.all([
     supabase
       .from('products')
       .select('id, name, category, purchase_price, sale_price, stock_quantity, currency')
-      .eq('user_id', userId)
+      .eq('business_id', businessId)
       .order('name'),
     supabase
       .from('low_stock_alerts')
@@ -231,7 +231,7 @@ export async function getTopProductsBySales(limit = 8): Promise<TopSellingProduc
 // (does not depend on inventory_movements table permissions)
 
 export async function getInventoryMovements(limit = 50): Promise<InventoryMovement[]> {
-  const { supabase, businessId, userId } = await getBusinessContext();
+  const { supabase, businessId } = await getBusinessContext();
 
   // All 4 queries in parallel — no waterfall
   const [salesRes, purchRes, adjRes, prodsRes] = await Promise.all([
@@ -257,7 +257,7 @@ export async function getInventoryMovements(limit = 50): Promise<InventoryMoveme
       .limit(limit),
 
     // Product names for adjustments — fetched in parallel, not after
-    supabase.from('products').select('id, name').eq('user_id', userId),
+    supabase.from('products').select('id, name').eq('business_id', businessId),
   ]);
 
   const prodNameMap = new Map((prodsRes.data ?? []).map((p: any) => [p.id, p.name]));

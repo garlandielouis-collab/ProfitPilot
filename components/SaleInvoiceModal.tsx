@@ -113,12 +113,12 @@ export function SaleInvoiceModal({ data, onClose, businessName: rawBusinessName 
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-h active:scale-95"
+              className="min-h-touch min-w-touch inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-h active:scale-95"
             >
               <Printer size={15} />
               {t({ fr: 'Imprimer / PDF', ht: 'Enprime / PDF' })}
             </button>
-            <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 transition">
+            <button onClick={onClose} className="min-h-touch min-w-touch flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 transition">
               <X size={18} className="text-slate-500" />
             </button>
           </div>

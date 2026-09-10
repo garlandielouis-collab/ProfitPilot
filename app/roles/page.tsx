@@ -232,7 +232,7 @@ export default function RolesPage() {
         {/* ── Right: permissions matrix ── */}
         <div className="flex-1">
           {/* Role header */}
-          <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+          <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-6 py-4">
             <div className="flex items-center gap-3">
               <span
                 className="flex h-10 w-10 items-center justify-center rounded-xl text-white text-sm font-bold"
@@ -261,7 +261,7 @@ export default function RolesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || isOwner}
-                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-40"
+                className="min-h-touch min-w-touch flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-40"
               >
                 {saving ? <Spinner /> : null}
                 Enregistrer
@@ -276,7 +276,7 @@ export default function RolesPage() {
               const someOn = perms.some((p) => currentDraft.has(p.name));
 
               return (
-                <div key={category} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div key={category} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
                   {/* Category header */}
                   <button
                     onClick={() => toggleCategory(category)}

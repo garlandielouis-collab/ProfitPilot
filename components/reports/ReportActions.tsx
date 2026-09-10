@@ -107,7 +107,7 @@ export default function ReportActions({
         type="button"
         onClick={handleDownloadPDF}
         disabled={downloading}
-        className="
+        className="min-h-touch min-w-touch 
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
           bg-anthracite text-white text-note sm:text-note font-semibold
           hover:bg-slate-800 active:scale-[0.98]
@@ -126,7 +126,7 @@ export default function ReportActions({
       <button
         type="button"
         onClick={handlePrint}
-        className="
+        className="min-h-touch min-w-touch 
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
           bg-white border border-border text-anthracite text-note sm:text-note font-semibold
           hover:bg-surface hover:border-slate-300 active:scale-[0.98]
@@ -142,7 +142,7 @@ export default function ReportActions({
       <button
         type="button"
         onClick={handleCopyLink}
-        className="
+        className="min-h-touch min-w-touch 
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
           bg-white border border-border text-muted text-note sm:text-note font-medium
           hover:bg-surface hover:text-anthracite active:scale-[0.98]
@@ -265,7 +265,7 @@ export function PeriodPicker({ active, onChange }: PeriodPickerProps) {
             px-3.5 py-1.5 rounded-lg text-note font-semibold border
             transition-all duration-150
             ${active === p.key
-              ? 'bg-accent border-accent text-white shadow-sm'
+              ? 'bg-accent border-accent text-accent-ink'
               : 'bg-white border-border text-muted hover:border-accent hover:text-accent'
             }
           `}

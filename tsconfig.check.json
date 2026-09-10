@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "next-env.d.ts",
+    "components/ds/*.tsx",
+    "components/ds/*.ts",
+    "components/dev/*.tsx",
+    "components/ui/sonner.tsx",
+    "theme.config.ts",
+    "tailwind.config.ts"
+  ]
+}

@@ -87,12 +87,17 @@ export async function getInvoiceDetails(invoiceNumber: string): Promise<InvoiceD
   // Resolve customer name — prefer stored customer_name, fallback to customers table
   let clientName = sale.customer_name ?? null;
   if (!clientName && sale.customer_id) {
+    // `customers` n'a pas de colonne `name` : le nom est scindé en
+    // `first_name` / `last_name`. La requête échouait, et la facture d'une
+    // vente sans `customer_name` mémorisé sortait donc sans nom de client.
     const { data: cust } = await supabase
       .from('customers')
-      .select('name')
+      .select('first_name, last_name')
       .eq('id', sale.customer_id)
       .single();
-    clientName = cust?.name ?? null;
+    clientName = cust
+      ? [cust.first_name, cust.last_name].filter(Boolean).join(' ').trim() || null
+      : null;
   }
 
   return {

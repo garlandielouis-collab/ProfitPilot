@@ -9,7 +9,7 @@ export default function PurchasesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-surface border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-surface border border-slate-200 bg-white p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-primary/90">{t({ fr: 'Achats', ht: 'Acha' })}</p>

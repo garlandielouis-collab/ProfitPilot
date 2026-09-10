@@ -26,7 +26,7 @@ function Delta({ value }: { value: number | null }) {
 
   return (
     <span className={`inline-flex items-center gap-1 text-note font-semibold ${cls}`}>
-      <Icon className="h-3 w-3" />
+      <Icon className="h-4 w-4" />
       {value > 0 ? '+' : ''}{value.toFixed(1)}%
     </span>
   );
@@ -68,7 +68,7 @@ export function MonthComparisonCard({ initial }: { initial?: MonthComparison | n
   if (!data) return null;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
       <div className="mb-4 flex items-center gap-2">
         <CalendarRange className="h-4 w-4 text-primary dark:text-slate-300" />
         <h3 className="text-sm font-bold uppercase tracking-widest text-primary dark:text-slate-300">

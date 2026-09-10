@@ -7,13 +7,13 @@ const currentWorktree = path.basename(path.resolve(__dirname, '..'));
 // Worktrees live in <repo>/.claude/worktrees — one level up from scripts/, not three.
 const worktreesDir    = path.resolve(__dirname, '..', '.claude', 'worktrees');
 
-// Check free disk space (Windows)
-function getFreeBytesWindows() {
+// Free space on the volume holding the repo. `fs.statfsSync` asks the OS
+// directly — `wmic` was removed from Windows 11, and its absence made this
+// return Infinity, so the cleanup below never ran when it was needed.
+function getFreeBytes() {
   try {
-    const { execSync } = require('child_process');
-    const out = execSync('wmic logicaldisk where DeviceID="C:" get FreeSpace /value', { encoding: 'utf8' });
-    const match = out.match(/FreeSpace=(\d+)/);
-    return match ? parseInt(match[1], 10) : Infinity;
+    const st = fs.statfsSync(path.resolve(__dirname, '..'));
+    return st.bavail * st.bsize;
   } catch {
     return Infinity;
   }
@@ -24,7 +24,7 @@ function getFreeBytesWindows() {
 const FREE_THRESHOLD_GB = 6; // clean if below 6 GB free
 
 try {
-  const freeBytes = getFreeBytesWindows();
+  const freeBytes = getFreeBytes();
   const freeGB    = freeBytes / (1024 ** 3);
 
   if (freeGB >= FREE_THRESHOLD_GB) {

@@ -34,6 +34,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useCompanyContext } from '../contexts/CompanyContext';
 import { requiredPlanFor, type Feature } from '../lib/planFeatures';
 import { getPlanByKey, getPlanLabel } from '../lib/plans';
+import { REFERRAL_REWARD, REFERRAL_REWARD_DAYS } from '../lib/referral';
 import { entryForPath, featureForPath } from './nav';
 import { Badge, Button, Card } from './ds';
 
@@ -58,7 +59,7 @@ export function PlanTag({ feature }: { feature: Feature | undefined }) {
 
   return (
     <Badge tone="neutral" className="flex-shrink-0">
-      <Lock className="h-3 w-3" strokeWidth={2.2} aria-hidden />
+      <Lock className="h-4 w-4" strokeWidth={2.2} aria-hidden />
       {getPlanLabel(required)}
     </Badge>
   );
@@ -153,6 +154,23 @@ export function PlanLockScreen({
             {plan.priceG.toLocaleString('fr-FR')} HTG{' '}
             {t({ fr: 'par mois · sans engagement', ht: 'chak mwa · san angajman' })}
           </p>
+        )}
+
+        {/* La deuxième porte. Un marchand qui n'a pas les 2 500 gourdes ce
+            mois-ci en connaît souvent un autre qui cherche la même chose : le
+            parrainage lui ouvre les Rapports sans qu'il paie. Il n'est proposé
+            que sur l'écran qu'il débloque vraiment — ailleurs, ce serait une
+            promesse en l'air. */}
+        {feature === REFERRAL_REWARD && (
+          <Link
+            href="/parrainage"
+            className="pressable mt-4 inline-flex min-h-touch items-center text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
+          >
+            {t({
+              fr: `Ou amenez un marchand : dès qu'il paie son premier mois, c'est offert ${REFERRAL_REWARD_DAYS} jours`,
+              ht: `Oswa mennen yon machann : depi li peye premye mwa li, li ofri w ${REFERRAL_REWARD_DAYS} jou`,
+            })}
+          </Link>
         )}
       </Card>
     </div>

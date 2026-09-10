@@ -8,6 +8,7 @@ import { Logo } from '../../../components/Logo';
 import { useLanguage } from '../../../components/LanguageWrapper';
 import { recordLogin } from '../../../hooks/useSubscription';
 import { linkPhoneToAccount } from '../../actions/phoneAuth';
+import { claimReferral } from '../../actions/referrals';
 import { PhoneField } from '../../../components/ds';
 
 function translateError(msg: string, t: (obj: { fr: string; ht: string }) => string): string {
@@ -46,10 +47,16 @@ function RegisterForm() {
   const [resendOk, setResendOk] = useState(false);
   const [resending, setResending] = useState(false);
 
+  // Le code de parrainage arrive dans l'adresse (`?ref=…`) et n'est jamais
+  // montré : le filleul n'a rien à saisir, rien à comprendre. Il s'inscrit.
+  const [referral, setReferral] = useState('');
+
   const searchParams = useSearchParams();
   useEffect(() => {
     const fromUrl = searchParams?.get('business_name');
     if (fromUrl) setBusinessName(fromUrl);
+    const ref = searchParams?.get('ref');
+    if (ref) setReferral(ref);
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -73,6 +80,10 @@ function RegisterForm() {
         full_name:     name.trim(),
         business_name: businessName.trim() || name.trim(),
         phone:         phone.trim(),
+        // Le code voyage avec le numéro, et pour la même raison : sans
+        // session, rien ne peut encore être écrit en base. Il est réclamé à
+        // la première connexion.
+        referral_code: referral.trim(),
       } },
     });
 
@@ -87,6 +98,8 @@ function RegisterForm() {
     if (signUpData.session) {
       // Session immédiate : le numéro se rattache tout de suite.
       if (phone.trim()) void linkPhoneToAccount(phone);
+      // Session immédiate : le parrain est crédité tout de suite.
+      if (referral.trim()) void claimReferral(referral);
       recordLogin();
       await new Promise(resolve => setTimeout(resolve, 500));
       router.replace('/dashboard');
@@ -125,7 +138,7 @@ function RegisterForm() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
@@ -233,7 +246,7 @@ function RegisterForm() {
                 type="submit"
                 disabled={loading}
                 // Les 10 % de la palette tombent sur l'action attendue (§4.1).
-                className="pressable flex min-h-13 w-full items-center justify-center gap-2 rounded-surface bg-accent px-4 py-3 text-body font-bold text-white shadow-card transition hover:bg-accent-h disabled:opacity-60"
+                className="pressable flex min-h-13 w-full items-center justify-center gap-2 rounded-surface bg-accent px-4 py-3 text-body font-bold text-accent-ink shadow-card transition hover:bg-accent-h disabled:opacity-60"
               >
                 {loading ? (
                   <>
@@ -267,7 +280,7 @@ function RegisterForm() {
           <Logo size="h-14 w-14" />
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm space-y-6">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 space-y-6">
 
           {/* Icon + titre */}
           <div className="flex flex-col items-center gap-4 text-center">

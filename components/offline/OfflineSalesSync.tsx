@@ -108,7 +108,7 @@ export function OfflineSalesSync() {
       <button
         onClick={flush}
         disabled={syncing}
-        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
+        className="min-h-touch min-w-touch inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:opacity-60"
       >
         {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
         {syncing ? 'Ap sinkronize…' : 'Sinkronize'}

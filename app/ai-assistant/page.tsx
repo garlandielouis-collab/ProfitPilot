@@ -160,7 +160,7 @@ function SidebarContent({
         <button
           type="button"
           onClick={onToggle}
-          className="hidden lg:flex rounded-lg p-1.5 text-[var(--color-muted)] hover:bg-slate-100 transition ml-auto"
+          className="min-h-touch min-w-touch hidden lg:flex rounded-lg p-1.5 text-[var(--color-muted)] hover:bg-slate-100 transition ml-auto"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -169,7 +169,7 @@ function SidebarContent({
           <button
             type="button"
             onClick={onMobileClose}
-            className="lg:hidden flex rounded-lg p-1.5 text-[var(--color-muted)] hover:bg-slate-100 transition ml-auto"
+            className="min-h-touch min-w-touch lg:hidden flex rounded-lg p-1.5 text-[var(--color-muted)] hover:bg-slate-100 transition ml-auto"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -183,7 +183,7 @@ function SidebarContent({
           onClick={handleCreate}
           disabled={create.isPending}
           className={cn(
-            'flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20',
+            'min-h-touch min-w-touch flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20',
             'text-emerald-400 hover:bg-emerald-500/20 transition text-sm font-medium',
             collapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 py-2',
           )}
@@ -237,14 +237,14 @@ function SidebarContent({
                     onClick={(e) => startRename(c, e)}
                     className="rounded p-1 hover:bg-slate-200 text-[var(--color-muted)]"
                   >
-                    <PenLine className="h-3 w-3" />
+                    <PenLine className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); remove.mutate(c.id); }}
                     className="rounded p-1 hover:bg-red-500/20 text-[var(--color-muted)] hover:text-red-400"
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </>
@@ -504,7 +504,7 @@ function AiAssistantPage() {
                       ← Créez une analyse dans le panneau de gauche pour commencer
                     </p>
                     <p className="sm:hidden text-xs text-[var(--color-muted)]">
-                      Ouvrez le menu <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-emerald-600 dark:text-emerald-400 font-medium"><MessageSquare className="h-3 w-3" /> Analyses</span> en haut à gauche pour créer une analyse
+                      Ouvrez le menu <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-emerald-600 dark:text-emerald-400 font-medium"><MessageSquare className="h-4 w-4" /> Analyses</span> en haut à gauche pour créer une analyse
                     </p>
                   </div>
                 )}
@@ -544,7 +544,7 @@ function AiAssistantPage() {
               <button
                 type="button"
                 onClick={cancel}
-                className="flex-shrink-0 rounded-xl bg-red-500/20 p-2 text-red-400 hover:bg-red-500/30 transition"
+                className="min-h-touch min-w-touch flex-shrink-0 rounded-xl bg-red-500/20 p-2 text-red-400 hover:bg-red-500/30 transition"
                 title="Arrêter"
               >
                 <Square className="h-4 w-4 fill-current" />
@@ -554,7 +554,7 @@ function AiAssistantPage() {
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || !activeConvId}
-                className="flex-shrink-0 rounded-xl bg-emerald-500 p-2 text-white hover:bg-emerald-400 transition disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
+                className="min-h-touch min-w-touch flex-shrink-0 rounded-xl bg-accent p-2 text-accent-ink hover:bg-accent-h transition disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20"
               >
                 <Send className="h-4 w-4" />
               </button>

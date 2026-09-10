@@ -4,15 +4,25 @@ import { headers } from 'next/headers';
 import { getBusinessContext } from './serverAuth';
 import { getSupabaseServer } from './supabaseServerClient';
 
+// `activity_logs.action` et `.entity` sont du TEXT libre en base — aucune
+// contrainte CHECK, donc étendre ces unions ne demande aucune migration.
+// Vérifié avant d'ajouter : une valeur refusée par un CHECK aurait échoué en
+// silence, `logActivity()` avalant toutes ses erreurs par conception.
 export type ActivityAction =
   | 'create' | 'update' | 'delete' | 'archive' | 'restore'
   | 'duplicate' | 'switch' | 'login' | 'logout' | 'export'
-  | 'invite' | 'accept_invite' | 'revoke' | 'pay' | 'confirm';
+  | 'invite' | 'accept_invite' | 'revoke' | 'pay' | 'confirm'
+  // Le centre documentaire (§43). Consulter et télécharger deviennent des
+  // événements auditables : sur un contrat ou une fiche de paie, savoir QUI a
+  // ouvert le document compte autant que savoir qui l'a modifié.
+  | 'view' | 'download' | 'share' | 'approve' | 'reject'
+  | 'ai_analyze' | 'ai_generate';
 
 export type ActivityEntity =
   | 'sale' | 'product' | 'client' | 'expense' | 'purchase'
   | 'supplier' | 'employee' | 'company' | 'store' | 'order'
-  | 'role' | 'invitation' | 'payment' | 'debt' | 'customer';
+  | 'role' | 'invitation' | 'payment' | 'debt' | 'customer'
+  | 'document' | 'document_version' | 'document_template';
 
 export type LogInput = {
   action:     ActivityAction;

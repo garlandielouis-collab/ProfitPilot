@@ -21,18 +21,48 @@ export type BusinessContext = {
   can:             (permission: Permission) => boolean;
 };
 
+/**
+ * Le nom porté par l'erreur quand le service d'authentification est
+ * injoignable — par opposition à « cette personne n'a pas de session ».
+ *
+ * Exporté parce que c'est un contrat : un écran qui veut distinguer les deux
+ * cas compare ce nom, il ne lit pas un message de formulaire.
+ */
+export const AUTH_UNREACHABLE = 'AuthUnreachableError';
+
+/** Cette erreur est-elle un échec de TRANSPORT et non un refus d'identité ? */
+export function isTransportFailure(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const name = String((err as Error).name ?? '');
+  const msg  = String((err as Error).message ?? '');
+  return (
+    name === AUTH_UNREACHABLE
+    || name === 'SupabaseTimeoutError'
+    || name === 'SupabaseUnreachableError'
+    || name === 'AuthRetryableFetchError'
+    || name === 'TimeoutError'
+    || name === 'AbortError'
+    // Les messages en dernier recours : le SDK n'habille pas toujours l'échec
+    // réseau d'un nom, et un « fetch failed » nu ne doit pas devenir un refus
+    // d'identité.
+    || /timeout|aborted|fetch failed|network|ENOTFOUND|ECONNREFUSED|EAI_AGAIN/i.test(msg)
+  );
+}
+
 // cache() deduplicates within a single server request.
 export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   const supabase = await getSupabaseServer();
   let user;
   // Robust getUser with a small retry on transient failures/timeouts
   let attempts = 0;
+  let lastErr: unknown = null;
   while (attempts < 2) {
     attempts += 1;
     try {
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr) {
         console.error(`[getBusinessContext] auth.getUser error (attempt ${attempts}):`, authErr.message);
+        lastErr = authErr;
         user = null;
       } else {
         user = authData?.user ?? null;
@@ -40,12 +70,45 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       if (user) break;
     } catch (err) {
       console.error(`[getBusinessContext] auth.getUser threw (attempt ${attempts}):`, (err as Error).message);
+      lastErr = err;
       user = null;
     }
     // short backoff
     if (!user && attempts < 2) await new Promise((r) => setTimeout(r, 150));
   }
-  if (!user) throw new Error('Non authentifié.');
+
+  // ── « Non authentifié » et « injoignable » ne sont PAS la même chose ───────
+  //
+  // Les deux finissaient dans le même `Error('Non authentifié.')`, et le produit
+  // en tirait une conclusion commerciale fausse. Le chemin observé, en entier :
+  //
+  //   `auth.getUser()` expire (projet Supabase en veille, réseau irrégulier)
+  //     → getBusinessContext lève « Non authentifié »
+  //       → `getActivePlanKey()` l'attrape et rend `null` — « aucune offre »
+  //         → `assertFeature('online_store')` lève FeatureLockedError
+  //           → l'écran dit « passez à l'offre Kwasans »
+  //
+  // … à un marchand dont l'abonnement Elit est actif et payé. Un à-coup réseau
+  // de deux secondes se présentait comme une invitation à racheter ce qu'il a
+  // déjà. C'est la pire forme du défaut : le message est faux ET il parle
+  // d'argent.
+  //
+  // `lib/supabaseFetch.ts` nomme déjà ses échecs de transport
+  // (`SupabaseTimeoutError`, `SupabaseUnreachableError`). Il suffisait de ne pas
+  // jeter cette information. Le nom est conservé pour que l'appelant puisse
+  // trancher ; aucun appelant n'est obligé de le faire, et ceux qui ne le font
+  // pas se comportent exactement comme avant.
+  if (!user) {
+    if (isTransportFailure(lastErr)) {
+      const e = new Error(
+        (lastErr as Error).message
+        || 'Votre compte est momentanément injoignable. Réessayez dans un instant.',
+      );
+      e.name = AUTH_UNREACHABLE;
+      throw e;
+    }
+    throw new Error('Non authentifié.');
+  }
   const userId = user.id;
 
   // Respect active store cookie (multi-store)

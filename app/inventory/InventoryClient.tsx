@@ -120,7 +120,7 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
             <h2 className="text-lg font-semibold text-slate-800">Ajiste Stock</h2>
             <p className="text-sm text-slate-500 truncate max-w-xs">{product.name}</p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-slate-100 transition-colors">
+          <button onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-slate-100 transition-colors">
             <X size={18} className="text-slate-500" />
           </button>
         </div>
@@ -323,7 +323,7 @@ export function InventoryClient({
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-6 py-5 shadow-sm">
+      <div className="border-b border-slate-200 bg-white px-6 py-5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-800">Jesyon Envantè</h1>

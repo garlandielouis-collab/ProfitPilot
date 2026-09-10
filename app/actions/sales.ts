@@ -29,7 +29,16 @@ function fmt2(n: number): number {
 }
 
 async function rollbackSale(supabase: any, saleId: string) {
-  await supabase.from('customer_transactions').delete().eq('sale_id', saleId);
+  // `customer_transactions` ne porte pas de `sale_id` : le lien vers la vente
+  // passe par le couple `reference_type` / `reference_id`. Filtrer sur une
+  // colonne inexistante faisait échouer le DELETE — donc le rollback laissait
+  // derrière lui la transaction client d'une vente pourtant annulée, et le
+  // solde du client restait faussé.
+  await supabase
+    .from('customer_transactions')
+    .delete()
+    .eq('reference_type', 'sale')
+    .eq('reference_id', saleId);
   await supabase.from('sale_items').delete().eq('sale_id', saleId);
   await supabase.from('sales').delete().eq('id', saleId);
 }

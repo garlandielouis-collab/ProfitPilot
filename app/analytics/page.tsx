@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { usePlan } from '../../hooks/usePlan';
 import { PlanLockScreen } from '../../components/PlanLock';
+import { CashflowChart } from '../../components/dashboard/CashflowChart';
 // 💰 📉 ✨ 🔮 🏆 📈 : six dessins faits par le téléphone en tête d'un écran
 // d'analyse financière. Ils passent en lucide, dans la couleur du texte (§3.5).
 import {
@@ -71,48 +72,21 @@ function KPICard({ label, value, sub, trend, icon: Icon }: { label: string; valu
 }
 
 // SVG bar chart
-function BarChart({ data }: { data: { label: string; revenue: number; expenses: number }[] }) {
-  const max = Math.max(...data.flatMap(d => [d.revenue, d.expenses]), 1);
-  const H = 120;
-  const barW = 18;
-  const gap = 8;
-  const groupW = barW * 2 + gap + 16;
-  const W = data.length * groupW + 20;
-
-  return (
-    <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H + 30}`} className="w-full min-w-[300px]" style={{ height: H + 30 }}>
-        {/* grid lines */}
-        {[0.25, 0.5, 0.75, 1].map(f => (
-          <line key={f} x1={0} y1={H * (1 - f)} x2={W} y2={H * (1 - f)}
-            stroke="currentColor" strokeOpacity="0.07" strokeWidth="1" />
-        ))}
-        {data.map((d, i) => {
-          const x = i * groupW + 10;
-          const rh = (d.revenue / max) * H;
-          const eh = (d.expenses / max) * H;
-          return (
-            <g key={d.label}>
-              {/* revenue bar */}
-              <rect x={x} y={H - rh} width={barW} height={rh} rx={3}
-                fill="#50C878" fillOpacity="0.85" />
-              {/* expense bar */}
-              <rect x={x + barW + gap} y={H - eh} width={barW} height={eh} rx={3}
-                fill="#B45309" fillOpacity="0.75" />
-              {/* label */}
-              <text x={x + barW + gap / 2} y={H + 16} textAnchor="middle"
-                fontSize="9" fill="currentColor" opacity="0.5">{d.label}</text>
-            </g>
-          );
-        })}
-      </svg>
-      <div className="mt-1 flex items-center gap-4 text-xs text-[var(--color-muted)]">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-accent" /> Revenus</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-400" /> Dépenses</span>
-      </div>
-    </div>
-  );
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Le graphique « Revenus vs Dépenses » a disparu d'ici.
+//
+// Il était dessiné en SVG à géométrie FIXE — barres de 18 px, écart de 8, soit
+// 740 px de large pour douze mois — puis rendu avec `className="w-full"`. Le
+// navigateur écrasait donc les 740 px dans les 300 disponibles sur un
+// téléphone : les barres tombaient à 7 px et les libellés, écrits en 9 px,
+// finissaient sous 4. Le `overflow-x-auto` qui l'entourait ne servait à rien,
+// puisque `w-full` interdisait précisément tout débordement.
+//
+// C'est le même graphique que la trésorerie du tableau de bord : un libellé,
+// deux séries. Il utilise donc le même composant — proportionnel, avec un axe
+// chiffré, l'écart qui se resserre quand les périodes se multiplient et la
+// valeur exacte au toucher (§3.4, §3.8).
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Horizontal bar (for categories / rankings)
 function HBar({ label, value, max, bgColor, fmtVal }: { label: string; value: number; max: number; bgColor: string; fmtVal: string }) {
@@ -346,7 +320,16 @@ export default function AnalyticsPage() {
               {months.every(m => m.revenue === 0 && m.expenses === 0) ? (
                 <p className="py-8 text-center text-sm text-[var(--color-muted)]">{t({ fr: 'Aucune donnée pour cette période', ht: 'Pa gen done pou peryòd sa a' })}</p>
               ) : (
-                <BarChart data={months} />
+                <CashflowChart
+                  data={months.map((m) => ({ label: m.label, cashIn: m.revenue, cashOut: m.expenses }))}
+                  currency="HTG"
+                  currentIndex={months.length - 1}
+                  labels={{
+                    in:    t({ fr: 'Revenus', ht: 'Revni' }),
+                    out:   t({ fr: 'Dépenses', ht: 'Depans' }),
+                    empty: t({ fr: 'Aucun mouvement sur cette période.', ht: 'Pa gen mouvman pou peryòd sa a.' }),
+                  }}
+                />
               )}
             </div>
 

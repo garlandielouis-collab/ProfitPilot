@@ -159,9 +159,28 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     }
 
     warehouseId = warehouses?.[0]?.id ?? null;
+
+    // Aucun entrepôt : on en crée un, on ne renvoie pas le marchand ailleurs.
+    //
+    // Rien dans l'application ne permet de créer un entrepôt — la table n'est
+    // peuplée par aucun écran. Le message « créez-en un d'abord » désignait donc
+    // une action impossible, et tout achat échouait, pour tout le monde.
+    //
+    // L'entrepôt est une notion de gestion de stock dont un commerce à un seul
+    // point de vente n'a pas à s'occuper : il en a un, implicitement, et c'est
+    // sa boutique. On le matérialise à la première réception de marchandise.
     if (!warehouseId) {
-      await rollbackPurchase(supabase, purchaseId);
-      throw new Error('Aucun entrepôt trouvé pour ce commerce. Veuillez en créer un avant d’enregistrer un achat.');
+      const { data: created, error: createWhErr } = await supabase
+        .from('warehouses')
+        .insert({ business_id: businessId, name: 'Dépôt principal', is_default: true })
+        .select('id')
+        .single();
+
+      if (createWhErr || !created) {
+        await rollbackPurchase(supabase, purchaseId);
+        throw new Error(createWhErr?.message ?? 'Impossible de créer l’entrepôt par défaut.');
+      }
+      warehouseId = created.id;
     }
   }
 

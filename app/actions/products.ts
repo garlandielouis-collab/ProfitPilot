@@ -1,8 +1,12 @@
 'use server';
 
-import { getSupabaseServer } from '../../lib/supabaseServerClient';
+import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
+import { PlanLimitError, getActivePlanKey } from '../../lib/entitlements';
+import { productAllowance } from '../../lib/quotas';
+import { getPlanLabel } from '../../lib/plans';
+import { SIGNUP_PRODUCT_SLOTS } from '../../lib/referral';
 
 // Frais annexes (Diagnostic 4). Ils sont exprimés dans la MÊME devise que
 // `purchase_price` — sinon le coût complet ne veut rien dire.
@@ -75,20 +79,29 @@ function costFields(payload: ProductCostFields): Record<string, number> {
   return out;
 }
 
-async function getAuthUser() {
-  const supabase = await getSupabaseServer();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) throw new Error('Non authentifié.');
-  return { supabase, userId: user.id };
-}
+// ── Le cadrage du catalogue ─────────────────────────────────────────────────
+//
+// Par `business_id`, et non plus par `user_id`.
+//
+// La table porte les deux depuis longtemps, et l'application lisait tantôt
+// l'un, tantôt l'autre : les rapports (`reports.ts`), la sauvegarde
+// (`backup.ts`) et le digest hebdomadaire filtraient par entreprise pendant que
+// l'écran Produits, l'inventaire et la vitrine filtraient par utilisateur. Deux
+// conséquences vécues : un produit créé par un employé n'apparaissait ni dans
+// le catalogue du propriétaire ni en boutique, et le stock valorisé des
+// rapports ne comptait que les fiches du propriétaire.
+//
+// `user_id` reste renseigné — c'est désormais « qui a créé la fiche », une
+// information d'audit, plus une clé d'accès. La politique RLS `products_access`
+// accepte les deux depuis 20260606.
 
 export async function getProductsAction(): Promise<Product[]> {
-  const { supabase, userId } = await getAuthUser();
+  const { supabase, businessId } = await getBusinessContext();
 
   const { data, error } = await supabase
     .from('products')
     .select(BASE_COLUMNS + ',' + COST_COLUMNS)
-    .eq('user_id', userId)
+    .eq('business_id', businessId)
     .order('name');
 
   if (!error) return (data ?? []).map((p: any) => ({ ...COST_DEFAULTS, ...p })) as Product[];
@@ -96,7 +109,7 @@ export async function getProductsAction(): Promise<Product[]> {
   const { data: fallback, error: fallbackError } = await supabase
     .from('products')
     .select(BASE_COLUMNS)
-    .eq('user_id', userId)
+    .eq('business_id', businessId)
     .order('name');
 
   if (fallbackError) throw new Error(fallbackError.message);
@@ -104,10 +117,27 @@ export async function getProductsAction(): Promise<Product[]> {
 }
 
 export async function createProductAction(payload: ProductPayload): Promise<string> {
-  const { supabase, userId } = await getAuthUser();
+  // `business_id` est la clé de cadrage ; `user_id` reste écrit pour dire qui a
+  // créé la fiche. Un déclencheur en base rattache d'office `business_id` si un
+  // appelant l'oublie — plus aucune fiche orpheline.
+  const { supabase, userId, businessId } = await getBusinessContext();
+
+  // ── Le plafond du catalogue ───────────────────────────────────────────────
+  //
+  // « Jusqu'à 50 produits » est écrit sur la page de prix d'Esansyel depuis le
+  // premier jour, et rien ne le tenait : `PLAN_MAX_PRODUCTS` n'était lu nulle
+  // part. Une limite annoncée qui ne s'applique pas ne fait pas monter d'offre,
+  // elle apprend seulement au marchand que les chiffres du produit sont
+  // décoratifs.
+  //
+  // Le plafond inclut les fiches gagnées par parrainage : dix de plus par
+  // filleul inscrit, jusqu'à cinquante. C'est le compte du serveur, pas celui
+  // de l'écran — un appel direct doit buter sur le même mur.
+  await assertProductSlotAvailable(supabase, businessId);
 
   const { data, error } = await supabase.from('products').insert({
     user_id:        userId,
+    business_id:    businessId,
     name:           payload.name.trim(),
     category:       payload.category?.trim() || null,
     purchase_price: payload.purchase_price,
@@ -124,8 +154,45 @@ export async function createProductAction(payload: ProductPayload): Promise<stri
   return data.id;
 }
 
+/**
+ * Lève une `PlanLimitError` si une fiche de plus dépasserait le plafond.
+ *
+ * Le message nomme les DEUX sorties, parce qu'un mur sans porte ne fait pas
+ * acheter : payer l'offre du dessus, ou amener un marchand. La seconde est
+ * gratuite et c'est exactement là qu'elle se propose — au moment précis où la
+ * limite se fait sentir.
+ */
+async function assertProductSlotAvailable(supabase: any, businessId: string): Promise<void> {
+  const max = await productAllowance();
+  if (!Number.isFinite(max)) return;
+
+  // Compté par entreprise, comme le catalogue lui-même. Compter par `user_id`
+  // laissait passer les fiches créées par un employé : le plafond annoncé
+  // n'était pas celui qui s'appliquait.
+  const { count, error } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('business_id', businessId);
+
+  // Un comptage qui échoue ne doit pas empêcher d'enregistrer un produit :
+  // le catalogue est le socle, pas une fonction payante.
+  if (error) return;
+
+  const current = count ?? 0;
+  if (current < max) return;
+
+  const planLabel = getPlanLabel(await getActivePlanKey());
+  throw new PlanLimitError(
+    max,
+    current,
+    `Votre catalogue est plein : l'offre ${planLabel} couvre ${max} fiches produits. `
+      + `Passez à ${getPlanLabel('Business Pilot')} pour un catalogue sans limite, `
+      + `ou amenez un marchand — chaque filleul inscrit ajoute ${SIGNUP_PRODUCT_SLOTS} fiches.`,
+  );
+}
+
 export async function updateProductAction(id: string, payload: ProductPayload): Promise<void> {
-  const { supabase, userId } = await getAuthUser();
+  const { supabase, businessId } = await getBusinessContext();
 
   const fields: any = {
     name:           payload.name.trim(),
@@ -141,7 +208,7 @@ export async function updateProductAction(id: string, payload: ProductPayload): 
     .from('products')
     .update(fields)
     .eq('id', id)
-    .eq('user_id', userId);
+    .eq('business_id', businessId);
 
   if (error) throw new Error(error.message);
   void logActivity({ action: 'update', entity: 'product', entityId: id, newValues: { name: payload.name, sale_price: payload.sale_price, stock_quantity: payload.stock_quantity } });
@@ -149,13 +216,13 @@ export async function updateProductAction(id: string, payload: ProductPayload): 
 }
 
 export async function deleteProductAction(id: string): Promise<void> {
-  const { supabase, userId } = await getAuthUser();
+  const { supabase, businessId } = await getBusinessContext();
 
   const { error } = await supabase
     .from('products')
     .delete()
     .eq('id', id)
-    .eq('user_id', userId);
+    .eq('business_id', businessId);
 
   if (error) throw new Error(error.message);
   void logActivity({ action: 'delete', entity: 'product', entityId: id });

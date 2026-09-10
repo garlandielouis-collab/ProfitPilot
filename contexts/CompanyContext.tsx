@@ -32,6 +32,8 @@ export type CompanyContextValue = {
   realPlanKey: string | null;
   /** L'offre simulée, ou `null` quand on voit son offre réelle. */
   previewPlan: string | null;
+  /** Les capacités offertes temporairement — parrainage, geste commercial. */
+  grants:      string[];
   /** Vrai tant que le contexte se charge */
   loading:     boolean;
   /** Vérifie si l'utilisateur peut faire une action */
@@ -53,6 +55,7 @@ const CompanyContext = createContext<CompanyContextValue>({
   planKey:      null,
   realPlanKey:  null,
   previewPlan:  null,
+  grants:       [],
   loading:      true,
   can:          () => false,
   canUse:       () => false,
@@ -115,9 +118,15 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const realPlanKey = ctx?.planKey ?? null;
   const shownPlanKey = preview ?? realPlanKey;
 
+  // Un droit offert s'ajoute à l'offre, il ne la remplace pas — et il vaut même
+  // pendant un aperçu : le mois gagné par parrainage est réel, lui.
+  const grants = ctx?.grants ?? [];
+  const grantKey = grants.join(',');
+
   const canUse = useCallback(
-    (feature: Feature) => planHasFeature(shownPlanKey as any, feature),
-    [shownPlanKey],
+    (feature: Feature) =>
+      planHasFeature(shownPlanKey as any, feature) || grantKey.split(',').includes(feature),
+    [shownPlanKey, grantKey],
   );
 
   const value: CompanyContextValue = {
@@ -127,6 +136,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     planKey:      shownPlanKey,
     realPlanKey,
     previewPlan:  preview,
+    grants,
     loading,
     can,
     canUse,

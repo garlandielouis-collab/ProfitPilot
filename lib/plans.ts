@@ -183,6 +183,24 @@ export const PLAN_LABELS: Record<PlanKey, PlanLabel> = {
  */
 export const FALLBACK_PLAN_KEY: PlanKey = 'Ti Machann';
 
+/**
+ * L'offre servie pendant l'essai gratuit, et sa durée.
+ *
+ * Elle vaut Elit : un essai qui ne montre que le socle ne vend rien — le
+ * marchand ne saurait pas ce qu'il achète, et la page de prix lui promet
+ * « l'essai gratuit », pas « l'essai d'Esansyel ». Trente jours, comme annoncé
+ * sur la page de prix et dans `TRIAL_HOURS` (hooks/useSubscription.ts).
+ *
+ * L'essai n'est pas un repli : c'est une vraie ligne `subscriptions`, écrite
+ * une fois par `lib/trial.ts`. Il se voit en base, il s'expire seul, et le 31ᵉ
+ * jour le compte retombe sur `FALLBACK_PLAN_KEY` sans qu'aucun code ne bouge.
+ *
+ * Changer cette constante change l'essai des comptes À VENIR ; les lignes déjà
+ * écrites gardent l'offre qu'elles portent.
+ */
+export const TRIAL_PLAN_KEY: PlanKey = 'Expert';
+export const TRIAL_DAYS = 30;
+
 /** Alias acceptés (noms commerciaux, anciens noms, casse libre). */
 const PLAN_ALIASES: Record<string, PlanKey> = {
   'ti machann':     'Ti Machann',

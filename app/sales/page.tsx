@@ -44,7 +44,7 @@ function KPI({
 }: { icon: React.ElementType; label: string; value: string; sub: string; accent: string }) {
   return (
     <div className={cn(
-      'flex items-center gap-4 rounded-2xl border p-5 shadow-sm',
+      'flex items-center gap-4 rounded-2xl border p-5',
       'border-slate-200 bg-white',
     )}>
       <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl', accent)}>
@@ -104,7 +104,7 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
             return (
               <div
                 key={c.name}
-                className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm"
+                className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
               >
                 <button
                   type="button"
@@ -239,7 +239,7 @@ export default function SalesPage() {
         <div className="mx-auto w-full max-w-7xl space-y-6">
 
           {/* ── Header ───────────────────────────────────────────────────────── */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
             {/* Trois éléments retirés d'un coup (audit §9, contrôles 1 et 10) :
                 le sur-titre « Module », qui ne dit rien à personne ; le « CRM »
                 du titre, du jargon anglais ; et la phrase de sous-titre, qui
@@ -283,7 +283,7 @@ export default function SalesPage() {
           </div>
 
           {/* ── Tabs ─────────────────────────────────────────────────────────── */}
-          <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1">
             {TABS.map(({ id, label, icon: Icon }) => {
               const active = activeTab === id;
               return (

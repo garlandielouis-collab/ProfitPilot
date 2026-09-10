@@ -22,7 +22,7 @@
 //         commence à taper.
 //   §5.9  44 px de haut au minimum. Un champ que le pouce rate est un champ
 //         qu'on remplit deux fois.
-//   §5.2  texte saisi en 15 px, aide en 13 px. Rien en dessous : ce qui ne se
+//   §5.2  texte saisi en 14 px, aide en 12 px. Rien en dessous : ce qui ne se
 //         lit pas debout dans une boutique ne se livre pas.
 //   §4.2  le rouge n'apparaît que si le champ est en erreur — jamais en décor.
 //   §4.4  hauteurs et écarts sur la grille de 8.
@@ -41,6 +41,20 @@ import {
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+// ── Les cinq états (masterclass §22) ─────────────────────────────────────────
+// « Dessiner ET coder les cinq états de chaque champ AVANT de livrer l'écran :
+//   vide, en cours, valide, erreur, désactivé. Le cours y consacre des écrans
+//   entiers — c'est le vrai travail, pas un bonus. »
+//
+//   vide        bordure neutre, texte indicatif en gris
+//   en cours    `focus-within` — la bordure prend l'accent
+//   valide      bordure verte : le champ est bon, on peut avancer
+//   erreur      bordure rouge brique et message dans le même rouge
+//   désactivé   opacité réduite, curseur barré, aucun retour au toucher
+//
+// Un sixième, propre à ProfitPilot : `warning`. « Pri vant » inférieur au prix
+// d'achat n'est pas une erreur — le marchand a le droit de vendre à perte, il
+// doit seulement le SAVOIR. Le rouge dirait « refusé », l'ambre dit « regarde ».
 type Common = {
   /** Ce que le champ attend. Court, en clair : « Nom du client », pas « Client ». */
   label: string;
@@ -48,6 +62,10 @@ type Common = {
   hint?: string;
   /** Le message d'erreur remplace l'aide : deux lignes rouges ne valent pas mieux. */
   error?: string;
+  /** L'avertissement : la saisie passe, mais elle mérite un regard. */
+  warning?: string;
+  /** La saisie est reconnue bonne — bordure verte, sans message obligatoire. */
+  valid?: boolean;
   className?: string;
 };
 
@@ -76,7 +94,7 @@ const INPUT = [
 
 export type FieldProps = Common & Affixes & Omit<InputHTMLAttributes<HTMLInputElement>, 'className' | 'prefix'>;
 
-export function Field({ label, hint, error, prefix, suffix, className, id, ...input }: FieldProps) {
+export function Field({ label, hint, error, warning, valid, prefix, suffix, className, id, ...input }: FieldProps) {
   const auto = useId();
   const fieldId = id ?? auto;
   const helpId = `${fieldId}-help`;
@@ -85,19 +103,19 @@ export function Field({ label, hint, error, prefix, suffix, className, id, ...in
     <div className={cn('w-full', className)}>
       <Label htmlFor={fieldId}>{label}</Label>
 
-      <div className={cn(SHELL, borderFor(error))}>
+      <div className={cn(SHELL, borderFor({ error, warning, valid }), input.disabled && DISABLED)}>
         {prefix && <span className="pl-4 text-body text-text2 dark:text-dark-text2">{prefix}</span>}
         <input
           id={fieldId}
           aria-invalid={error ? true : undefined}
-          aria-describedby={hint || error ? helpId : undefined}
+          aria-describedby={hint || error || warning ? helpId : undefined}
           className={cn(INPUT, prefix && 'pl-0')}
           {...input}
         />
         {suffix && <span className="flex items-center pr-2">{suffix}</span>}
       </div>
 
-      <Help id={helpId} hint={hint} error={error} />
+      <Help id={helpId} hint={hint} error={error} warning={warning} />
     </div>
   );
 }
@@ -105,7 +123,7 @@ export function Field({ label, hint, error, prefix, suffix, className, id, ...in
 export type TextFieldProps = Common & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'>;
 
 /** Même champ, plusieurs lignes. Une note de vente, une adresse, un commentaire. */
-export function TextField({ label, hint, error, className, id, rows = 3, ...area }: TextFieldProps) {
+export function TextField({ label, hint, error, warning, valid, className, id, rows = 3, ...area }: TextFieldProps) {
   const auto = useId();
   const fieldId = id ?? auto;
   const helpId = `${fieldId}-help`;
@@ -113,17 +131,17 @@ export function TextField({ label, hint, error, className, id, rows = 3, ...area
   return (
     <div className={cn('w-full', className)}>
       <Label htmlFor={fieldId}>{label}</Label>
-      <div className={cn(SHELL, borderFor(error))}>
+      <div className={cn(SHELL, borderFor({ error, warning, valid }), area.disabled && DISABLED)}>
         <textarea
           id={fieldId}
           rows={rows}
           aria-invalid={error ? true : undefined}
-          aria-describedby={hint || error ? helpId : undefined}
+          aria-describedby={hint || error || warning ? helpId : undefined}
           className={cn(INPUT, 'resize-y')}
           {...area}
         />
       </div>
-      <Help id={helpId} hint={hint} error={error} />
+      <Help id={helpId} hint={hint} error={error} warning={warning} />
     </div>
   );
 }
@@ -183,7 +201,7 @@ export type SelectFieldProps = Common & {
  * un composant du système d'exploitation pour un chevron plus joli.
  */
 export function SelectField({
-  label, hint, error, className, id, options, placeholder, ...select
+  label, hint, error, warning, valid, className, id, options, placeholder, ...select
 }: SelectFieldProps) {
   const auto = useId();
   const fieldId = id ?? auto;
@@ -193,11 +211,11 @@ export function SelectField({
     <div className={cn('w-full', className)}>
       <Label htmlFor={fieldId}>{label}</Label>
 
-      <div className={cn(SHELL, borderFor(error), 'relative')}>
+      <div className={cn(SHELL, borderFor({ error, warning, valid }), select.disabled && DISABLED, "relative")}>
         <select
           id={fieldId}
           aria-invalid={error ? true : undefined}
-          aria-describedby={hint || error ? helpId : undefined}
+          aria-describedby={hint || error || warning ? helpId : undefined}
           className={cn(INPUT, 'cursor-pointer appearance-none pr-10')}
           {...select}
         >
@@ -215,7 +233,7 @@ export function SelectField({
         />
       </div>
 
-      <Help id={helpId} hint={hint} error={error} />
+      <Help id={helpId} hint={hint} error={error} warning={warning} />
     </div>
   );
 }
@@ -231,17 +249,35 @@ function Label({ htmlFor, children }: { htmlFor: string; children: ReactNode }) 
   );
 }
 
-function Help({ id, hint, error }: { id: string; hint?: string; error?: string }) {
-  if (!error && !hint) return null;
+/** Le message porte la couleur de la bordure : deux signaux, une seule lecture. */
+function Help({
+  id, hint, error, warning,
+}: { id: string; hint?: string; error?: string; warning?: string }) {
+  const message = error ?? warning ?? hint;
+  if (!message) return null;
   return (
-    <p id={id} className={cn('mt-2 text-note', error ? 'text-danger' : 'text-muted dark:text-dark-muted')}>
-      {error ?? hint}
+    <p
+      id={id}
+      className={cn(
+        'mt-2 text-note',
+        error   ? 'text-danger'
+        : warning ? 'text-warning'
+        : 'text-muted dark:text-dark-muted',
+      )}
+    >
+      {message}
     </p>
   );
 }
 
-function borderFor(error?: string) {
-  return error
-    ? 'border-danger focus-within:border-danger'
-    : 'border-border focus-within:border-accent dark:border-dark-border';
+/** La bordure porte l'état (§22) : c'est elle qui parle, pas un cadre de plus. */
+function borderFor({ error, warning, valid }: Pick<Common, 'error' | 'warning' | 'valid'>) {
+  if (error)   return 'border-danger focus-within:border-danger';
+  if (warning) return 'border-warning focus-within:border-warning';
+  if (valid)   return 'border-success focus-within:border-success';
+  return 'border-border focus-within:border-accent dark:border-dark-border';
 }
+
+/** L'état désactivé : lisible, mais visiblement hors service (§22). Un champ
+ *  grisé au point de ne plus se lire fait croire à un bogue d'affichage. */
+const DISABLED = 'opacity-60 cursor-not-allowed bg-surface2 dark:bg-dark-surface';

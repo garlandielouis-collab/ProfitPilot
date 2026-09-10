@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
+import { settleReferralPayment } from '../../../actions/referrals';
 
 const PLAN_DURATIONS: Record<string, number> = {
   starter:      30,
@@ -29,7 +30,10 @@ export async function GET(req: NextRequest) {
     // ── Find payment by reference ──────────────────────────────────────────
     const { data: payment, error: payErr } = await db
       .from('payments')
-      .select('id, user_id, plan_key, amount_htg, status')
+      // `*` : nommer `credit_ids` ferait échouer TOUTE approbation tant que la
+      // migration des bons n'est pas jouée — et une approbation qui échoue,
+      // c'est un marchand qui a payé et qui attend.
+      .select('*')
       .eq('reference', ref)
       .maybeSingle();
 
@@ -64,6 +68,38 @@ export async function GET(req: NextRequest) {
         { onConflict: 'user_id' }
       );
 
+    // ── Les bons de réduction retenus au devis ─────────────────────────────
+    //
+    // C'est ICI qu'ils se décomptent, et nulle part ailleurs : entre
+    // l'enregistrement du paiement et ce clic, le virement pouvait ne jamais
+    // arriver. Un bon brûlé sur un paiement refusé est un cadeau repris.
+    //
+    // `credits_settled_at` garde la porte : rouvrir ce lien deux fois ne doit
+    // pas consommer deux mois de bon. (Le premier test sur `status` couvre déjà
+    // le cas courant ; celui-ci couvre un paiement approuvé à la main en base.)
+    const creditIds = (payment.credit_ids ?? []) as string[];
+    if (creditIds.length > 0 && !payment.credits_settled_at) {
+      await db.rpc('consume_upgrade_credits', { p_ids: creditIds });
+      await db
+        .from('payments')
+        .update({ credits_settled_at: new Date().toISOString() })
+        .eq('id', payment.id);
+    }
+
+    // ── Le barreau 3 du parrainage ─────────────────────────────────────────
+    //
+    // Le filleul vient de payer son premier mois : c'est le seul moment où le
+    // parrain gagne de l'argent. La fonction est idempotente — `referrals.paid_at`
+    // est sa garde — donc une approbation rejouée n'émet pas un second bon.
+    // Attendu, pas lancé en arrière-plan : une route serverless est coupée dès
+    // qu'elle a répondu, et un parrain aurait perdu sa récompense une fois sur
+    // deux sans qu'aucune trace n'en reste.
+    try {
+      await settleReferralPayment(payment.user_id, payment.plan_key);
+    } catch (referralErr) {
+      console.error('[Admin Approve] parrainage non soldé (non fatal):', referralErr);
+    }
+
     // ── Get user info for confirmation ─────────────────────────────────────
     const { data: { user } } = await db.auth.admin.getUserById(payment.user_id);
     const userEmail = user?.email ?? payment.user_id;
@@ -72,6 +108,9 @@ export async function GET(req: NextRequest) {
       '✅ Abonnement activé',
       `L'accès a été accordé à <strong>${userEmail}</strong><br/>
        Plan: <strong>${payment.plan_key}</strong> · Expire le: <strong>${new Date(expiresAt).toLocaleDateString('fr-FR')}</strong><br/>
+       Encaissé: <strong>${Number(payment.amount_htg ?? 0).toLocaleString('fr-FR')} HTG</strong>${
+         payment.discount_percent ? ` (−${payment.discount_percent} % parrainage)` : ''
+       }<br/>
        Référence: <code>${ref}</code>`,
       'green'
     );

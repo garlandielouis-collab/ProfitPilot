@@ -14,6 +14,7 @@ import {
 } from '../actions/hr-employees';
 import { sendHrInvitation } from '../actions/invitations';
 import { Button, FirstRun, NoResult, closestMatch } from '../../components/ds';
+import { EntityDocuments } from '../../components/documents/EntityDocuments';
 // La fiche employé annonçait ses champs par des émojis (📞 ✉️ 🏢 📅 ⏳ 🔑).
 // Une icône de contour, à épaisseur constante, prend la couleur du texte —
 // un émoji, non : il reste jaune vif à côté d'un libellé gris (§3.5).
@@ -140,7 +141,7 @@ function EmployeeModal({
               {employee ? `${employee.first_name} ${employee.last_name}` : 'Ajouter un Employé'}
             </h3>
           </div>
-          <button onClick={onClose} className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
+          <button onClick={onClose} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[var(--color-muted)] transition hover:bg-slate-100">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -710,6 +711,18 @@ function EmployeesPageInner() {
                     </button>
                   </div>
                 </section>
+              )}
+
+              {/* ── Documents rattachés (§37) ──────────────────────────────
+                  Les lignes de démonstration n'ont pas d'identifiant réel :
+                  leur rattacher un document échouerait en base, sur un UUID
+                  que `demo-` n'est pas. */}
+              {!selected.id.startsWith('demo-') && (
+                <EntityDocuments
+                  entityType="employee"
+                  entityId={selected.id}
+                  entityName={fullName(selected)}
+                />
               )}
 
               {/* ── Équipe stats ── */}

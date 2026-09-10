@@ -71,12 +71,13 @@ export async function quickCreateProduct(payload: {
   if (payload.sale_price < 0)     throw new Error('Pri vant pa valab.');
 
   // Get authenticated user + business
-  const { supabase, userId } = await getBusinessContext();
+  const { supabase, userId, businessId } = await getBusinessContext();
 
   const { data, error } = await supabase
     .from('products')
     .insert({
       user_id:        userId,
+      business_id:    businessId,
       name:           payload.name.trim(),
       category:       payload.category.trim(),
       purchase_price: payload.purchase_price,

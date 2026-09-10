@@ -16,22 +16,34 @@
   --color-accent:   #50C878;
 
   /* ── Couleurs système — réservées à l'erreur et au succès (§4.2) ── */
-  --color-success:  #0E9F6E;
-  --color-danger:   #DC2626;
+  --color-success:  #0B7F54;   /* 5,0:1 sur blanc — AA (§31) */
+  /* Rouge BRIQUE, pas rouge vif (masterclass §16). Ces variables avaient été
+     oubliées quand la palette est passée à la brique : le code portait donc
+     DEUX rouges — #B23A2F dans les classes Tailwind, #DC2626 ici. « Une
+     couleur, une fonction » (§17) ne survit pas à deux valeurs pour la même
+     fonction : l'oeil voit deux alertes différentes là où il n'y en a qu'une. */
+  --color-danger:   #B23A2F;
   --color-warning:  #B45309;
 
-  /* ── 60 % neutres ── */
+  /* ── 60 % neutres, TEINTÉS MARINE (masterclass §15) ──
+     Même oubli, même correction : les classes slate-* avaient été redirigées
+     vers la teinte 210° du #001F3F, mais ces sept variables — 534 usages dans
+     l'application — étaient restées sur les gris neutres de Tailwind. Un gris
+     neutre posé à côté du marine tire vers le violet ; c'est précisément ce que
+     le §15 interdit. Les valeurs sont celles de theme.config.ts, à l'unité. */
   --color-bg:       #FFFFFF;
-  --color-surface:  #F8FAFC;
-  --color-surface2: #F1F5F9;
-  --color-border:   #E2E8F0;
-  --color-text:     #0F172A;
-  --color-text2:    #475569;
-  --color-muted:    #64748B;
+  --color-surface:  #F6F8FA;
+  --color-surface2: #EDF1F5;
+  --color-border:   #D9E0E8;
+  --color-text:     #2A3846;   /* 12,4:1 sur blanc */
+  --color-text2:    #47596B;   /*  7,0:1 */
+  --color-muted:    #607383;   /*  4,8:1 — AA, jamais un cran plus clair */
 
-  /* ── Deux ombres, pas six (§3.2) ── */
-  --shadow-card: 0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.05);
-  --shadow-pop:  0 2px 4px rgba(15,23,42,0.06), 0 16px 40px rgba(15,23,42,0.14);
+  /* ── Deux ombres, la recette du §24 ──
+     Couleur = la marque assombrie (0,31,63), jamais du noir pur ; X = 0 ;
+     blur = 2 × Y ; spread légèrement négatif pour que l'ombre ne bave pas. */
+  --shadow-card: 0 4px 8px -2px rgba(0,31,63,0.10);
+  --shadow-pop:  0 8px 16px -4px rgba(0,31,63,0.18), 0 2px 4px -1px rgba(0,31,63,0.08);
   /* Alias hérités — les écrans écrits avant l'audit tombent sur les deux tokens */
   --shadow-card-hover: var(--shadow-pop);
 
@@ -45,16 +57,20 @@
 .dark {
   color-scheme: dark;
 
-  --color-bg:       #020617;
-  --color-surface:  #0F172A;
-  --color-surface2: #1E293B;
-  --color-border:   #334155;
-  --color-text:     #F1F5F9;
-  --color-text2:    #CBD5E1;
-  --color-muted:    #94A3B8;
+  /* Les mêmes sept neutres, version sombre — alignés sur les tokens dark-* de
+     theme.config.ts. Ils étaient, eux aussi, restés sur les gris de Tailwind. */
+  --color-bg:       #0E1822;
+  --color-surface:  #1B2836;
+  --color-surface2: #2A3846;
+  --color-border:   #3C4B5A;
+  --color-text:     #EDF1F5;
+  --color-text2:    #B4C1CE;
+  --color-muted:    #93A4B4;
 
-  --shadow-card: 0 1px 2px rgba(0,0,0,0.30), 0 4px 12px rgba(0,0,0,0.35);
-  --shadow-pop:  0 2px 4px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.50);
+  /* Sur fond sombre l'ombre ne se voit plus par la teinte mais par la densité :
+     la géométrie du §24 est conservée, l'opacité seule monte. */
+  --shadow-card: 0 4px 8px -2px rgba(0,0,0,0.40);
+  --shadow-pop:  0 8px 16px -4px rgba(0,0,0,0.55), 0 2px 4px -1px rgba(0,0,0,0.30);
   --shadow-card-hover: var(--shadow-pop);
 }
 
@@ -388,22 +404,33 @@ body[data-sheet='open'] #pp-app {
     font-family: "Inter", Arial, sans-serif !important;
   }
 
-  /* Background colour classes (Tailwind arbitrary values) */
-  .bg-\[\#ECFDF5\] { background-color: #ECFDF5 !important; }
-  .bg-\[\#0F172A\] { background-color: #0F172A !important; }
-  .bg-\[\#F8FAFC\] { background-color: #F8FAFC !important; }
-  .bg-\[\#FEF2F2\] { background-color: #FEF2F2 !important; }
-  .bg-\[\#EFF6FF\] { background-color: #EFF6FF !important; }
+  /* ── Les couleurs de l'impression, ramenees dans la palette ──
+     Ce bloc etait le dernier refuge des valeurs litterales de Tailwind :
+     #12B981, #EF4444, #94A3B8. Les selecteurs gardent leur nom — ce sont les
+     classes ecrites dans les composants de rapport — mais la couleur RENDUE
+     devient celle de la palette (§14, §16, §17).
+
+     Deux raisons, et la seconde compte plus que la premiere. La palette
+     d'abord : un meme bilan ne peut pas etre vert #0B7F54 a l'ecran et vert
+     #12B981 sur le papier. Le contraste ensuite (§31) : #94A3B8 sur blanc
+     donne 2,7:1. A l'ecran c'est deja une faute ; sur une feuille sortie d'une
+     imprimante presque vide, c'est illisible. Et cette feuille-la est celle que
+     le marchand pose sur le bureau de son banquier. */
+  .bg-\[\#ECFDF5\] { background-color: #E7F6F0 !important; }   /* success-sub */
+  .bg-\[\#0F172A\] { background-color: #001F3F !important; }   /* primary */
+  .bg-\[\#F8FAFC\] { background-color: #F6F8FA !important; }   /* surface */
+  .bg-\[\#FEF2F2\] { background-color: #FBEEEC !important; }   /* danger-sub */
+  .bg-\[\#EFF6FF\] { background-color: #EAF0FD !important; }   /* info-sub */
 
   /* Text colour classes */
-  .text-\[\#12B981\] { color: #12B981 !important; }
-  .text-\[\#0F172A\] { color: #0F172A !important; }
-  .text-\[\#065F46\] { color: #065F46 !important; }
-  .text-\[\#EF4444\] { color: #EF4444 !important; }
-  .text-\[\#6EE7B7\] { color: #6EE7B7 !important; }
-  .text-\[\#94A3B8\] { color: #94A3B8 !important; }
-  .text-\[\#64748B\] { color: #64748B !important; }
-  .text-\[\#B91C1C\] { color: #B91C1C !important; }
+  .text-\[\#12B981\] { color: #0B7F54 !important; }   /* success  5,0:1 */
+  .text-\[\#0F172A\] { color: #2A3846 !important; }   /* text    12,0:1 */
+  .text-\[\#065F46\] { color: #08573D !important; }   /* success 800 */
+  .text-\[\#EF4444\] { color: #B23A2F !important; }   /* danger   5,9:1 */
+  .text-\[\#6EE7B7\] { color: #6FCCAC !important; }   /* success 300, sur fond sombre */
+  .text-\[\#94A3B8\] { color: #607383 !important; }   /* muted    4,9:1 — etait 2,7:1 */
+  .text-\[\#64748B\] { color: #607383 !important; }   /* muted */
+  .text-\[\#B91C1C\] { color: #9C3229 !important; }   /* danger 600 */
   .text-white        { color: #ffffff !important; }
 
   /* Borders */

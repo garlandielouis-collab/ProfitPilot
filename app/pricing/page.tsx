@@ -90,7 +90,7 @@ export default function PricingPage() {
           <div className="mt-4 mx-auto max-w-lg">
             <button
               onClick={activateFreeTrial}
-              className="w-full rounded-xl bg-accent px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-accent-h transition"
+              className="w-full rounded-xl bg-accent px-6 py-3 text-sm font-bold text-accent-ink shadow-sm hover:bg-accent-h transition"
             >
               {t({ fr: 'Activer mon essai gratuit 30 jours', ht: 'Aktive esè gratis 30 jou mwen' })}
             </button>

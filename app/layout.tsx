@@ -1,24 +1,24 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import { Providers }       from '../components/providers/Providers';
 import { LanguageWrapper } from '../components/LanguageWrapper';
 import { AppShell }        from '../components/AppShell';
 import { RegisterSW }     from '../components/RegisterSW';
+import { AppOnly }        from '../components/AppOnly';
 import { OfflineSalesSync } from '../components/offline/OfflineSalesSync';
+import { SpacingDebugger } from '../components/dev/SpacingDebugger';
 
+// Une seule famille de police, longtemps (masterclass §10). Plus Jakarta Sans
+// était chargée pour les titres et n'a jamais servi : zéro classe `font-display`
+// dans le produit. Une deuxième famille dans le bundle, c'est un téléchargement
+// de plus sur une connexion irrégulière — pour une différence que personne ne
+// voit. « L'association de polices est un art difficile qui rate presque
+// toujours au début, et qui n'apporte rien à un marchand qui veut lire son
+// chiffre du jour. »
 const inter = Inter({
   subsets:  ['latin'],
   variable: '--font-inter',
-  display:  'swap',
-  preload:  false,
-  fallback: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
-});
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets:  ['latin'],
-  variable: '--font-jakarta',
-  weight:   ['400', '500', '600', '700'],
   display:  'swap',
   preload:  false,
   fallback: ['system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${inter.variable} ${jakarta.variable}`} suppressHydrationWarning data-scroll-behavior="smooth">
+    <html lang="fr" className={inter.variable} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/png" href="/ProfitPilot-favicon.png" />
@@ -67,8 +67,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </LanguageWrapper>
         </Providers>
         <RegisterSW />
-        {/* Rejeu des ventes saisies hors connexion (Bonus 4) */}
-        <OfflineSalesSync />
+        {/* Rejeu des ventes saisies hors connexion (Bonus 4).
+            Sous `AppOnly` : il rejoue les ventes du MARCHAND, et n'a donc rien
+            à faire sur la vitrine que visite son client. */}
+        <AppOnly>
+          <OfflineSalesSync />
+        </AppOnly>
+        {/* Le carré rouge, version développeur (masterclass §2) — Maj + G.
+            Jamais chez un marchand : la condition retire le composant du
+            paquet de production. */}
+        {process.env.NODE_ENV === 'development' && <SpacingDebugger />}
       </body>
     </html>
   );
