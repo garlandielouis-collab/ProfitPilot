@@ -1,4 +1,9 @@
-'use server';
+// Module d'aide côté serveur, et NON un fichier « use server » : il exporte un
+// contrat (AUTH_UNREACHABLE) et un prédicat synchrone (isTransportFailure), que
+// la directive interdit — elle n'admet que des fonctions asynchrones, et un seul
+// export non conforme fait disparaître TOUS les exports du module (62 erreurs de
+// build pour cette seule ligne). Aucun composant client ne l'importe : la
+// directive n'apportait rien. Ne pas la remettre.
 
 import { cache } from 'react';
 import { cookies } from 'next/headers';
