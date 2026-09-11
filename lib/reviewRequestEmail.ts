@@ -33,8 +33,6 @@
 
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 // Même expéditeur vérifié que le reste du produit. À basculer sur le domaine du
 // marchand le jour où l'on saura le vérifier pour lui — c'est ce qui ferait
 // vraiment arriver ce message en boîte principale.
@@ -69,6 +67,10 @@ export async function sendReviewRequestEmail(input: ReviewRequestInput): Promise
     return false;
   }
 
+  // Le client naît ici, après le test de la clé : instancié au chargement du
+  // module, son constructeur lèverait pendant `next build` et ferait échouer
+  // le déploiement de tout projet où la variable n'est pas posée.
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
     from:    FROM,
     to:      input.to,

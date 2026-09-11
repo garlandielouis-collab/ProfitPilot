@@ -1,6 +1,11 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Instancié à l'envoi, jamais au chargement du module : le constructeur lève
+// sans clé, et `next build` charge les routes pour collecter leurs données —
+// une variable absente ferait alors échouer tout le déploiement.
+function client(): Resend {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 // Use verified Resend sender. Switch to noreply@profitpilot.ht once the domain
 // is verified at https://resend.com/domains
@@ -21,7 +26,7 @@ export async function sendInvitationEmail({
   acceptUrl:     string;
   expiresInDays?: number;
 }) {
-  const { error } = await resend.emails.send({
+  const { error } = await client().emails.send({
     from:    FROM,
     to,
     subject: `Invitation à rejoindre ${companyName} sur ProfitPilot`,
