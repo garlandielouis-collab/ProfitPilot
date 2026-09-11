@@ -311,17 +311,18 @@ function DettesInner() {
         supabase
           .from('purchases')
           .select(`
-            id, supplier_id, purchase_date, total_amount, payment_status, currency,
+            id, supplier_id, purchase_date, total_amount, paid_amount, payment_status, currency,
             purchase_items ( product_name, quantity )
           `)
           .eq('business_id', bizId)
           .is('deleted_at', null)
           .order('purchase_date', { ascending: false }),
+        // Sert seulement à nommer le fournisseur de chaque achat : un fournisseur
+        // supprimé (suppression douce) garde son nom sur ses dettes en cours.
         supabase
           .from('suppliers')
           .select('id,name,phone')
-          .eq('business_id', bizId)
-          .is('deleted_at', null),
+          .eq('business_id', bizId),
       ]);
 
       const suppMap = new Map<string, { name: string; phone: string | null }>(
@@ -348,7 +349,9 @@ function DettesInner() {
           supplier_phone: supp.phone,
           product_name:   productName,
           quantity:       qty,
-          amount:         Number(r.total_amount),
+          // Ce qui reste dû, pas le total : un règlement partiel alimente
+          // paid_amount, et la colonne « Montant restant » l'ignorait.
+          amount:         Math.max(0, Number(r.total_amount) - Number(r.paid_amount ?? 0)),
           currency:       r.currency ?? 'HTG',
           purchase_date:  r.purchase_date,
           due_date:       addDays(r.purchase_date, 30),
@@ -706,7 +709,9 @@ function DettesInner() {
                   className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-violet-500/60 transition"
                 />
               </div>
-              {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
+              {/* Pas de pastille « Payé » : la requête ne ramène que les dépenses
+                  à crédit, ce filtre aurait toujours été vide. */}
+              {(['all','unpaid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setExpenseStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
                     ${expenseStatus === s ? 'bg-violet-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-primary hover:bg-slate-100'}`}>
@@ -832,7 +837,9 @@ function DettesInner() {
                   className="w-40 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 outline-none focus:border-blue-500/60 transition"
                 />
               </div>
-              {(['all','unpaid','paid'] as FilterStatus[]).map(s => (
+              {/* Pas de pastille « Payé » : seules les ventes au solde restant
+                  dû sont chargées, ce filtre aurait toujours été vide. */}
+              {(['all','unpaid'] as FilterStatus[]).map(s => (
                 <button key={s} onClick={() => setCreditStatus(s)}
                   className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition
                     ${creditStatus === s ? 'bg-blue-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-primary hover:bg-slate-100'}`}>

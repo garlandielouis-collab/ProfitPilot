@@ -183,49 +183,6 @@ export async function setReorderPoint(productId: string, reorderPoint: number): 
   revalidatePath('/inventory');
 }
 
-// ── getTopProductsBySales ─────────────────────────────────────────────────────
-
-export type TopSellingProduct = {
-  product_id:   string;
-  product_name: string;
-  qty_sold:     number;
-  revenue:      number;
-  currency:     string;
-};
-
-export async function getTopProductsBySales(limit = 8): Promise<TopSellingProduct[]> {
-  const { supabase, businessId } = await getBusinessContext();
-
-  const { data, error } = await supabase
-    .from('sale_items')
-    .select('product_id, product_name, quantity, line_total, currency, sales!inner(business_id)')
-    .eq('sales.business_id', businessId);
-
-  if (error || !data) return [];
-
-  // Aggregate by product
-  const map = new Map<string, TopSellingProduct>();
-  for (const r of data as any[]) {
-    const key = r.product_id;
-    if (!map.has(key)) {
-      map.set(key, {
-        product_id:   r.product_id,
-        product_name: r.product_name ?? '—',
-        qty_sold:     0,
-        revenue:      0,
-        currency:     r.currency ?? 'HTG',
-      });
-    }
-    const entry = map.get(key)!;
-    entry.qty_sold += Number(r.quantity ?? 0);
-    entry.revenue  += Number(r.line_total ?? 0);
-  }
-
-  return [...map.values()]
-    .sort((a, b) => b.qty_sold - a.qty_sold)
-    .slice(0, limit);
-}
-
 // ── getInventoryMovements ─────────────────────────────────────────────────────
 // Derived from sale_items + purchase_items + stock_adjustments
 // (does not depend on inventory_movements table permissions)

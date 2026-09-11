@@ -22,6 +22,8 @@ import { computeMargin, suggestSalePrice } from '../../lib/margin';
 import type { CurrencyCode } from '../../lib/currency';
 import { MarginCalculator } from '../../components/margin/MarginCalculator';
 import { PriceSimulator } from '../../components/pricing/PriceSimulator';
+import { useLanguage } from '../../components/LanguageWrapper';
+import { csvFilename, downloadCsv, toCsv } from '../../lib/documents/csv';
 
 // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -781,6 +783,25 @@ export function ProductsClient({
     return matchSearch && matchCat;
   });
 
+  const { t } = useLanguage();
+
+  // L'export suit la recherche et la catégorie : le fichier contient les
+  // produits affichés, pas le catalogue entier.
+  function exportCsv() {
+    const csv = toCsv(filtered, [
+      { header: t({ fr: 'Produit', ht: 'Pwodui' }),                      value: p => p.name },
+      { header: t({ fr: 'Catégorie', ht: 'Kategori' }),                  value: p => p.category ?? '' },
+      { header: t({ fr: "Prix d'achat", ht: 'Pri acha' }),               value: p => p.purchase_price },
+      { header: t({ fr: "Devise d'achat", ht: 'Deviz acha' }),           value: p => p.currency ?? 'HTG' },
+      { header: t({ fr: 'Prix de vente (HTG)', ht: 'Pri vant (HTG)' }),  value: p => p.sale_price },
+      { header: t({ fr: 'Stock', ht: 'Stock' }),                         value: p => p.stock_quantity },
+      { header: t({ fr: 'Seuil de réapprovisionnement', ht: 'Sèy rekòmand' }), value: p => p.reorder_point ?? '' },
+      { header: t({ fr: 'Marge nette (%)', ht: 'Mòj nèt (%)' }),
+        value: p => (p.sale_price > 0 ? Number(calcMargin(p, exchangeRate).marginPercent.toFixed(1)) : '') },
+    ]);
+    downloadCsv(csv, csvFilename('produits'));
+  }
+
   function openAdd()            { setEditProduct(null); setShowModal(true); }
   function openEdit(p: Product) { setEditProduct(p);    setShowModal(true); }
 
@@ -804,7 +825,14 @@ export function ProductsClient({
             <h1 className="mt-1 text-2xl font-semibold text-slate-800">Pwodwi & Katalòg</h1>
             <p className="mt-1 text-sm text-slate-500">Jere pwodwi, pri, foto ak stock ou yo an tan reyèl.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={exportCsv}
+              disabled={loading || filtered.length === 0}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 active:scale-95 disabled:opacity-50"
+            >
+              {t({ fr: 'Exporter (CSV)', ht: 'Ekspòte (CSV)' })}
+            </button>
             <button
               onClick={() => setShowCalc(v => !v)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-primary transition-all hover:bg-slate-50 active:scale-95"

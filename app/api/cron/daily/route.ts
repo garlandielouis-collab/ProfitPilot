@@ -65,6 +65,9 @@ async function sweepReceivables(svc: SupabaseClient): Promise<number> {
     await notify({
       companyId: r.business_id,
       type: 'generic',
+      // Le type ne dit rien de la créance : c'est `payment_due` — l'interrupteur
+      // « Relance des créances » — qui décide si la relance part.
+      preference: 'payment_due',
       title: overdue > 0
         ? `Kredi an reta : ${r.customer_name}`
         : `Echeyans pwoche : ${r.customer_name}`,

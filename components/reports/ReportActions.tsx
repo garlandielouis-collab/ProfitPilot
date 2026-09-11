@@ -142,10 +142,15 @@ export default function ReportActions({
         <span className="hidden sm:inline">{t({ fr: 'Imprimer', ht: 'Enprime' })}</span>
       </button>
 
-      {/* Share / Copy link */}
+      {/* Copier le lien — pas « Partager » : /rapports est une page privée, un
+          destinataire hors de l'équipe tomberait sur l'écran de connexion. */}
       <button
         type="button"
         onClick={handleCopyLink}
+        title={t({
+          fr: 'Le lien n’ouvre ce rapport qu’aux membres de votre équipe connectés à ProfitPilot. Pour un tiers, envoyez le PDF.',
+          ht: 'Lyen an ouvri rapò sa a sèlman pou manm ekip ou ki konekte sou ProfitPilot. Pou yon moun deyò, voye PDF la.',
+        })}
         className="min-h-touch min-w-touch 
           flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl
           bg-white border border-border text-muted text-note sm:text-note font-medium
@@ -155,7 +160,7 @@ export default function ReportActions({
         "
       >
         <ShareIcon />
-        <span className="hidden sm:inline">{copied ? t({ fr: 'Lien copié', ht: 'Lyen kopiye' }) : copyFailed ? t({ fr: 'Copie impossible', ht: 'Pa ka kopye' }) : t({ fr: 'Partager', ht: 'Pataje' })}</span>
+        <span className="hidden sm:inline">{copied ? t({ fr: 'Lien copié', ht: 'Lyen kopiye' }) : copyFailed ? t({ fr: 'Copie impossible', ht: 'Pa ka kopye' }) : t({ fr: 'Copier le lien', ht: 'Kopye lyen an' })}</span>
       </button>
     </div>
   );

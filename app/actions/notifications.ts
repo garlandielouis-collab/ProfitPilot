@@ -1,7 +1,7 @@
 'use server';
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
-import { getBusinessContext } from '../../lib/serverAuth';
+import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
 import { assertPermission } from '../../lib/entitlements';
 import { revalidatePath } from 'next/cache';
 
@@ -222,6 +222,49 @@ export async function setWeeklyDigestEnabled(enabled: boolean): Promise<void> {
     .from('businesses')
     .update({ weekly_digest_enabled: enabled })
     .eq('id', businessId);
+
+  revalidatePath('/automation');
+}
+
+// ── L'alerte de stock bas ────────────────────────────────────────────────────
+//
+// Même histoire que le résumé : le cron quotidien saute les entreprises dont
+// `low_stock_alerts_enabled` vaut `false`, mais aucun écran n'écrivait ce
+// réglage. L'interrupteur de /automation écrivait à la place une préférence
+// `stock_low` qui n'existe pas — et ne coupait donc rien. C'est ce réglage
+// d'entreprise, celui que le cron lit, qu'il pilote désormais ; la préférence
+// personnelle `low_stock` reste sur /notifications.
+
+export async function getLowStockAlertsEnabled(): Promise<boolean> {
+  try {
+    const { supabase, businessId } = await getBusinessContext();
+    const { data } = await supabase
+      .from('businesses')
+      .select('low_stock_alerts_enabled')
+      .eq('id', businessId)
+      .maybeSingle();
+
+    // Le cron ne saute que `false` : sans valeur, l'alerte part.
+    return (data as { low_stock_alerts_enabled?: boolean } | null)?.low_stock_alerts_enabled ?? true;
+  } catch {
+    return true;
+  }
+}
+
+export async function setLowStockAlertsEnabled(enabled: boolean): Promise<void> {
+  const { supabase, businessId } = await requirePermission('settings:write');
+
+  const { data, error } = await supabase
+    .from('businesses')
+    .update({ low_stock_alerts_enabled: enabled })
+    .eq('id', businessId)
+    .select('id');
+
+  if (error) throw new Error(error.message);
+  // La RLS de `businesses` ne laisse modifier que le propriétaire : un refus
+  // y rend zéro ligne, pas une erreur. Sans ce contrôle, l'interrupteur
+  // resterait sur la position choisie alors que la base n'a rien changé.
+  if (!data || data.length === 0) throw new Error('Réglage non enregistré.');
 
   revalidatePath('/automation');
 }

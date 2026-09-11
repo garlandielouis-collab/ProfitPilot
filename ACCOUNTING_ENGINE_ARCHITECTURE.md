@@ -435,7 +435,7 @@ Pour chaque ligne de journal :
 ## 11. Fichiers SQL clés
 
 - `supabase/migrations/20260526_complete_schema_v2.sql` : schéma complet du moteur comptable
-- `supabase_accounting_engine.sql` : fonctions et vues SQL du moteur
+- `supabase/archive/supabase_accounting_engine.sql` : fonctions et vues SQL du moteur (archivé : jamais inclus dans les migrations)
 - `supabase/schema.sql` : schéma principal de la base, à étendre avec le moteur
 
 ---

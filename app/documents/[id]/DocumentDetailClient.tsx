@@ -53,8 +53,42 @@ import { NewVersionSheet } from '../../../components/documents/NewVersionSheet';
 import { formatBytes } from '../../../lib/documents/storage';
 import {
   CATEGORY_LABELS, STATUS_LABELS, VISIBILITY_LABELS,
+  type Bilingual, type DocumentEntityType, type DocumentRelation,
   type DocumentStatus, type DocumentVisibility,
 } from '../../../lib/documents/types';
+
+/** Les onze valeurs de `document_links.entity_type`, dites au marchand. */
+const ENTITY_LABELS: Record<DocumentEntityType, Bilingual> = {
+  business:    { fr: 'Entreprise',  ht: 'Antrepriz' },
+  employee:    { fr: 'Employé',     ht: 'Anplwaye' },
+  customer:    { fr: 'Client',      ht: 'Kliyan' },
+  supplier:    { fr: 'Fournisseur', ht: 'Founisè' },
+  product:     { fr: 'Produit',     ht: 'Pwodwi' },
+  order:       { fr: 'Commande',    ht: 'Kòmann' },
+  sale:        { fr: 'Vente',       ht: 'Vant' },
+  purchase:    { fr: 'Achat',       ht: 'Acha' },
+  expense:     { fr: 'Dépense',     ht: 'Depans' },
+  contract:    { fr: 'Contrat',     ht: 'Kontra' },
+  transaction: { fr: 'Transaction', ht: 'Tranzaksyon' },
+};
+
+const RELATION_LABELS: Record<DocumentRelation, Bilingual> = {
+  attached:      { fr: 'Joint',      ht: 'Tache' },
+  signed_by:     { fr: 'Signé par',  ht: 'Siyen pa' },
+  issued_to:     { fr: 'Remis à',    ht: 'Remèt bay' },
+  received_from: { fr: 'Reçu de',    ht: 'Resevwa nan men' },
+  concerns:      { fr: 'Concerne',   ht: 'Konsène' },
+};
+
+/**
+ * La fiche de l'entité, quand une adresse sait l'ouvrir. Seul l'écran des
+ * clients relit un identifiant (`/customers?id=`) ; les autres n'ont pas de
+ * fiche adressable, et un lien vers une liste ferait chercher à nouveau.
+ */
+function entityHref(entityType: string, entityId: string): string | null {
+  if (entityType === 'customer') return `/customers?id=${encodeURIComponent(entityId)}`;
+  return null;
+}
 
 /** Les statuts qu'un marchand pose lui-même. `expired` est calculé depuis la
  *  date, `archived` a son propre bouton : ni l'un ni l'autre ne se choisit. */
@@ -370,6 +404,43 @@ export function DocumentDetailClient({ documentId }: { documentId: string }) {
             )}
           </Card>
         </Section>
+
+        {/* ── À quoi il est rattaché (§36, §37) ──────────────────────────────
+            Lecture seule : le rattachement se fait depuis la fiche du client,
+            du fournisseur ou de l'employé. `getDocument()` ne rend pas leur
+            nom, d'où le type et le titre du rattachement seuls. */}
+        {doc.links.length > 0 && (
+          <Section title={t({ fr: 'Rattaché à', ht: 'Tache ak' })}>
+            <Card className="divide-y divide-border dark:divide-dark-border">
+              {doc.links.map((link) => {
+                const entity   = ENTITY_LABELS[link.entityType as DocumentEntityType];
+                const relation = RELATION_LABELS[link.relation as DocumentRelation];
+                const href     = entityHref(link.entityType, link.entityId);
+                const content = (
+                  <>
+                    <span className="min-w-0 flex-1 truncate text-body text-primary dark:text-dark-text">
+                      {entity ? t(entity) : link.entityType}
+                    </span>
+                    {relation && (
+                      <span className="flex-shrink-0 text-note text-muted dark:text-dark-muted">
+                        {t(relation)}
+                      </span>
+                    )}
+                  </>
+                );
+                return href ? (
+                  <Link key={link.id} href={href} className="pressable flex min-h-touch items-center gap-4 px-4 py-3">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={link.id} className="flex min-h-touch items-center gap-4 px-4 py-3">
+                    {content}
+                  </div>
+                );
+              })}
+            </Card>
+          </Section>
+        )}
 
         {/* ── L'historique (§38) ─────────────────────────────────────────── */}
         {doc.versions.length > 1 && (

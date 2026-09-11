@@ -43,7 +43,9 @@ export function NewsletterForm({ store }: { store: StoreView }) {
     return (
       <p className="mt-5 flex items-center justify-center gap-2 text-[14px] font-medium text-[var(--st-ink)]">
         <Check className="h-4 w-4" style={{ color: 'var(--st-accent)' }} strokeWidth={2.4} aria-hidden />
-        C'est noté. Vous serez prévenu.
+        {/* Rien n'envoie encore de lettre : on confirme ce qui est vrai, l'adresse
+            est enregistrée chez la boutique — pas une promesse d'envoi. */}
+        C'est noté : la boutique a bien reçu votre adresse.
       </p>
     );
   }

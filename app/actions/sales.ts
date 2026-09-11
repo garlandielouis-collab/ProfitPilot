@@ -43,14 +43,51 @@ async function rollbackSale(supabase: any, saleId: string) {
   await supabase.from('sales').delete().eq('id', saleId);
 }
 
-async function generateInvoiceNumber(supabase: any, businessId: string): Promise<string> {
-  const year = new Date().getFullYear();
-  const { count } = await supabase
-    .from('sales')
-    .select('*', { count: 'exact', head: true })
-    .eq('business_id', businessId);
-  return `INV-${year}-${String((count ?? 0) + 1).padStart(5, '0')}`;
+/**
+ * Le rang du prochain numéro de facture de l'entreprise.
+ *
+ * Même règle que la conversion d'une commande boutique en vente
+ * (20260908_commerce_launch.sql) : le plus grand numéro INV-AAAA-N déjà
+ * attribué, ou le nombre de ventes s'il est plus grand, plus un. « Nombre + 1 »
+ * seul retombait sur un numéro existant dès qu'une vente avait été supprimée,
+ * et la contrainte UNIQUE (business_id, invoice_number) refusait la vente.
+ */
+async function nextInvoiceRank(supabase: any, businessId: string): Promise<number> {
+  const [countRes, lastRes] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('*', { count: 'exact', head: true })
+      .eq('business_id', businessId),
+    // Rang zéro-rempli et année croissante : l'ordre du texte suit celui des
+    // numéros. Quelques lignes plutôt qu'une, pour enjamber un format étranger.
+    supabase
+      .from('sales')
+      .select('invoice_number')
+      .eq('business_id', businessId)
+      .like('invoice_number', 'INV-%')
+      .order('invoice_number', { ascending: false })
+      .limit(10),
+  ]);
+
+  let max = 0;
+  for (const r of lastRes.data ?? []) {
+    const m = /^INV-\d{4}-(\d+)$/.exec(r.invoice_number ?? '');
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return Math.max(countRes.count ?? 0, max) + 1;
 }
+
+function formatInvoiceNumber(rank: number): string {
+  return `INV-${new Date().getFullYear()}-${String(rank).padStart(5, '0')}`;
+}
+
+/** Deux ventes simultanées peuvent calculer le même rang : seule la violation
+ *  d'unicité SUR LE NUMÉRO justifie de réessayer avec le suivant. */
+function isInvoiceNumberConflict(err: any): boolean {
+  return err?.code === '23505' && `${err.message ?? ''} ${err.details ?? ''}`.includes('invoice_number');
+}
+
+const INVOICE_NUMBER_ATTEMPTS = 5;
 
 // ── Main action ───────────────────────────────────────────────────────────────
 
@@ -157,33 +194,42 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   const paidAmount = data.payment_status === 'paid' ? totalAmount : data.payment_status === 'partial' ? 0 : 0;
 
   // ── 6. Insert sale ───────────────────────────────────────────────────────
-  const invoiceNumber = await generateInvoiceNumber(sb, businessId);
+  const firstRank = await nextInvoiceRank(sb, businessId);
+  let invoiceNumber = formatInvoiceNumber(firstRank);
+  let saleRow: any = null;
+  let sErr: any = null;
 
-  const { data: saleRow, error: sErr } = await sb
-    .from('sales')
-    .insert({
-      business_id:      businessId,
-      warehouse_id:     data.warehouse_id ?? null,
-      invoice_number:   invoiceNumber,
-      customer_id:      data.customer_id ?? null,
-      customer_name:    data.customer_name ?? null,
-      sale_date:        today,
-      currency:         data.currency,
-      exchange_rate:    data.currency === 'USD' ? exchangeRate : 1,
-      payment_method:   data.payment_method,
-      payment_status:   data.payment_status,
-      discount_percent: data.discount_percent,
-      discount_amount:  discountAmount,
-      tax_amount:       data.tax_amount,
-      subtotal_amount:  fmt2(subtotal),
-      total_amount:     totalAmount,
-      paid_amount:      paidAmount,
-      notes:            data.notes ?? null,
-      metadata:         data.client_ref ? { client_ref: data.client_ref } : null,
-      created_by:       userId,
-    })
-    .select('id')
-    .single();
+  // Numéro pris entre-temps (vente simultanée) : on tente le suivant plutôt que
+  // de refuser une vente valide.
+  for (let attempt = 0; attempt < INVOICE_NUMBER_ATTEMPTS; attempt++) {
+    invoiceNumber = formatInvoiceNumber(firstRank + attempt);
+    ({ data: saleRow, error: sErr } = await sb
+      .from('sales')
+      .insert({
+        business_id:      businessId,
+        warehouse_id:     data.warehouse_id ?? null,
+        invoice_number:   invoiceNumber,
+        customer_id:      data.customer_id ?? null,
+        customer_name:    data.customer_name ?? null,
+        sale_date:        today,
+        currency:         data.currency,
+        exchange_rate:    data.currency === 'USD' ? exchangeRate : 1,
+        payment_method:   data.payment_method,
+        payment_status:   data.payment_status,
+        discount_percent: data.discount_percent,
+        discount_amount:  discountAmount,
+        tax_amount:       data.tax_amount,
+        subtotal_amount:  fmt2(subtotal),
+        total_amount:     totalAmount,
+        paid_amount:      paidAmount,
+        notes:            data.notes ?? null,
+        metadata:         data.client_ref ? { client_ref: data.client_ref } : null,
+        created_by:       userId,
+      })
+      .select('id')
+      .single());
+    if (!isInvoiceNumberConflict(sErr)) break;
+  }
 
   if (sErr) return { success: false, errors: [{ field: 'sale', message: sErr.message }] };
   const saleId = saleRow.id;

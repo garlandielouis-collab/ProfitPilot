@@ -289,6 +289,9 @@ export const PLAN_AI_CREDITS: Record<PlanKey, number> = {
  * Elle limite l'ANALYSE, jamais la conservation : les listes de ventes, de
  * dépenses et de créances restent consultables sur toute la durée, et
  * `data_export` sort l'intégralité dans les trois offres.
+ *
+ * Aucun écran ne l'applique encore (`planHistoryMonths()` n'a pas d'appelant) :
+ * tant que c'est vrai, cette limite ne doit être annoncée nulle part au marchand.
  */
 export const PLAN_HISTORY_MONTHS: Record<PlanKey, number> = {
   'Ti Machann':     3,

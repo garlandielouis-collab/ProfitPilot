@@ -32,8 +32,9 @@ import { getPreviewPlan, isPreviewEnabled, setPreviewPlan, subscribePreview } fr
 import { PLANS, getPlanLabel, type PlanKey } from '../lib/plans';
 import {
   formatQuota,
+  // PLAN_HISTORY_MONTHS n'est plus affiché : aucune limite d'historique
+  // n'est appliquée (voir `planHistoryMonths`), l'annoncer serait faux.
   PLAN_AI_QUESTIONS,
-  PLAN_HISTORY_MONTHS,
   PLAN_MAX_MEMBERS,
   PLAN_MAX_PRODUCTS,
   PLAN_MAX_STORES,
@@ -157,14 +158,12 @@ function quotaLine(planKey: PlanKey): string {
   const stores   = PLAN_MAX_STORES[planKey];
   const members  = PLAN_MAX_MEMBERS[planKey];
   const products = PLAN_MAX_PRODUCTS[planKey];
-  const months   = PLAN_HISTORY_MONTHS[planKey];
   const ai       = PLAN_AI_QUESTIONS[planKey];
 
   return [
     `${stores} boutique${stores > 1 ? 's' : ''}`,
     Number.isFinite(members)  ? `${members} personne${members > 1 ? 's' : ''}` : 'personnes illimitées',
     Number.isFinite(products) ? `${formatQuota(products)} produits` : 'produits illimités',
-    Number.isFinite(months)   ? `${months} mois d'analyse` : 'analyse sans limite',
     ai === 0 ? 'IA à la découverte' : Number.isFinite(ai) ? `${ai} questions IA / mois` : 'IA illimitée',
   ].join(' · ');
 }

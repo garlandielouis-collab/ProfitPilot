@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   Building2, Globe, Phone, MapPin, DollarSign, CreditCard,
-  Bell, Moon, Languages, Save, LogOut, Trash2, Download,
+  Moon, Languages, Save, LogOut, Trash2, Download,
   Shield, Key, RefreshCw, Copy, Check, ChevronRight,
   Smartphone, Wallet, Banknote, CircleUser, Settings2,
 } from 'lucide-react';
@@ -17,6 +17,8 @@ import { useSettings }          from '../../hooks/useSettings';
 import { useTheme }             from '../../components/providers/ThemeProvider';
 import { useLanguage }          from '../../components/LanguageWrapper';
 import { exportUserData, deleteAccount } from '../../app/actions/settings';
+import { linkPhoneToAccount } from '../../app/actions/phoneAuth';
+import { PhoneField } from '../../components/ds';
 import { forceRefreshAndRecalculate } from '../../app/actions/exchangeRate';
 import { cn } from '../../lib/utils';
 import type { BusinessProfileInput, UserPreferencesInput } from '../../lib/validations';
@@ -505,24 +507,17 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
 
       <GlassCard>
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
-          <Bell className="h-4 w-4 text-emerald-400" />
-          {t({ fr: 'Interface & Notifications', ht: 'Entèfas & Notifikasyon' })}
+          <Moon className="h-4 w-4 text-emerald-400" />
+          {t({ fr: 'Interface', ht: 'Entèfas' })}
         </h2>
+        {/* « Notifications activées » et « Sauvegarde automatique » ont disparu :
+            enregistrés mais lus nulle part, ils promettaient un effet inexistant.
+            Les colonnes restent en base et le formulaire les renvoie inchangées. */}
         <div className="divide-y divide-[var(--color-border)]">
           <Toggle
             label={t({ fr: 'Mode sombre', ht: 'Mòd fè nwa' })}
             checked={isDark}
             onChange={handleDarkModeToggle}
-          />
-          <Toggle
-            label={t({ fr: 'Notifications activées', ht: 'Notifikasyon aktive' })}
-            checked={form.notifications_enabled}
-            onChange={(v) => setForm(prev => ({ ...prev, notifications_enabled: v }))}
-          />
-          <Toggle
-            label={t({ fr: 'Sauvegarde automatique des formulaires', ht: 'Sovodòt otomatik fòm yo' })}
-            checked={form.auto_save}
-            onChange={(v) => setForm(prev => ({ ...prev, auto_save: v }))}
           />
         </div>
       </GlassCard>
@@ -555,6 +550,27 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
   const [exportBusy, setExportBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneBusy, setPhoneBusy] = useState(false);
+
+  // Qui s'est inscrit avant la connexion par numéro n'avait aucun moyen d'en
+  // rattacher un : même action qu'à l'inscription, validation et messages compris.
+  const handleLinkPhone = async () => {
+    setPhoneBusy(true);
+    try {
+      const result = await linkPhoneToAccount(phone);
+      if (result.ok) {
+        toast.success(t({ fr: 'Numéro rattaché à votre compte', ht: 'Nimewo a anrejistre sou kont ou' }));
+        setPhone('');
+      } else {
+        toast.error(result.error ?? t({ fr: 'Rattachement échoué', ht: 'Anrejistreman an echwe' }));
+      }
+    } catch {
+      toast.error(t({ fr: 'Rattachement échoué', ht: 'Anrejistreman an echwe' }));
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -631,6 +647,26 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
             <p className="text-xs text-[var(--color-muted)]">{t({ fr: 'ID utilisateur', ht: 'ID itilizatè' })}</p>
             <p className="mt-1 truncate font-mono text-xs text-[var(--color-muted)]">{userId ?? '—'}</p>
           </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start">
+          <PhoneField
+            label={t({ fr: 'Numéro de téléphone', ht: 'Nimewo telefòn' })}
+            hint={t({
+              fr: 'Pour vous connecter avec ce numéro et votre mot de passe. Un nouveau numéro remplace l’ancien.',
+              ht: 'Pou konekte ak nimewo sa a epi modpas ou. Yon nouvo nimewo ranplase ansyen an.',
+            })}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={handleLinkPhone}
+            disabled={phoneBusy || !phone.trim()}
+            className="flex min-h-touch flex-shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-semibold text-[var(--color-text)] hover:bg-slate-200 transition disabled:opacity-40 sm:mt-6"
+          >
+            <Phone className="h-4 w-4" />
+            {phoneBusy ? t({ fr: 'Enregistrement…', ht: 'Anrejistreman…' }) : t({ fr: 'Rattacher ce numéro', ht: 'Anrejistre nimewo sa a' })}
+          </button>
         </div>
         <div className="mt-4 flex justify-end">
           <button

@@ -48,13 +48,9 @@ type PaymentMethodKey = 'Moncash' | 'Natcash' | 'Carte Visa' | 'Espèces';
 // Après : le composant unique de la bibliothèque. Un seul style, une icône de
 // trait, la sélection marquée par le CONTRASTE — fond marine, texte blanc.
 
-/** Le numéro à créditer, quand la méthode en a un. */
-const PAYMENT_PHONE: Record<PaymentMethodKey, string | null> = {
-  'Moncash':    '50937304541',
-  'Natcash':    '50935951252',
-  'Carte Visa': null,
-  'Espèces':    null,
-};
+/** Les méthodes qui passent par un numéro de téléphone. Il n'y a plus de
+ *  numéro écrit en dur : c'étaient deux numéros fixes, pas ceux du fournisseur. */
+const MOBILE_METHODS: PaymentMethodKey[] = ['Moncash', 'Natcash'];
 
 /** Les clés du composant partagé ↔ celles que la base attend. */
 const KEY_TO_PAY: Record<PaymentKey, PaymentMethodKey> = {
@@ -469,7 +465,10 @@ export function NewPurchaseForm() {
   const discountAmt   = useMemo(() => parseFloat((subtotal * discountPct / 100).toFixed(2)), [subtotal, discountPct]);
   const total         = useMemo(() => Math.max(0, parseFloat((subtotal - discountAmt).toFixed(2))), [subtotal, discountAmt]);
 
-  const selectedPhone = PAYMENT_PHONE[payMethod];
+  // Le téléphone enregistré du fournisseur choisi, pour un paiement mobile
+  // seulement ; sans fournisseur ou sans numéro, rien ne s'affiche.
+  const selectedPhone =
+    payStatus === 'Payé' && MOBILE_METHODS.includes(payMethod) ? (supplier?.phone || null) : null;
 
   // ── Quick create handlers ──────────────────────────────────────────────────
 
@@ -500,7 +499,7 @@ export function NewPurchaseForm() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     if (!ownerId) { setSaveErr(t({ fr: 'Non authentifié.', ht: 'Non otantifye.' })); return; }
 
-    // Build metadata for mobile money
+    // Trace du paiement mobile : savePurchase la range dans purchases.metadata.
     const metadata: Record<string, string> | undefined =
       selectedPhone
         ? { payment_phone: selectedPhone, payment_network: payMethod }
@@ -521,6 +520,7 @@ export function NewPurchaseForm() {
         discount_percent:        discountPct,
         payment_status:          payStatus,
         payment_method:          payStatus === 'Payé' ? payMethod : undefined,
+        metadata,
         warehouse_id:            warehouse?.id,
       });
 
@@ -720,11 +720,12 @@ export function NewPurchaseForm() {
                 onChange={(k) => setPayMethod(KEY_TO_PAY[k])}
               />
 
-              {/* Le numéro crédité. Une mention, pas une alerte : ni fond
-                  d'avertissement, ni émoji — l'information suffit (§3.6). */}
+              {/* Le téléphone enregistré du fournisseur. Une mention, pas une
+                  alerte : ni fond d'avertissement, ni émoji (§3.6). Rien ne
+                  garantit que ce soit son compte mobile : on ne le dit pas « crédité ». */}
               {selectedPhone && (
                 <p className="text-note text-muted">
-                  {t({ fr: 'Numéro crédité : ', ht: 'Nimewo ki resevwa : ' })}
+                  {t({ fr: 'Téléphone du fournisseur : ', ht: 'Telefòn founisè a : ' })}
                   <span className="amount font-bold text-primary">{selectedPhone}</span>
                 </p>
               )}

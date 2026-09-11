@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { listOrders, updateOrderStatus, type OrderRow } from '../../actions/boutique';
 import { Package } from 'lucide-react';
 
@@ -21,6 +21,9 @@ function statusInfo(s: string) { return STATUSES.find((x) => x.value === s) ?? S
 function fmt(n: number, currency?: string | null) { return new Intl.NumberFormat('fr-HT').format(n) + ' ' + (currency || 'HTG'); }
 function relDate(iso: string) { return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 
+// Une page de commandes ; « Charger plus » ajoute la suivante.
+const PAGE_SIZE = 50;
+
 function Spinner() { return <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#001F3F]" />; }
 
 export default function CommandesPage() {
@@ -38,11 +41,35 @@ export default function CommandesPage() {
   // catalogue). Sans cet état, le marchand cliquait et rien ne se passait.
   const [updateError, setUpdateError] = useState('');
 
-  function load(s: string, q: string) {
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Le filtre réellement appliqué, numéroté : « Charger plus » doit lire la même
+  // liste (pas la recherche tapée mais non lancée), et une page arrivée après un
+  // changement de filtre ne doit pas s'ajouter à la nouvelle liste.
+  const applied = useRef({ id: 0, status: 'all', search: '' });
+
+  function load(s: string, q: string, size = PAGE_SIZE) {
+    applied.current = { id: applied.current.id + 1, status: s, search: q };
     setLoading(true);
-    listOrders({ status: s !== 'all' ? s : undefined, search: q || undefined, limit: 50 })
+    listOrders({ status: s !== 'all' ? s : undefined, search: q || undefined, limit: size })
       .then(({ orders: o, total: t }) => { setOrders(o); setTotal(t); })
       .finally(() => setLoading(false));
+  }
+
+  function loadMore() {
+    const { id, status: s, search: q } = applied.current;
+    setLoadingMore(true);
+    listOrders({ status: s !== 'all' ? s : undefined, search: q || undefined, limit: PAGE_SIZE, offset: orders.length })
+      .then(({ orders: more, total: t }) => {
+        if (id !== applied.current.id) return;
+        // Une commande arrivée entre-temps décale les pages d'un cran : sans ce
+        // filtre, la dernière ligne déjà affichée reviendrait en double.
+        setOrders((prev) => {
+          const seen = new Set(prev.map((o) => o.id));
+          return [...prev, ...more.filter((o) => !seen.has(o.id))];
+        });
+        setTotal(t);
+      })
+      .finally(() => setLoadingMore(false));
   }
 
   useEffect(() => { load(status, search); }, []);
@@ -57,7 +84,9 @@ export default function CommandesPage() {
       try {
         await updateOrderStatus(selected.id, newStatus, tracking || undefined);
         setSelected(null);
-        load(status, search);
+        // Recharge autant de lignes qu'il y en avait : sans ça, mettre à jour une
+        // commande de la page 3 renvoyait le marchand aux 50 premières.
+        load(applied.current.status, applied.current.search, Math.max(PAGE_SIZE, orders.length));
       } catch (err) {
         // Le message vient du serveur et nomme le produit en cause
         // (« Stock insuffisant pour « Savon karité » : 2 en stock… ») : on le
@@ -110,6 +139,7 @@ export default function CommandesPage() {
           <p className="mt-2 text-sm">Aucune commande trouvée.</p>
         </div>
       ) : (
+        <>
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-widest text-slate-400">
@@ -154,6 +184,23 @@ export default function CommandesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* La liste s'arrêtait à 50 sans le dire : au-delà, les commandes les
+            plus anciennes étaient introuvables sans passer par la recherche. */}
+        {orders.length < total && (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-xs text-slate-400">{orders.length} sur {total} affichées</p>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              {loadingMore && <Spinner />}
+              Charger plus
+            </button>
+          </div>
+        )}
+        </>
       )}
 
       {/* Detail modal */}

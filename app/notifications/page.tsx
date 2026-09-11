@@ -63,10 +63,37 @@ const TYPES: Record<string, { label: Bilingual; icon: LucideIcon; tone: Tone }> 
   generic:             { label: { fr: 'Notification',        ht: 'Notifikasyon'      }, icon: Bell,         tone: 'neutral' },
 };
 
+/**
+ * La colonne de `notification_preferences` qui gouverne chaque type — la même
+ * table que `PREFERENCE_COLUMN` dans lib/notify.ts, puisque c'est elle que
+ * `notify()` consulte avant d'envoyer.
+ *
+ * L'écran écrivait et relisait le nom du TYPE (`sale_created`, `stock_low`…) :
+ * `setNotifPreference` refusait ces noms sans bruit, rien ne s'enregistrait, et
+ * la relecture retombait toujours sur « actif ». Les types absents de cette
+ * table n'ont aucune colonne : ils se signalent toujours, et n'ont donc pas
+ * d'interrupteur — un interrupteur qui ne coupe rien ment.
+ */
+const PREF_COLUMN: Partial<Record<string, string>> = {
+  sale_created:     'new_sale',
+  purchase_created: 'new_purchase',
+  expense_created:  'new_expense',
+  stock_low:        'low_stock',
+  invoice_paid:     'payment_due',
+};
+
+/** Le lien wa.me joint par le cron du dimanche — seulement s'il mène bien à WhatsApp. */
+function whatsappUrlOf(n: Notification): string | null {
+  const url = n.data?.whatsappUrl;
+  return typeof url === 'string' && url.startsWith('https://wa.me/') ? url : null;
+}
+
 /** Ce que chaque type prévient — la ligne qui manquait à l'écran de réglages. */
 const PREF_HINTS: Record<string, Bilingual> = {
   sale_created:        { fr: 'À chaque vente enregistrée, y compris par un employé.', ht: 'Chak fwa yon vant anrejistre, menm pa yon anplwaye.' },
-  invoice_paid:        { fr: "Quand un client règle une facture ou solde sa dette.",  ht: 'Lè yon kliyan peye yon fakti oswa solde dèt li.' },
+  // `payment_due` gouverne aussi les relances de créances du cron quotidien :
+  // l'indication le dit, sinon couper ici les ferait taire à l'insu du marchand.
+  invoice_paid:        { fr: "Quand un client règle une facture, et les relances de créances à échéance.", ht: 'Lè yon kliyan peye yon fakti, ak rapèl kredi ki rive a echeyans.' },
   stock_low:           { fr: 'Quand un produit passe sous son seuil de réassort.',    ht: 'Lè yon pwodwi desann anba sèy li.' },
   expense_created:     { fr: 'À chaque dépense saisie sur le compte.',                ht: 'Chak depans ki antre nan kont lan.' },
   purchase_created:    { fr: 'À chaque achat auprès d’un fournisseur.',               ht: 'Chak acha kay yon founisè.' },
@@ -130,15 +157,21 @@ function NotificationsInner() {
   }
 
   async function togglePref(type: string, enabled: boolean) {
+    // On écrit et on relit la COLONNE, jamais le nom du type.
+    const column = PREF_COLUMN[type];
+    if (!column) return;
     setPrefs((prev) =>
-      prev.some((p) => p.type === type)
-        ? prev.map((p) => (p.type === type ? { ...p, enabled } : p))
-        : [...prev, { type, enabled }],
+      prev.some((p) => p.type === column)
+        ? prev.map((p) => (p.type === column ? { ...p, enabled } : p))
+        : [...prev, { type: column, enabled }],
     );
-    try { await setNotifPreference(type, enabled); } catch { /* idem */ }
+    try { await setNotifPreference(column, enabled); } catch { /* idem */ }
   }
 
-  const prefEnabled = (type: string) => prefs.find((p) => p.type === type)?.enabled ?? true;
+  const prefEnabled = (type: string) => {
+    const column = PREF_COLUMN[type];
+    return prefs.find((p) => p.type === column)?.enabled ?? true;
+  };
   const unread = notifs.filter((n) => !n.readAt).length;
 
   return (
@@ -224,6 +257,7 @@ function NotificationsInner() {
                     const cfg  = typeOf(n.type);
                     const Icon = cfg.icon;
                     const isUnread = !n.readAt;
+                    const whatsappUrl = whatsappUrlOf(n);
 
                     return (
                       <li key={n.id}>
@@ -273,6 +307,23 @@ function NotificationsInner() {
                             />
                           )}
                         </button>
+
+                        {/* Le résumé du dimanche est prêt « en un tap » : sans ce
+                            lien, le message restait enfermé dans la notification.
+                            Hors du bouton — un lien ne s'imbrique pas dans un
+                            bouton — et aligné sous le texte. */}
+                        {whatsappUrl && (
+                          <div className="-mt-2 pb-2 pl-[4.25rem] pr-4">
+                            <a
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="pressable inline-flex min-h-touch items-center text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
+                            >
+                              {t({ fr: 'Envoyer sur WhatsApp', ht: 'Voye sou WhatsApp' })}
+                            </a>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
@@ -301,7 +352,7 @@ function NotificationsInner() {
             </p>
 
             <ul className="divide-y divide-border dark:divide-dark-border">
-              {Object.entries(TYPES).map(([type, cfg]) => {
+              {Object.entries(TYPES).filter(([type]) => PREF_COLUMN[type]).map(([type, cfg]) => {
                 const Icon = cfg.icon;
                 return (
                   <li key={type} className="py-2">

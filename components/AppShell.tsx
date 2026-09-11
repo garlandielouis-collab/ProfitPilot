@@ -240,9 +240,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex-1" />
 
           <div className="flex items-center gap-1">
+            {/* La loupe ouvre la liste des produits et son champ de recherche,
+                pas une recherche globale : le libellé le dit. */}
             <Link
               href="/products"
-              aria-label={t({ fr: 'Rechercher un produit', ht: 'Chèche yon pwodwi' })}
+              aria-label={t({ fr: 'Chercher dans vos produits', ht: 'Chèche nan pwodwi ou yo' })}
+              title={t({ fr: 'Chercher dans vos produits', ht: 'Chèche nan pwodwi ou yo' })}
               className="pressable flex h-touch w-touch items-center justify-center rounded-surface text-muted hover:bg-surface dark:hover:bg-white/5"
             >
               <Search className="h-5 w-5" strokeWidth={1.8} aria-hidden />

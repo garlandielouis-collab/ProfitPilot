@@ -64,7 +64,9 @@ export const PLANS: Plan[] = [
     audience: 'Marchand seul, une boutique, qui démarre son suivi',
     features: [
       { fr: 'Ventes, dépenses et crédits illimités',            ht: 'Vant, depans ak kredi san limit' },
-      { fr: 'Fonctionne sans internet, se synchronise après',   ht: 'Mache san entènèt, li senkronize apre' },
+      // Seule la vente rapide passe en file hors ligne (QuickSaleForm) : dépenses
+      // et crédits saisis à la main exigent encore le réseau.
+      { fr: 'Vente rapide sans internet, envoyée au retour du réseau', ht: 'Vann rapid san entènèt, li pati lè rezo a tounen' },
       { fr: "Argent de la maison séparé de l'argent du commerce", ht: 'Lajan kay la separe ak lajan komès la' },
       { fr: 'Qui vous doit combien, et depuis quand',           ht: 'Kiyès ki dwe ou konbyen, e depi kilè' },
       { fr: "Votre journée et votre semaine en un coup d'œil",  ht: 'Jounen ou ak semèn ou nan yon sèl kout je' },
@@ -126,14 +128,18 @@ export const PLANS: Plan[] = [
       ht: 'Delege, miltipliye tèt ou, epi prevwa olye pou w sibi.',
     },
     audience: 'Marchand qui délègue et suit plusieurs points de vente',
+    // Retirés ou reformulés faute d'implémentation : aucun écran ne compare les
+    // boutiques (`multi_store_reports`), le cron quotidien NOTIFIE le marchand
+    // sans rien envoyer au client, la prévision porte sur les ventes du mois
+    // suivant et non sur la trésorerie à deux semaines, et aucun support
+    // prioritaire n'existe (`priority_support`).
     features: [
       { fr: 'Tout Kwasans, sans compter les questions',          ht: 'Tout Kwasans, san konte kesyon yo' },
-      { fr: "Jusqu'à 3 boutiques, comparées entre elles",     ht: 'Jiska 3 boutik, konpare youn ak lòt' },
+      { fr: "Jusqu'à 3 boutiques, et vous passez de l'une à l'autre", ht: 'Jiska 3 boutik, epi ou pase youn nan lòt' },
       { fr: "Autant d'employés qu'il faut : chacun ne voit que ce qui le concerne", ht: 'Otan anplwaye ou bezwen : chak moun wè sèlman sa k gade l' },
       { fr: 'Qui a saisi, qui a annulé : le journal complet',    ht: 'Kiyès ki antre, kiyès ki anile : jounal konplè a' },
-      { fr: 'Vos relances partent toutes seules',                ht: 'Rapèl ou yo pati pou kont yo' },
-      { fr: 'Ce qu’il vous restera dans deux semaines, calculé pour vous', ht: 'Sa k ap rete ou nan de semèn, kalkile pou ou' },
-      { fr: 'Un numéro WhatsApp qui répond en priorité',         ht: 'Yon nimewo WhatsApp ki reponn an priyorite' },
+      { fr: 'Chaque matin, les crédits à réclamer vous sont signalés', ht: 'Chak maten, yo siyale w kredi pou w reklame yo' },
+      { fr: 'Vos ventes du mois prochain, projetées sur vos mois réels', ht: 'Vant mwa pwochen ou, pwojte sou vrè mwa ou yo' },
     ],
     promise: {
       fr: 'Pour diriger sans être derrière le comptoir.',
@@ -150,7 +156,7 @@ export const PLANS: Plan[] = [
  */
 export const PLAN_COMMON_GROUND: Bilingual[] = [
   { fr: 'Ventes et dépenses illimitées',          ht: 'Vant ak depans san limit' },
-  { fr: 'Fonctionne hors ligne',                  ht: 'Li mache san entènèt' },
+  { fr: 'Vente rapide hors ligne',                ht: 'Vann rapid san entènèt' },
   { fr: 'Vos données exportables à tout moment',  ht: 'Done ou yo ekspòtab nenpòt kilè' },
   { fr: "Changement d'offre immédiat",            ht: 'Chanjman ofr imedya' },
 ];

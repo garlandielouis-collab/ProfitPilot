@@ -743,6 +743,6 @@ Supabase → SQL Editor → coller → Run.
 Vérifier ensuite :
 
 ```bash
-node pp_schema.js   # store_payment_credentials, store_order_counters présentes
-node pp_chk.js      # « produits sans entreprise » doit valoir 0
+node scripts/verification/pp_schema.js   # store_payment_credentials, store_order_counters présentes
+node scripts/verification/pp_chk.js      # « produits sans entreprise » doit valoir 0
 ```

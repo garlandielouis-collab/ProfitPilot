@@ -30,3 +30,8 @@ tmp/
 APPLY_PENDING_MIGRATIONS.sql
 tall
 witch main
+
+# Sorties des scripts de vérification (scripts/verification/) : le schéma de la
+# base régénéré à la demande, et les captures d'écran
+pp_schema.json
+scripts/verification/shots/

@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  Activity, BarChart3, Bell, Boxes, Building2, ClipboardList, Code2, Database,
+  Activity, BarChart3, Bell, Boxes, Building2, ClipboardList, Code2, CreditCard, Database,
   FileText, FolderOpen, Gift, HandCoins, Home, Landmark, Layers, Lock, MessageSquare,
   MoreHorizontal, Package, Palette, Plus,
   Receipt, Rocket, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Store,
@@ -170,6 +170,10 @@ MORE_SECTIONS.push({
       hint: { fr: 'Les rappels qui partent tout seuls', ht: 'Rapèl ki pati poukont yo' }, icon: Sparkles },
     { href: '/api-access',    label: { fr: 'Accès API', ht: 'Aksè API' },
       hint: { fr: 'Brancher un autre outil', ht: 'Konekte yon lòt zouti' }, icon: Code2 },
+    // Sans cette entrée, la page de prix n'était atteignable que depuis un écran
+    // verrouillé : changer d'offre ne doit pas attendre qu'on se heurte à un refus.
+    { href: '/pricing',       label: { fr: 'Mon abonnement', ht: 'Abònman mwen' },
+      hint: { fr: 'Votre offre, et en changer', ht: 'Ofr ou, ak chanje l' }, icon: CreditCard },
     { href: '/settings',      label: { fr: 'Paramètres', ht: 'Paramèt' },
       hint: { fr: 'Devise, taux de change, langue', ht: 'Deviz, to chanj, lang' }, icon: Settings },
   ],

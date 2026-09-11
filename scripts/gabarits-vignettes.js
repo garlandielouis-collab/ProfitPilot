@@ -36,7 +36,7 @@
 // ── Comment ────────────────────────────────────────────────────────────────
 //
 // Edge déjà installé pilote le rendu (aucun navigateur téléchargé, comme
-// `pp_shots.js`), à deux fois la taille finale pour que les filets d'un pixel
+// `verification/pp_shots.js`), à deux fois la taille finale pour que les filets d'un pixel
 // restent nets ; `sharp` réduit et encode en WebP au format des quatorze
 // autres — 600 × 450, soit le 4/3 que l'éditeur réserve.
 // ─────────────────────────────────────────────────────────────────────────────

@@ -68,6 +68,9 @@ function fmtDate(iso: string) {
 
 type JLine = { account_code: string; description: string; debit: number; credit: number };
 
+/** Écritures lues par page pour le grand livre. */
+const LEDGER_PAGE = 500;
+
 // ═════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═════════════════════════════════════════════════════════════════════════════
@@ -89,11 +92,17 @@ function ComptabiliteInner() {
   const [ledgerData,    setLedgerData]   = useState<any[]>([]);
   const [ledgerLoad,    setLedgerLoad]   = useState(false);
   const [selectedAcct,  setSelectedAcct] = useState<string | null>(null);
+  // Écritures brutes déjà chargées : « Charger plus » repart de leur nombre.
+  const [ledgerRaw,     setLedgerRaw]    = useState<any[]>([]);
+  const [ledgerHasMore, setLedgerHasMore] = useState(false);
+  const [ledgerMoreLoad, setLedgerMoreLoad] = useState(false);
 
   // Bilan + Compte de résultat
   const [balanceSheet,  setBalanceSheet] = useState<any>(null);
   const [incomeStmt,    setIncomeStmt]   = useState<any>(null);
   const [bilanLoad,     setBilanLoad]    = useState(false);
+  // Seul le compte de résultat accepte une période ; le bilan reste cumulé à ce jour.
+  const [bilanYear,     setBilanYear]    = useState(new Date().getFullYear());
 
   // Backfill
   const [backfilling,   setBackfilling]  = useState(false);
@@ -145,46 +154,67 @@ function ComptabiliteInner() {
   }, []);
 
   // ── Load Grand Livre ────────────────────────────────────────────────────────
+  const buildLedger = useCallback((entries: any[]) => {
+    // Build ledger from journal_entry_lines grouped by account
+    const accountMap: Record<string, { name: string; class: string; lines: any[] }> = {};
+    for (const je of entries) {
+      for (const line of je.journal_entry_lines ?? []) {
+        const acct = Array.isArray(line.chart_of_accounts) ? line.chart_of_accounts[0] : line.chart_of_accounts;
+        if (!acct) continue;
+        const key = (acct as any).code;
+        if (!accountMap[key]) accountMap[key] = { name: (acct as any).name, class: (acct as any).account_class, lines: [] };
+        accountMap[key].lines.push({
+          date:        je.entry_date,
+          ref:         je.entry_number,
+          description: line.description || je.description,
+          debit:       Number(line.debit_amount  ?? 0),
+          credit:      Number(line.credit_amount ?? 0),
+        });
+      }
+    }
+    // Sort lines by date within each account
+    Object.values(accountMap).forEach(a => a.lines.sort((x, y) => x.date.localeCompare(y.date)));
+    setLedgerData(
+      Object.entries(accountMap)
+        .map(([code, v]) => ({ code, ...v }))
+        .sort((a, b) => a.code.localeCompare(b.code))
+    );
+    if (Object.keys(accountMap).length > 0) {
+      setSelectedAcct(prev => prev ?? Object.keys(accountMap).sort()[0]);
+    }
+  }, []);
+
   const loadLedger = useCallback(async () => {
     setLedgerLoad(true);
     try {
-      // Build ledger from journal_entry_lines grouped by account
-      const entries = await getJournalEntries(500);
-      const accountMap: Record<string, { name: string; class: string; lines: any[] }> = {};
-      for (const je of entries) {
-        for (const line of je.journal_entry_lines ?? []) {
-          const acct = Array.isArray(line.chart_of_accounts) ? line.chart_of_accounts[0] : line.chart_of_accounts;
-          if (!acct) continue;
-          const key = (acct as any).code;
-          if (!accountMap[key]) accountMap[key] = { name: (acct as any).name, class: (acct as any).account_class, lines: [] };
-          accountMap[key].lines.push({
-            date:        je.entry_date,
-            ref:         je.entry_number,
-            description: line.description || je.description,
-            debit:       Number(line.debit_amount  ?? 0),
-            credit:      Number(line.credit_amount ?? 0),
-          });
-        }
-      }
-      // Sort lines by date within each account
-      Object.values(accountMap).forEach(a => a.lines.sort((x, y) => x.date.localeCompare(y.date)));
-      setLedgerData(
-        Object.entries(accountMap)
-          .map(([code, v]) => ({ code, ...v }))
-          .sort((a, b) => a.code.localeCompare(b.code))
-      );
-      if (Object.keys(accountMap).length > 0 && !selectedAcct) {
-        setSelectedAcct(Object.keys(accountMap).sort()[0]);
-      }
-    } catch { setLedgerData([]); }
+      const page = await getJournalEntries(LEDGER_PAGE);
+      setLedgerRaw(page);
+      setLedgerHasMore(page.length === LEDGER_PAGE);
+      buildLedger(page);
+    } catch { setLedgerData([]); setLedgerRaw([]); setLedgerHasMore(false); }
     setLedgerLoad(false);
-  }, [selectedAcct]);
+  }, [buildLedger]);
+
+  // Les soldes du grand livre ne portent que sur les écritures chargées : sans
+  // cette suite, tout ce qui dépassait la première page restait invisible.
+  const loadMoreLedger = useCallback(async () => {
+    setLedgerMoreLoad(true);
+    try {
+      const page = await getJournalEntries(LEDGER_PAGE, ledgerRaw.length);
+      // Une écriture ajoutée entre deux pages décale le découpage : on dédoublonne.
+      const seen = new Set(ledgerRaw.map(e => e.id));
+      const merged = [...ledgerRaw, ...page.filter((e: any) => !seen.has(e.id))];
+      setLedgerRaw(merged);
+      setLedgerHasMore(page.length === LEDGER_PAGE);
+      buildLedger(merged);
+    } catch { /* la page déjà affichée reste valable */ }
+    setLedgerMoreLoad(false);
+  }, [ledgerRaw, buildLedger]);
 
   // ── Load Bilan ───────────────────────────────────────────────────────────────
-  const loadBilan = useCallback(async () => {
+  const loadBilan = useCallback(async (year: number = bilanYear) => {
     setBilanLoad(true);
     try {
-      const year = new Date().getFullYear();
       const [bs, is] = await Promise.all([
         getBalanceSheet(),
         getIncomeStatement(year),
@@ -193,7 +223,7 @@ function ComptabiliteInner() {
       setIncomeStmt(is);
     } catch { setBalanceSheet(null); setIncomeStmt(null); }
     setBilanLoad(false);
-  }, []);
+  }, [bilanYear]);
 
   // ── Posting failures ────────────────────────────────────────────────────────
   // Journal posting is deliberately non-blocking (a ledger error must never
@@ -212,7 +242,10 @@ function ComptabiliteInner() {
 
   // ── Backfill ────────────────────────────────────────────────────────────────
   async function handleBackfill() {
-    if (!confirm('Kontabilize tout tranzaksyon ki egziste yo? Sa ap kreye ekriti pou chak vant, acha ak depans ki pa gen ekriti kontab.')) return;
+    if (!confirm(t({
+      fr: 'Comptabiliser toutes les transactions existantes ? Une écriture sera créée pour chaque vente, achat et dépense qui n’en a pas encore.',
+      ht: 'Kontabilize tout tranzaksyon ki egziste yo? Sa ap kreye ekriti pou chak vant, acha ak depans ki pa gen ekriti kontab.',
+    }))) return;
     setBackfilling(true);
     setBackfillResult(null);
     try {
@@ -221,22 +254,28 @@ function ComptabiliteInner() {
       await loadJournal();
       if (trialBalance) await loadBalance();
     } catch (e: any) {
-      alert('Erè: ' + e.message);
+      alert(t({ fr: 'Erreur : ', ht: 'Erè: ' }) + e.message);
     }
     setBackfilling(false);
   }
 
   async function handleCleanup() {
-    if (!confirm('Sa ap retire tout ekriti kontab ki an doub pou menm tranzaksyon an. Kontinye?')) return;
+    if (!confirm(t({
+      fr: 'Toutes les écritures comptables en double pour une même transaction seront supprimées. Continuer ?',
+      ht: 'Sa ap retire tout ekriti kontab ki an doub pou menm tranzaksyon an. Kontinye?',
+    }))) return;
     setCleaning(true);
     setCleanMsg('');
     try {
       const result = await cleanupDuplicateJournalEntries();
-      setCleanMsg(`${result.removed} duplikat retire, ${result.kept} kenbe.`);
+      setCleanMsg(t({
+        fr: `${result.removed} doublon(s) supprimé(s), ${result.kept} conservé(s).`,
+        ht: `${result.removed} duplikat retire, ${result.kept} kenbe.`,
+      }));
       await loadJournal();
       if (trialBalance) await loadBalance();
     } catch (e: any) {
-      setCleanMsg('Erè: ' + e.message);
+      setCleanMsg(t({ fr: 'Erreur : ', ht: 'Erè: ' }) + e.message);
     }
     setCleaning(false);
   }
@@ -325,8 +364,8 @@ function ComptabiliteInner() {
               className="inline-flex items-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-5 py-2.5 text-sm font-semibold text-accent hover:bg-accent/20 transition disabled:opacity-50"
             >
               {backfilling
-                ? <><RefreshCw size={14} className="animate-spin" /> Backfill en cours…</>
-                : <><RotateCcw size={14} /> Kontabilize tranzaksyon existants</>
+                ? <><RefreshCw size={14} className="animate-spin" /> {t({ fr: 'Comptabilisation en cours…', ht: 'Kontabilizasyon an kou…' })}</>
+                : <><RotateCcw size={14} /> {t({ fr: 'Comptabiliser les transactions existantes', ht: 'Kontabilize tranzaksyon existants' })}</>
               }
             </button>
             <button
@@ -335,8 +374,8 @@ function ComptabiliteInner() {
               className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition disabled:opacity-50"
             >
               {cleaning
-                ? <><RefreshCw size={14} className="animate-spin" /> Netwayaj…</>
-                : <><Trash2 size={14} /> Netwaye doublon</>
+                ? <><RefreshCw size={14} className="animate-spin" /> {t({ fr: 'Nettoyage…', ht: 'Netwayaj…' })}</>
+                : <><Trash2 size={14} /> {t({ fr: 'Supprimer les doublons', ht: 'Netwaye doublon' })}</>
               }
             </button>
             {cleanMsg && (
@@ -355,10 +394,13 @@ function ComptabiliteInner() {
                   <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
                   <div>
                     <p className="font-semibold text-anthracite">
-                      {failures.length} tranzaksyon pa kontabilize
+                      {t({ fr: `${failures.length} transaction(s) non comptabilisée(s)`, ht: `${failures.length} tranzaksyon pa kontabilize` })}
                     </p>
                     <p className="text-xs text-amber-700">
-                      Ekriti sa yo echwe. Jounal la pa dakò ak tranzaksyon yo — klike Rekonsilye.
+                      {t({
+                        fr: 'Ces écritures ont échoué. Le journal ne correspond plus aux transactions — cliquez sur Réconcilier.',
+                        ht: 'Ekriti sa yo echwe. Jounal la pa dakò ak tranzaksyon yo — klike Rekonsilye.',
+                      })}
                     </p>
                   </div>
                 </div>
@@ -367,7 +409,7 @@ function ComptabiliteInner() {
                   disabled={backfilling}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-2 text-xs
                              font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50">
-                  <RefreshCw size={13} className={backfilling ? 'animate-spin' : ''} /> Rekonsilye
+                  <RefreshCw size={13} className={backfilling ? 'animate-spin' : ''} /> {t({ fr: 'Réconcilier', ht: 'Rekonsilye' })}
                 </button>
               </div>
               <div className="mt-3 space-y-1">
@@ -378,7 +420,7 @@ function ComptabiliteInner() {
                   </p>
                 ))}
                 {failures.length > 5 && (
-                  <p className="text-xs text-amber-700">+ {failures.length - 5} lòt…</p>
+                  <p className="text-xs text-amber-700">+ {failures.length - 5} {t({ fr: 'autre(s)…', ht: 'lòt…' })}</p>
                 )}
               </div>
             </motion.div>
@@ -392,16 +434,16 @@ function ComptabiliteInner() {
               className="rounded-2xl border border-accent/20 bg-accent/5 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Check size={16} className="text-accent" />
-                <p className="font-semibold text-anthracite">Backfill terminé</p>
+                <p className="font-semibold text-anthracite">{t({ fr: 'Comptabilisation terminée', ht: 'Kontabilizasyon fini' })}</p>
               </div>
               <div className="flex flex-wrap gap-4 text-sm">
-                <span className="text-emerald-700">{backfillResult.sales} ventes kontabilizé</span>
-                <span className="text-blue-700">{backfillResult.purchases} achats kontabilizé</span>
-                <span className="text-amber-700">{backfillResult.expenses} dépenses kontabilizé</span>
+                <span className="text-emerald-700">{backfillResult.sales} {t({ fr: 'vente(s) comptabilisée(s)', ht: 'vant kontabilize' })}</span>
+                <span className="text-blue-700">{backfillResult.purchases} {t({ fr: 'achat(s) comptabilisé(s)', ht: 'acha kontabilize' })}</span>
+                <span className="text-amber-700">{backfillResult.expenses} {t({ fr: 'dépense(s) comptabilisée(s)', ht: 'depans kontabilize' })}</span>
               </div>
               {backfillResult.errors.length > 0 && (
                 <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-3">
-                  <p className="text-xs font-semibold text-red-600 mb-1">Erè ({backfillResult.errors.length}):</p>
+                  <p className="text-xs font-semibold text-red-600 mb-1">{t({ fr: 'Erreurs', ht: 'Erè' })} ({backfillResult.errors.length}):</p>
                   {backfillResult.errors.slice(0, 5).map((e, i) => (
                     <p key={i} className="text-xs text-red-500">{e}</p>
                   ))}
@@ -414,15 +456,15 @@ function ComptabiliteInner() {
         {/* Tabs */}
         <div className="flex flex-wrap gap-1 rounded-2xl bg-white border border-border p-1.5">
           {[
-            { id: 'journal', label: 'Journal' },
-            { id: 'ledger',  label: 'Grand livre' },
-            { id: 'balance', label: 'Balance' },
-            { id: 'bilan',   label: 'Bilan et résultat' },
-            { id: 'saisie',  label: 'Nouvelle écriture' },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as any)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === t.id ? 'bg-anthracite text-white shadow' : 'text-slate-500 hover:text-anthracite'}`}>
-              {t.label}
+            { id: 'journal', label: { fr: 'Journal',           ht: 'Jounal' } },
+            { id: 'ledger',  label: { fr: 'Grand livre',       ht: 'Gran liv' } },
+            { id: 'balance', label: { fr: 'Balance',           ht: 'Balans' } },
+            { id: 'bilan',   label: { fr: 'Bilan et résultat', ht: 'Bilan ak rezilta' } },
+            { id: 'saisie',  label: { fr: 'Nouvelle écriture', ht: 'Nouvo ekriti' } },
+          ].map(item => (
+            <button key={item.id} onClick={() => setTab(item.id as any)}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === item.id ? 'bg-anthracite text-white shadow' : 'text-slate-500 hover:text-anthracite'}`}>
+              {t(item.label)}
             </button>
           ))}
         </div>
@@ -432,8 +474,8 @@ function ComptabiliteInner() {
           <div className="rounded-2xl border border-border bg-white overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
-                <h2 className="font-semibold text-anthracite">Journal Général</h2>
-                <p className="text-xs text-slate-400 mt-0.5">{entries.length} écriture(s)</p>
+                <h2 className="font-semibold text-anthracite">{t({ fr: 'Journal Général', ht: 'Jounal Jeneral' })}</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{entries.length} {t({ fr: 'écriture(s)', ht: 'ekriti' })}</p>
               </div>
               <button onClick={loadJournal} className="min-h-touch min-w-touch inline-flex items-center justify-center rounded-xl border border-border p-2 hover:bg-slate-50 transition">
                 <RefreshCw size={14} className={`text-slate-400 ${entriesLoad ? 'animate-spin' : ''}`} />
@@ -441,12 +483,15 @@ function ComptabiliteInner() {
             </div>
 
             {entriesLoad ? (
-              <div className="p-8 text-center text-slate-400 text-sm">Chargement…</div>
+              <div className="p-8 text-center text-slate-400 text-sm">{t({ fr: 'Chargement…', ht: 'Chajman…' })}</div>
             ) : entries.length === 0 ? (
               <div className="p-12 text-center">
                 <History size={32} className="mx-auto text-slate-200 mb-3" />
                 <p className="font-medium text-slate-400">{t({ fr: 'Aucune écriture comptable', ht: 'Pa gen ekriti kontab' })}</p>
-                <p className="text-sm text-slate-300 mt-1">Klike "Kontabilize tranzaksyon existants" pou kòmanse</p>
+                <p className="text-sm text-slate-300 mt-1">{t({
+                  fr: 'Cliquez sur « Comptabiliser les transactions existantes » pour commencer',
+                  ht: 'Klike "Kontabilize tranzaksyon existants" pou kòmanse',
+                })}</p>
               </div>
             ) : (
               <div className="divide-y divide-surface2">
@@ -651,6 +696,28 @@ function ComptabiliteInner() {
                     })}
                   </div>
                 )}
+                {!ledgerLoad && ledgerRaw.length > 0 && (
+                  <div className="border-t border-border px-3 py-3 text-center">
+                    <p className="text-note text-slate-400">
+                      {ledgerHasMore
+                        ? t({
+                            fr: `Soldes calculés sur les ${ledgerRaw.length} écritures les plus récentes`,
+                            ht: `Balans kalkile sou ${ledgerRaw.length} ekriti ki pi resan yo`,
+                          })
+                        : t({ fr: `${ledgerRaw.length} écriture(s) — tout est chargé`, ht: `${ledgerRaw.length} ekriti — tout chaje` })}
+                    </p>
+                    {ledgerHasMore && (
+                      <button
+                        onClick={loadMoreLedger}
+                        disabled={ledgerMoreLoad}
+                        className="min-h-touch mt-2 inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-anthracite hover:bg-slate-50 transition disabled:opacity-50"
+                      >
+                        <RefreshCw size={12} className={ledgerMoreLoad ? 'animate-spin' : ''} />
+                        {ledgerMoreLoad ? t({ fr: 'Chargement…', ht: 'Chajman…' }) : t({ fr: 'Charger plus', ht: 'Chaje plis' })}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -722,9 +789,21 @@ function ComptabiliteInner() {
         {/* ── BILAN TAB ── */}
         {tab === 'bilan' && (
           <div className="space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-slate-500">Données basées sur les écritures du Journal Général</p>
-              <button onClick={loadBilan} className="min-h-touch min-w-touch inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition">
+              <label className="ml-auto mr-2 inline-flex items-center gap-2 text-sm text-slate-500">
+                {t({ fr: 'Exercice du compte de résultat', ht: 'Egzèsis kont rezilta a' })}
+                <select
+                  value={bilanYear}
+                  onChange={e => { const y = Number(e.target.value); setBilanYear(y); loadBilan(y); }}
+                  className="min-h-touch rounded-xl border border-border bg-white px-3 py-2 text-sm text-anthracite outline-none focus:border-accent transition"
+                >
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </label>
+              <button onClick={() => loadBilan()} className="min-h-touch min-w-touch inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 transition">
                 <RefreshCw size={13} className={bilanLoad ? 'animate-spin' : ''} /> Actualiser
               </button>
             </div>
@@ -733,7 +812,7 @@ function ComptabiliteInner() {
               <div className="rounded-2xl border border-border bg-white p-12 text-center text-slate-400">Calcul en cours…</div>
             ) : !balanceSheet ? (
               <div className="rounded-2xl border border-border bg-white p-12 text-center">
-                <button onClick={loadBilan} className="rounded-xl bg-anthracite px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition">Calculer les états financiers</button>
+                <button onClick={() => loadBilan()} className="rounded-xl bg-anthracite px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition">Calculer les états financiers</button>
               </div>
             ) : (
               <div className="grid gap-5 lg:grid-cols-2">
@@ -803,7 +882,7 @@ function ComptabiliteInner() {
                   <div className="rounded-2xl border border-border bg-white overflow-hidden">
                     <div className="bg-anthracite px-5 py-4">
                       <h3 className="font-bold text-white">Compte de Résultat</h3>
-                      <p className="text-xs text-white/50 mt-0.5">Exercice {new Date().getFullYear()}</p>
+                      <p className="text-xs text-white/50 mt-0.5">Exercice {bilanYear}</p>
                     </div>
                     <div className="divide-y divide-surface2">
                       <div className="px-5 py-3 bg-emerald-50">

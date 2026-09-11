@@ -28,11 +28,11 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link';
 import {
   ExternalLink, Check, AlertTriangle, Sparkles, Search, Globe,
-  Palette, Package, Settings2, Eye, EyeOff, Loader2, PenLine, LayoutList,
+  Palette, Package, Settings2, Eye, EyeOff, Loader2, PenLine, LayoutList, Star,
 } from 'lucide-react';
 import {
   getBuilderState, saveGeneral, saveDesign, setCustomDomain,
-  toggleProductPublication, setAllProductsPublication,
+  toggleProductPublication, setAllProductsPublication, toggleProductFeatured,
   type BuilderState, type BuilderProduct,
 } from '../../actions/storeBuilder';
 import { TEMPLATES, templateGroups, templateSections } from '../../../components/store/templates/registry';
@@ -75,6 +75,14 @@ export default function StoreBuilderPage() {
   }, []);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  // Un renvoi peut viser un onglet (`?tab=products` depuis le merchandising).
+  // Lu après le montage : `useSearchParams` exigerait une frontière Suspense.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('tab');
+    const match = TABS.find((t) => t.id === wanted);
+    if (match) setTab(match.id);
+  }, []);
 
   /** Enregistre, puis affiche une confirmation brève — et une erreur durable. */
   const run = useCallback((fn: () => Promise<unknown>) => {
@@ -748,8 +756,23 @@ function ProductsTab({
   const [studio, setStudio]   = useState<BuilderProduct | null>(null);
   const [copy, setCopy]       = useState<BuilderProduct | null>(null);
   const [busyId, setBusyId]   = useState<string | null>(null);
+  const [starBusyId, setStarBusyId] = useState<string | null>(null);
 
   const selectionMode = state.theme.catalog.mode === 'selected';
+  // L'étoile n'a d'effet visible que si une section qui la lit est affichée.
+  const featuredShown = state.sections.some(
+    (s) => (s.key === 'featured' || s.key === 'featured_product') && s.enabled,
+  );
+
+  async function toggleFeatured(product: BuilderProduct) {
+    setStarBusyId(product.id);
+    try {
+      await toggleProductFeatured(product.id, !product.is_featured);
+      await onRefresh();
+    } finally {
+      setStarBusyId(null);
+    }
+  }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -797,6 +820,15 @@ function ProductsTab({
           </p>
         </div>
       )}
+
+      {/* Ce que fait l'étoile, et quand elle ne se voit pas : aucune section qui
+          la lit n'est affichée sur la page d'accueil de ce gabarit. */}
+      <p className="flex items-start gap-2 text-note text-muted dark:text-dark-muted">
+        <Star className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={1.8} aria-hidden />
+        {featuredShown
+          ? "L'étoile met un produit en avant : il apparaît dans « Produits mis en avant » ou « Produit à la une » sur votre page d'accueil, s'il est en ligne."
+          : "L'étoile met un produit en avant, mais votre page d'accueil n'affiche ni « Produits mis en avant » ni « Produit à la une » : ajoutez ou activez l'une d'elles dans l'onglet Sections."}
+      </p>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1">
@@ -893,6 +925,30 @@ function ProductsTab({
                   aria-label={`Studio photo pour ${product.name}`}
                 >
                   <Sparkles className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+                </button>
+
+                {/* Hors du mode sélection aussi : un produit en avant se voit
+                    quel que soit le mode de publication du catalogue. */}
+                <button
+                  type="button"
+                  onClick={() => void toggleFeatured(product)}
+                  disabled={starBusyId === product.id}
+                  aria-pressed={product.is_featured}
+                  title={product.is_featured ? 'Ne plus mettre en avant' : 'Mettre en avant'}
+                  aria-label={
+                    product.is_featured
+                      ? `Ne plus mettre ${product.name} en avant`
+                      : `Mettre ${product.name} en avant`
+                  }
+                  className="flex h-touch w-touch flex-shrink-0 items-center justify-center rounded-control transition hover:bg-surface dark:hover:bg-white/5"
+                >
+                  {starBusyId === product.id ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted" strokeWidth={1.8} aria-hidden />
+                  ) : product.is_featured ? (
+                    <Star className="h-5 w-5 fill-current text-primary dark:text-dark-text" strokeWidth={1.8} aria-hidden />
+                  ) : (
+                    <Star className="h-5 w-5 text-muted" strokeWidth={1.8} aria-hidden />
+                  )}
                 </button>
 
                 {selectionMode && (

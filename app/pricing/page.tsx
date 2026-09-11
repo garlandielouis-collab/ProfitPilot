@@ -14,10 +14,10 @@
 
 import Link from 'next/link';
 import { useMemo, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../components/LanguageWrapper';
-import { markSubscriptionActive, checkSubscriptionExpired } from '../../hooks/useSubscription';
-import { PLANS, PLAN_COMMON_GROUND, USD_RATE } from '../../lib/plans';
+import { checkSubscriptionExpired } from '../../hooks/useSubscription';
+import { supabase } from '../../lib/supabaseClient';
+import { PLANS, PLAN_COMMON_GROUND, TRIAL_DAYS, USD_RATE } from '../../lib/plans';
 
 function formatUsd(amount: number) {
   return new Intl.NumberFormat('en-US', {
@@ -38,17 +38,17 @@ function CheckIcon() {
 export default function PricingPage() {
   const [currency, setCurrency] = useState<'HTG' | 'USD'>('HTG');
   const [trialExpired, setTrialExpired] = useState(false);
-  const router = useRouter();
+  // `null` tant qu'on ne sait pas : le bouton d'essai n'apparaît qu'une fois
+  // établi que le visiteur n'a pas de compte.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { t } = useLanguage();
 
   useEffect(() => {
     setTrialExpired(checkSubscriptionExpired());
+    supabase.auth.getSession()
+      .then(({ data: { session } }: any) => setSignedIn(Boolean(session)))
+      .catch(() => setSignedIn(false));
   }, []);
-
-  const activateFreeTrial = () => {
-    markSubscriptionActive();
-    router.replace('/dashboard');
-  };
 
   const plans = useMemo(
     () =>
@@ -85,15 +85,21 @@ export default function PricingPage() {
           </div>
         )}
 
-        {/* Express activation */}
-        {!trialExpired && (
+        {/* L'essai est une ligne `subscriptions` écrite par le serveur
+            (`lib/trial.ts`) à la première lecture de l'offre d'un compte. Un
+            compte connecté l'a donc déjà — ou l'a consommé : aucun bouton ne
+            peut « l'activer ». Pour un visiteur, il commence à l'inscription. */}
+        {!trialExpired && signedIn === false && (
           <div className="mt-4 mx-auto max-w-lg">
-            <button
-              onClick={activateFreeTrial}
-              className="w-full rounded-xl bg-accent px-6 py-3 text-sm font-bold text-accent-ink shadow-sm hover:bg-accent-h transition"
+            <Link
+              href="/auth/register"
+              className="block w-full rounded-xl bg-accent px-6 py-3 text-sm font-bold text-accent-ink shadow-sm hover:bg-accent-h transition"
             >
-              {t({ fr: 'Activer mon essai gratuit 30 jours', ht: 'Aktive esè gratis 30 jou mwen' })}
-            </button>
+              {t({
+                fr: `Créer mon compte : essai gratuit de ${TRIAL_DAYS} jours`,
+                ht: `Kreye kont mwen : esè gratis ${TRIAL_DAYS} jou`,
+              })}
+            </Link>
           </div>
         )}
 

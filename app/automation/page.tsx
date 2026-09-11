@@ -33,10 +33,15 @@
 //
 // ── Et les interrupteurs, maintenant, commandent ────────────────────────────
 //
-// Les deux premiers écrivent dans `notification_preferences`, que `notify()`
-// consulte avant chaque envoi. Le troisième écrit `businesses.weekly_digest_
-// enabled`, que le cron du dimanche lit déjà — ce réglage existait en base et
-// tournait en production sans qu'aucun écran ne permette de l'éteindre.
+// Le premier écrit la colonne `payment_due` de `notification_preferences`, que
+// `notify()` consulte avant chaque relance. Les deux autres écrivent des
+// réglages d'entreprise que les crons lisent déjà — `businesses.low_stock_
+// alerts_enabled` et `businesses.weekly_digest_enabled` — et qui tournaient en
+// production sans qu'aucun écran ne permette de les éteindre.
+//
+// Les deux premiers écrivaient `generic` et `stock_low` : des TYPES de
+// notification, pas des colonnes. `setNotifPreference` les refusait sans bruit,
+// et rien ne s'enregistrait.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
@@ -51,6 +56,8 @@ import {
   setNotifPreference,
   getWeeklyDigestEnabled,
   setWeeklyDigestEnabled,
+  getLowStockAlertsEnabled,
+  setLowStockAlertsEnabled,
 } from '../actions/notifications';
 
 type Bilingual = { fr: string; ht: string };
@@ -67,7 +74,10 @@ type Automation = {
   what:    Bilingual;
   when:    Bilingual;
   /** Le réglage sur lequel l'interrupteur écrit réellement. */
-  storage: { kind: 'notif_pref'; type: string } | { kind: 'weekly_digest' };
+  storage:
+    | { kind: 'notif_pref'; type: string }
+    | { kind: 'low_stock_alerts' }
+    | { kind: 'weekly_digest' };
 };
 
 const AUTOMATIONS: Automation[] = [
@@ -80,8 +90,9 @@ const AUTOMATIONS: Automation[] = [
       ht: 'Yon rapèl depi yon dat ap pwoche, epi toutotan li depase — yon fwa pa jou pa kliyan, pa plis.',
     },
     when:  { fr: 'Chaque matin, vers 11 h', ht: 'Chak maten, vè 11 è' },
-    // Le cron quotidien envoie ces relances avec le type `generic`.
-    storage: { kind: 'notif_pref', type: 'generic' },
+    // Le cron quotidien envoie ces relances en `generic`, mais les soumet à la
+    // colonne `payment_due` : c'est elle qu'on écrit, pas le nom du type.
+    storage: { kind: 'notif_pref', type: 'payment_due' },
   },
   {
     id:    'stock',
@@ -92,7 +103,9 @@ const AUTOMATIONS: Automation[] = [
       ht: 'Yon avi lè yon pwodwi desann anba sèy li, anvan ou pèdi vant lan.',
     },
     when:  { fr: 'Chaque matin, vers 11 h', ht: 'Chak maten, vè 11 è' },
-    storage: { kind: 'notif_pref', type: 'stock_low' },
+    // Réglage d'entreprise, celui que le cron quotidien lit avant de balayer
+    // le stock. La préférence personnelle `low_stock` reste sur /notifications.
+    storage: { kind: 'low_stock_alerts' },
   },
   {
     id:    'weekly',
@@ -118,18 +131,20 @@ function AutomationInner() {
   useEffect(() => {
     let alive = true;
 
-    Promise.all([getNotifPreferences(), getWeeklyDigestEnabled()])
-      .then(([prefs, digest]) => {
+    Promise.all([getNotifPreferences(), getWeeklyDigestEnabled(), getLowStockAlertsEnabled()])
+      .then(([prefs, digest, lowStock]) => {
         if (!alive) return;
         const next: Record<string, boolean> = {};
         for (const a of AUTOMATIONS) {
           next[a.id] =
             a.storage.kind === 'weekly_digest'
               ? digest
-              // Pas de préférence enregistrée = actif : c'est exactement la
-              // règle qu'applique `notify()`. Deux réponses différentes à la
-              // même question, et l'écran mentirait sur l'état réel.
-              : prefs.find((p) => p.type === (a.storage as { type: string }).type)?.enabled ?? true;
+              : a.storage.kind === 'low_stock_alerts'
+                ? lowStock
+                // Pas de préférence enregistrée = actif : c'est exactement la
+                // règle qu'applique `notify()`. Deux réponses différentes à la
+                // même question, et l'écran mentirait sur l'état réel.
+                : prefs.find((p) => p.type === (a.storage as { type: string }).type)?.enabled ?? true;
         }
         setStates(next);
       })
@@ -144,6 +159,7 @@ function AutomationInner() {
     setStates((s) => ({ ...s, [auto.id]: next }));
     try {
       if (auto.storage.kind === 'weekly_digest') await setWeeklyDigestEnabled(next);
+      else if (auto.storage.kind === 'low_stock_alerts') await setLowStockAlertsEnabled(next);
       else await setNotifPreference(auto.storage.type, next);
     } catch {
       // Refusée (droits, réseau) : l'interrupteur revient où il était, sinon

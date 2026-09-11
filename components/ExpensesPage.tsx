@@ -9,10 +9,12 @@ import { Button, FirstRun, NoResult, closestMatch } from './ds';
 // le téléphone, jamais les mêmes d'un appareil à l'autre, et illisibles en
 // plein soleil. Le mot suffisait déjà ; l'icône, quand elle reste, est en
 // lucide et de la couleur du texte (§3.5).
-import { Banknote, Building2, CreditCard, Smartphone } from 'lucide-react';
+import { Banknote, Building2, CreditCard, Download, Smartphone } from 'lucide-react';
 import {
   businessShareOf, personalShareOf, SCOPE_LABELS, type ExpenseScope,
 } from '../lib/expenseScope';
+import { useLanguage } from './LanguageWrapper';
+import { csvFilename, downloadCsv, toCsv } from '../lib/documents/csv';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -513,6 +515,26 @@ export function ExpensesPage() {
     });
   }, [expenses, filterCat, filterStatus, filterMonth, filterMethod, search, quickFilter]);
 
+  const { t } = useLanguage();
+
+  // L'export porte sur les lignes affichées, filtres compris.
+  function exportCsv() {
+    const csv = toCsv(filtered, [
+      { header: t({ fr: 'Date', ht: 'Dat' }),                 value: e => e.date.slice(0, 10) },
+      { header: t({ fr: 'Description', ht: 'Deskripsyon' }),  value: e => e.description },
+      { header: t({ fr: 'Catégorie', ht: 'Kategori' }),       value: e => e.category },
+      { header: t({ fr: 'Montant', ht: 'Montan' }),           value: e => e.amount },
+      { header: t({ fr: 'Devise', ht: 'Deviz' }),             value: e => e.currency },
+      { header: t({ fr: 'Méthode', ht: 'Metòd' }),            value: e => e.payment_method },
+      { header: t({ fr: 'Statut', ht: 'Estati' }),            value: e => e.payment_status },
+      { header: t({ fr: 'Fournisseur', ht: 'Founisè' }),      value: e => e.supplier_name ?? '' },
+      { header: t({ fr: 'Périmètre', ht: 'Pòte' }),           value: e => SCOPE_LABELS[e.scope]?.label ?? e.scope },
+      { header: t({ fr: 'Part business (%)', ht: 'Pati biznis (%)' }),
+        value: e => (e.scope === 'mixed' ? e.business_share_pct : e.scope === 'personal' ? 0 : 100) },
+    ]);
+    downloadCsv(csv, csvFilename('depenses'));
+  }
+
   // ── Summary stats ────────────────────────────────────────────────────────────
 
   const now = new Date();
@@ -522,7 +544,9 @@ export function ExpensesPage() {
     const thisMonth  = expenses.filter(e => e.date.startsWith(currentMonth));
     const totalMonth = thisMonth.reduce((s, e) => s + e.amount, 0);
     const totalSalary= expenses.filter(e => e.category === 'Salaire').reduce((s, e) => s + e.amount, 0);
-    const totalDebt  = expenses.filter(e => e.category === 'Remboursements').reduce((s, e) => s + e.amount, 0);
+    // Même critère que le filtre « Dettes seulement » : une dette est le statut
+    // 'Dette' (traduit de `credit`), pas la catégorie « Remboursements ».
+    const totalDebt  = expenses.filter(e => e.payment_status === 'Dette').reduce((s, e) => s + e.amount, 0);
     const pending    = expenses.filter(e => e.payment_status === 'En attente').reduce((s, e) => s + e.amount, 0);
 
     // Diagnostic 6 : ce que l'entreprise a réellement dépensé, et ce que le
@@ -582,6 +606,16 @@ export function ExpensesPage() {
             <div className="flex flex-wrap items-center gap-3">
 
               <button
+                type="button"
+                onClick={exportCsv}
+                disabled={loading || filtered.length === 0}
+                className="flex items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-5 py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100 hover:text-[var(--color-text)] disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" strokeWidth={2} aria-hidden />
+                {t({ fr: 'Exporter (CSV)', ht: 'Ekspòte (CSV)' })}
+              </button>
+
+              <button
                 onClick={openAdd}
                 className="flex items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-h active:scale-95"
               >
@@ -612,9 +646,9 @@ export function ExpensesPage() {
               icon={<svg className="h-5 w-5 text-blue-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             />
             <StatCard
-              label="Total Dèt Peye"
+              label="Total Dèt"
               value={fmtAmt(stats.totalDebt, 'HTG')}
-              sub="Remboursements"
+              sub="Dépenses au statut Dette"
               accent="bg-orange-500"
               icon={<svg className="h-5 w-5 text-orange-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>}
             />

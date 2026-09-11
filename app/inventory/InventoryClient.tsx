@@ -32,6 +32,8 @@ import {
 // complet, sous le plancher de 13 px du §5.2. Ils passent par PeriodBars,
 // comme partout ailleurs : barres plates, axe chiffré, valeur au toucher.
 import { PeriodBars, type BarPoint } from '../../components/ds';
+import { useLanguage } from '../../components/LanguageWrapper';
+import { csvFilename, downloadCsv, toCsv } from '../../lib/documents/csv';
 
 // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -320,6 +322,24 @@ export function InventoryClient({
     { label: 'Epuize', value: outOfStockCount.toString(), icon: AlertTriangle, color: '#DC2626', bg: '#FDECEC' },
   ];
 
+  const { t } = useLanguage();
+
+  // Les lignes du tableau Stock telles qu'affichées (l'onglet n'a pas de filtre).
+  // La valeur est dans la devise d'achat du produit, d'où la colonne Devise.
+  function exportCsv() {
+    const csv = toCsv(inventory, [
+      { header: t({ fr: 'Produit', ht: 'Pwodui' }),               value: p => p.name },
+      { header: t({ fr: 'Catégorie', ht: 'Kategori' }),           value: p => p.category ?? '' },
+      { header: t({ fr: 'Stock', ht: 'Stock' }),                  value: p => p.stock_quantity },
+      { header: t({ fr: 'Point de commande', ht: 'Pwen reòd' }),  value: p => p.reorder_point ?? '' },
+      { header: t({ fr: "Prix d'achat", ht: 'Pri acha' }),        value: p => p.purchase_price },
+      { header: t({ fr: 'Valeur', ht: 'Valè' }),                  value: p => p.purchase_price * p.stock_quantity },
+      { header: t({ fr: 'Devise', ht: 'Deviz' }),                 value: p => p.currency ?? 'HTG' },
+      { header: t({ fr: 'Statut', ht: 'Estati' }),                value: p => stockStatus(p).label },
+    ]);
+    downloadCsv(csv, csvFilename('stock'));
+  }
+
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
       {/* Header */}
@@ -329,15 +349,25 @@ export function InventoryClient({
             <h1 className="text-2xl font-semibold text-slate-800">Jesyon Envantè</h1>
             <p className="mt-1 text-sm text-slate-500">Swiv stock, mouvman ak alèt pwodui ou yo.</p>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={load}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            Rafraichi
-          </motion.button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={loading || inventory.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+            >
+              {t({ fr: 'Exporter (CSV)', ht: 'Ekspòte (CSV)' })}
+            </button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={load}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              Rafraichi
+            </motion.button>
+          </div>
         </div>
       </div>
 

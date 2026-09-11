@@ -176,14 +176,20 @@ function DeleteModal({
         <h3 className="text-lg font-semibold text-anthracite">
           Supprimer &ldquo;{supplier.name}&rdquo; ?
         </h3>
-        {hasPurchases ? (
-          <p className="mt-2 text-sm text-red-600">
-            Ce fournisseur a {supplier.purchases.length} achat(s) enregistré(s). Vous devez d&apos;abord
-            supprimer ou réassigner ces achats avant de pouvoir supprimer ce fournisseur.
-          </p>
-        ) : (
+        {/* La suppression est douce (deleted_at, app/actions/suppliers.ts) : les
+            achats ne sont ni effacés ni orphelins, rien n'exige de les réassigner. */}
+        <p className="mt-2 text-sm text-slate-500">
+          {t({
+            fr: 'Le fournisseur ne sera plus proposé dans vos listes ni dans le formulaire d’achat.',
+            ht: 'Founisè a p ap parèt ankò nan lis ou yo ni nan fòmilè acha a.',
+          })}
+        </p>
+        {hasPurchases && (
           <p className="mt-2 text-sm text-slate-500">
-            Cette action est irréversible. Le fournisseur sera définitivement supprimé.
+            {t({
+              fr: `Ses ${supplier.purchases.length} achat(s) restent dans votre historique, toujours rattachés à ce fournisseur${supplier.outstanding_balance > 0 ? ', et les dettes en cours restent à payer' : ''}.`,
+              ht: `${supplier.purchases.length} acha li yo rete nan istorik ou, toujou mare ak founisè sa a${supplier.outstanding_balance > 0 ? ', epi dèt ki poko peye yo rete pou peye' : ''}.`,
+            })}
           </p>
         )}
 
@@ -194,19 +200,17 @@ function DeleteModal({
           >
             Annuler
           </button>
-          {!hasPurchases && (
-            <button
-              onClick={async () => {
-                setBusy(true);
-                await onConfirm();
-                setBusy(false);
-              }}
-              disabled={busy}
-              className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {busy ? t({ fr: 'Suppression…', ht: 'Siprime…' }) : t({ fr: 'Supprimer', ht: 'Siprime' })}
-            </button>
-          )}
+          <button
+            onClick={async () => {
+              setBusy(true);
+              await onConfirm();
+              setBusy(false);
+            }}
+            disabled={busy}
+            className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? t({ fr: 'Suppression…', ht: 'Siprime…' }) : t({ fr: 'Supprimer', ht: 'Siprime' })}
+          </button>
         </div>
       </div>
     </div>

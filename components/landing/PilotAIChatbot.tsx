@@ -53,18 +53,6 @@ export function PilotAIChatbot() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typing]);
 
-  async function trackEvent(event: string, payload: Record<string, unknown> = {}) {
-    try {
-      await fetch('/api/analytics', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, payload }),
-      });
-    } catch {
-      // silent
-    }
-  }
-
   async function submitSignup() {
     if (!signupEmail.trim() || !signupPassword.trim()) {
       setSignupStatus(t({ fr: 'Veuillez renseigner un email et un mot de passe.', ht: 'Tanpri ranpli yon imèl ak yon modpas.' }));
@@ -82,17 +70,14 @@ export function PilotAIChatbot() {
     setSignupLoading(false);
     if (error) {
       setSignupStatus(error.message);
-      await trackEvent('pilotai_signup_failed', { error: error.message });
       return;
     }
 
     setSignupStatus(t({ fr: 'Inscription envoyée ! Vérifiez votre email pour confirmer.', ht: 'Enskripsyon voye ! Tcheke imèl ou pou konfime.' }));
-    await trackEvent('pilotai_signup_submitted', { email: signupEmail.trim() });
   }
 
   function handlePageNavigation(path: string, label: string) {
     setMessages(m => [...m, { role: 'bot', text: t({ fr: `Je vous emmène vers ${label}...`, ht: `M ap mennen w nan ${label}...` }) }]);
-    trackEvent('pilotai_page_navigation', { page: label, path });
     window.location.href = path;
   }
 
@@ -137,7 +122,6 @@ export function PilotAIChatbot() {
             { role: 'bot', text: t({ fr: `Bienvenue ${buyerAnswers.name ?? text ?? 'Pilot'} ! Votre espace est prêt. Cliquez sur Continuer pour découvrir votre Dashboard.`, ht: `Byenveni ${buyerAnswers.name ?? text ?? 'Pilot'} ! Espas ou pare. Klike sou Kontinye pou dekouvri Dashboard ou.` }) },
           ]);
         }, 900);
-        trackEvent('pilotai_onboarding_completed', { name: buyerAnswers.name ?? text, sector: buyerAnswers.sector, challenge: text });
         return;
       }
     }
@@ -159,7 +143,6 @@ export function PilotAIChatbot() {
       setTyping(false);
       setMessages(m => [...m, { role: 'bot', text: t({ fr: 'C\'est votre cockpit. J\'ai détecté une hausse de marge de 15% sur vos produits phares.', ht: 'Se kabin ou. M detekte yon ogmantasyon maj 15% sou pwodui prensipal ou yo.' }) }]);
     }, 900);
-    trackEvent('pilotai_flow_started', { flow: 'demo' });
   }
 
   function startBuyer() {
@@ -168,7 +151,6 @@ export function PilotAIChatbot() {
     setGuideStep(null);
     setBuyerAnswers({});
     setMessages(m => [...m, { role: 'bot', text: t({ fr: 'Parfait — commençons. Quel est le nom de votre entreprise ?', ht: 'Pafè — ann kòmanse. Ki non antrepriz ou ?' }) }]);
-    trackEvent('pilotai_flow_started', { flow: 'buyer' });
   }
 
   const guideMessages = [
@@ -195,7 +177,6 @@ export function PilotAIChatbot() {
       }
       return messages;
     });
-    trackEvent('pilotai_guide_step', { step: guideStep + 1, label: next });
   }
 
   return (
@@ -387,10 +368,7 @@ export function PilotAIChatbot() {
                       {t({ fr: 'Créer un compte', ht: 'Kreye yon kont' })}
                     </Link>
                     <button
-                      onClick={() => {
-                        setShowSignupForm(true);
-                        trackEvent('pilotai_signup_inline_opened');
-                      }}
+                      onClick={() => setShowSignupForm(true)}
                       className="rounded-full border border-white/20 bg-transparent px-3 py-1 text-xs font-semibold text-white"
                     >
                       {t({ fr: 'Inscription inline', ht: 'Enskripsyon inline' })}

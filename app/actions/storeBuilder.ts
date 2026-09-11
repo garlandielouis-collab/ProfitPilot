@@ -43,6 +43,8 @@ export type BuilderProduct = {
   image_url:             string | null;
   enhanced_image_url:    string | null;
   is_published_to_store: boolean;
+  /** Alimente « Produits mis en avant » et « Produit à la une » (lib/storefrontHome.ts). */
+  is_featured:           boolean;
   store_description:     string | null;
 };
 
@@ -103,7 +105,7 @@ export async function getBuilderState(): Promise<BuilderState> {
       // (app/actions/store-public.ts). Les deux listes doivent coïncider :
       // sinon le marchand coche des produits dans l'éditeur sans savoir
       // lesquels partent réellement en ligne.
-      .select('id, name, category, sale_price, purchase_price, stock_quantity, image_url, enhanced_image_url, is_published_to_store, store_description')
+      .select('id, name, category, sale_price, purchase_price, stock_quantity, image_url, enhanced_image_url, is_published_to_store, is_featured, store_description')
       .eq('business_id', businessId)
       .order('name', { ascending: true })
       .limit(500),
@@ -121,6 +123,7 @@ export async function getBuilderState(): Promise<BuilderState> {
     image_url:             p.image_url ?? null,
     enhanced_image_url:    p.enhanced_image_url ?? null,
     is_published_to_store: p.is_published_to_store === true,
+    is_featured:           p.is_featured === true,
     store_description:     p.store_description ?? null,
   }));
 
@@ -451,6 +454,30 @@ export async function toggleProductPublication(
     .eq('business_id', businessId);
 
   if (error) throw new Error(`Publication impossible : ${error.message}`);
+  await refreshStorefront(businessId);
+}
+
+/**
+ * Met un produit en avant, ou l'en retire.
+ *
+ * `is_featured` n'avait aucun écran pour l'écrire : le merchandising conseillait
+ * « Mettre en avant » sans geste possible. Même cadrage que la publication.
+ */
+export async function toggleProductFeatured(
+  productId: string,
+  featured: boolean,
+): Promise<void> {
+  await assertFeature('online_store');
+  const { businessId } = await requirePermission('products:write');
+  const svc = getSupabaseService();
+
+  const { error } = await svc
+    .from('products')
+    .update({ is_featured: featured })
+    .eq('id', productId)
+    .eq('business_id', businessId);
+
+  if (error) throw new Error(`Mise en avant impossible : ${error.message}`);
   await refreshStorefront(businessId);
 }
 

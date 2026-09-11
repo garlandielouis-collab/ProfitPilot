@@ -36,6 +36,12 @@ const TYPE_CONFIG: Record<string, { icon: LucideIcon; color: string }> = {
   generic:             { icon: Bell,         color: 'bg-surface2 text-muted' },
 };
 
+/** Le lien wa.me joint par le cron du dimanche — seulement s'il mène bien à WhatsApp. */
+function whatsappUrlOf(n: Notification): string | null {
+  const url = n.data?.whatsappUrl;
+  return typeof url === 'string' && url.startsWith('https://wa.me/') ? url : null;
+}
+
 function relDate(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (diff < 60)    return 'À l\'instant';
@@ -91,7 +97,10 @@ export function NotificationBell() {
             id: n.id, companyId: n.company_id, type: n.type,
             title: n.title, body: n.body ?? null,
             entity: n.entity ?? null, entityId: n.entity_id ?? null,
-            data: n.data ?? null, readAt: n.read_at ?? null,
+            // La colonne s'appelle `metadata` (cf. listNotifications) : lue
+            // sous `data`, le lien WhatsApp d'une notification arrivée en
+            // direct n'apparaissait qu'après rechargement.
+            data: n.metadata ?? null, readAt: n.read_at ?? null,
             createdAt: n.created_at, triggeredBy: n.triggered_by ?? null,
           };
           setNotifs(prev => [newNotif, ...prev].slice(0, 20));
@@ -204,9 +213,10 @@ export function NotificationBell() {
             ) : (
               notifs.map((n) => {
                 const c = cfg(n.type);
+                const whatsappUrl = whatsappUrlOf(n);
                 return (
+                  <div key={n.id}>
                   <button
-                    key={n.id}
                     onClick={() => handleMarkRead(n.id)}
                     className={`flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-white/5 ${
                       !n.readAt ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''
@@ -235,6 +245,19 @@ export function NotificationBell() {
                       <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
                     )}
                   </button>
+                  {/* Le résumé du dimanche porte son message prêt à partir.
+                      Hors du bouton : un lien ne s'imbrique pas dans un bouton. */}
+                  {whatsappUrl && (
+                    <a
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block px-4 pb-3 pl-[3.75rem] text-note font-semibold text-primary hover:underline dark:text-slate-300"
+                    >
+                      Envoyer sur WhatsApp →
+                    </a>
+                  )}
+                  </div>
                 );
               })
             )}

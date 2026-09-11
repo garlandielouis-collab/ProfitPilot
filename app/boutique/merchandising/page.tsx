@@ -54,11 +54,14 @@ const BUNDLE_COST   = 2;
 
 /** Ce que chaque recommandation demande de faire, et où. */
 const ACTION_LABEL: Record<Finding['action'], { label: string; href: string }> = {
-  write_copy:    { label: 'Rédiger la fiche',    href: '/boutique/builder' },
-  improve_photo: { label: 'Améliorer la photo',  href: '/boutique/builder' },
-  write_seo:     { label: 'Compléter le SEO',    href: '/boutique/builder' },
+  // Rédaction, Studio photo et SEO s'ouvrent depuis la liste de l'onglet
+  // Produits : l'éditeur s'ouvre sinon sur Général, où aucun de ces outils n'est.
+  write_copy:    { label: 'Rédiger la fiche',    href: '/boutique/builder?tab=products' },
+  improve_photo: { label: 'Améliorer la photo',  href: '/boutique/builder?tab=products' },
+  write_seo:     { label: 'Compléter le SEO',    href: '/boutique/builder?tab=products' },
   set_price:     { label: 'Revoir le prix',      href: '/products' },
-  feature:       { label: 'Mettre en avant',     href: '/boutique/builder' },
+  // L'étoile « Mettre en avant » vit dans l'onglet Produits de l'éditeur.
+  feature:       { label: 'Mettre en avant',     href: '/boutique/builder?tab=products' },
   restock:       { label: 'Réapprovisionner',    href: '/inventory' },
 };
 

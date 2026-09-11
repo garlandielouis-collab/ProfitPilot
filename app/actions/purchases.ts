@@ -253,24 +253,3 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
 
   return true;
 }
-
-// ── getPurchases ──────────────────────────────────────────────────────────────
-
-export async function getPurchases(limit = 50) {
-  const { supabase, businessId } = await getBusinessContext();
-
-  const { data, error } = await supabase
-    .from('purchases')
-    .select(`
-      id, po_number, purchase_date, total_amount, paid_amount,
-      payment_method, payment_status, currency, created_at,
-      suppliers ( id, name )
-    `)
-    .eq('business_id', businessId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw new Error(error.message);
-  return data ?? [];
-}

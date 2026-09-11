@@ -103,6 +103,12 @@ export async function upsertStoreSettings(
   // ici et écrits à part.
   const { payment_credentials, ...storeFields } = settings;
 
+  // Les couleurs n'ont qu'un auteur, l'éditeur (`saveDesign`). Écrites d'ici,
+  // une valeur hors défaut figeait la palette sur tous les gabarits
+  // (`hasLegacyColorChoice`). Omises, elles gardent leur valeur ou leur défaut SQL.
+  delete storeFields.primary_color;
+  delete storeFields.secondary_color;
+
   // Generate slug from business name if not provided
   if (!storeFields.slug) {
     const { data: biz } = await svc

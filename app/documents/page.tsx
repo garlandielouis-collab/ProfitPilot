@@ -6,28 +6,28 @@
 // L'ordre du §6 : score de santé → problèmes critiques → expirations proches →
 // récemment modifiés → documents manquants → actions rapides.
 //
-// ── Ce qui n'est PAS sur cet écran, et pourquoi ─────────────────────────────
+// ── Le score et les manquants ───────────────────────────────────────────────
 //
-// Le score de santé et les documents manquants demandent le référentiel
-// `document_requirements` — quels documents une entreprise haïtienne de ce
-// secteur DOIT posséder. Ce référentiel arrive en Phase 3. Afficher « 72 / 100 »
-// avant lui reviendrait à noter un marchand sur une exigence qu'on n'a pas
-// encore écrite : un chiffre inventé, c'est-à-dire exactement ce que ce produit
-// s'interdit. Les deux blocs apparaîtront quand ils auront de quoi être vrais.
-//
-// Restent donc les trois blocs qui, eux, ne dépendent que de faits : ce qui est
-// expiré, ce qui va l'être, ce qui vient d'être touché.
+// Ils sont calculés par `getComplianceOverview()` (`lib/documents/health.ts`),
+// sur le référentiel `document_requirements`. L'accueil n'en montre qu'une
+// ligne — la note et le nombre de manquants — qui mène au détail sur
+// `/documents/conformite`. Rien tant que l'offre ne couvre pas
+// `document_health`, rien non plus en `first_run` : on ne note pas un classeur
+// vide.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, ArrowRight, CalendarClock, FolderOpen, PenLine, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, FolderOpen, PenLine, ShieldCheck, Upload } from 'lucide-react';
 
 import {
   getDocumentsOverview, listDocumentTypes,
   type DocumentsOverview, type DocumentTypeOption,
 } from '../actions/documents';
+import { getComplianceOverview } from '../actions/documentCompliance';
+import { usePermissions } from '../../hooks/usePermissions';
+import { STATE_LABELS, type HealthScore } from '../../lib/documents/health';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { Button, Card, FirstRun, ScreenHeader, Section, Stack } from '../../components/ds';
 import { DocumentList } from '../../components/documents/DocumentList';
@@ -58,6 +58,21 @@ export default function DocumentsPage() {
   }, []);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  // Lu seulement si l'offre le couvre : l'action exige `document_health`, et
+  // un refus serveur ne doit pas vider l'accueil.
+  const { canUse, loading: permissionsLoading } = usePermissions();
+  const healthAllowed = !permissionsLoading && canUse('document_health');
+  const [health, setHealth] = useState<HealthScore | null>(null);
+
+  useEffect(() => {
+    if (!healthAllowed) return;
+    let cancelled = false;
+    getComplianceOverview()
+      .then((score) => { if (!cancelled) setHealth(score); })
+      .catch(() => { /* un raccourci en moins, l'accueil reste lisible */ });
+    return () => { cancelled = true; };
+  }, [healthAllowed]);
 
   if (error && !data) {
     return (
@@ -170,6 +185,33 @@ export default function DocumentsPage() {
       />
 
       <Stack className="mt-6">
+        {/* ── La note d'abord (§6), en une ligne ─────────────────────────── */}
+        {health && health.total !== null && (
+          <Card interactive>
+            <Link href="/documents/conformite" className="flex min-h-touch items-center gap-3 px-4 py-3">
+              <ShieldCheck className="h-5 w-5 flex-shrink-0 text-muted" strokeWidth={1.8} aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block text-body font-bold text-primary dark:text-dark-text">
+                  {t({ fr: 'Santé des papiers', ht: 'Sante papye yo' })}{' '}
+                  <span className="amount">{health.total}</span>
+                  <span className="font-normal text-muted dark:text-dark-muted"> / 100</span>
+                </span>
+                <span className="block truncate text-note text-muted dark:text-dark-muted">
+                  {t(STATE_LABELS[health.state])}
+                  {' · '}
+                  {health.missing.length === 0
+                    ? t({ fr: 'rien ne manque', ht: 'anyen pa manke' })
+                    : t({
+                        fr: `${health.missing.length} document${health.missing.length > 1 ? 's' : ''} manquant${health.missing.length > 1 ? 's' : ''} ou à renouveler`,
+                        ht: `${health.missing.length} dokiman ki manke oswa pou renouvle`,
+                      })}
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted" strokeWidth={1.8} aria-hidden />
+            </Link>
+          </Card>
+        )}
+
         {/* ── Ce qui est déjà dépassé. Rien ne passe avant. ───────────────── */}
         {data.expired.length > 0 && (
           <Section title={t({ fr: 'Expiré', ht: 'Ekspire' })}>

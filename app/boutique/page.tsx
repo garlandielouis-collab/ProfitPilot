@@ -248,10 +248,8 @@ export default function BoutiquePage() {
     store_name:       '',
     tagline:          '',
     logo_url:         '',
-    banner_url:       '',
-    banner_text:      '',
-    primary_color:    '#001F3F',
-    secondary_color:  '#50C878',
+    // Ni bannière ni couleurs : l'éditeur de vitrine les gère. Les renvoyer d'ici
+    // écraserait ses réglages, et des couleurs hors défaut figent la palette.
     show_prices:      true,
     show_stock:       false,
     currency:         'HTG',
@@ -284,10 +282,6 @@ export default function BoutiquePage() {
           store_name:       s.store_name       ?? '',
           tagline:          s.tagline          ?? '',
           logo_url:         s.logo_url         ?? '',
-          banner_url:       s.banner_url       ?? '',
-          banner_text:      s.banner_text      ?? '',
-          primary_color:    s.primary_color,
-          secondary_color:  s.secondary_color,
           show_prices:      s.show_prices,
           show_stock:       s.show_stock,
           currency:         s.currency,
@@ -419,7 +413,8 @@ export default function BoutiquePage() {
               Sauvegardé
             </span>
           )}
-          {tab !== 'apercu' && tab !== 'netlify' && (
+          {/* Rien à enregistrer sur l'onglet Design : il renvoie à l'éditeur. */}
+          {tab !== 'apercu' && tab !== 'netlify' && tab !== 'design' && (
             <button
               onClick={handleSave}
               disabled={saving}
@@ -565,62 +560,28 @@ export default function BoutiquePage() {
             </div>
           )}
 
-          {/* Design */}
+          {/* Design — un renvoi, plus un second éditeur. Celui-ci écrivait les
+              couleurs à chaque enregistrement (et figeait la palette), et son
+              « Texte de la bannière » n'était lu par aucune vitrine. */}
           {tab === 'design' && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Palette className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" strokeWidth={1.8} aria-hidden />
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">Couleur principale</label>
-                  <div className="flex items-center gap-3">
-                    <input type="color" value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} className="h-10 w-16 cursor-pointer rounded-lg border border-slate-200" />
-                    <input className={`${inp} flex-1`} value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} />
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">Couleur secondaire</label>
-                  <div className="flex items-center gap-3">
-                    <input type="color" value={form.secondary_color} onChange={(e) => setForm({ ...form, secondary_color: e.target.value })} className="h-10 w-16 cursor-pointer rounded-lg border border-slate-200" />
-                    <input className={`${inp} flex-1`} value={form.secondary_color} onChange={(e) => setForm({ ...form, secondary_color: e.target.value })} />
-                  </div>
+                  <p className="font-semibold text-slate-800">Le design se règle dans l'éditeur de vitrine</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Gabarit, couleurs et typographie dans son onglet Design ; photo de bannière
+                    et barre d'annonce dans son onglet Contenu.
+                  </p>
                 </div>
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">URL de la bannière</label>
-                <input className={inp} value={form.banner_url} onChange={(e) => setForm({ ...form, banner_url: e.target.value })} placeholder="https://... (image)" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">Texte de la bannière</label>
-                <input className={inp} value={form.banner_text} onChange={(e) => setForm({ ...form, banner_text: e.target.value })} placeholder="Bienvenue dans notre boutique" />
-              </div>
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Aperçu couleurs</p>
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="flex items-center gap-2 p-3" style={{ backgroundColor: form.primary_color }}>
-                    <div className="h-6 w-20 rounded bg-white/20" />
-                    <div className="flex-1" />
-                    <div className="h-6 w-16 rounded" style={{ backgroundColor: form.secondary_color }} />
-                  </div>
-                  <div
-                    className="p-8 text-center"
-                    style={{ background: `linear-gradient(135deg, ${form.primary_color} 0%, ${form.secondary_color} 100%)` }}
-                  >
-                    <p className="text-xl font-bold text-white">{form.store_name || 'Ma Boutique'}</p>
-                    <p className="mt-1 text-sm text-white/80">{form.banner_text || 'Bienvenue'}</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-                        <div className="aspect-square bg-slate-100" />
-                        <div className="p-2">
-                          <div className="mb-1 h-3 w-3/4 rounded bg-slate-200" />
-                          <div className="h-3 w-1/2 rounded" style={{ backgroundColor: form.primary_color + '40' }} />
-                          <div className="mt-2 h-6 w-full rounded-lg" style={{ backgroundColor: form.secondary_color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <a
+                href="/boutique/builder?tab=design"
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-h"
+              >
+                <ExternalLink className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                Ouvrir l'éditeur de vitrine
+              </a>
             </div>
           )}
 

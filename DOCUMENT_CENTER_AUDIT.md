@@ -1062,7 +1062,7 @@ Toute migration touchant `storage.objects` doit être enveloppée dans `EXCEPTIO
 
 ### Vérifications après chaque migration
 
-`supabase/rls_audit_queries.sql` et `DIAGNOSTIC_RLS.sql` existent déjà et servent exactement à cela.
+`supabase/rls_audit_queries.sql` et `supabase/archive/DIAGNOSTIC_RLS.sql` existent déjà et servent exactement à cela.
 
 ---
 

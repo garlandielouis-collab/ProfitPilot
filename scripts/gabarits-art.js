@@ -59,7 +59,7 @@
 // ── Comment ─────────────────────────────────────────────────────────────────
 //
 // Edge déjà installé pilote le rendu — aucun navigateur téléchargé, comme
-// `pp_shots.js` et `gabarits-vignettes.js` — à deux fois la taille finale ;
+// `verification/pp_shots.js` et `gabarits-vignettes.js` — à deux fois la taille finale ;
 // `sharp` encode en WebP.
 // ─────────────────────────────────────────────────────────────────────────────
 

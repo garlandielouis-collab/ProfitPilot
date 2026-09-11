@@ -38,7 +38,7 @@ export type NotifType =
  * personne n'a besoin. Le garde-fou contre le harcèlement est ailleurs, dans le
  * cron : une alerte par document et par jour au maximum.
  */
-const PREFERENCE_COLUMN: Partial<Record<NotifType, string>> = {
+const PREFERENCE_COLUMN: Partial<Record<NotifType, PreferenceColumn>> = {
   sale_created:     'new_sale',
   purchase_created: 'new_purchase',
   expense_created:  'new_expense',
@@ -46,13 +46,16 @@ const PREFERENCE_COLUMN: Partial<Record<NotifType, string>> = {
   invoice_paid:     'payment_due',
 };
 
-const PREFERENCE_DEFAULT: Record<string, boolean> = {
-  new_sale:     false,
-  new_purchase: false,
-  new_expense:  false,
-  low_stock:    true,
-  payment_due:  true,
-};
+const PREFERENCE_DEFAULT = {
+  new_sale:       false,
+  new_purchase:   false,
+  new_expense:    false,
+  low_stock:      true,
+  payment_due:    true,
+  weekly_summary: true,
+} as const;
+
+export type PreferenceColumn = keyof typeof PREFERENCE_DEFAULT;
 
 export type NotifyInput = {
   companyId:   string;
@@ -65,6 +68,17 @@ export type NotifyInput = {
   data?:       Record<string, any>;
   /** Override recipient — defaults to company owner */
   recipientId?: string;
+  /**
+   * La préférence à respecter quand le type seul ne la désigne pas.
+   *
+   * Les relances de créances et le résumé du dimanche partent en `generic` :
+   * sans ce champ, aucune colonne ne les gouvernait et l'interrupteur qui
+   * prétendait les couper ne coupait rien. On ne crée pas de nouveau type pour
+   * autant — `notifications.type` a pu être converti en énum par
+   * 20260607_data_robustness, et un type inconnu y ferait échouer l'insert en
+   * silence.
+   */
+  preference?: PreferenceColumn;
 };
 
 export async function notify(input: NotifyInput): Promise<void> {
@@ -89,7 +103,7 @@ export async function notify(input: NotifyInput): Promise<void> {
     // ligne par type : le filtre `.eq('type', …)` visait une colonne
     // inexistante et la lecture échouait à chaque fois. Tous les types ne sont
     // pas réglables — ceux qui ne le sont pas passent toujours.
-    const prefColumn = PREFERENCE_COLUMN[input.type];
+    const prefColumn = input.preference ?? PREFERENCE_COLUMN[input.type];
     if (prefColumn) {
       const { data: pref } = await svc
         .from('notification_preferences')

@@ -24,8 +24,17 @@ import { listContracts, type ContractRow } from '../../actions/documentComplianc
 import { useLanguage } from '../../../components/LanguageWrapper';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { PlanLockScreen } from '../../../components/PlanLock';
-import { Button, Card, FirstRun, ScreenHeader } from '../../../components/ds';
+import { Badge, Button, Card, FirstRun, ScreenHeader, type BadgeTone } from '../../../components/ds';
 import { ExpirationBadge, StatusBadge } from '../../../components/documents/DocumentBadges';
+
+/** Les quatre valeurs de la contrainte `documents.signature_status`. Lecture
+ *  seule : c'est ce qu'un humain a constaté, pas une signature électronique. */
+const SIGNATURE: Record<string, { label: { fr: string; ht: string }; tone: BadgeTone }> = {
+  pending:  { label: { fr: 'Signature en attente', ht: 'Siyati ap tann' },   tone: 'warning' },
+  signed:   { label: { fr: 'Signé',                ht: 'Siyen' },            tone: 'success' },
+  declined: { label: { fr: 'Signature refusée',    ht: 'Yo refize siyen' },  tone: 'danger' },
+  expired:  { label: { fr: 'Signature expirée',    ht: 'Siyati a ekspire' }, tone: 'neutral' },
+};
 
 export default function ContractsPage() {
   const { t, language } = useLanguage();
@@ -162,6 +171,11 @@ function ContractList({ contracts, language }: { contracts: ContractRow[]; langu
             <span className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5">
               <ExpirationBadge expiration={contract.expiration} daysLeft={contract.daysLeft} />
               {contract.status !== 'active' && <StatusBadge status={contract.status} />}
+              {contract.signatureStatus && SIGNATURE[contract.signatureStatus] && (
+                <Badge tone={SIGNATURE[contract.signatureStatus].tone}>
+                  {t(SIGNATURE[contract.signatureStatus].label)}
+                </Badge>
+              )}
             </span>
           </Link>
         </Card>

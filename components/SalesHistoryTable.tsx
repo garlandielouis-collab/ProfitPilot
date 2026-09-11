@@ -4,6 +4,7 @@ import { useLanguage } from './LanguageWrapper';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { InvoiceModal } from './InvoiceModal';
+import { csvFilename, downloadCsv, toCsv } from '../lib/documents/csv';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,9 @@ type InvoiceGroup = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/** Taille d'une tranche : l'historique se charge par paquets, à la demande. */
+const PAGE_SIZE = 100;
+
 function fmtAmount(n: number, currency = 'HTG') {
   return (
     new Intl.NumberFormat('fr-HT', {
@@ -42,6 +46,65 @@ function fmtAmount(n: number, currency = 'HTG') {
     ' ' +
     currency
   );
+}
+
+/**
+ * Une tranche de ventes avec leurs lignes, les plus récentes d'abord.
+ *
+ * Pagination par curseur (`before` = date de la dernière vente chargée) plutôt
+ * que par décalage : une vente enregistrée entre deux « Charger plus » décalerait
+ * les rangs et ferait réapparaître une facture déjà affichée.
+ */
+async function fetchSalesPage(before?: string): Promise<SaleRow[]> {
+  // 1. Fetch sales (no join to products — they're in sale_items)
+  let query = supabase
+    .from('sales')
+    .select(`
+      id,
+      invoice_number,
+      customer_name,
+      total_amount,
+      discount_percent,
+      payment_method,
+      payment_status,
+      currency,
+      created_at
+    `)
+    .order('created_at', { ascending: false })
+    .limit(PAGE_SIZE);
+  if (before) query = query.lt('created_at', before);
+
+  const { data: salesData, error: sErr } = await query;
+  if (sErr) throw sErr;
+  if (!salesData?.length) return [];
+
+  // 2. Fetch sale_items for those sales
+  const saleIds = salesData.map((s: any) => s.id);
+  const { data: itemsData } = await supabase
+    .from('sale_items')
+    .select('sale_id, product_name, quantity')
+    .in('sale_id', saleIds);
+
+  // 3. Build items map
+  const itemsMap: Record<string, Array<{ product_name: string; quantity: number }>> = {};
+  for (const item of itemsData ?? []) {
+    if (!itemsMap[item.sale_id]) itemsMap[item.sale_id] = [];
+    itemsMap[item.sale_id].push({ product_name: item.product_name, quantity: item.quantity });
+  }
+
+  // 4. Merge
+  return salesData.map((r: any) => ({
+    id:               r.id,
+    invoice_number:   r.invoice_number ?? r.id,
+    customer_name:    r.customer_name ?? null,
+    total_amount:     Number(r.total_amount),
+    discount_percent: Number(r.discount_percent ?? 0),
+    payment_method:   r.payment_method ?? '—',
+    payment_status:   r.payment_status ?? 'Payé',
+    currency:         r.currency ?? 'HTG',
+    created_at:       r.created_at,
+    items:            itemsMap[r.id] ?? [],
+  }));
 }
 
 const METHOD_BADGE: Record<string, string> = {
@@ -91,6 +154,9 @@ function SkeletonRows() {
 export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
   const [sales, setSales]   = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [search, setSearch] = useState('');
   const [activeInvoice, setActiveInvoice] = useState<string | null>(null);
   const { t } = useLanguage();
 
@@ -98,65 +164,34 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
     async function load() {
       setLoading(true);
       try {
-        // 1. Fetch sales (no join to products — they're in sale_items)
-        const { data: salesData, error: sErr } = await supabase
-          .from('sales')
-          .select(`
-            id,
-            invoice_number,
-            customer_name,
-            total_amount,
-            discount_percent,
-            payment_method,
-            payment_status,
-            currency,
-            created_at
-          `)
-          .order('created_at', { ascending: false })
-          .limit(100);
-
-        if (sErr) throw sErr;
-
-        if (!salesData?.length) { setSales([]); setLoading(false); return; }
-
-        // 2. Fetch sale_items for those sales
-        const saleIds = salesData.map((s: any) => s.id);
-        const { data: itemsData } = await supabase
-          .from('sale_items')
-          .select('sale_id, product_name, quantity')
-          .in('sale_id', saleIds);
-
-        // 3. Build items map
-        const itemsMap: Record<string, Array<{ product_name: string; quantity: number }>> = {};
-        for (const item of itemsData ?? []) {
-          if (!itemsMap[item.sale_id]) itemsMap[item.sale_id] = [];
-          itemsMap[item.sale_id].push({ product_name: item.product_name, quantity: item.quantity });
-        }
-
-        // 4. Merge
-        setSales(
-          salesData.map((r: any) => ({
-            id:               r.id,
-            invoice_number:   r.invoice_number ?? r.id,
-            customer_name:    r.customer_name ?? null,
-            total_amount:     Number(r.total_amount),
-            discount_percent: Number(r.discount_percent ?? 0),
-            payment_method:   r.payment_method ?? '—',
-            payment_status:   r.payment_status ?? 'Payé',
-            currency:         r.currency ?? 'HTG',
-            created_at:       r.created_at,
-            items:            itemsMap[r.id] ?? [],
-          }))
-        );
+        const rows = await fetchSalesPage();
+        setSales(rows);
+        setHasMore(rows.length === PAGE_SIZE);
       } catch (e: any) {
         console.error('[SalesHistoryTable]', e?.message ?? e);
         setSales([]);
+        setHasMore(false);
       } finally {
         setLoading(false);
       }
     }
     load();
   }, [refreshKey]);
+
+  async function loadMore() {
+    const last = sales[sales.length - 1];
+    if (!last) return;
+    setLoadingMore(true);
+    try {
+      const rows = await fetchSalesPage(last.created_at);
+      setSales((prev) => [...prev, ...rows]);
+      setHasMore(rows.length === PAGE_SIZE);
+    } catch (e: any) {
+      console.error('[SalesHistoryTable] loadMore', e?.message ?? e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   // Group rows by invoice_number
   const groups = useMemo<InvoiceGroup[]>(() => {
@@ -178,15 +213,63 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
     return Array.from(map.values());
   }, [sales]);
 
+  // La recherche porte sur ce qui est chargé : « Charger plus » élargit le champ.
+  const visibleGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter((g) =>
+      g.invoice_number.toLowerCase().includes(q) ||
+      (g.customer_name ?? '').toLowerCase().includes(q));
+  }, [groups, search]);
+
+  // Exporte les factures chargées et affichées (recherche comprise).
+  function exportCsv() {
+    const csv = toCsv(visibleGroups, [
+      { header: t({ fr: 'Facture', ht: 'Fakti' }),          value: (g) => g.invoice_number },
+      { header: t({ fr: 'Date', ht: 'Dat' }),               value: (g) => new Date(g.created_at).toLocaleDateString('fr-FR') },
+      { header: t({ fr: 'Client', ht: 'Kliyan' }),          value: (g) => g.customer_name ?? '' },
+      { header: t({ fr: 'Produits', ht: 'Pwodui' }),        value: (g) => g.items.map((i) => `${i.product_name} x${i.quantity}`).join(', ') },
+      { header: 'Total',                                    value: (g) => g.total },
+      { header: t({ fr: 'Devise', ht: 'Deviz' }),           value: (g) => g.currency },
+      { header: t({ fr: 'Paiement', ht: 'Peman' }),         value: (g) => g.payment_method },
+      { header: t({ fr: 'Statut', ht: 'Estati' }),          value: (g) => g.payment_status },
+    ]);
+    downloadCsv(csv, csvFilename('ventes'));
+  }
+
   return (
     <>
       <div className="rounded-surface border border-slate-200 bg-white p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-anthracite">Istorik Vant yo</h2>
             <p className="mt-1 text-sm text-anthracite/60">
-              {loading ? t({ fr: 'Chargement…', ht: 'Ap chaje…' }) : `${groups.length} fakti`}
+              {loading
+                ? t({ fr: 'Chargement…', ht: 'Ap chaje…' })
+                // Tant qu'il reste des ventes à charger, le compte n'est pas un total.
+                : search.trim()
+                  ? t({ fr: `${visibleGroups.length} sur ${groups.length} factures chargées`, ht: `${visibleGroups.length} sou ${groups.length} fakti chaje` })
+                  : hasMore
+                    ? t({ fr: `${groups.length} factures chargées`, ht: `${groups.length} fakti chaje` })
+                    : `${groups.length} fakti`}
             </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t({ fr: 'Client ou n° de facture…', ht: 'Kliyan oswa nimewo fakti…' })}
+              className="w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-primary"
+            />
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={loading || visibleGroups.length === 0}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              {t({ fr: 'Exporter (CSV)', ht: 'Ekspòte (CSV)' })}
+            </button>
           </div>
         </div>
 
@@ -212,8 +295,16 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
                     Pa gen vant ankò.
                   </td>
                 </tr>
+              ) : visibleGroups.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-sm text-anthracite/40">
+                    {hasMore
+                      ? t({ fr: `Aucune facture chargée ne correspond à « ${search.trim()} ». Chargez plus de ventes pour chercher plus loin.`, ht: `Okenn fakti ki chaje pa koresponn ak « ${search.trim()} ». Chaje plis vant pou chèche pi lwen.` })
+                      : t({ fr: `Aucune facture ne correspond à « ${search.trim()} ».`, ht: `Okenn fakti pa koresponn ak « ${search.trim()} ».` })}
+                  </td>
+                </tr>
               ) : (
-                groups.map((g) => (
+                visibleGroups.map((g) => (
                   <tr key={g.invoice_number} className="transition hover:bg-slate-50">
                     <td className="px-3 py-3">
                       <span className="font-mono text-note text-slate-400">
@@ -268,6 +359,21 @@ export function SalesHistoryTable({ refreshKey }: { refreshKey?: number }) {
             </tbody>
           </table>
         </div>
+
+        {!loading && hasMore && (
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              {loadingMore
+                ? t({ fr: 'Chargement…', ht: 'Ap chaje…' })
+                : t({ fr: 'Charger plus', ht: 'Chaje plis' })}
+            </button>
+          </div>
+        )}
       </div>
 
       {activeInvoice && (

@@ -119,6 +119,9 @@ export async function GET(req: NextRequest) {
     await notify({
       companyId: biz.id,
       type: 'generic',
+      // Le réglage d'entreprise (`weekly_digest_enabled`) filtre plus haut ;
+      // celui-ci laisse chaque destinataire couper le résumé pour lui seul.
+      preference: 'weekly_summary',
       title: 'Rezime semèn nan pare',
       body: message.slice(0, 180),
       entity: 'report',

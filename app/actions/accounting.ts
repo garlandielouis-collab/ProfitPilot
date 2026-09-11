@@ -1073,7 +1073,9 @@ export async function getChartOfAccounts(): Promise<ChartAccount[]> {
   return (data ?? []) as ChartAccount[];
 }
 
-export async function getJournalEntries(limit = 50) {
+// `offset` sert au « Charger plus » du grand livre : sans lui, tout ce qui
+// dépassait la première page était invisible, sans le moindre avertissement.
+export async function getJournalEntries(limit = 50, offset = 0) {
   const { supabase, businessId } = await getBusinessContext();
 
   // Pas de réconciliation ici. Lire le journal ne doit pas l'écrire : ces trois
@@ -1097,7 +1099,7 @@ export async function getJournalEntries(limit = 50) {
     .eq('status', 'posted')
     .order('entry_date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .range(offset, offset + limit - 1);
 
   if (error) throw new Error(error.message);
 
