@@ -26,7 +26,8 @@ import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidateStore } from '../../lib/storefrontData';
 import {
   themeConfigSchema, parseThemeConfig, slugify, validateSlug,
-  isTemplateId, storePublicUrl, type ThemeConfig,
+  isTemplateId, storePublicUrl, themeForStorage, hasLegacyColorChoice,
+  LEGACY_DEFAULT_COLORS, type ThemeConfig,
 } from '../../lib/storeTheme';
 import {
   resolveSections, isSectionKey, sectionConfigSchema, type ResolvedSection,
@@ -150,9 +151,10 @@ export async function getBuilderState(): Promise<BuilderState> {
       store?.template_id,
     ),
     ownsPalette:
-      typeof store?.theme_config === 'object' &&
-      store.theme_config !== null &&
-      'palette' in (store.theme_config as object),
+      (typeof store?.theme_config === 'object' &&
+        store.theme_config !== null &&
+        'palette' in (store.theme_config as object)) ||
+      hasLegacyColorChoice(store),
     customDomain:   store?.custom_domain ?? null,
     whatsappNumber: store?.whatsapp_number ?? business?.whatsapp_number ?? '',
     currency:       store?.currency ?? business?.default_currency ?? 'HTG',
@@ -235,6 +237,8 @@ export async function saveGeneral(input: {
 export async function saveDesign(input: {
   templateId: string;
   theme:      unknown;
+  /** Le marchand a choisi ses couleurs — voir `BuilderState.ownsPalette`. */
+  ownsPalette: boolean;
 }): Promise<void> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
@@ -257,15 +261,25 @@ export async function saveDesign(input: {
     throw new Error("Enregistrez d'abord le nom et l'adresse de la boutique.");
   }
 
+  // Des couleurs que le marchand n'a pas choisies ne s'écrivent pas : elles
+  // figeraient la palette de ce gabarit sur tous les autres (`themeForStorage`).
+  // Les colonnes héritées reviennent alors à leur défaut, que `parseThemeConfig`
+  // lit comme une absence de choix — sinon ce seraient elles qui repeindraient
+  // chaque gabarit.
+  const owns = input.ownsPalette === true;
+
   const { error } = await svc
     .from('store_settings')
     .update({
       template_id:  input.templateId,
-      theme_config: theme,
+      theme_config: themeForStorage(
+        theme,
+        owns ? { palette: theme.palette, typography: theme.typography } : {},
+      ),
       // Les deux colonnes héritées restent synchronisées : d'anciens écrans
       // (aperçu, e-mails de commande) les lisent encore.
-      primary_color:   theme.palette.primary,
-      secondary_color: theme.palette.accent,
+      primary_color:   owns ? theme.palette.primary : LEGACY_DEFAULT_COLORS.primary,
+      secondary_color: owns ? theme.palette.accent  : LEGACY_DEFAULT_COLORS.accent,
     })
     .eq('business_id', businessId);
 
@@ -330,7 +344,7 @@ export async function saveContent(theme: unknown): Promise<void> {
 
   const { data: store } = await svc
     .from('store_settings')
-    .select('slug')
+    .select('slug, theme_config')
     .eq('business_id', businessId)
     .maybeSingle();
 
@@ -338,9 +352,18 @@ export async function saveContent(theme: unknown): Promise<void> {
     throw new Error("Enregistrez d'abord le nom et l'adresse de la boutique.");
   }
 
+  // Cet onglet n'édite ni couleurs ni typographie : il garde celles de la base
+  // telles quelles — présentes si le marchand les a choisies, absentes sinon.
+  // Écrire celles du thème reçu, résolues depuis le gabarit, les figeait.
+  const raw = store.theme_config && typeof store.theme_config === 'object'
+    ? (store.theme_config as Record<string, unknown>)
+    : {};
+
   const { error } = await svc
     .from('store_settings')
-    .update({ theme_config: parsed })
+    .update({
+      theme_config: themeForStorage(parsed, { palette: raw.palette, typography: raw.typography }),
+    })
     .eq('business_id', businessId);
 
   if (error) throw new Error(`Enregistrement impossible : ${error.message}`);

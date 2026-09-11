@@ -35,7 +35,7 @@ import {
   toggleProductPublication, setAllProductsPublication,
   type BuilderState, type BuilderProduct,
 } from '../../actions/storeBuilder';
-import { templateGroups, templateSections } from '../../../components/store/templates/registry';
+import { TEMPLATES, templateGroups, templateSections } from '../../../components/store/templates/registry';
 import { ContentTab } from './ContentTab';
 import { SectionsTab } from './SectionsTab';
 import { ImageEnhancerModal } from '../../../components/store/ImageEnhancerModal';
@@ -355,6 +355,20 @@ function DesignTab({
     setTheme((t) => ({ ...t, palette: preset.palette, typography: preset.typography }));
   }
 
+  /**
+   * Rendre les couleurs au gabarit.
+   *
+   * Le chemin de retour qui manquait : une palette enregistrée tenait pour
+   * toujours, et le marchand qui voulait retrouver les couleurs de chaque
+   * gabarit n'avait aucun geste pour le dire. Effectif à l'enregistrement,
+   * comme le reste de l'onglet.
+   */
+  function resetToTemplateColors() {
+    setOwnsPalette(false);
+    const preset = brandPresetFor(templateId);
+    setTheme((t) => ({ ...t, palette: preset.palette, typography: preset.typography }));
+  }
+
   // Le contraste du bouton d'achat, calculé en direct. Le marchand choisit sa
   // couleur de marque ; il doit savoir, AVANT de publier, si le libellé de son
   // bouton « Commander » sera lisible dehors à midi. C'est le contrôle du §31
@@ -488,9 +502,23 @@ function DesignTab({
       </section>
 
       <Card className="p-4">
-        <h2 className="mb-4 text-card font-semibold text-primary dark:text-dark-text">
+        <h2 className="mb-1 text-card font-semibold text-primary dark:text-dark-text">
           Couleurs
         </h2>
+        {/* D'où viennent les couleurs, dit AVANT de changer de gabarit :
+            choisies, elles tiennent sur les vingt-deux ; sinon, elles suivent
+            le gabarit. Sans cette ligne, le marchand découvre la règle en
+            voyant tous ses gabarits porter la même teinte. */}
+        <p className="mb-4 text-note text-muted dark:text-dark-muted">
+          {ownsPalette
+            ? 'Vos couleurs : elles restent les mêmes quel que soit le gabarit.'
+            : `Les couleurs du gabarit « ${TEMPLATES[templateId as TemplateId]?.name ?? templateId} ». Elles changent avec lui tant que vous n'y touchez pas.`}
+        </p>
+        {ownsPalette && (
+          <Button variant="quiet" size="sm" className="mb-4" onClick={resetToTemplateColors}>
+            Reprendre les couleurs du gabarit
+          </Button>
+        )}
 
         <div className="flex flex-col gap-4">
           <ColorField
@@ -613,7 +641,7 @@ function DesignTab({
         block
         loading={pending}
         loadingLabel="Enregistrement…"
-        onClick={() => run(() => saveDesign({ templateId, theme }))}
+        onClick={() => run(() => saveDesign({ templateId, theme, ownsPalette }))}
       >
         Enregistrer le design
       </Button>

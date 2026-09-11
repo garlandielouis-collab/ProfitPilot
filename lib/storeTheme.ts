@@ -958,12 +958,56 @@ export function brandPresetFor(templateId: TemplateId | string): BrandPreset {
 // de celui qui n'a rien touché, et verra la couleur de son gabarit. Il la
 // change dans l'éditeur, qui écrit alors une vraie palette — et une palette
 // enregistrée passe devant tout, gabarit compris.
-const LEGACY_DEFAULT_PRIMARY = '#001f3f';
-const LEGACY_DEFAULT_ACCENT  = '#50c878';
+/** Les DEFAULT des deux colonnes héritées : ce qu'elles valent sans choix. */
+export const LEGACY_DEFAULT_COLORS = { primary: '#001F3F', accent: '#50C878' } as const;
+
+const LEGACY_DEFAULT_PRIMARY = LEGACY_DEFAULT_COLORS.primary.toLowerCase();
+const LEGACY_DEFAULT_ACCENT  = LEGACY_DEFAULT_COLORS.accent.toLowerCase();
 
 function chosenColor(value: string | null | undefined, columnDefault: string): string | null {
   if (!HEX.test(value ?? '')) return null;
   return value!.toLowerCase() === columnDefault ? null : value!;
+}
+
+/**
+ * Vrai quand les colonnes héritées portent une couleur réellement choisie.
+ *
+ * L'éditeur en a besoin pour savoir si changer de gabarit peut changer les
+ * couleurs : la vitrine d'avant le Store Builder dont le marchand avait posé
+ * son bleu dans l'ancien écran le garde, exactement comme `parseThemeConfig`
+ * le lui rend.
+ */
+export function hasLegacyColorChoice(
+  legacy?: { primary_color?: string | null; secondary_color?: string | null } | null,
+): boolean {
+  return chosenColor(legacy?.primary_color, LEGACY_DEFAULT_PRIMARY) !== null
+    || chosenColor(legacy?.secondary_color, LEGACY_DEFAULT_ACCENT) !== null;
+}
+
+/**
+ * Le thème tel qu'il s'ÉCRIT en base.
+ *
+ * `parseThemeConfig` rend une palette complète à qui n'en a pas : c'est ce
+ * qu'il faut pour afficher, pas pour enregistrer. Réécrire cet objet tel quel
+ * posait la clé `palette` en base — et une palette enregistrée passe devant le
+ * gabarit, pour TOUS les gabarits. Un enregistrement de contenu, ou la simple
+ * ouverture de l'aperçu, figeait donc les couleurs du moment : les vingt-deux
+ * gabarits rendaient la même teinte, et en changer ne changeait plus que la
+ * mise en page.
+ *
+ * Seules s'écrivent la palette et la typographie que le marchand a choisies.
+ * `chosen` les porte ; rien d'autre ne les fait entrer.
+ */
+export function themeForStorage(
+  theme: ThemeConfig,
+  chosen: { palette?: unknown; typography?: unknown },
+): Record<string, unknown> {
+  const stored: Record<string, unknown> = { ...theme };
+  delete stored.palette;
+  delete stored.typography;
+  if (chosen.palette !== undefined) stored.palette = chosen.palette;
+  if (chosen.typography !== undefined) stored.typography = chosen.typography;
+  return stored;
 }
 
 /**

@@ -346,10 +346,15 @@ export async function markStorePreviewed(): Promise<void> {
   const theme = parseThemeConfig(row.theme_config);
   if (theme.launch.previewedAt) return; // déjà noté : on ne réécrit pas pour rien
 
+  // Le JSON de la base, complété — pas le thème résolu. Réécrire celui-ci
+  // posait une palette que personne n'avait choisie, et figeait les couleurs
+  // de tous les gabarits (voir `themeForStorage`).
+  const raw = row.theme_config && typeof row.theme_config === 'object' ? row.theme_config : {};
+
   await svc
     .from('store_settings')
     .update({
-      theme_config: { ...theme, launch: { previewedAt: new Date().toISOString() } },
+      theme_config: { ...raw, launch: { previewedAt: new Date().toISOString() } },
     })
     .eq('id', row.id);
 
