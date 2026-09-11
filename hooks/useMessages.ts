@@ -65,16 +65,33 @@ export function useMessages(conversationId: string | null) {
         signal:  ctrl.signal,
       });
 
-      if (!res.ok) throw new Error(`API ${res.status}`);
+      if (!res.ok) {
+        // 403 (offre) et 429 (quota épuisé) portent dans `error` une phrase écrite
+        // pour le marchand : elle dit comment continuer, « Erreur de connexion » non.
+        // Les autres statuts restent techniques et gardent le message générique.
+        const payload = await res.json().catch(() => null) as { error?: string } | null;
+        if ((res.status === 403 || res.status === 429) && payload?.error) {
+          const refusal = new Error(payload.error);
+          refusal.name = 'PilotAIRefusal';
+          throw refusal;
+        }
+        throw new Error(`API ${res.status}`);
+      }
 
       let fullContent = '';
       const reader  = res.body!.getReader();
       const decoder = new TextDecoder();
+      // Un paquet réseau ne coïncide pas avec une ligne SSE : la dernière ligne
+      // peut arriver coupée. On la garde jusqu'au paquet suivant, sinon ses mots
+      // disparaissent ; à la fin du flux, le reste est traité tel quel.
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = done ? '' : (lines.pop() ?? '');
+        for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const raw = line.slice(6);
           if (raw === '[DONE]') break;
@@ -84,6 +101,7 @@ export function useMessages(conversationId: string | null) {
             patchLast({ content: fullContent });
           } catch { /* skip */ }
         }
+        if (done) break;
       }
 
       patchLast({ streaming: false });
@@ -98,6 +116,11 @@ export function useMessages(conversationId: string | null) {
     },
     onError: (err: Error) => {
       if (err.name === 'AbortError') return;
+      if (err.name === 'PilotAIRefusal') {
+        patchLast({ content: `⚠️ ${err.message}`, streaming: false });
+        toast.error(err.message);
+        return;
+      }
       patchLast({ content: '⚠️ Erreur de connexion. Réessayez.', streaming: false });
       toast.error('Erreur PilotAI');
     },

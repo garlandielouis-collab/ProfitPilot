@@ -211,7 +211,7 @@ function ItemReview({ orderId, token, item }: { orderId: string; token: string; 
             style={{
               background:   'var(--st-accent)',
               color:        'var(--st-accent-ink)',
-              borderRadius: 'var(--st-radius-button)',
+              borderRadius: 'var(--st-radius-btn)',
             }}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}

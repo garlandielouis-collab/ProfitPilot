@@ -237,7 +237,9 @@ export async function getStoreOverview(): Promise<StoreOverview> {
       label: 'Logo',
       hint: 'Votre marque en haut de chaque page.',
       done: facts.hasLogo,
-      href: '/boutique/builder',
+      // L'éditeur de vitrine n'a pas de champ logo : il ne fait que relayer
+      // celui de la boutique, qui se pose dans l'onglet Général de `/boutique`.
+      href: '/boutique',
     },
     {
       key: 'colors',

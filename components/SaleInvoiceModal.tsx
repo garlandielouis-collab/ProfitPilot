@@ -129,10 +129,10 @@ export function SaleInvoiceModal({ data, onClose, businessName: rawBusinessName 
 
           {/* Header */}
           <div className="header flex items-start justify-between">
-            <div className="logo">
-              <span className="text-primary text-2xl font-extrabold">Profit</span>
-              <span className="text-muted text-2xl font-extrabold">Pilot</span>
-            </div>
+            {/* La facture est celle du marchand, pas la nôtre : son client doit y
+                lire le nom de la boutique qui lui a vendu, pas celui du logiciel.
+                Pas de <span> ici — la feuille d'impression grise `.logo span`. */}
+            <div className="logo text-primary text-2xl font-extrabold">{bizName}</div>
             <div className="inv-meta text-right">
               <h2 className="text-2xl font-bold text-primary">{t({ fr: 'FACTURE', ht: 'FAKTI' })}</h2>
               <p className="mt-1 text-sm text-slate-500">{invoiceNumber}</p>
@@ -185,7 +185,7 @@ export function SaleInvoiceModal({ data, onClose, businessName: rawBusinessName 
             <table className="w-full text-sm">
               <tbody>
                 <tr>
-                  <td className="py-1.5 text-slate-500">{t({ fr: 'Sous-total HT', ht: 'Sou-total HT' })}</td>
+                  <td className="py-1.5 text-slate-500">{t({ fr: 'Sous-total', ht: 'Sou-total' })}</td>
                   <td className="py-1.5 text-right font-medium text-anthracite">{fmt(subtotal, currency)}</td>
                 </tr>
                 {discountPercent > 0 && (

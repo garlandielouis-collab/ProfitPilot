@@ -20,7 +20,14 @@ import { getWeeklySummaryAction }  from '../actions/ai';
 import { useLanguage }            from '../../components/LanguageWrapper';
 import { usePlan }                 from '../../hooks/usePlan';
 import { cn }                      from '../../lib/utils';
+import { plansWithFeature }        from '../../lib/planFeatures';
+import { getPlanLabel }            from '../../lib/plans';
 import type { Conversation }       from '../actions/conversations';
+
+// Les offres qui ouvrent Pilot AI viennent du registre, comme dans la route
+// /api/ai/chat : le marchand lit « Kwasans / Elit », jamais la clé stockée en base.
+const AI_PLAN_LABELS = plansWithFeature('ai_assistant').map(getPlanLabel);
+const AI_UPGRADE_LABEL = getPlanLabel('Business Pilot');
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -375,7 +382,7 @@ function AiAssistantPage() {
     if (!text || isStreaming) return;
     if (!activeConvId) { toast.error('Sélectionnez ou créez une conversation'); return; }
     if (!hasAI) {
-      toast('Pilot AI est disponible en version Business Pilot ou Expert. Passez à Premium pour accéder à votre conseiller financier intelligent.', {
+      toast(`Pilot AI est disponible en version ${AI_PLAN_LABELS.join(' ou ')}. Passez à ${AI_UPGRADE_LABEL} pour accéder à votre conseiller financier intelligent.`, {
         duration: 6000,
         style: { background: '#001F3F', color: '#fff', borderRadius: '16px' },
       });
@@ -448,14 +455,14 @@ function AiAssistantPage() {
             <Sparkles className="h-5 w-5" strokeWidth={1.8} aria-hidden />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                {t({ fr: 'Fonctionnalité Business Pilot / Expert', ht: 'Fonksyonalite Business Pilot / Expert' })}
+                {t({ fr: `Fonctionnalité ${AI_PLAN_LABELS.join(' / ')}`, ht: `Fonksyonalite ${AI_PLAN_LABELS.join(' / ')}` })}
               </p>
               <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
-                {t({ fr: 'Pilot AI est disponible en plan Business Pilot ou Expert.', ht: 'Pilot AI disponib nan plan Business Pilot oswa Expert.' })}
+                {t({ fr: `Pilot AI est disponible en plan ${AI_PLAN_LABELS.join(' ou ')}.`, ht: `Pilot AI disponib nan plan ${AI_PLAN_LABELS.join(' oswa ')}.` })}
               </p>
             </div>
             <a href="/pricing" className="flex-shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-400">
-              {t({ fr: 'Passer Premium', ht: 'Pase Premium' })}
+              {t({ fr: `Passer à ${AI_UPGRADE_LABEL}`, ht: `Pase ${AI_UPGRADE_LABEL}` })}
             </a>
           </div>
         )}

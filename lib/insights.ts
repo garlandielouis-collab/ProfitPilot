@@ -190,7 +190,8 @@ export function generateInsights(input: InsightsInput, limit = 5): Insight[] {
       severity: 'info',
       message: `${dormant.name} n’a rien acheté depuis ${dormant.daysSinceLastPurchase} jours.`,
       action: 'Un message suffit souvent à le faire revenir.',
-      href: '/clients',
+      // /clients n'existe pas : la fiche est sur /customers, qui ouvre le client lu dans `?id=`.
+      href: `/customers?id=${dormant.id}`,
     });
   }
 

@@ -6,6 +6,8 @@ import {
   upsertStoreSettings,
 } from '../actions/boutique';
 import { StorePreview } from '../../components/store/StorePreview';
+import { TEMPLATE_LIST } from '../../components/store/templates/registry';
+import { storePublicUrl } from '../../lib/storeTheme';
 import type { StoreSettings, ShippingMode } from '../actions/store-public';
 // Vingt-trois émojis sur l'écran qui configure la vitrine du marchand — dont
 // six en guise d'onglets. Un onglet est un point de repère : il doit être
@@ -431,8 +433,10 @@ export default function BoutiquePage() {
           <span className="block text-body font-semibold text-primary">
             Choisir le design de votre vitrine
           </span>
+          {/* Compté, pas écrit en dur : le texte disait « Trois » bien après
+              que l'éditeur en propose davantage. */}
           <span className="block text-note text-muted">
-            Trois gabarits, vos couleurs, les produits publiés et le Studio photo
+            {TEMPLATE_LIST.length} gabarits, vos couleurs, les produits publiés et le Studio photo
           </span>
         </span>
         <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted" strokeWidth={1.8} aria-hidden />
@@ -512,8 +516,10 @@ export default function BoutiquePage() {
                   onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
                   placeholder="ma-boutique"
                 />
+                {/* L'adresse que la vitrine a réellement (sous-domaine, ou domaine
+                    branché par le marchand), pas l'ancien chemin `/store/`. */}
                 <p className="mt-1 text-xs text-slate-400">
-                  profitpilot.app/store/<strong>{form.slug || 'votre-slug'}</strong>
+                  {storePublicUrl({ slug: form.slug || 'votre-slug', custom_domain: settings?.custom_domain ?? null })}
                 </p>
               </div>
               <div>

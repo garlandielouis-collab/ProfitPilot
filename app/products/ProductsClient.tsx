@@ -647,8 +647,9 @@ function ProductCard({
           </div>
         )}
 
-        {/* Hover actions overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-end p-3 gap-2">
+        {/* Hover actions overlay — masqué seulement là où le survol existe :
+            au doigt, Modifier / Supprimer doivent rester visibles. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent [@media(hover:hover)]:opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-end p-3 gap-2">
           <button
             onClick={e => { e.stopPropagation(); onEdit(); }}
             className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow hover:bg-slate-50 hover:text-primary transition"

@@ -286,7 +286,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       // Update products.stock_quantity
       const { data: legacy, error: legacyErr } = await sb
         .from('products')
-        .select('stock_quantity')
+        .select('stock_quantity, reorder_point')
         .eq('id', item.product_id)
         .maybeSingle();
       if (legacyErr) throw new Error(legacyErr.message);
@@ -297,7 +297,9 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
           .update({ stock_quantity: newQtyLegacy })
           .eq('id', item.product_id);
         if (stockErr) throw new Error(stockErr.message);
-        const LOW_STOCK_THRESHOLD = 5;
+        // Le seuil de la fiche produit, comme la liste /products : un 0 hérité de
+        // l'ancienne colonne (DEFAULT 0) vaut « non renseigné », d'où le repli à 5.
+        const LOW_STOCK_THRESHOLD = Number(legacy.reorder_point) || 5;
         if (newQtyLegacy <= LOW_STOCK_THRESHOLD) {
           void notify({
             companyId: businessId, triggeredBy: userId,

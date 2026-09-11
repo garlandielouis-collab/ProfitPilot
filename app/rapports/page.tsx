@@ -235,7 +235,7 @@ function RapportsPage() {
               </p>
               <h1 className="text-xl md:text-amount font-bold text-anthracite leading-tight break-words">{companyName}</h1>
               <p className="text-note md:text-note text-muted mt-1">
-                Exercice {new Date().getFullYear()} · Exprimé en {getCurrencyName(currency)}
+                Exercice {year} · Exprimé en {getCurrencyName(currency)}
               </p>
             </div>
             {/* Imprimer n'a de sens que s'il y a quelque chose à imprimer. */}
@@ -247,11 +247,12 @@ function RapportsPage() {
           {/* ── KPI strip ── */}
           {/* Quatre indicateurs à zéro ne sont pas une information : c'est un
               écran qui fait semblant de fonctionner. Ils attendent leur période. */}
+          {/* Les montants couvrent la période choisie (T2, S1…), pas l'année entière : c'est elle qu'on nomme. */}
           {hasReport && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-              <KpiCard label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })} value={htg(kpi.caNet, currency)}     sub={`Exercice ${new Date().getFullYear()}`} color="navy"  />
+              <KpiCard label={t({ fr: 'Chiffre d\'affaires', ht: 'Chif afè' })} value={htg(kpi.caNet, currency)}     sub={periodLabel} color="navy"  />
               <KpiCard label={t({ fr: 'Marge brute', ht: 'Maj brit' })}        value={`${marge}%`}        sub={htg(kpi.caNet - kpi.cogs, currency)}              color="green" />
-              <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={`Exercice ${new Date().getFullYear()}`} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
+              <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={periodLabel} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
               <KpiCard label={t({ fr: 'Trésorerie totale', ht: 'Trezoreri total' })}  value={htg(kpi.cashTotal, currency)} sub={t({ fr: 'Disponible', ht: 'Disponib' })}                             color="blue"  />
             </div>
           )}
@@ -309,7 +310,7 @@ function RapportsPage() {
                   </select>
                 </div>
               </div>
-              <PeriodPicker active={period} onChange={setPeriod} />
+              <PeriodPicker active={period} onChange={setPeriod} year={year} />
               {/* Active period label */}
               <p className="text-note text-slate-400">
                 <CalendarDays className="mr-1 inline h-4 w-4 align-[-3px]" strokeWidth={1.8} aria-hidden />

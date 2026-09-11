@@ -721,9 +721,10 @@ function ClientsCRMInner() {
                   <div className="divide-y divide-[var(--color-border)]">
                     {invoices.map(inv => (
                       <div key={inv.invoice_number} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
-                        {/* Icon */}
-                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm ${inv.payment_status === 'Payé' ? 'bg-emerald-500/15' : 'bg-blue-500/15'}`}>
-                          {inv.payment_status === 'Payé'
+                        {/* Icon — `sales.payment_status` est l'énum payment_status_type
+                            (paid, credit, pending…) : « Payé » ne sort jamais de la base. */}
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm ${inv.payment_status === 'paid' ? 'bg-emerald-500/15' : 'bg-blue-500/15'}`}>
+                          {inv.payment_status === 'paid'
                             ? <CheckCircle2 className="h-5 w-5 text-success" strokeWidth={1.8} aria-hidden />
                             : <FileText className="h-5 w-5 text-info" strokeWidth={1.8} aria-hidden />}
                         </div>
@@ -739,7 +740,7 @@ function ClientsCRMInner() {
                         {/* Amount + Status */}
                         <div className="text-right">
                           <p className="font-bold text-[var(--color-text)]">{fmt(inv.total, inv.currency)}</p>
-                          <span className={`text-note font-semibold ${inv.payment_status === 'Payé' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                          <span className={`text-note font-semibold ${inv.payment_status === 'paid' ? 'text-emerald-400' : 'text-blue-400'}`}>
                             {inv.payment_status}
                           </span>
                         </div>
@@ -808,7 +809,7 @@ function ClientsCRMInner() {
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{inv.invoice_number}</td>
                     <td style={{ padding: '8px 12px' }}>{inv.payment_method}</td>
                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{fmt(inv.total, inv.currency)}</td>
-                    <td style={{ padding: '8px 12px', color: inv.payment_status === 'Payé' ? '#16a34a' : '#1d4ed8' }}>{inv.payment_status}</td>
+                    <td style={{ padding: '8px 12px', color: inv.payment_status === 'paid' ? '#16a34a' : '#1d4ed8' }}>{inv.payment_status}</td>
                   </tr>
                 ))}
               </tbody>

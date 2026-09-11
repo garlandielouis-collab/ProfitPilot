@@ -608,7 +608,7 @@ function DettesInner() {
                     </td>
                   </tr>
                 ) : filteredDebts.map((debt, i) => {
-                  const waMsg = `Bonjou ${debt.supplier_name}, nou ta renmen raple ou ke gen yon peman annatant depi ${debt.days_overdue} jou. Montan: ${fmtAmt(debt.amount)}. Mèsi pou kolaborasyon ou.`;
+                  const waMsg = `Bonjou ${debt.supplier_name}, nou ta renmen raple ou ke gen yon peman annatant depi ${debt.days_overdue} jou. Montan: ${fmtAmt(debt.amount, debt.currency)}. Mèsi pou kolaborasyon ou.`;
                   return (
                     <tr key={debt.id}
                       className={`border-b border-[var(--color-border)] transition-colors group
@@ -644,7 +644,7 @@ function DettesInner() {
                       {/* Montan */}
                       <td className={`px-4 py-3 whitespace-nowrap font-bold tabular-nums
                         ${debt.payment_status === 'Payé' ? 'text-emerald-400' : 'text-[var(--color-text)]'}`}>
-                        {fmtAmt(debt.amount)}
+                        {fmtAmt(debt.amount, debt.currency)}
                       </td>
                       {/* État */}
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -896,7 +896,7 @@ function DettesInner() {
                             {cc.client_name.charAt(0).toUpperCase()}
                           </div>
                           <Link
-                            href={cc.client_id ? `/customers?highlight=${cc.client_id}` : '/customers'}
+                            href={cc.client_id ? `/customers?id=${cc.client_id}` : '/customers'}
                             className="font-medium text-[var(--color-text)] text-sm hover:text-blue-500 hover:underline transition-colors"
                           >
                             {cc.client_name}

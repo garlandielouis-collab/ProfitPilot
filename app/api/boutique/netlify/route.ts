@@ -7,28 +7,56 @@ import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
 
 function isValidCSSColor(c: unknown): boolean {
   if (typeof c !== 'string' || !c) return false;
-  return /^#[0-9a-fA-F]{3,8}$/.test(c) || /^(rgb|hsl)a?\(/.test(c) || /^[a-z]+$/i.test(c);
+  // Parenthèse fermée et contenu numérique exigés : « rgb( » suivi de n'importe
+  // quoi laissait sortir de l'attribut `style` où la couleur est injectée.
+  return /^#[0-9a-fA-F]{3,8}$/.test(c) || /^(rgb|hsl)a?\([\d\s.,%\/]+\)$/.test(c) || /^[a-z]+$/i.test(c);
+}
+
+// Tout ce que le marchand saisit (noms, textes, adresses d'images) finit dans un
+// fichier HTML publié sous son nom : un « < » dans un nom de produit y devenait
+// une balise. On échappe chaque valeur, et une URL n'est reprise qu'en http(s).
+function esc(v: unknown): string {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
+  )[c]);
+}
+
+function safeUrl(v: unknown): string | null {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  try {
+    const u = new URL(v.trim());
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function generateStoreHTML(settings: any, products: any[]): string {
   const primary   = isValidCSSColor(settings.primary_color)   ? settings.primary_color   : '#001F3F';
   const secondary = isValidCSSColor(settings.secondary_color) ? settings.secondary_color : '#50C878';
-  const name      = settings.store_name      ?? 'Ma Boutique';
-  const tagline   = settings.tagline         ?? '';
+  // Déjà échappés : `name` et `tagline` ne servent qu'en contenu HTML.
+  const name      = esc(settings.store_name  ?? 'Ma Boutique');
+  const tagline   = esc(settings.tagline     ?? '');
   const currency  = settings.currency        ?? 'HTG';
   const showPrice = settings.show_prices     !== false;
   const showStock = settings.show_stock      === true;
+  const logoUrl   = safeUrl(settings.logo_url);
+  // Dans `url('…')` CSS, l'apostrophe et les parenthèses fermeraient la valeur :
+  // on les encode, ce qui ne change pas l'adresse désignée.
+  const bannerUrl = safeUrl(settings.banner_url)
+    ?.replace(/['()]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase()) ?? null;
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0 }).format(n) + ' ' + currency;
+    new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0 }).format(n) + ' ' + esc(currency);
 
   const productCards = products.map((p) => {
     const price      = p.sale_price ?? p.price;
     const hasDisc    = p.sale_price !== null && p.sale_price < p.price;
     const outOfStock = p.stock_quantity <= 0;
     const discPct    = hasDisc ? Math.round((1 - p.sale_price / p.price) * 100) : 0;
-    const img        = p.image_url
-      ? `<img src="${p.image_url}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;">`
+    const imgUrl     = safeUrl(p.image_url);
+    const img        = imgUrl
+      ? `<img src="${esc(imgUrl)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:cover;">`
       : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem;color:#cbd5e1;">📦</div>`;
 
     const priceLine = showPrice
@@ -57,11 +85,11 @@ function generateStoreHTML(settings: any, products: any[]): string {
         ${img}${discBadge}${outBadge}
       </div>
       <div style="padding:12px;flex:1;display:flex;flex-direction:column;">
-        ${p.category ? `<p style="font-size:.7rem;color:#94a3b8;margin:0 0 2px;">${p.category}</p>` : ''}
-        <p style="font-size:.9rem;font-weight:600;color:#1e293b;margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${p.name}</p>
+        ${p.category ? `<p style="font-size:.7rem;color:#94a3b8;margin:0 0 2px;">${esc(p.category)}</p>` : ''}
+        <p style="font-size:.9rem;font-weight:600;color:#1e293b;margin:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(p.name)}</p>
         ${priceLine}${stockLine}
         <button
-          onclick="addToCart('${p.id}','${p.name.replace(/'/g, "\\'")}',${price})"
+          onclick="addToCart('${esc(p.id)}',${esc(JSON.stringify(String(p.name)))},${price})"
           ${outOfStock ? 'disabled' : ''}
           style="margin-top:auto;padding-top:12px;background:${primary};color:#fff;border:none;border-radius:10px;padding:8px;font-size:.78rem;font-weight:700;cursor:pointer;width:100%;opacity:${outOfStock ? '.4' : '1'};"
         >${outOfStock ? 'Épuisé' : '+ Ajouter au panier'}</button>
@@ -71,13 +99,13 @@ function generateStoreHTML(settings: any, products: any[]): string {
 
   const paymentMethods = (settings.payment_methods ?? ['cash']).map((m: string) => {
     const labels: Record<string, string> = { cash: '💵 Paiement à la livraison', moncash: '📱 MonCash', natcash: '📱 NatCash', card: '💳 Carte bancaire' };
-    return `<span style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:4px 12px;font-size:.8rem;color:#374151;margin:4px;">${labels[m] ?? m}</span>`;
+    return `<span style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:4px 12px;font-size:.8rem;color:#374151;margin:4px;">${esc(labels[m] ?? m)}</span>`;
   }).join('');
 
   const shippingModes = (settings.shipping_modes ?? []).map((m: any) =>
     `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;">
-       <span style="font-size:.85rem;color:#374151;">${m.label}</span>
-       <span style="font-size:.85rem;color:#64748b;">${m.days} — ${m.price === 0 ? 'Gratuit' : m.price + ' ' + currency}</span>
+       <span style="font-size:.85rem;color:#374151;">${esc(m.label)}</span>
+       <span style="font-size:.85rem;color:#64748b;">${esc(m.days)} — ${m.price === 0 ? 'Gratuit' : esc(m.price + ' ' + currency)}</span>
      </div>`
   ).join('');
 
@@ -86,8 +114,8 @@ function generateStoreHTML(settings: any, products: any[]): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${settings.meta_title ?? name}</title>
-  <meta name="description" content="${settings.meta_description ?? tagline}">
+  <title>${esc(settings.meta_title ?? settings.store_name ?? 'Ma Boutique')}</title>
+  <meta name="description" content="${esc(settings.meta_description ?? settings.tagline ?? '')}">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#1e293b}
@@ -105,7 +133,7 @@ function generateStoreHTML(settings: any, products: any[]): string {
   <!-- Nav -->
   <nav>
     <div style="display:flex;align-items:center;gap:12px;">
-      ${settings.logo_url ? `<img src="${settings.logo_url}" alt="logo" style="height:36px;border-radius:8px;">` : ''}
+      ${logoUrl ? `<img src="${esc(logoUrl)}" alt="logo" style="height:36px;border-radius:8px;">` : ''}
       <span style="color:#fff;font-weight:800;font-size:1.1rem;">${name}</span>
     </div>
     <button class="cart-btn" onclick="toggleCart()">
@@ -114,8 +142,8 @@ function generateStoreHTML(settings: any, products: any[]): string {
   </nav>
 
   <!-- Hero -->
-  <section style="background:${settings.banner_url ? `url(${settings.banner_url}) center/cover no-repeat` : `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`};min-height:260px;display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 24px;position:relative;">
-    ${settings.banner_url ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);"></div>' : ''}
+  <section style="background:${bannerUrl ? `url('${esc(bannerUrl)}') center/cover no-repeat` : `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`};min-height:260px;display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 24px;position:relative;">
+    ${bannerUrl ? '<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);"></div>' : ''}
     <div style="position:relative;z-index:1;">
       <h1 style="color:#fff;font-size:2.5rem;font-weight:900;text-shadow:0 2px 8px rgba(0,0,0,.3);">${name}</h1>
       ${tagline ? `<p style="color:rgba(255,255,255,.9);margin-top:12px;font-size:1.1rem;">${tagline}</p>` : ''}
@@ -145,9 +173,9 @@ function generateStoreHTML(settings: any, products: any[]): string {
     ${settings.contact_email || settings.contact_phone ? `
     <div style="margin-top:32px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;">
       <h3 style="font-weight:700;margin-bottom:12px;color:#1e293b;">📞 Contact</h3>
-      ${settings.contact_email ? `<p style="font-size:.9rem;color:#374151;">✉️ ${settings.contact_email}</p>` : ''}
-      ${settings.contact_phone ? `<p style="font-size:.9rem;color:#374151;margin-top:6px;">📱 ${settings.contact_phone}</p>` : ''}
-      ${settings.contact_address ? `<p style="font-size:.9rem;color:#374151;margin-top:6px;">📍 ${settings.contact_address}</p>` : ''}
+      ${settings.contact_email ? `<p style="font-size:.9rem;color:#374151;">✉️ ${esc(settings.contact_email)}</p>` : ''}
+      ${settings.contact_phone ? `<p style="font-size:.9rem;color:#374151;margin-top:6px;">📱 ${esc(settings.contact_phone)}</p>` : ''}
+      ${settings.contact_address ? `<p style="font-size:.9rem;color:#374151;margin-top:6px;">📍 ${esc(settings.contact_address)}</p>` : ''}
     </div>` : ''}
   </main>
 
@@ -193,10 +221,12 @@ function generateStoreHTML(settings: any, products: any[]): string {
 
   <script>
     const STORE_BUSINESS_ID = '${settings.business_id}';
-    const CURRENCY = '${currency}';
+    const CURRENCY = ${JSON.stringify(String(currency)).replace(/</g, '\\u003c')};
     let cart = [];
 
     function fmt(n){ return new Intl.NumberFormat('fr-HT',{minimumFractionDigits:0}).format(n)+' '+CURRENCY; }
+    // Le panier se dessine par innerHTML : le nom du produit y repasse, échappé.
+    function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
     function addToCart(id, name, price){
       const existing = cart.find(i=>i.id===id);
@@ -214,7 +244,7 @@ function generateStoreHTML(settings: any, products: any[]): string {
         : cart.map(i=>\`
           <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f1f5f9;">
             <div style="flex:1;">
-              <p style="font-size:.9rem;font-weight:600;">\${i.name}</p>
+              <p style="font-size:.9rem;font-weight:600;">\${esc(i.name)}</p>
               <p style="font-size:.8rem;color:#64748b;">\${fmt(i.price)} × \${i.qty}</p>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">

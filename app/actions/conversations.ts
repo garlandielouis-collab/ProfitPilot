@@ -50,10 +50,8 @@ export async function listConversations(): Promise<Conversation[]> {
 
 export async function createConversation(title = 'Nouvelle analyse'): Promise<Conversation> {
   try {
-    console.log('[createConversation] starting, title =', title);
     const supabase = await getSupabaseServer();
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    console.log('[createConversation] auth result:', { userId: user?.id, authErr: authErr?.message });
 
     if (authErr || !user) throw new Error(authErr?.message ?? 'Non authentifié');
 
@@ -62,8 +60,6 @@ export async function createConversation(title = 'Nouvelle analyse'): Promise<Co
       .insert({ user_id: user.id, title })
       .select('id, title, created_at, updated_at')
       .single();
-
-    console.log('[createConversation] insert result:', { data, error: error?.message });
 
     if (error) throw new Error(error.message);
 

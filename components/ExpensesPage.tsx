@@ -504,7 +504,8 @@ export function ExpensesPage() {
       if (filterMethod && e.payment_method !== filterMethod)  return false;
       if (search && !e.description.toLowerCase().includes(search.toLowerCase())) return false;
       if (quickFilter === 'salaire' && e.category !== 'Salaire')            return false;
-      if (quickFilter === 'dette'   && e.category !== 'Remboursements')     return false;
+      // Une dette est un statut, pas une catégorie : getExpenses traduit `credit` en 'Dette'.
+      if (quickFilter === 'dette'   && e.payment_status !== 'Dette')        return false;
       if (quickFilter === 'attente' && e.payment_status !== 'En attente')   return false;
       return true;
     });
@@ -824,9 +825,9 @@ export function ExpensesPage() {
                                 {sts.label}
                               </span>
                             </td>
-                            {/* Actions — visible on hover */}
+                            {/* Actions — au survol sur écran à souris, toujours visibles au doigt */}
                             <td className="px-5 py-4">
-                              <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              <div className="flex items-center gap-1 transition-opacity [@media(hover:hover)]:opacity-0 group-hover:opacity-100">
                                 <button
                                   onClick={() => openEdit(exp)}
                                   title="Modifye"

@@ -234,12 +234,14 @@ const PERIODS: { key: PeriodType; label: string }[] = [
   { key: 'Q4', label: 'T4 — Oct/Déc' },
   { key: 'H1', label: 'S1 — 6 mois' },
   { key: 'H2', label: 'S2 — 6 mois' },
-  { key: 'FY', label: 'Annuel 2025' },
+  { key: 'FY', label: 'Annuel' },
 ];
 
 interface PeriodPickerProps {
   active: PeriodType;
   onChange: (p: PeriodType) => void;
+  /** L'année choisie dans le sélecteur : la pastille « Annuel » la porte, jamais une année écrite en dur. */
+  year: number;
 }
 
 const PERIOD_LABEL_HT: Record<PeriodType, string> = {
@@ -249,10 +251,10 @@ const PERIOD_LABEL_HT: Record<PeriodType, string> = {
   Q4: 'T4 — Okt/Des',
   H1: 'S1 — 6 mwa',
   H2: 'S2 — 6 mwa',
-  FY: 'Anyèl 2025',
+  FY: 'Anyèl',
 };
 
-export function PeriodPicker({ active, onChange }: PeriodPickerProps) {
+export function PeriodPicker({ active, onChange, year }: PeriodPickerProps) {
   const { t } = useLanguage();
   return (
     <div className="flex flex-wrap gap-2 no-print">
@@ -270,7 +272,7 @@ export function PeriodPicker({ active, onChange }: PeriodPickerProps) {
             }
           `}
         >
-          {t({ fr: p.label, ht: PERIOD_LABEL_HT[p.key] })}
+          {t({ fr: p.label, ht: PERIOD_LABEL_HT[p.key] })}{p.key === 'FY' ? ` ${year}` : ''}
         </button>
       ))}
     </div>

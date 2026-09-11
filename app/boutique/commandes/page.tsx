@@ -16,7 +16,9 @@ const STATUSES = [
 ];
 
 function statusInfo(s: string) { return STATUSES.find((x) => x.value === s) ?? STATUSES[0]; }
-function fmt(n: number) { return new Intl.NumberFormat('fr-HT').format(n) + ' HTG'; }
+// La devise est celle de la commande (`orders.currency`) : une boutique en USD
+// voyait ses totaux libellés « HTG ». HTG ne sert que de repli.
+function fmt(n: number, currency?: string | null) { return new Intl.NumberFormat('fr-HT').format(n) + ' ' + (currency || 'HTG'); }
 function relDate(iso: string) { return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
 
 function Spinner() { return <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#001F3F]" />; }
@@ -132,7 +134,7 @@ export default function CommandesPage() {
                       <p className="text-xs text-slate-400">{order.customer_email}</p>
                     </td>
                     <td className="px-5 py-4 text-xs text-slate-500">{relDate(order.created_at)}</td>
-                    <td className="px-5 py-4 font-bold text-slate-800">{fmt(order.total)}</td>
+                    <td className="px-5 py-4 font-bold text-slate-800">{fmt(order.total, order.currency)}</td>
                     <td className="px-5 py-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${si.color}`}>{si.label}</span>
                     </td>
@@ -185,12 +187,12 @@ export default function CommandesPage() {
                 {(selected.order_items ?? []).map((item) => (
                   <div key={item.id} className="flex items-center justify-between py-2 text-sm border-b border-slate-100 last:border-0">
                     <span className="text-slate-700">{item.product_name} ×{item.quantity}</span>
-                    <span className="font-bold text-slate-800">{fmt(item.total_price)}</span>
+                    <span className="font-bold text-slate-800">{fmt(item.total_price, selected.currency)}</span>
                   </div>
                 ))}
                 <div className="mt-3 flex justify-between text-sm font-bold text-slate-800 border-t border-slate-200 pt-3">
                   <span>Total</span>
-                  <span>{fmt(selected.total)}</span>
+                  <span>{fmt(selected.total, selected.currency)}</span>
                 </div>
               </div>
 

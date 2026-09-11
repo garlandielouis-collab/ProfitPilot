@@ -16,7 +16,7 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { USD_RATE, getPlanByKey, type Plan } from '../../lib/plans';
+import { USD_RATE, getPlanByKey, getPlanLabel, type Plan } from '../../lib/plans';
 import { createPendingPayment, getCheckoutQuote } from '../actions/payments';
 import type { CheckoutQuote } from '../../lib/referral';
 import { cn } from '../../lib/utils';
@@ -392,7 +392,8 @@ function SuccessView({ reference, planKey }: { reference: string; planKey: strin
         <h2 className="mt-6 text-2xl font-bold text-anthracite">{t({ fr: 'Demande soumise !', ht: 'Demann voye !' })}</h2>
         <p className="mt-3 text-sm text-anthracite/70">
           Votre paiement est en cours de vérification. Le plan{' '}
-          <strong className="text-anthracite">{planKey}</strong> sera activé dans les 24 heures.
+          {/* `planKey` est la clé stockée en base (« Business Pilot ») ; le marchand a acheté « Kwasans ». */}
+          <strong className="text-anthracite">{getPlanLabel(planKey)}</strong> sera activé dans les 24 heures.
         </p>
       </motion.div>
 
