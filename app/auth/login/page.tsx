@@ -154,11 +154,14 @@ function LoginForm() {
         // est le bon : l'adresse ne sort jamais pour un numéro tapé au hasard.
         const found = await resolvePhoneLogin(phone, password);
         if (!found.ok) {
+          // « no_account » renvoie vers l'e-mail, et seulement là : aucun réglage
+          // ne rattache un numéro. Il se rattache à l'inscription, ou à la
+          // première connexion par e-mail (`ensurePhoneLinked`).
           setError(
             found.reason === 'bad_phone'
               ? t({ fr: 'Numéro incomplet. Huit chiffres, par exemple 3712 4521.', ht: 'Nimewo pa konplè. Uit chif, egzanp 3712 4521.' })
               : found.reason === 'no_account'
-              ? t({ fr: 'Aucun compte avec ce numéro. Connectez-vous par e-mail, puis rattachez votre numéro dans les réglages.', ht: 'Pa gen kont ak nimewo sa a. Konekte ak imèl, epi mete nimewo ou nan reglaj yo.' })
+              ? t({ fr: 'Aucun compte avec ce numéro. Connectez-vous avec votre adresse e-mail.', ht: 'Pa gen kont ak nimewo sa a. Konekte ak adrès imèl ou.' })
               : found.reason === 'bad_password'
               ? t({ fr: 'Numéro ou mot de passe incorrect.', ht: 'Nimewo oswa modpas pa kòrèk.' })
               : t({ fr: 'Connexion par numéro indisponible pour le moment. Utilisez votre e-mail.', ht: 'Koneksyon ak nimewo pa disponib kounye a. Sèvi ak imèl ou.' }),

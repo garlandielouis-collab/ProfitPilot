@@ -10,7 +10,7 @@ import { BarcodeScanner } from './BarcodeScanner';
 import { SaleInvoiceModal, type InvoiceData } from './SaleInvoiceModal';
 import {
   Scan, Trash2, DollarSign, UserPlus, ChevronDown,
-  FileText, Percent, User,
+  Percent, User,
   Check as CheckIcon, Package as PackageIcon, X as XIcon,
 } from 'lucide-react';
 import { useLanguage } from './LanguageWrapper';
@@ -674,13 +674,6 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                 <p className="text-sm font-bold">{t({ fr: 'Vente enregistrée avec succès !', ht: 'Vant anrejistre avèk siksè !' })}</p>
                 <p className="text-xs opacity-80">{t({ fr: 'Facture N° ', ht: 'Fakti N° ' })}{invoiceData.invoiceNumber}</p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => { /* keep invoiceData to show modal */ }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-xs font-semibold transition hover:bg-white/30"
-                style={{ display: 'none' }}>
-                <FileText size={13} /> {t({ fr: 'Voir facture', ht: 'Wè fakti' })}
-              </button>
             </div>
           </div>
           <SaleInvoiceModal data={invoiceData} onClose={() => setInvoiceData(null)} businessName={businessName} />

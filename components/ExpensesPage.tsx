@@ -66,7 +66,9 @@ const STATUS_CFG: Record<PayStatus, { label: string; cls: string }> = {
   'Dette':      { label: 'Dette',       cls: 'bg-red-100 text-red-600'        },
 };
 
-const catOf = (v: string) => CATEGORIES.find(c => c.value === v) ?? CATEGORIES[4];
+// Une catégorie inconnue retombe sur « Autre » : l'ancien repli `CATEGORIES[4]`
+// la classait d'office en « Réklam », en badge rouge.
+const catOf = (v: string) => CATEGORIES.find(c => c.value === v) ?? CATEGORIES[CATEGORIES.length - 1];
 
 // ── Aucune dépense de démonstration (audit §1.1, §5.10) ──────────────────────
 //

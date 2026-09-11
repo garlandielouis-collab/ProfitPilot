@@ -9,7 +9,9 @@ function client(): Resend {
 
 // Use verified Resend sender. Switch to noreply@profitpilot.ht once the domain
 // is verified at https://resend.com/domains
-const FROM = process.env.EMAIL_FROM ?? 'ProfitPilot <onboarding@resend.dev>';
+// `||` et non `??` : `.env.example` livre `EMAIL_FROM=` vide, et `??` laisse
+// passer la chaîne vide — Resend refuse alors l'envoi faute d'expéditeur.
+const FROM = process.env.EMAIL_FROM?.trim() || 'ProfitPilot <onboarding@resend.dev>';
 
 export async function sendInvitationEmail({
   to,

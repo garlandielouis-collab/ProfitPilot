@@ -37,8 +37,10 @@ export default function BlogPage() {
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {POSTS.map((p, i) => (
+            // Aucune page d'article n'existe : la carte ne doit pas se donner
+            // l'air d'un lien (ni curseur main, ni survol).
             <motion.div key={p.slug} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-              className="group rounded-2xl border border-border bg-white p-6 hover:border-accent/30 hover:shadow-md transition-all cursor-pointer">
+              className="rounded-2xl border border-border bg-white p-6">
               <div className="mb-3 flex items-center justify-between">
                 <span className={`rounded-full px-2.5 py-1 text-note font-semibold ${TAG_COLORS[p.tag] ?? 'bg-slate-100 text-slate-600'}`}>
                   <Tag size={8} className="inline mr-1" />{t({ fr: { Jesyon: 'Gestion', Envantè: 'Inventaire', 'Pilot AI': 'Pilot AI', Rapò: 'Rapport', Fournisè: 'Fournisseur', Trezoreri: 'Trésorerie' }[p.tag] || p.tag, ht: p.tag })}
@@ -47,7 +49,7 @@ export default function BlogPage() {
                   <Clock size={10} /> {p.time}
                 </span>
               </div>
-              <h2 className="font-bold text-primary leading-snug group-hover:text-accent transition-colors">{p.title}</h2>
+              <h2 className="font-bold text-primary leading-snug">{p.title}</h2>
               <p className="mt-2 text-sm text-slate-500 leading-relaxed line-clamp-3">{p.excerpt}</p>
               <p className="mt-4 text-note text-slate-400">{p.date}</p>
             </motion.div>

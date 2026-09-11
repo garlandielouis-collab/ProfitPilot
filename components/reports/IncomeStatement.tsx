@@ -308,7 +308,11 @@ function IncomeStatement({ meta, data, showPrevious = true }: Props) {
             {t({ fr: 'Notes explicatives', ht: 'Nòt eksplikatif' })}
           </p>
           <p className="text-note text-slate-400 leading-relaxed">
-            {t({ fr: '(1) Inclut les ventes en boutique, WhatsApp et Instagram.&nbsp;&nbsp;(2) Services de livraison et commissions.&nbsp;&nbsp;(3) Revenus divers et produits exceptionnels.&nbsp;&nbsp;Les chiffres entre parenthèses représentent des montants négatifs. Les comparatifs 2024 sont présentés à titre indicatif.', ht: '(1) Enkli vant nan boutik, WhatsApp ak Instagram.&nbsp;&nbsp;(2) Sèvis livrezon ak komisyon.&nbsp;&nbsp;(3) Revni divè ak pwodui eksepsyonèl.&nbsp;&nbsp;Chif ant parantèz yo reprezante montan negatif. Konparatif 2024 yo prezante endikatif.' })}
+            {/* Ni ventilation par canal ni comparatif N-1 ne sont calculés
+                (app/actions/reports.ts) : la note ne promet que ce qui existe.
+                `&nbsp;` dans une chaîne JS s'imprimait tel quel : les doubles
+                espaces entre les notes sont des insécables (U+00A0) littéraux. */}
+            {t({ fr: '(1) Ventes enregistrées sur la période.  (2) Services de livraison et commissions.  (3) Revenus divers et produits exceptionnels.  Les chiffres entre parenthèses représentent des montants négatifs.', ht: '(1) Vant ki anrejistre sou peryòd la.  (2) Sèvis livrezon ak komisyon.  (3) Revni divè ak pwodui eksepsyonèl.  Chif ant parantèz yo reprezante montan negatif.' })}
           </p>
         </div>
 

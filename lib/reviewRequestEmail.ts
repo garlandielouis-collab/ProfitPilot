@@ -36,7 +36,9 @@ import { Resend } from 'resend';
 // Même expéditeur vérifié que le reste du produit. À basculer sur le domaine du
 // marchand le jour où l'on saura le vérifier pour lui — c'est ce qui ferait
 // vraiment arriver ce message en boîte principale.
-const FROM = process.env.EMAIL_FROM ?? 'ProfitPilot <onboarding@resend.dev>';
+// `||` et non `??` : `.env.example` livre `EMAIL_FROM=` vide, et `??` laisse
+// passer la chaîne vide — Resend refuse alors l'envoi faute d'expéditeur.
+const FROM = process.env.EMAIL_FROM?.trim() || 'ProfitPilot <onboarding@resend.dev>';
 
 function escapeHtml(s: string): string {
   return s

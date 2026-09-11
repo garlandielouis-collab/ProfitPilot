@@ -63,6 +63,18 @@ type Invoice = {
 const VIP_THRESHOLD  = 50_000;   // HTG — total purchases to be VIP
 const VIP_SALE_COUNT = 5;        // OR >= 5 sales
 
+// `sales.payment_status` est l'énum payment_status_type : on l'affiche en mots,
+// la valeur brute ne sort plus que si la base en ajoute une inconnue ici.
+const PAYMENT_STATUS_LABEL: Record<string, { fr: string; ht: string }> = {
+  pending:   { fr: 'En attente', ht: 'Annatant' },
+  partial:   { fr: 'Partielle',  ht: 'Pasyèl' },
+  paid:      { fr: 'Payée',      ht: 'Peye' },
+  credit:    { fr: 'Crédit',     ht: 'Kredi' },
+  overdue:   { fr: 'En retard',  ht: 'An reta' },
+  cancelled: { fr: 'Annulée',    ht: 'Anile' },
+  refunded:  { fr: 'Remboursée', ht: 'Ranbouse' },
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n: number, currency = 'HTG') {
@@ -70,6 +82,10 @@ function fmt(n: number, currency = 'HTG') {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
   }
   return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' HTG';
+}
+
+function statusLabel(status: string) {
+  return PAYMENT_STATUS_LABEL[status] ?? { fr: status, ht: status };
 }
 
 function initials(name: string) {
@@ -741,7 +757,7 @@ function ClientsCRMInner() {
                         <div className="text-right">
                           <p className="font-bold text-[var(--color-text)]">{fmt(inv.total, inv.currency)}</p>
                           <span className={`text-note font-semibold ${inv.payment_status === 'paid' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                            {inv.payment_status}
+                            {t(statusLabel(inv.payment_status))}
                           </span>
                         </div>
                       </div>
@@ -809,7 +825,7 @@ function ClientsCRMInner() {
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace' }}>{inv.invoice_number}</td>
                     <td style={{ padding: '8px 12px' }}>{inv.payment_method}</td>
                     <td style={{ padding: '8px 12px', fontWeight: 600 }}>{fmt(inv.total, inv.currency)}</td>
-                    <td style={{ padding: '8px 12px', color: inv.payment_status === 'paid' ? '#16a34a' : '#1d4ed8' }}>{inv.payment_status}</td>
+                    <td style={{ padding: '8px 12px', color: inv.payment_status === 'paid' ? '#16a34a' : '#1d4ed8' }}>{t(statusLabel(inv.payment_status))}</td>
                   </tr>
                 ))}
               </tbody>

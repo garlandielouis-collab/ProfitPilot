@@ -429,7 +429,9 @@ export function NewPurchaseForm() {
   useEffect(() => {
     async function load() {
       const [suppRes, prodRes, whRes, userRes] = await Promise.all([
-        supabase.from('suppliers').select('id,name,phone,email,discount_percent').order('name'),
+        // Suppression douce (app/actions/suppliers.ts) : un fournisseur supprimé
+        // ne doit plus être proposé, comme sur /suppliers et /dettes.
+        supabase.from('suppliers').select('id,name,phone,email,discount_percent').is('deleted_at', null).order('name'),
         supabase.from('products').select('id,name,purchase_price,stock_quantity,category').order('name'),
         // Tous les comptes n'ont pas d'entrepôt (ni même la table) : l'absence
         // se traite comme une liste vide, le serveur retombe alors sur

@@ -6,7 +6,12 @@ import { sendInvitationEmail } from '../../lib/email';
 import { assertFeature, assertSeatAvailable } from '../../lib/entitlements';
 import { notify } from '../../lib/notify';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+// Sur Vercel sans NEXT_PUBLIC_APP_URL, l'adresse de production injectée par la
+// plateforme ; localhost seulement en dernier recours — chez l'invité, il n'ouvre rien.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'http://localhost:3000');
 
 export type InvitationResult = {
   id:         string;

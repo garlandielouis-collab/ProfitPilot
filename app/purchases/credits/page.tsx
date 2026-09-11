@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../../lib/supabaseClient';
 import { formatCurrency } from '../../../lib/utils';
 import { useLanguage } from '../../../components/LanguageWrapper';
@@ -88,9 +89,16 @@ export default function CreditPurchasesPage() {
             <h1 className="text-3xl font-semibold text-anthracite">{t({ fr: 'Transactions en attente', ht: 'Tranzaksyon annatant' })}</h1>
             <p className="mt-2 max-w-2xl text-sm text-anthracite/70">Les achats marqués «À Crédit» sont visibles ici sans impacter immédiatement le cash-flow.</p>
           </div>
-          <Button type="button" onClick={() => window.history.back()}>
-            {t({ fr: 'Retour', ht: 'Retounen' })}
-          </Button>
+          {/* Cette liste ne sait pas solder une dette : le bouton « Payer » vit
+              sur /dettes, on y renvoie plutôt que de laisser une impasse. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/dettes" className="inline-flex rounded-3xl bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-h">
+              {t({ fr: 'Payer une dette fournisseur', ht: 'Peye yon dèt founisè' })}
+            </Link>
+            <Button type="button" onClick={() => window.history.back()}>
+              {t({ fr: 'Retour', ht: 'Retounen' })}
+            </Button>
+          </div>
         </div>
       </div>
 

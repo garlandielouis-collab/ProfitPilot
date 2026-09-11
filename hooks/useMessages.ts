@@ -108,7 +108,9 @@ export function useMessages(conversationId: string | null) {
 
       await Promise.all([
         saveMessage(conversationId, 'user',      text),
-        saveMessage(conversationId, 'assistant', fullContent, { model: 'claude-3-5-sonnet-20241022' }),
+        // Le modèle réellement appelé par `app/api/ai/chat/route.ts`, écrit en
+        // dur là-bas et non exporté : à changer en même temps que lui.
+        saveMessage(conversationId, 'assistant', fullContent, { model: 'claude-sonnet-4-6' }),
       ]);
 
       qc.invalidateQueries({ queryKey: key });

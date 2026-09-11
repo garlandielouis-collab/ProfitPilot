@@ -7,7 +7,7 @@ import {
 } from '../actions/boutique';
 import { StorePreview } from '../../components/store/StorePreview';
 import { TEMPLATE_LIST } from '../../components/store/templates/registry';
-import { storePublicUrl } from '../../lib/storeTheme';
+import { storePublicUrl, storeRootDomain } from '../../lib/storeTheme';
 import type { StoreSettings, ShippingMode } from '../actions/store-public';
 // Vingt-trois émojis sur l'écran qui configure la vitrine du marchand — dont
 // six en guise d'onglets. Un onglet est un point de repère : il doit être
@@ -356,8 +356,19 @@ export default function BoutiquePage() {
     });
   }
 
+  // L'adresse que verra le client : domaine perso ou sous-domaine. Repli sur
+  // /store/<slug> quand aucun sous-domaine ne peut répondre — domaine racine non
+  // configuré (storeRootDomain() retombe sur localhost hors de la machine de dev)
+  // ou racine *.vercel.app, que le proxy ne réécrit jamais.
+  const rootDomain = storeRootDomain();
+  const subdomainDead = typeof window !== 'undefined' && (
+    rootDomain.endsWith('.vercel.app') ||
+    (rootDomain.startsWith('localhost') && !window.location.hostname.startsWith('localhost'))
+  );
   const storeUrl = typeof window !== 'undefined' && form.slug
-    ? `${window.location.origin}/store/${form.slug}`
+    ? (!settings?.custom_domain && subdomainDead
+        ? `${window.location.origin}/store/${form.slug}`
+        : storePublicUrl({ slug: form.slug, custom_domain: settings?.custom_domain ?? null }))
     : '';
 
   const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10';

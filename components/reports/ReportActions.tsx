@@ -67,6 +67,7 @@ export default function ReportActions({
   const { t } = useLanguage();
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   /**
    * Trigger browser print dialog.
@@ -96,7 +97,10 @@ export default function ReportActions({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback silent
+      // Presse-papiers refusé (contexte non sécurisé, permission) : le dire,
+      // sinon le marchand croit avoir un lien à coller.
+      setCopyFailed(true);
+      setTimeout(() => setCopyFailed(false), 2000);
     }
   }
 
@@ -151,7 +155,7 @@ export default function ReportActions({
         "
       >
         <ShareIcon />
-        <span className="hidden sm:inline">{copied ? t({ fr: 'Lien copié', ht: 'Lyen kopiye' }) : t({ fr: 'Partager', ht: 'Pataje' })}</span>
+        <span className="hidden sm:inline">{copied ? t({ fr: 'Lien copié', ht: 'Lyen kopiye' }) : copyFailed ? t({ fr: 'Copie impossible', ht: 'Pa ka kopye' }) : t({ fr: 'Partager', ht: 'Pataje' })}</span>
       </button>
     </div>
   );

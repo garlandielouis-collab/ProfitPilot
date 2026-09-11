@@ -576,9 +576,11 @@ export default function OnboardingPage() {
                     {t({ fr: 'Créer mon compte gratuit', ht: 'Kreye kont gratis mwen' })}
                     <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
                   </Link>
+                  {/* /onboarding n'est pas dans `publicRoutes` (proxy.ts) : qui lit ce
+                      lien a déjà une session. « Sans compte » était faux. */}
                   <Link href="/dashboard"
                     className="text-center text-sm text-white/40 hover:text-white/70 transition py-2">
-                    {t({ fr: 'Explorer sans compte →', ht: 'Eksplore san kont →' })}
+                    {t({ fr: 'Aller au tableau de bord →', ht: 'Ale nan tablo bò a →' })}
                   </Link>
                 </div>
 

@@ -436,10 +436,11 @@ export async function createBlankDocument(input: {
   if (error) throw new Error(error.message);
   const documentId = created.id as string;
 
-  await supabase.from('document_versions').insert({
+  const { error: versionError } = await supabase.from('document_versions').insert({
     document_id: documentId, business_id: businessId, version: 1,
     content_blocks: blocks, label: 'Original', origin: 'user', created_by: userId,
   });
+  if (versionError) console.error('[documentTemplates] version 1 non enregistrée:', versionError.message);
 
   if (input.link) {
     const { error: linkError } = await supabase.from('document_links').insert({

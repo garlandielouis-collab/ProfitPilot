@@ -101,8 +101,17 @@ export function buildWeeklyDigest(input: WeeklyDigestInput): string {
     for (const i of actionable.slice(0, 3)) lines.push(`   • ${i.message}`);
   }
 
-  lines.push('');
-  lines.push('👉 Ouvrir le tableau de bord : profitpilot.app/dashboard');
+  // L'adresse réelle du déploiement, même repli que `app/actions/payments.ts`.
+  // Sans URL absolue connue, pas de ligne du tout : un lien vers localhost dans
+  // un WhatsApp ne mène nulle part.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim()
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : '')).replace(/\/$/, '');
+  if (appUrl) {
+    lines.push('');
+    lines.push(`👉 Ouvrir le tableau de bord : ${appUrl}/dashboard`);
+  }
 
   return lines.join('\n');
 }

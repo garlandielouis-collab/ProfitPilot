@@ -105,7 +105,17 @@ export async function sweepReviewRequests(): Promise<ReviewSweepResult> {
     (stores ?? []).map((s: any) => [s.business_id as string, s]),
   );
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '');
+  // Hors NEXT_PUBLIC_APP_URL, l'adresse de production que Vercel injecte. Sans
+  // l'une ni l'autre, les vitrines sans domaine propre n'ont pas d'origine
+  // absolue : elles sont écartées plus bas (`!origin`) plutôt que de recevoir un
+  // lien relatif — et on le dit, sinon la nuit passe sans envoi et sans trace.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL?.trim()
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : '')).replace(/\/$/, '');
+  if (!appUrl) {
+    console.warn('[avis] NEXT_PUBLIC_APP_URL absente — relances des boutiques sans domaine personnalisé non envoyées.');
+  }
 
   let sent = 0, skipped = 0, failed = 0;
 

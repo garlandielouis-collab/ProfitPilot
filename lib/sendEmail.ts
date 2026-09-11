@@ -10,17 +10,16 @@
  * Free tier: 3,000 emails/month, 100/day
  */
 
+import { getPlanLabel, normalizePlanKey } from './plans';
+
 const RESEND_API = 'https://api.resend.com/emails';
+// Repli quand ADMIN_EMAILS n'est pas posée : un paiement que personne ne voit
+// passer, c'est un marchand qui attend son accès sans savoir pourquoi.
 const NOTIFY_TO  = 'garlandielouis@gmail.com';
 
-// Plan labels for the email
-const PLAN_LABELS: Record<string, string> = {
-  starter:      'Starter — 500 HTG/mois',
-  pro:          'Pro — 1 500 HTG/mois',
-  enterprise:   'Enterprise — 3 000 HTG/mois',
-  starter_year: 'Starter Annuel — 5 000 HTG/an',
-  pro_year:     'Pro Annuel — 15 000 HTG/an',
-};
+// `||` et non `??` : `.env.example` livre `EMAIL_FROM=` vide, et `??` laisse
+// passer la chaîne vide — Resend refuse alors l'envoi faute d'expéditeur.
+const FROM = process.env.EMAIL_FROM?.trim() || 'ProfitPilot <onboarding@resend.dev>';
 
 const METHOD_LABELS: Record<string, string> = {
   moncash: 'MonCash',
@@ -46,8 +45,14 @@ export async function sendPaymentNotification(data: PaymentNotificationData): Pr
     return;
   }
 
-  const planLabel   = PLAN_LABELS[data.planKey]   ?? data.planKey;
+  // Le nom commercial seul, sans prix de table : la ligne « Montant » porte déjà
+  // ce qui est réellement dû, remises comprises. Une clé inconnue reste affichée
+  // brute — `getPlanLabel` la maquillerait en « Essai gratuit ».
+  const planLabel   = normalizePlanKey(data.planKey) ? getPlanLabel(data.planKey) : data.planKey;
   const methodLabel = METHOD_LABELS[data.method]  ?? data.method;
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',').map((e) => e.trim()).filter(Boolean);
+  const recipients  = adminEmails.length > 0 ? adminEmails : [NOTIFY_TO];
   const now         = new Date().toLocaleString('fr-FR', { timeZone: 'America/Port-au-Prince' });
 
   const html = `
@@ -162,8 +167,8 @@ export async function sendPaymentNotification(data: PaymentNotificationData): Pr
         'Content-Type':  'application/json',
       },
       body: JSON.stringify({
-        from:    'ProfitPilot <onboarding@resend.dev>',
-        to:      [NOTIFY_TO],
+        from:    FROM,
+        to:      recipients,
         subject: `💳 Paiement en attente — ${planLabel} — Réf: ${data.reference}`,
         html,
       }),
@@ -173,7 +178,7 @@ export async function sendPaymentNotification(data: PaymentNotificationData): Pr
       const body = await res.text().catch(() => '');
       console.error(`[ProfitPilot] Email send failed (${res.status}):`, body);
     } else {
-      console.log(`[ProfitPilot] Payment notification sent → ${NOTIFY_TO} (ref: ${data.reference})`);
+      console.log(`[ProfitPilot] Payment notification sent → ${recipients.join(', ')} (ref: ${data.reference})`);
     }
   } catch (err) {
     // Never let email failure break the payment flow
