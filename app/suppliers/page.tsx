@@ -455,7 +455,10 @@ export default function SuppliersPage() {
   // USD convertis au taux de l'entreprise comme sur /dettes. Sans taux valide,
   // un total qui contient des USD s'affiche « … » plutôt qu'un chiffre faux.
   // `company` est lu en tête de composant : même entreprise que les lectures.
-  const rate = company?.exchangeRate && company.exchangeRate > 0 ? company.exchangeRate : null;
+  // Seulement un taux SAISI (`exchangeRateSet`) : 1, défaut de la colonne, n'en
+  // est pas un.
+  const rate = company?.exchangeRateSet ? company.exchangeRate : null;
+  const usdWithoutRate = rate === null && suppliers.some(s => s.purchases.some(p => p.currency === 'USD'));
 
   const totals = useMemo(() => {
     const sumHtg = (items: Purchase[], amount: (p: Purchase) => number): number | null => {
@@ -601,6 +604,14 @@ export default function SuppliersPage() {
                   {htg(totals.debt)}
                 </p>
                 <p className="text-note text-anthracite/40">Dette totale en cours</p>
+                {usdWithoutRate && (
+                  <p className="mt-1 text-note text-anthracite/60">
+                    {t({ fr: 'Achats en USD : taux de change non renseigné. ', ht: 'Acha an USD : to chanj la pa ranpli. ' })}
+                    <a href="/settings" className="font-semibold underline underline-offset-2">
+                      {t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}
+                    </a>
+                  </p>
+                )}
               </div>
             </div>
           </div>

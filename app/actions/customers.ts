@@ -2,6 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { recordSalePaymentEntry } from '../../lib/accounting/posting';
+import { isExchangeRateSet } from '../../lib/currency';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
@@ -187,7 +188,7 @@ type CreditSettlement =
  * rattachée à une vente.
  */
 export async function markCustomerCreditPaid(transactionOrSaleId: string): Promise<CreditSettlement> {
-  const { supabase, businessId, userId, can } = await getBusinessContext();
+  const { supabase, businessId, userId, can, exchangeRate, exchangeRateSet } = await getBusinessContext();
   // Même droit que /creances : encaisser fait entrer de l'argent en caisse et
   // éteint une créance. Une action serveur est appelable par tout membre.
   if (!can('debts:write')) throw new Error('Action non autorisée.');
@@ -212,7 +213,7 @@ export async function markCustomerCreditPaid(transactionOrSaleId: string): Promi
 
   const { data: sale, error: saleErr } = await supabase
     .from('sales')
-    .select('id, customer_id, total_amount, paid_amount, currency, payment_method, payment_status')
+    .select('id, customer_id, total_amount, paid_amount, currency, exchange_rate, payment_method, payment_status')
     .eq('id', saleId)
     .eq('business_id', businessId)
     .is('deleted_at', null)
@@ -301,6 +302,18 @@ export async function markCustomerCreditPaid(transactionOrSaleId: string): Promi
     }
   }
 
+  // Taux de l'écriture : celui de la vente s'il a été saisi (> 1) — la créance
+  // s'éteint au taux où elle est née, comme dans collectOnSale (receivables.ts)
+  // —, sinon celui de l'entreprise s'il est renseigné. Aucun des deux :
+  // `undefined`, et postEvent note l'échec d'écriture dans
+  // journal_posting_failures au lieu d'écrire à un taux inventé. L'encaissement,
+  // lui, reste acquis : l'argent est reçu.
+  const entryRate = currency !== 'USD'
+    ? 1
+    : isExchangeRateSet(sale.exchange_rate)
+      ? Number(sale.exchange_rate)
+      : (exchangeRateSet ? exchangeRate : undefined);
+
   // Journal: cash in, receivable 4110 extinguished. Without this the customer
   // debt stayed on the balance sheet forever after being collected.
   await recordSalePaymentEntry({
@@ -308,6 +321,7 @@ export async function markCustomerCreditPaid(transactionOrSaleId: string): Promi
     amount,
     date:          new Date().toISOString().split('T')[0],
     currency,
+    exchangeRate:  entryRate,
     paymentMethod: sale.payment_method ?? undefined,
     label:         `Vant #${String(saleId).slice(0, 8)}`,
     // Keys the entry to this instalment, so a 2nd partial payment on the same

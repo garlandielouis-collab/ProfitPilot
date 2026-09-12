@@ -13,16 +13,13 @@ import { SalesHistoryTable }   from '../../components/SalesHistoryTable';
 import { useLanguage }         from '../../components/LanguageWrapper';
 import { ProtectedRoute }      from '../../components/ProtectedRoute';
 import { cn }                  from '../../lib/utils';
-import { getSalesMetrics, getSalesCRMData, type ClientSummary } from '../actions/sales';
+import Link                  from 'next/link';
+import { getSalesMetrics, getSalesCRMData, type ClientSummary, type SalesMetrics } from '../actions/sales';
+import { unconvertedNotice }   from '../../lib/currency';
 
 // ── types ──────────────────────────────────────────────────────────────────────
 
-type Metrics = {
-  monthlyTotal:  number;
-  allTimeTotal:  number;
-  monthlyCount:  number;
-  topClient:     string | null;
-};
+type Metrics = SalesMetrics;
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +98,10 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
         <div className="space-y-2">
           {filtered.map((c, i) => {
             const isOpen = expanded === c.name;
+            // Ventes restées hors du total faute de taux : ni dans le chiffre
+            // d'affaires, ni dans le panier moyen.
+            const unconverted = c.unconvertedCount ?? 0;
+            const counted     = c.count - unconverted;
             return (
               <div
                 key={c.name}
@@ -130,8 +131,11 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
                   </div>
 
                   <div className="text-right mr-3">
-                    <p className="font-bold text-slate-800">{fmt(c.total)}</p>
+                    <p className="font-bold text-slate-800">{counted > 0 ? fmt(c.total, c.currency) : '—'}</p>
                     <p className="text-xs text-slate-400">chiffre d'affaires</p>
+                    {unconverted > 0 && (
+                      <p className="text-xs text-amber-700">{unconvertedNotice(unconverted, c.currency).fr}</p>
+                    )}
                   </div>
 
                   {isOpen
@@ -151,11 +155,11 @@ function CRMPanel({ clients, loading }: { clients: ClientSummary[]; loading: boo
                       <div className="grid grid-cols-3 gap-3 px-5 py-4">
                         <div className="rounded-xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Total achats</p>
-                          <p className="mt-1 font-bold text-slate-800">{fmt(c.total)}</p>
+                          <p className="mt-1 font-bold text-slate-800">{counted > 0 ? fmt(c.total, c.currency) : '—'}</p>
                         </div>
                         <div className="rounded-xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Panier moyen</p>
-                          <p className="mt-1 font-bold text-slate-800">{fmt(c.total / c.count)}</p>
+                          <p className="mt-1 font-bold text-slate-800">{counted > 0 ? fmt(c.total / counted, c.currency) : '—'}</p>
                         </div>
                         <div className="rounded-xl bg-slate-50 p-3">
                           <p className="text-xs text-slate-500">Méthodes</p>
@@ -197,8 +201,12 @@ export default function SalesPage() {
   const [activeTab,   setActiveTab]   = useState<TabId>('pos');
   const [historyKey,  setHistoryKey]  = useState(0);
   const [metrics,     setMetrics]     = useState<Metrics>({
-    monthlyTotal: 0, allTimeTotal: 0, monthlyCount: 0, topClient: null,
+    monthlyTotal: 0, allTimeTotal: 0, monthlyCount: 0, topClient: null, currency: 'HTG',
   });
+  // Un cache de session écrit avant l'ajout du champ n'a pas de devise : ses
+  // totaux étaient en HTG.
+  const metricsCurrency = metrics.currency || 'HTG';
+  const metricsUnconverted = metrics.unconvertedCount ?? 0;
   const [clients,     setClients]     = useState<ClientSummary[]>([]);
   const [crmLoading,  setCrmLoading]  = useState(false);
 
@@ -255,14 +263,14 @@ export default function SalesPage() {
             <KPI
               icon={TrendingUp}
               label={t({ fr: 'Ventes ce mois', ht: 'Vant mwa sa a' })}
-              value={fmt(metrics.monthlyTotal)}
+              value={fmt(metrics.monthlyTotal, metricsCurrency)}
               sub={now}
               accent="bg-blue-100 text-primary"
             />
             <KPI
               icon={ShoppingCart}
               label={t({ fr: 'Ventes totales', ht: 'Vant total' })}
-              value={fmt(metrics.allTimeTotal)}
+              value={fmt(metrics.allTimeTotal, metricsCurrency)}
               sub={t({ fr: 'Depuis le début', ht: 'Depi kòmansman' })}
               accent="bg-emerald-100 text-emerald-600"
             />
@@ -281,6 +289,18 @@ export default function SalesPage() {
               accent="bg-amber-100 text-amber-600"
             />
           </div>
+
+          {/* Les totaux ci-dessus sont incomplets : des ventes dans l'autre
+              devise en sont restées dehors, faute de taux saisi. */}
+          {metricsUnconverted > 0 && (
+            <p role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+              {t(unconvertedNotice(metricsUnconverted, metricsCurrency))}
+              {' · '}
+              <Link href="/settings" className="font-semibold underline underline-offset-2">
+                {t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}
+              </Link>
+            </p>
+          )}
 
           {/* ── Tabs ─────────────────────────────────────────────────────────── */}
           <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1">

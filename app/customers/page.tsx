@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { supabase } from '../../lib/supabaseClient';
-import { useAuth } from '../../lib/useAuth';
+import { useCompany } from '../../hooks/useCompany';
 import { upsertCustomer, deleteCustomer, markCustomerCreditPaid } from '../actions/customers';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { Button, FirstRun, NoResult, closestMatch } from '../../components/ds';
@@ -261,26 +261,45 @@ function ClientsCRMInner() {
   const { t } = useLanguage();
   const params = useSearchParams();
 
+  // ── Entreprise active ──────────────────────────────────────────────────────
+  //
+  // Même source que /suppliers : le contexte client (cookie pp_active_store,
+  // entreprises non supprimées ni archivées, résolu côté serveur comme
+  // getBusinessContext, que les actions de cet écran utilisent). L'ancien
+  // `resolveBusinessId` relisait le cookie sans regarder `deleted_at` ni
+  // `archived_at`, et la fiche lisait les ventes SANS filtre d'entreprise tant
+  // qu'il n'avait rien trouvé.
+  const { company, loading: companyLoading } = useCompany();
+  const businessId = company?.id ?? null;
+  // Taux USD→HTG SAISI par le marchand, `null` sinon : 1 (défaut de la
+  // colonne) n'est pas un taux, et aucun total ne se calcule avec.
+  const rate = company?.exchangeRateSet ? company.exchangeRate : null;
+  // Numéro de la dernière lecture lancée (liste, fiche) : une réponse arrivée
+  // après un changement d'entreprise ou de client est ignorée.
+  const clientsSeq = useRef(0);
+  const detailSeq  = useRef(0);
+  const prevBusinessId = useRef<string | null>(null);
+
   // ── State ──────────────────────────────────────────────────────────────────
   const [clients,      setClients]      = useState<Client[]>([]);
   const [selectedId,   setSelectedId]   = useState<string | null>(params.get('id') ?? null);
 
   const [loading,      setLoading]      = useState(true);
+  // Une lecture de la liste a échoué : état d'erreur, jamais des totaux à 0.
+  const [loadError,    setLoadError]    = useState(false);
   const [detailLoad,   setDetailLoad]   = useState(false);
+  // Les ventes du client n'ont pas pu être lues : pas d'historique « vide ».
+  const [detailError,  setDetailError]  = useState(false);
 
   // detail data
   const [invoices,     setInvoices]     = useState<Invoice[]>([]);
   const [credits,      setCredits]      = useState<ClientCredit[]>([]);
   const [busyCredit,   setBusyCredit]   = useState<Set<string>>(new Set());
-  // Chargé avec la liste (loadClients) : taux USD→HTG de l'entreprise.
-  // `null` = indisponible.
-  const [rate,         setRate]         = useState<number | null>(null);
 
   // modals
   const [showModal,    setShowModal]    = useState(false);
   const [editClient,   setEditClient]   = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
-  const { user } = useAuth();
 
   // filters
   const [search,       setSearch]       = useState('');
@@ -291,73 +310,12 @@ function ClientsCRMInner() {
 
   // ── Load all clients ───────────────────────────────────────────────────────
 
-  function getActiveStoreId(): string | null {
-    if (typeof document === 'undefined') return null;
-    const match = document.cookie.match(/(?:^|; )pp_active_store=([0-9a-fA-F-]{36})/);
-    return match ? match[1] : null;
-  }
-
-  async function resolveBusinessId(userId: string): Promise<string | null> {
-    const activeStoreId = getActiveStoreId();
-    if (activeStoreId) {
-      const { data: activeBiz } = await supabase
-        .from('businesses')
-        .select('id, owner_id')
-        .eq('id', activeStoreId)
-        .maybeSingle();
-      if (activeBiz?.owner_id === userId) return activeBiz.id;
-      const { data: membership } = await supabase
-        .from('business_members')
-        .select('business_id')
-        .eq('business_id', activeStoreId)
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (membership?.business_id) return membership.business_id;
-    }
-
-    const { data: ownedBiz } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('owner_id', userId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (ownedBiz?.id) return ownedBiz.id;
-
-    const { data: memberBiz } = await supabase
-      .from('business_members')
-      .select('business_id')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .limit(1)
-      .maybeSingle();
-    return memberBiz?.business_id ?? null;
-  }
-
   const loadClients = useCallback(async () => {
-    if (user === undefined) return;
+    // Pas d'entreprise connue, pas de lecture : aucune requête sans filtre.
+    if (!businessId) return;
+    const seq = ++clientsSeq.current;
     setLoading(true);
-    if (!user) {
-      setClients([]);
-      setLoading(false);
-      return;
-    }
-
-    const businessId = await resolveBusinessId(user.id);
-
-    const clientQuery = supabase.from('customers').select('id,first_name,last_name,phone,email,created_at');
-    if (businessId) {
-      clientQuery.eq('business_id', businessId);
-    } else {
-      // If no business ID, no customers to show
-      setClients([]);
-      setLoading(false);
-      return;
-    }
+    setLoadError(false);
 
     // ── Solde dû par client ─────────────────────────────────────────────────
     //
@@ -366,26 +324,37 @@ function ClientsCRMInner() {
     // affiché. La source est `v_receivables`, la vue de /creances et /dettes :
     // le reste dû après paiements partiels (total_amount − paid_amount), ventes
     // non soldées seulement — un chiffre qui ne contredit pas ces deux écrans.
-    const [clientRes, salesRes, receivRes, bizRes] = await Promise.all([
-      clientQuery.order('first_name'),
+    const [clientRes, salesRes, receivRes] = await Promise.all([
+      supabase.from('customers')
+        .select('id,first_name,last_name,phone,email,created_at')
+        .eq('business_id', businessId)
+        .order('first_name'),
       // `currency` pour convertir, `deleted_at` pour ne pas compter une vente
       // supprimée — `v_receivables` les écarte déjà, « Total Achats » aussi.
       // `id` + `payment_status` : écarter de la dette les ventes annulées ou
       // remboursées, que `v_receivables` laisse passer.
-      businessId
-        ? supabase.from('sales').select('id,customer_id,total_amount,currency,payment_status').eq('business_id', businessId).is('deleted_at', null).not('customer_id', 'is', null)
-        : supabase.from('sales').select('id,customer_id,total_amount,currency,payment_status').is('deleted_at', null).not('customer_id', 'is', null),
+      supabase.from('sales')
+        .select('id,customer_id,total_amount,currency,payment_status')
+        .eq('business_id', businessId)
+        .is('deleted_at', null)
+        .not('customer_id', 'is', null),
       supabase.from('v_receivables')
         .select('sale_id,customer_id,balance_due,currency')
         .eq('business_id', businessId)
         .not('customer_id', 'is', null),
-      supabase.from('businesses').select('exchange_rate').eq('id', businessId).maybeSingle(),
     ]);
 
-    if (clientRes.error) {
-      console.error('[clients] loadClients error:', clientRes.error.message);
-      // Une requête qui échoue ne remplit pas la liste de clients imaginaires.
+    // L'entreprise a changé pendant la lecture : cette réponse est périmée.
+    if (seq !== clientsSeq.current) return;
+
+    // Une lecture qui échoue ne remplit pas la liste de clients imaginaires,
+    // ni de totaux d'achats et de dettes tombés à 0 sans rien dire : l'écran
+    // affiche un état d'erreur et propose de réessayer.
+    const failed = clientRes.error ?? salesRes.error ?? receivRes.error;
+    if (failed) {
+      console.error('[clients] loadClients error:', failed.message);
       setClients([]);
+      setLoadError(true);
       setLoading(false);
       return;
     }
@@ -393,14 +362,12 @@ function ClientsCRMInner() {
     const clientsData = clientRes.data ?? [];
 
     // Tous les montants de l'écran s'affichent en HTG : un montant en USD est
-    // converti au taux de l'entreprise (`businesses.exchange_rate`, NOT NULL),
-    // comme les totaux de /dettes et des dépenses. Additionner 50 USD et 50 HTG
-    // aurait affiché « 100 HTG ». Sans taux valide, le montant USD reste hors du
-    // total et le total s'affiche « … » plutôt qu'un chiffre faux.
-    const rawRate = Number(bizRes.data?.exchange_rate);
-    const bizRate = !bizRes.error && Number.isFinite(rawRate) && rawRate > 0 ? rawRate : null;
+    // converti au taux SAISI de l'entreprise, comme les totaux de /dettes et
+    // des dépenses. Additionner 50 USD et 50 HTG aurait affiché « 100 HTG ».
+    // Sans taux saisi, le montant USD reste hors du total et le total
+    // s'affiche « … » plutôt qu'un chiffre faux.
     const toHtg = (amount: number, currency: string | null | undefined): number | null =>
-      currency === 'USD' ? (bizRate === null ? null : amount * bizRate) : amount;
+      currency === 'USD' ? (rate === null ? null : amount * rate) : amount;
 
     const agg: Record<string, { total: number; count: number; pending: boolean }> = {};
     for (const s of (salesRes.data ?? []) as any[]) {
@@ -412,7 +379,6 @@ function ClientsCRMInner() {
       agg[cid].count += 1;
     }
 
-    if (receivRes.error) console.error('[clients] v_receivables error:', receivRes.error.message);
     // Mêmes règles que la liste « Créances en cours » de la fiche (loadDetail) :
     // une vente annulée/remboursée ou un reste dû sous le centime ne compte pas.
     const closedSaleIds = new Set<string>(
@@ -442,45 +408,52 @@ function ClientsCRMInner() {
       };
     });
 
-    setRate(bizRate);
     setClients(enriched);
-    if (!selectedId && enriched.length > 0) setSelectedId(enriched[0].id);
+    if (enriched.length > 0) setSelectedId(prev => prev ?? enriched[0].id);
     setLoading(false);
-  }, [selectedId, user]);
+  }, [businessId, rate]);
 
   // ── Load client detail ─────────────────────────────────────────────────────
 
   const loadDetail = useCallback(async (clientId: string) => {
-
+    // Tant que l'entreprise active n'est pas connue, aucune lecture : la fiche
+    // ne lit plus les ventes d'un client sans filtre d'entreprise.
+    if (!businessId) return;
+    const seq = ++detailSeq.current;
     setDetailLoad(true);
-    const userResult = await supabase.auth.getUser();
-    const businessId = userResult.data?.user ? await resolveBusinessId(userResult.data.user.id) : null;
     // ── Créances en cours ────────────────────────────────────────────────────
     //
     // La liste ne prenait que `payment_status = 'credit'` : après un acompte, la
     // vente passe à `partial` et disparaissait, alors que la carte « Dette
     // active » la comptait encore. Source désormais identique à cette carte :
     // `v_receivables` (reste dû après paiements partiels), pour ce client.
-    //
-    // `.if()` n'existe pas dans supabase-js (postgrest-js n'a aucune méthode de
-    // ce nom) : l'appel levait « query.if is not a function », et la fiche ne
-    // chargeait ni l'historique ni les créances. Le filtre entreprise est donc
-    // ajouté à la main, seulement quand l'entreprise est connue.
-    let salesQuery = supabase.from('sales')
-      .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
-      .eq('customer_id', clientId)
-      .is('deleted_at', null);
-    let receivQuery = supabase.from('v_receivables')
-      .select('sale_id,invoice_number,total_amount,balance_due,currency,sale_date')
-      .eq('customer_id', clientId);
-    if (businessId != null) {
-      salesQuery  = salesQuery.eq('business_id', businessId);
-      receivQuery = receivQuery.eq('business_id', businessId);
-    }
     const [salesRes, receivRes] = await Promise.all([
-      salesQuery.order('created_at', { ascending: false }),
-      receivQuery.order('sale_date', { ascending: false }),
+      supabase.from('sales')
+        .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
+        .eq('customer_id', clientId)
+        .eq('business_id', businessId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false }),
+      supabase.from('v_receivables')
+        .select('sale_id,invoice_number,total_amount,balance_due,currency,sale_date')
+        .eq('customer_id', clientId)
+        .eq('business_id', businessId)
+        .order('sale_date', { ascending: false }),
     ]);
+
+    // Autre client ou autre entreprise demandés entre-temps : réponse périmée.
+    if (seq !== detailSeq.current) return;
+
+    // Ventes illisibles : ni historique « vide » ni total à 0 — un message.
+    if (salesRes.error) {
+      console.error('[clients] loadDetail sales error:', salesRes.error.message);
+      setInvoices([]);
+      setCredits([]);
+      setDetailError(true);
+      setDetailLoad(false);
+      return;
+    }
+    setDetailError(false);
 
     // Group sales → invoices
     const invMap: Record<string, Invoice> = {};
@@ -520,11 +493,31 @@ function ClientsCRMInner() {
         }));
     }
     setDetailLoad(false);
-  }, []);
+  }, [businessId]);
 
-  // ── Init + re-load on selection ────────────────────────────────────────────
-
-  useEffect(() => { loadClients(); }, []);
+  // ── Init + re-load on company / selection ──────────────────────────────────
+  //
+  // Lecture au montage ET à chaque changement d'entreprise active (ou de taux).
+  // Tant que l'entreprise n'est pas connue, aucune requête. Ce qui a été lu pour
+  // l'entreprise précédente est vidé tout de suite, et le client choisi — qui
+  // lui appartenait — est oublié.
+  useEffect(() => {
+    clientsSeq.current++;
+    detailSeq.current++;
+    setClients([]);
+    setInvoices([]);
+    setCredits([]);
+    setLoadError(false);
+    setDetailError(false);
+    setDetailLoad(false);
+    if (prevBusinessId.current && prevBusinessId.current !== businessId) setSelectedId(null);
+    prevBusinessId.current = businessId;
+    if (!businessId) {
+      if (!companyLoading) setLoading(false);
+      return;
+    }
+    loadClients();
+  }, [businessId, companyLoading, loadClients]);
   useEffect(() => { if (selectedId) loadDetail(selectedId); }, [selectedId, loadDetail]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -683,6 +676,22 @@ function ClientsCRMInner() {
             <div className="flex justify-center py-10">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />
             </div>
+          ) : loadError ? (
+            /* Lecture impossible : on le dit, plutôt qu'une liste vide ou des
+               totaux tombés à 0 (jamais de chiffre qui n'est pas le sien). */
+            <div className="px-4 py-10 text-center">
+              <p className="text-body font-semibold text-[var(--color-text)]">
+                {t({ fr: 'Impossible de charger vos clients.', ht: 'Nou pa rive chaje kliyan ou yo.' })}
+              </p>
+              <p className="mt-1 text-note text-[var(--color-muted)]">
+                {t({ fr: 'Aucun total ne s\'affiche plutôt qu\'un chiffre faux. Vérifiez la connexion, puis réessayez.', ht: 'Nou pa montre okenn total olye yon chif ki fo. Verifye koneksyon an, epi eseye ankò.' })}
+              </p>
+              <div className="mt-4 flex justify-center">
+                <Button variant="primary" onClick={() => { void loadClients(); }}>
+                  {t({ fr: 'Réessayer', ht: 'Eseye ankò' })}
+                </Button>
+              </div>
+            </div>
           ) : clients.length === 0 ? (
             /* Premier accueil : le carnet est neuf, et il le dit (§5.10). */
             <FirstRun
@@ -758,6 +767,13 @@ function ClientsCRMInner() {
         {/* List footer */}
         <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-muted)]">
           {filteredClients.length}{' '}{t({ fr: 'clients', ht: 'kliyan' })}{' · '}{filteredClients.filter(c => c.isVIP).length} VIP
+          {/* « … » dans la liste : on dit pourquoi, et où renseigner le taux. */}
+          {rate === null && clients.some(c => c.purchasesPending || c.debtPending) && (
+            <p className="mt-1">
+              {t({ fr: 'Montants en USD : « … » tant que le taux de change n\'est pas renseigné. ', ht: 'Montan an USD : « … » toutotan to chanj la pa ranpli. ' })}
+              <a href="/settings" className="font-semibold underline underline-offset-2">{t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}</a>
+            </p>
+          )}
         </div>
       </aside>
 
@@ -862,6 +878,13 @@ function ClientsCRMInner() {
                     </div>
                   ))}
                 </div>
+                {/* Un total « … » s'explique : montants en USD, taux non saisi. */}
+                {rate === null && (selected.purchasesPending || selected.debtPending || invoices.some(i => i.currency === 'USD')) && (
+                  <p className="mt-3 text-xs text-[var(--color-muted)]">
+                    {t({ fr: 'Totaux « … » : ce client a des montants en USD et le taux de change de l\'entreprise n\'est pas renseigné. ', ht: 'Total « … » : kliyan sa a gen montan an USD, epi to chanj antrepriz la pa ranpli. ' })}
+                    <a href="/settings" className="font-semibold underline underline-offset-2">{t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}</a>
+                  </p>
+                )}
               </section>
 
               {/* ── Credit/Debt section ── */}
@@ -907,7 +930,11 @@ function ClientsCRMInner() {
                   {detailLoad && <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-border)] border-t-[#001F3F]" />}
                 </div>
 
-                {invoices.length === 0 ? (
+                {detailError ? (
+                  <p className="py-10 text-center text-sm text-red-400">
+                    {t({ fr: 'Impossible de charger l\'historique de ce client. Réessayez dans un instant.', ht: 'Nou pa rive chaje istorik kliyan sa a. Eseye ankò talè.' })}
+                  </p>
+                ) : invoices.length === 0 ? (
                   <p className="py-10 text-center text-sm text-[var(--color-muted)]">{t({ fr: 'Aucune transaction enregistrée', ht: 'Okenn tranzaksyon anregistre' })}</p>
                 ) : (
                   <div className="divide-y divide-[var(--color-border)]">
@@ -945,7 +972,7 @@ function ClientsCRMInner() {
                 <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
                   <span className="text-xs text-[var(--color-muted)]">{invoices.length} {t({ fr: 'factures', ht: 'fakti' })}</span>
                   <span className="text-sm font-bold text-primary">
-                    {t({ fr: 'Total: ', ht: 'Total: ' })}{fmtTotal(historyTotal)}
+                    {t({ fr: 'Total: ', ht: 'Total: ' })}{fmtTotal(detailError ? null : historyTotal)}
                   </span>
                 </div>
               </section>

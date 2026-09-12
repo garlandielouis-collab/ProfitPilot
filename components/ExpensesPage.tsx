@@ -549,12 +549,14 @@ export function ExpensesPage() {
   // 100 USD et 100 HTG donnait « 200 HTG » : chaque dépense en dollars est
   // convertie au taux de l'entreprise active (`businesses.exchange_rate`,
   // rafraîchi chaque jour), le même que /dettes et la vente rapide.
-  const { company } = useCompany();
-  const rate = company?.exchangeRate ?? null;
-  const hasUsd = useMemo(() => expenses.some(e => e.currency === 'USD'), [expenses]);
-  // Tant que le taux n'est pas chargé, un total qui contient des dollars ne
-  // s'affiche pas : « … » vaut mieux qu'un chiffre faux.
-  const rateReady = !hasUsd || (rate !== null && rate > 0);
+  const { company, loading: companyLoading } = useCompany();
+  // Seulement un taux SAISI : 1 (défaut de colonne) n'en est pas un.
+  const rate = company?.exchangeRateSet ? company.exchangeRate : null;
+  const usdCount = useMemo(() => expenses.filter(e => e.currency === 'USD').length, [expenses]);
+  const hasUsd = usdCount > 0;
+  // Tant que le taux n'est pas chargé — ou jamais saisi —, un total qui
+  // contient des dollars ne s'affiche pas : « … » vaut mieux qu'un chiffre faux.
+  const rateReady = !hasUsd || rate !== null;
   const htg = (n: number) => (rateReady ? fmtAmt(n, 'HTG') : '…');
 
   const stats = useMemo(() => {
@@ -692,6 +694,19 @@ export function ExpensesPage() {
                 fr: `Totaux en HTG : les dépenses en USD sont converties au taux de l'entreprise, 1 USD = ${rate.toFixed(2)} HTG.`,
                 ht: `Total an HTG : depans an USD yo konvèti ak to antrepriz la, 1 USD = ${rate.toFixed(2)} HTG.`,
               })}
+            </p>
+          )}
+          {/* Sans taux saisi, les cartes affichent « … » : on dit pourquoi, et où
+              le renseigner. Pas pendant le chargement du contexte entreprise. */}
+          {hasUsd && !rateReady && !companyLoading && (
+            <p className="-mt-4 text-xs text-[var(--color-muted)]">
+              {t({
+                fr: `Totaux « … » : ${usdCount} dépense${usdCount > 1 ? 's' : ''} en USD, taux de change non renseigné. `,
+                ht: `Total « … » : ${usdCount} depans an USD, to chanj la pa ranpli. `,
+              })}
+              <a href="/settings" className="font-semibold underline underline-offset-2">
+                {t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}
+              </a>
             </p>
           )}
 

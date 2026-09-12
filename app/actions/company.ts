@@ -22,7 +22,13 @@ export type CompanyInfo = {
   name:            string;
   sector:          string | null;
   defaultCurrency: 'HTG' | 'USD';
+  /**
+   * 1 USD = `exchangeRate` HTG, valeur brute de `businesses.exchange_rate`.
+   * Ne s'utilise que si `exchangeRateSet` : 1 est le défaut de la colonne.
+   */
   exchangeRate:    number;
+  /** Vrai seulement si le marchand a saisi un taux (> 1, voir `isExchangeRateSet`). */
+  exchangeRateSet: boolean;
   logoUrl:         string | null;
   country:         string;
   timezone:        string;
@@ -63,7 +69,10 @@ function mapBiz(b: any): CompanyInfo {
   return {
     id: b.id, name: b.name, sector: b.sector ?? null,
     defaultCurrency: b.default_currency ?? 'HTG',
-    exchangeRate: Number(b.exchange_rate ?? 130),
+    // La valeur de la base, jamais un repli inventé : sans taux saisi, les
+    // écrans lisent `exchangeRateSet` à faux et n'affichent aucune conversion.
+    exchangeRate:    Number(b.exchange_rate ?? 1),
+    exchangeRateSet: isExchangeRateSet(b.exchange_rate),
     logoUrl:  b.logo_url  ?? null,
     country:  b.country   ?? 'Haiti',
     timezone: b.timezone  ?? 'America/Port-au-Prince',

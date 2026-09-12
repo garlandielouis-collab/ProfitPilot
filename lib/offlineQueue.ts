@@ -28,6 +28,12 @@ export type PendingSale = {
   queuedAt: string;
   attempts: number;
   lastError?: string;
+  /**
+   * Refus définitif tant que le marchand n'a pas agi : le serveur a refusé la
+   * vente faute de taux USD/HTG saisi. Ne consomme pas d'essai ; la vente est
+   * rejouée à chaque passage et sort de la file dès que le taux existe.
+   */
+  waitingFor?: 'exchange_rate';
 };
 
 function openDb(): Promise<IDBDatabase> {
@@ -101,7 +107,16 @@ export async function removePendingSale(clientRef: string): Promise<void> {
 }
 
 export async function markAttempt(entry: PendingSale, error: string): Promise<void> {
+  // Un échec d'une autre nature : la vente n'attend plus (seulement) le taux.
+  const { waitingFor: _waiting, ...rest } = entry;
   await tx('readwrite', (store) =>
-    store.put({ ...entry, attempts: entry.attempts + 1, lastError: error } as PendingSale),
+    store.put({ ...rest, attempts: entry.attempts + 1, lastError: error } as PendingSale),
+  );
+}
+
+/** Refus « taux de change manquant » : la vente reste en file, sans user d'essai. */
+export async function markWaitingForRate(entry: PendingSale, error: string): Promise<void> {
+  await tx('readwrite', (store) =>
+    store.put({ ...entry, waitingFor: 'exchange_rate', lastError: error } as PendingSale),
   );
 }

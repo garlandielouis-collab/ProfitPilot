@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useCompany } from '../../hooks/useCompany';
 import { computeMargin, suggestSalePrice } from '../../lib/margin';
-import type { CurrencyCode } from '../../lib/currency';
+import { isExchangeRateSet, type CurrencyCode } from '../../lib/currency';
 import { MarginCalculator } from '../../components/margin/MarginCalculator';
 import { PriceSimulator } from '../../components/pricing/PriceSimulator';
 import { useLanguage } from '../../components/LanguageWrapper';
@@ -41,8 +41,13 @@ function publicUrl(path: string) {
  * Passe par `lib/margin` pour qu'un seul chiffre fasse foi dans toute l'app —
  * l'ancien calcul « (vente − achat) / vente » ignorait les frais annexes et
  * le taux de change, et faisait donc croire à une marge qui n'existait pas.
+ *
+ * Le prix de vente est en HTG. Un prix d'achat dans une autre devise ne se
+ * convertit qu'au taux SAISI (`rate`) : sans lui, `null` — marge non calculée,
+ * jamais au taux 1 (défaut de la colonne) ni à 130.
  */
-function calcMargin(p: Product, exchangeRate: number) {
+function calcMargin(p: Product, rate: number | null) {
+  if (needsRate(p.currency) && rate === null) return null;
   return computeMargin({
     purchasePrice:     p.purchase_price,
     costCurrency:      (p.currency ?? 'HTG') as CurrencyCode,
@@ -52,10 +57,31 @@ function calcMargin(p: Product, exchangeRate: number) {
     commissionPercent: p.commission_percent,
     salePrice:         p.sale_price,
     saleCurrency:      'HTG',
-    exchangeRate,
+    // Taux saisi, ou coût déjà en HTG (convertCurrency ne lit alors pas le taux).
+    exchangeRate:      rate ?? 1,
     displayCurrency:   'HTG',
   });
 }
+
+/** Le montant est-il dans une autre devise que celle de l'écran (HTG) ? */
+function needsRate(currency: string | null | undefined): boolean {
+  return (currency ?? 'HTG') !== 'HTG';
+}
+
+/** Montant converti en HTG au taux saisi, ou `null` si ce taux manque. */
+function toHtg(amount: number, currency: string | null | undefined, rate: number | null): number | null {
+  if (!needsRate(currency)) return amount;
+  return rate === null ? null : amount * rate;
+}
+
+/** Montant dans SA devise (le dollar garde ses centimes). */
+function fmtCur(n: number, currency: string | null | undefined) {
+  const cur = currency ?? 'HTG';
+  const digits = cur === 'HTG' ? 0 : 2;
+  return `${new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0, maximumFractionDigits: digits }).format(n)} ${cur}`;
+}
+
+const RATE_LINK = '/settings';
 
 /** Champs de frais annexes du formulaire produit, libellés en créole. */
 function costFieldDefs(costCurrency: CurrencyCode) {
@@ -188,17 +214,18 @@ function ImageUploadZone({
 function ProductModal({
   product,
   userId,
+  exchangeRate,
   onClose,
   onSaved,
 }: {
   product: Product | null;
   userId: string;
+  /** Taux saisi (1 USD = x HTG), ou `null` : aucune conversion USD → HTG. */
+  exchangeRate: number | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const isEdit = !!product;
-  const { company } = useCompany();
-  const exchangeRate = company?.exchangeRate && company.exchangeRate > 0 ? company.exchangeRate : 1;
 
   const [form, setForm] = useState<ProductPayload>({
     name:           product?.name ?? '',
@@ -233,8 +260,14 @@ function ProductModal({
 
   const costCurrency = (form.currency ?? 'HTG') as CurrencyCode;
 
+  // Prix d'achat en USD sans taux saisi : ni marge, ni prix conseillé, ni
+  // aperçu converti — plutôt qu'un calcul au taux 1 ou 130.
+  const rateMissing = needsRate(costCurrency) && exchangeRate === null;
+  // Lu seulement si `!rateMissing` : taux saisi, ou coût déjà en HTG.
+  const rate = exchangeRate ?? 1;
+
   // Coût complet + marge nette, recalculés à chaque frappe.
-  const margin = computeMargin({
+  const margin = rateMissing ? null : computeMargin({
     purchasePrice:     form.purchase_price,
     costCurrency,
     deliveryCost:      form.delivery_cost,
@@ -243,11 +276,11 @@ function ProductModal({
     commissionPercent: form.commission_percent,
     salePrice:         form.sale_price,
     saleCurrency:      'HTG',
-    exchangeRate,
+    exchangeRate:      rate,
     displayCurrency:   'HTG',
   });
 
-  const advisedPrice = suggestSalePrice(
+  const advisedPrice = rateMissing ? 0 : suggestSalePrice(
     {
       purchasePrice:     form.purchase_price,
       costCurrency,
@@ -257,7 +290,7 @@ function ProductModal({
       commissionPercent: form.commission_percent,
     },
     {
-      exchangeRate,
+      exchangeRate:        rate,
       displayCurrency:     'HTG',
       targetMarginPercent: form.target_margin_percent ?? 30,
     },
@@ -409,7 +442,8 @@ function ProductModal({
                 onChange={e => setForm(f => ({ ...f, purchase_price: parseFloat(e.target.value) || 0 }))}
                 className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
               />
-              {costCurrency === 'USD' && form.purchase_price > 0 && (
+              {/* Aperçu converti : seulement au taux saisi, jamais à 1 ou 130. */}
+              {costCurrency === 'USD' && form.purchase_price > 0 && exchangeRate !== null && (
                 <p className="mt-1 text-note text-slate-400">
                   ≈ {fmtHTG(form.purchase_price * exchangeRate)} HTG nan to jodi a ({exchangeRate})
                 </p>
@@ -464,7 +498,20 @@ function ProductModal({
           )}
 
           {/* Marge nette temps réel — le seul chiffre qui compte vraiment */}
-          {form.sale_price > 0 && (
+          {/* Achat en USD sans taux saisi : marge non calculée, et on dit pourquoi. */}
+          {form.sale_price > 0 && !margin && (
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex items-center justify-between text-sm font-medium text-slate-600">
+                <span>Mòj nèt pa inite</span>
+                <span className="font-bold">—</span>
+              </div>
+              <p className="mt-1 text-note text-slate-500">
+                Pri acha a an {costCurrency} : mòj la pa ka kalkile san to chanj antrepriz la.{' '}
+                <a href={RATE_LINK} className="font-semibold text-primary underline underline-offset-2">Mete to a</a>
+              </p>
+            </div>
+          )}
+          {form.sale_price > 0 && margin && (
             <div
               className={
                 margin.isLoss
@@ -595,7 +642,8 @@ function ProductCard({
   onDelete,
 }: {
   product: Product;
-  exchangeRate: number;
+  /** Taux saisi, ou `null` : marge non calculée pour un achat en USD. */
+  exchangeRate: number | null;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -637,7 +685,18 @@ function ProductCard({
         </div>
 
         {/* Marge nette — une vente à perte doit se voir, pas se cacher */}
-        {product.sale_price > 0 && (
+        {/* Achat en USD sans taux saisi : pas de pourcentage inventé. */}
+        {product.sale_price > 0 && !margin && (
+          <div className="absolute top-2.5 right-2.5">
+            <span
+              title="Mòj pa kalkile : to chanj la manke"
+              className="inline-flex items-center gap-1 rounded-full bg-slate-500/80 backdrop-blur-sm px-2.5 py-1 text-note font-semibold text-white"
+            >
+              — %
+            </span>
+          </div>
+        )}
+        {product.sale_price > 0 && margin && (
           <div className="absolute top-2.5 right-2.5">
             <span className={margin.isLoss
               ? 'inline-flex items-center gap-1 rounded-full bg-red-600/90 backdrop-blur-sm px-2.5 py-1 text-note font-semibold text-white'
@@ -691,14 +750,14 @@ function ProductCard({
           </div>
           <div className="text-right">
             <p className="text-note text-slate-400 mb-0.5">Pri Acha</p>
-            <p className="text-sm text-slate-500">{fmtHTG(product.purchase_price)}</p>
+            <p className="text-sm text-slate-500">{fmtCur(product.purchase_price, product.currency)}</p>
           </div>
         </div>
 
         {/* Bottom bar */}
         <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
           <span className="text-xs text-slate-400">
-            Valè: <span className="font-medium text-slate-800">{fmtHTG(product.purchase_price * product.stock_quantity)} HTG</span>
+            Valè: <span className="font-medium text-slate-800">{fmtCur(product.purchase_price * product.stock_quantity, product.currency)}</span>
               </span>
           <button
             onClick={onEdit}
@@ -737,12 +796,12 @@ export function ProductsClient({
   const [showCalc,     setShowCalc]     = useState(false);
 
   const { company } = useCompany();
-  const exchangeRate =
-    company?.exchangeRate && company.exchangeRate > 0
-      ? company.exchangeRate
-      : initialExchangeRate && initialExchangeRate > 0
-        ? initialExchangeRate
-        : 1;
+  // Taux SAISI de l'entreprise active, ou `null`. Le contexte client fait foi
+  // dès qu'il est chargé ; avant, le taux servi par la page serveur (déjà
+  // filtré sur `exchangeRateSet`). Jamais de repli à 1 ni à 130.
+  const exchangeRate: number | null = company
+    ? (company.exchangeRateSet ? company.exchangeRate : null)
+    : (isExchangeRateSet(initialExchangeRate) ? Number(initialExchangeRate) : null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -758,16 +817,33 @@ export function ProductsClient({
   }, []);
 
   // Computed stats
-  const totalValue  = products.reduce((s, p) => s + p.purchase_price * p.stock_quantity, 0);
-  const avgMargin   = products.length
-    ? products.reduce((s, p) => s + calcMargin(p, exchangeRate).marginPercent, 0) / products.length
-    : 0;
+  // Valeur du stock en HTG (l'étiquette « G » de la carte) : chaque prix
+  // d'achat est converti depuis SA devise. Un achat en USD sans taux saisi rend
+  // le total inconnu — « … », pas une somme de dollars et de gourdes.
+  const stockValues = products.map(p => {
+    const v = p.purchase_price * p.stock_quantity;
+    return v === 0 ? 0 : toHtg(v, p.currency, exchangeRate);
+  });
+  const totalValue: number | null = stockValues.some(v => v === null)
+    ? null
+    : stockValues.reduce<number>((s, v) => s + (v ?? 0), 0);
+  const margins     = products.map(p => calcMargin(p, exchangeRate));
+  // Produits vendus dont la marge n'a pas pu être calculée (achat en USD, pas
+  // de taux saisi) : la moyenne serait fausse, elle s'affiche « … ».
+  const unconvertedMargins = products.filter((p, i) => p.sale_price > 0 && margins[i] === null).length;
+  const avgMargin: number | null = !products.length
+    ? 0
+    : unconvertedMargins > 0
+      ? null
+      : margins.reduce((s, m) => s + (m?.marginPercent ?? 0), 0) / products.length;
   const outOfStock  = products.filter(p => p.stock_quantity === 0).length;
   const withPhotos  = products.filter(p => p.image_url).length;
   // Vendre à perte sans le savoir est le problème n°1 du document : on le compte.
+  // Parmi les marges calculables : les autres attendent le taux (voir la mention).
   const atLoss      = products.filter(
-    p => p.sale_price > 0 && calcMargin(p, exchangeRate).isLoss,
+    (p, i) => p.sale_price > 0 && margins[i]?.isLoss === true,
   ).length;
+  const usdProducts = products.filter(p => needsRate(p.currency)).length;
   const lowStock    = products.filter(
     p => p.stock_quantity > 0 && p.stock_quantity <= (p.reorder_point || 5),
   ).length;
@@ -797,7 +873,11 @@ export function ProductsClient({
       { header: t({ fr: 'Stock', ht: 'Stock' }),                         value: p => p.stock_quantity },
       { header: t({ fr: 'Seuil de réapprovisionnement', ht: 'Sèy rekòmand' }), value: p => p.reorder_point ?? '' },
       { header: t({ fr: 'Marge nette (%)', ht: 'Mòj nèt (%)' }),
-        value: p => (p.sale_price > 0 ? Number(calcMargin(p, exchangeRate).marginPercent.toFixed(1)) : '') },
+        // Marge non calculable (achat en USD, pas de taux saisi) : cellule vide.
+        value: p => {
+          const m = p.sale_price > 0 ? calcMargin(p, exchangeRate) : null;
+          return m ? Number(m.marginPercent.toFixed(1)) : '';
+        } },
     ]);
     downloadCsv(csv, csvFilename('produits'));
   }
@@ -885,8 +965,8 @@ export function ProductsClient({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
             { label: 'Total Pwodui',  value: String(products.length),    icon: Package,   accent: 'bg-blue-100 text-primary' },
-            { label: 'Valè Stock',    value: fmtHTG(totalValue) + ' G',   icon: BarChart2,  accent: 'bg-emerald-100 text-emerald-800' },
-            { label: 'Mwayèn Mòj',   value: avgMargin.toFixed(1) + '%',  icon: TrendingUp, accent: 'bg-purple-100 text-purple-800' },
+            { label: 'Valè Stock',    value: totalValue === null ? '…' : fmtHTG(totalValue) + ' G',   icon: BarChart2,  accent: 'bg-emerald-100 text-emerald-800' },
+            { label: 'Mwayèn Mòj',   value: avgMargin === null ? '…' : avgMargin.toFixed(1) + '%',  icon: TrendingUp, accent: 'bg-purple-100 text-purple-800' },
             { label: 'Foto Mete',     value: `${withPhotos}/${products.length}`, icon: Star, accent: 'bg-amber-100 text-amber-800' },
           ].map(k => (
             <div key={k.label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
@@ -900,6 +980,14 @@ export function ProductsClient({
             </div>
           ))}
         </div>
+
+        {/* « … » et « — » s'expliquent : achats en USD, taux de change non saisi. */}
+        {exchangeRate === null && usdProducts > 0 && (
+          <p className="-mt-3 text-xs text-slate-500">
+            {usdProducts} pwodwi achte an USD : valè stock la ak mòj yo pa kalkile, to chanj antrepriz la pa ranpli.{' '}
+            <a href={RATE_LINK} className="font-semibold text-primary underline underline-offset-2">Mete to a</a>
+          </p>
+        )}
 
         {error && (
           <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 flex items-center gap-2">
@@ -999,6 +1087,7 @@ export function ProductsClient({
           <ProductModal
             product={editProduct}
             userId={userId}
+            exchangeRate={exchangeRate}
             onClose={() => setShowModal(false)}
             onSaved={load}
           />

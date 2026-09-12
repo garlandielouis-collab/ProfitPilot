@@ -14,8 +14,11 @@ import { computeMargin, suggestSalePrice } from '../../lib/margin';
 import type { CurrencyCode } from '../../lib/currency';
 
 type Props = {
-  /** Taux courant : 1 USD = exchangeRate HTG. */
-  exchangeRate: number;
+  /**
+   * Taux SAISI par le marchand : 1 USD = exchangeRate HTG. `null` quand il ne
+   * l'a jamais renseigné — aucune conversion USD ↔ HTG n'est alors calculée.
+   */
+  exchangeRate: number | null;
   /** Devise d'affichage du résultat (devise de base de l'entreprise). */
   displayCurrency?: CurrencyCode;
   /** Valeurs de départ, ex. depuis une fiche produit. */
@@ -99,6 +102,13 @@ export function MarginCalculator({
     Boolean(initial?.deliveryCost || initial?.packagingCost || initial?.otherCost || initial?.commissionPercent),
   );
 
+  // Un coût dans une autre devise que le résultat ne se convertit qu'au taux
+  // saisi. Sans lui, la marge n'est PAS calculée : ni à 1, ni à 130.
+  const rateMissing = costCurrency !== displayCurrency && exchangeRate === null;
+  // Utilisé seulement si `!rateMissing` : taux saisi, ou même devise (où
+  // convertCurrency rend le montant tel quel, sans lire le taux).
+  const rate = exchangeRate ?? 1;
+
   const costInput = {
     purchasePrice,
     costCurrency,
@@ -110,33 +120,39 @@ export function MarginCalculator({
 
   const result = useMemo(
     () =>
-      computeMargin({
-        ...costInput,
-        salePrice,
-        saleCurrency: displayCurrency,
-        exchangeRate,
-        displayCurrency,
-      }),
+      rateMissing
+        ? null
+        : computeMargin({
+            ...costInput,
+            salePrice,
+            saleCurrency: displayCurrency,
+            exchangeRate: rate,
+            displayCurrency,
+          }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [purchasePrice, costCurrency, salePrice, deliveryCost, packagingCost, otherCost, commissionPercent, exchangeRate, displayCurrency],
+    [purchasePrice, costCurrency, salePrice, deliveryCost, packagingCost, otherCost, commissionPercent, rate, rateMissing, displayCurrency],
   );
 
   const suggested = useMemo(
     () =>
-      suggestSalePrice(costInput, {
-        exchangeRate,
-        displayCurrency,
-        targetMarginPercent: targetMargin,
-      }),
+      rateMissing
+        ? 0
+        : suggestSalePrice(costInput, {
+            exchangeRate: rate,
+            displayCurrency,
+            targetMarginPercent: targetMargin,
+          }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [purchasePrice, costCurrency, deliveryCost, packagingCost, otherCost, commissionPercent, targetMargin, exchangeRate, displayCurrency],
+    [purchasePrice, costCurrency, deliveryCost, packagingCost, otherCost, commissionPercent, targetMargin, rate, rateMissing, displayCurrency],
   );
 
-  const tone = result.isLoss
-    ? { bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-900', text: 'text-red-600 dark:text-red-400' }
-    : result.marginPercent < 10
-      ? { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-900', text: 'text-amber-600 dark:text-amber-400' }
-      : { bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900', text: 'text-emerald-600 dark:text-emerald-400' };
+  const tone = !result
+    ? { bg: 'bg-slate-50 dark:bg-slate-900', border: 'border-slate-200 dark:border-slate-800', text: 'text-slate-500 dark:text-slate-400' }
+    : result.isLoss
+      ? { bg: 'bg-red-50 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-900', text: 'text-red-600 dark:text-red-400' }
+      : result.marginPercent < 10
+        ? { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-900', text: 'text-amber-600 dark:text-amber-400' }
+        : { bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900', text: 'text-emerald-600 dark:text-emerald-400' };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
@@ -148,7 +164,9 @@ export function MarginCalculator({
         <div>
           <h3 className="text-sm font-bold text-white">Calculateur de marge</h3>
           <p className="text-xs text-slate-300">
-            Taux du jour : 1 USD = {exchangeRate.toFixed(2)} HTG
+            {exchangeRate !== null
+              ? `Taux de l'entreprise : 1 USD = ${exchangeRate.toFixed(2)} HTG`
+              : 'Taux USD → HTG non renseigné'}
           </p>
         </div>
       </div>
@@ -217,52 +235,67 @@ export function MarginCalculator({
               Marge nette
             </span>
             <span className={`text-2xl font-black tabular-nums ${tone.text}`}>
-              {result.marginPercent.toFixed(1)}%
+              {result ? `${result.marginPercent.toFixed(1)}%` : '—'}
             </span>
           </div>
-          <p className={`mt-1 text-lg font-bold tabular-nums ${tone.text}`}>
-            {fmt(result.netMargin, result.currency)}
-          </p>
 
-          {result.isLoss && (
-            <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/70 p-2.5 dark:bg-black/20">
-              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
-              <p className="text-xs font-medium text-red-600 dark:text-red-400">
-                Vous vendez à perte. Prix plancher : {fmt(result.breakEvenPrice, result.currency)}.
+          {!result ? (
+            // Coût en USD, résultat en HTG, pas de taux saisi : on le dit plutôt
+            // que d'afficher une marge calculée à un taux que personne n'a donné.
+            <p className="mt-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+              Prix d&apos;achat en {costCurrency} : la marge en {displayCurrency} ne se calcule qu&apos;avec
+              le taux de change de l&apos;entreprise.{' '}
+              <a href="/settings" className="font-semibold text-primary underline underline-offset-2 dark:text-slate-100">
+                Renseigner le taux
+              </a>
+            </p>
+          ) : (
+            <>
+              <p className={`mt-1 text-lg font-bold tabular-nums ${tone.text}`}>
+                {fmt(result.netMargin, result.currency)}
               </p>
-            </div>
-          )}
 
-          <dl className="mt-3 space-y-1 border-t border-black/5 pt-3 text-xs dark:border-white/10">
-            <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Coût d'achat converti</dt>
-              <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                {fmt(result.baseCost, result.currency)}
-              </dd>
-            </div>
-            {result.extraCosts > 0 && (
-              <div className="flex justify-between">
-                <dt className="text-slate-500 dark:text-slate-400">Frais annexes</dt>
-                <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                  {fmt(result.extraCosts, result.currency)}
-                </dd>
-              </div>
-            )}
-            {result.commission > 0 && (
-              <div className="flex justify-between">
-                <dt className="text-slate-500 dark:text-slate-400">Commission</dt>
-                <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                  {fmt(result.commission, result.currency)}
-                </dd>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-black/5 pt-1 dark:border-white/10">
-              <dt className="font-semibold text-slate-600 dark:text-slate-300">Coût réel complet</dt>
-              <dd className="font-bold tabular-nums text-primary dark:text-slate-100">
-                {fmt(result.landedCost, result.currency)}
-              </dd>
-            </div>
-          </dl>
+              {result.isLoss && (
+                <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/70 p-2.5 dark:bg-black/20">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+                  <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                    Vous vendez à perte. Prix plancher : {fmt(result.breakEvenPrice, result.currency)}.
+                  </p>
+                </div>
+              )}
+
+              <dl className="mt-3 space-y-1 border-t border-black/5 pt-3 text-xs dark:border-white/10">
+                <div className="flex justify-between">
+                  <dt className="text-slate-500 dark:text-slate-400">Coût d&apos;achat converti</dt>
+                  <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                    {fmt(result.baseCost, result.currency)}
+                  </dd>
+                </div>
+                {result.extraCosts > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500 dark:text-slate-400">Frais annexes</dt>
+                    <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                      {fmt(result.extraCosts, result.currency)}
+                    </dd>
+                  </div>
+                )}
+                {result.commission > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500 dark:text-slate-400">Commission</dt>
+                    <dd className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                      {fmt(result.commission, result.currency)}
+                    </dd>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-black/5 pt-1 dark:border-white/10">
+                  <dt className="font-semibold text-slate-600 dark:text-slate-300">Coût réel complet</dt>
+                  <dd className="font-bold tabular-nums text-primary dark:text-slate-100">
+                    {fmt(result.landedCost, result.currency)}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          )}
         </div>
 
         {/* Prix conseillé */}

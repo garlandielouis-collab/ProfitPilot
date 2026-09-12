@@ -13,6 +13,21 @@ import {
   type JournalEventType,
   type PostingContext,
 } from '../../lib/accounting/posting';
+import { isExchangeRateSet } from '../../lib/currency';
+
+/**
+ * Taux d'une écriture de reprise en USD : celui du document s'il a été saisi
+ * (> 1), sinon celui de l'entreprise s'il est renseigné. Aucun : `undefined`,
+ * et `postEvent` note l'échec au lieu d'écrire à un taux inventé.
+ * Non exporté : un fichier 'use server' n'exporte que des fonctions async.
+ */
+function repriseRate(
+  currency: unknown, documentRate: unknown, ctx: { exchangeRate: number; exchangeRateSet: boolean },
+): number | undefined {
+  if (currency !== 'USD') return 1;
+  if (isExchangeRateSet(documentRate)) return Number(documentRate);
+  return ctx.exchangeRateSet ? ctx.exchangeRate : undefined;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,7 +177,8 @@ async function postedDocumentIds(
 // Reconcile sales: create journal entries for sales that have none
 export async function reconcileMissingSaleEntries(): Promise<number> {
   await assertPermission('reports:export');
-  const { supabase, businessId, exchangeRate } = await getBusinessContext();
+  const bizCtx = await getBusinessContext();
+  const { supabase, businessId } = bizCtx;
 
   const { data: sales } = await supabase
     .from('sales')
@@ -182,14 +198,11 @@ export async function reconcileMissingSaleEntries(): Promise<number> {
     // Le taux de la vente quand il a été saisi (> 1) : une vente boutique en USD
     // porte le taux figé au paiement, pas celui du jour de la reprise. 1 est la
     // valeur par défaut de la colonne, pas un taux.
-    const saleRate = Number((s as any).exchange_rate);
     const ctx: PostingContext = {
       amount:        Number((s as any).total_amount),
       date:          (s as any).sale_date ?? ((s as any).created_at as string).split('T')[0],
       currency:      (((s as any).currency as any) ?? 'HTG') as 'HTG' | 'USD',
-      exchangeRate:  ((s as any).currency as any) === 'USD'
-        ? (Number.isFinite(saleRate) && saleRate > 1 ? saleRate : exchangeRate)
-        : 1,
+      exchangeRate:  repriseRate((s as any).currency, (s as any).exchange_rate, bizCtx),
       isCredit:      (s as any).payment_status === 'credit',
       paymentMethod: (s as any).payment_method ?? undefined,
       label:         (s as any).invoice_number ?? saleId,
@@ -210,11 +223,12 @@ export async function reconcileMissingSaleEntries(): Promise<number> {
 // Reconcile purchases: create journal entries for purchases that have none
 export async function reconcileMissingPurchaseEntries(): Promise<number> {
   await assertPermission('reports:export');
-  const { supabase, businessId, exchangeRate } = await getBusinessContext();
+  const bizCtx = await getBusinessContext();
+  const { supabase, businessId } = bizCtx;
 
   const { data: purchases } = await supabase
     .from('purchases')
-    .select('id, po_number, total_amount, currency, payment_method, payment_status, purchase_date')
+    .select('id, po_number, total_amount, currency, exchange_rate, payment_method, payment_status, purchase_date')
     .eq('business_id', businessId)
     .is('deleted_at', null);
 
@@ -232,7 +246,7 @@ export async function reconcileMissingPurchaseEntries(): Promise<number> {
       amount:        Number((p as any).total_amount),
       date:          (p as any).purchase_date ?? new Date().toISOString().split('T')[0],
       currency:      (((p as any).currency as any) ?? 'HTG') as 'HTG' | 'USD',
-      exchangeRate:  ((p as any).currency as any) === 'USD' ? exchangeRate : 1,
+      exchangeRate:  repriseRate((p as any).currency, (p as any).exchange_rate, bizCtx),
       isCredit:      (p as any).payment_status === 'credit',
       paymentMethod: (p as any).payment_method ?? undefined,
       label:         (p as any).po_number ?? purchaseId,
@@ -246,12 +260,13 @@ export async function reconcileMissingPurchaseEntries(): Promise<number> {
 // Reconcile expenses: create journal entries for expenses that have none
 export async function reconcileMissingExpenseEntries(): Promise<number> {
   await assertPermission('reports:export');
-  const { supabase, businessId, exchangeRate } = await getBusinessContext();
+  const bizCtx = await getBusinessContext();
+  const { supabase, businessId } = bizCtx;
 
   // Get all expenses
   const { data: expenses } = await supabase
     .from('expenses')
-    .select('id, description, amount, currency, expense_date, payment_method, payment_status, expense_categories(name)')
+    .select('id, description, amount, currency, exchange_rate, expense_date, payment_method, payment_status, expense_categories(name)')
     .eq('business_id', businessId)
     .is('deleted_at', null);
 
@@ -276,7 +291,7 @@ export async function reconcileMissingExpenseEntries(): Promise<number> {
         date: (e as any).expense_date ?? new Date().toISOString().split('T')[0],
         currency: ((e as any).currency as any) ?? 'HTG',
         paymentMethod: (e as any).payment_method ?? 'Cash',
-        exchangeRate: ((e as any).currency as any) === 'USD' ? exchangeRate : 1,
+        exchangeRate: repriseRate((e as any).currency, (e as any).exchange_rate, bizCtx),
       });
       created += 1;
     } catch (err) {

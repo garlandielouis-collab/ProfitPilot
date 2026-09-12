@@ -7,7 +7,19 @@
 // l'app doit passer par ici pour qu'un seul chiffre fasse foi.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { convertCurrency, type CurrencyCode } from './currency';
+import { convertCurrency, isExchangeRateSet, type CurrencyCode } from './currency';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Taux de change : jamais inventé
+//
+// Un taux ne sert que si une devise doit être convertie. Dans ce cas, il doit
+// avoir été SAISI (`isExchangeRateSet` : > 1 ; 1 est le défaut de la colonne).
+// Sinon le résultat est marqué `computable: false`, ses montants à 0 : ce ne
+// sont pas des chiffres à afficher, l'appelant montre « non calculé ».
+//
+// Quand aucune conversion n'est nécessaire (toutes les devises identiques),
+// le taux transmis n'est pas lu : un appelant peut passer 1 sans risque.
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** Coût d'achat d'un produit + tous les frais annexes qui rognent la marge. */
 export type ProductCostInput = {
@@ -60,6 +72,11 @@ export type MarginResult = {
   isLoss: boolean;
   /** Prix de vente en dessous duquel la vente devient une perte. */
   breakEvenPrice: number;
+  /**
+   * Faux si une conversion était nécessaire sans taux saisi : tous les montants
+   * valent alors 0 et ne doivent pas être affichés.
+   */
+  computable: boolean;
 };
 
 const round2 = (n: number): number =>
@@ -81,8 +98,14 @@ export function computeLandedCost(
   input: ProductCostInput,
   exchangeRate: number,
   displayCurrency: CurrencyCode,
-): { baseCost: number; extraCosts: number; total: number } {
-  const rate = safe(exchangeRate) > 0 ? safe(exchangeRate) : 1;
+): { baseCost: number; extraCosts: number; total: number; computable: boolean } {
+  // Coût dans une autre devise sans taux saisi : pas de coût, plutôt qu'un
+  // coût converti à 1.
+  if (input.costCurrency !== displayCurrency && !isExchangeRateSet(exchangeRate)) {
+    return { baseCost: 0, extraCosts: 0, total: 0, computable: false };
+  }
+  // Ici, soit le taux est celui du marchand, soit convertCurrency ne le lit pas.
+  const rate = safe(exchangeRate);
 
   const baseCost = convertCurrency(
     safe(input.purchasePrice),
@@ -100,6 +123,7 @@ export function computeLandedCost(
     baseCost:   round2(baseCost),
     extraCosts: round2(extraCosts),
     total:      round2(baseCost + extraCosts),
+    computable: true,
   };
 }
 
@@ -113,8 +137,21 @@ export function computeLandedCost(
  */
 export function computeMargin(input: MarginInput): MarginResult {
   const currency = input.displayCurrency ?? input.saleCurrency;
-  const rate     = safe(input.exchangeRate) > 0 ? safe(input.exchangeRate) : 1;
   const qty      = safe(input.quantity) > 0 ? safe(input.quantity) : 1;
+
+  // Prix de vente ou coût dans une autre devise que le résultat, sans taux
+  // saisi : marge non calculable. Jamais de conversion à 1.
+  const needsRate = input.saleCurrency !== currency || input.costCurrency !== currency;
+  if (needsRate && !isExchangeRateSet(input.exchangeRate)) {
+    return {
+      currency,
+      revenue: 0, baseCost: 0, extraCosts: 0, commission: 0, landedCost: 0,
+      netMargin: 0, marginPercent: 0, markup: 0, isLoss: false, breakEvenPrice: 0,
+      computable: false,
+    };
+  }
+  // Ici, soit le taux est celui du marchand, soit convertCurrency ne le lit pas.
+  const rate = safe(input.exchangeRate);
 
   const unitRevenue = convertCurrency(
     safe(input.salePrice),
@@ -152,6 +189,7 @@ export function computeMargin(input: MarginInput): MarginResult {
     markup:        landedCost > 0 ? round2(revenue / landedCost) : 0,
     isLoss:        netMargin < 0,
     breakEvenPrice: Number.isFinite(breakEvenPrice) ? round2(breakEvenPrice) : 0,
+    computable:    true,
   };
 }
 
@@ -164,6 +202,9 @@ export function computeMargin(input: MarginInput): MarginResult {
  * frais annexes et commission plateforme.
  *
  * marge% = (P − C − P·k) / P  ⟹  P = C / (1 − k − marge%)
+ *
+ * Renvoie 0 (« pas de prix conseillé ») si l'objectif est inatteignable ou si
+ * le coût exige un taux de change non saisi.
  */
 export function suggestSalePrice(
   input: ProductCostInput,
@@ -173,7 +214,9 @@ export function suggestSalePrice(
     targetMarginPercent: number;
   },
 ): number {
-  const cost = computeLandedCost(input, opts.exchangeRate, opts.displayCurrency).total;
+  const landed = computeLandedCost(input, opts.exchangeRate, opts.displayCurrency);
+  if (!landed.computable) return 0; // taux non saisi : aucun prix inventé
+  const cost = landed.total;
   const k    = Math.min(Math.max(safe(input.commissionPercent), 0), 99) / 100;
   const m    = Math.min(Math.max(safe(opts.targetMarginPercent), 0), 95) / 100;
 
@@ -199,6 +242,8 @@ export type RateImpact = {
   severity: RateImpactSeverity;
   /** Vrai si la vente bascule en perte au nouveau taux. */
   becomesLoss: boolean;
+  /** Faux si l'un des deux taux n'est pas un taux saisi : tout vaut 0 / 'none'. */
+  computable: boolean;
 };
 
 /**
@@ -213,6 +258,16 @@ export function computeRateImpact(
 ): RateImpact {
   const before = computeMargin({ ...input, exchangeRate: previousRate });
   const after  = computeMargin({ ...input, exchangeRate: newRate });
+
+  // Un ancien taux « non renseigné » (1) n'est pas un point de départ : pas de
+  // variation ni d'alerte calculées sur un taux que le marchand n'a pas saisi.
+  if (!before.computable || !after.computable
+      || !isExchangeRateSet(previousRate) || !isExchangeRateSet(newRate)) {
+    return {
+      variationPercent: 0, marginBefore: 0, marginAfter: 0, marginPointsLost: 0,
+      severity: 'none', becomesLoss: false, computable: false,
+    };
+  }
 
   const variationPercent =
     previousRate > 0 ? round2(((newRate - previousRate) / previousRate) * 100) : 0;
@@ -231,6 +286,7 @@ export function computeRateImpact(
     marginPointsLost,
     severity,
     becomesLoss:      !before.isLoss && after.isLoss,
+    computable:       true,
   };
 }
 
@@ -267,6 +323,9 @@ export function simulatePriceIncrease(
 ): PriceScenario[] {
   const baseUnits = Math.max(safe(input.monthlyUnits), 0);
   const current   = computeMargin({ ...input, quantity: 1 });
+  // Marge non calculable (taux non saisi) : aucun scénario plutôt que des
+  // projections à zéro.
+  if (!current.computable) return [];
   const baseline  = current.netMargin * baseUnits;
 
   return increases.map((increasePercent) => {

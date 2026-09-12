@@ -6,6 +6,7 @@ import { createSaleSchema, type CreateSaleInput } from '../../lib/validations';
 import { recordSaleEntry } from '../../lib/accounting/posting';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
+import { makeToReport } from '../../lib/currency';
 
 // ── Types (backward compat pour le UI) ────────────────────────────────────────
 
@@ -145,8 +146,8 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
 
   // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
   // Un montant en dollars ne s'enregistre qu'avec le taux saisi par le
-  // marchand : `exchangeRate` vaut 130 (repli) ou 1 (défaut de colonne) quand
-  // il ne l'a jamais renseigné, et ce taux-là finirait dans sales.exchange_rate
+  // marchand : `exchangeRate` vaut 1 (défaut de colonne, ou NULL) quand il ne
+  // l'a jamais renseigné, et ce taux-là finirait dans sales.exchange_rate
   // puis dans base_debit/base_credit du journal. Refus AVANT toute écriture.
   const exchangeRate = ctx.exchangeRate;
   const rateMissing = [{ field: 'currency', message: EXCHANGE_RATE_MISSING_MESSAGE }];
@@ -488,10 +489,17 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
  *
  * Silencieux en cas d'échec : un total indisponible n'est pas une erreur à
  * montrer au milieu d'une vente. On renvoie 0 et la feuille n'affiche rien.
+ *
+ * Total dans la devise de l'entreprise (`currency`), par `makeToReport` : une
+ * vente dans l'autre devise sans taux saisi reste HORS du total et compte dans
+ * `unconvertedCount`. Jamais de taux de repli.
  */
-export async function getTodaySalesTotal(): Promise<{ total: number; count: number; currency: string }> {
+export async function getTodaySalesTotal(): Promise<{
+  total: number; count: number; currency: string; unconvertedCount?: number;
+}> {
   try {
-    const { supabase, businessId, exchangeRate, defaultCurrency } = await getBusinessContext();
+    const { supabase, businessId, exchangeRate, exchangeRateSet, defaultCurrency } = await getBusinessContext();
+    const toReport = makeToReport({ exchangeRate, exchangeRateSet, defaultCurrency });
 
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -503,12 +511,14 @@ export async function getTodaySalesTotal(): Promise<{ total: number; count: numb
       .gte('created_at', start.toISOString());
 
     const rows = data ?? [];
+    let unconvertedCount = 0;
     const total = rows.reduce((sum: number, r: any) => {
-      const amount = parseFloat(r.total_amount ?? 0);
-      return sum + ((r.currency ?? 'HTG').toUpperCase() === 'USD' ? amount * exchangeRate : amount);
+      const v = toReport(parseFloat(r.total_amount ?? 0) || 0, r.currency);
+      if (v === null) { unconvertedCount += 1; return sum; }
+      return sum + v;
     }, 0);
 
-    return { total: parseFloat(total.toFixed(2)), count: rows.length, currency: defaultCurrency ?? 'HTG' };
+    return { total: parseFloat(total.toFixed(2)), count: rows.length, currency: defaultCurrency, unconvertedCount };
   } catch {
     return { total: 0, count: 0, currency: 'HTG' };
   }
@@ -521,36 +531,48 @@ export type SalesMetrics = {
   allTimeTotal:  number;
   monthlyCount:  number;
   topClient:     string | null;
+  /** Devise des totaux : celle de l'entreprise. */
+  currency:      string;
+  /** Ventes dans l'autre devise restées hors des totaux, faute de taux saisi. */
+  unconvertedCount?: number;
 };
 
 export async function getSalesMetrics(): Promise<SalesMetrics> {
-  let supabase: any, businessId: string, exchangeRate: number;
+  let supabase: any, businessId: string, ctx: Awaited<ReturnType<typeof getBusinessContext>>;
   try {
-    const ctx = await getBusinessContext();
-    supabase = ctx.supabase; businessId = ctx.businessId; exchangeRate = ctx.exchangeRate;
-  } catch { return { monthlyTotal: 0, allTimeTotal: 0, monthlyCount: 0, topClient: null }; }
+    ctx = await getBusinessContext();
+    supabase = ctx.supabase; businessId = ctx.businessId;
+  } catch { return { monthlyTotal: 0, allTimeTotal: 0, monthlyCount: 0, topClient: null, currency: 'HTG' }; }
 
   const now        = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const toHtg = (amt: number, currency: string) =>
-    (currency ?? 'HTG').toUpperCase() === 'USD' ? amt * exchangeRate : amt;
+  // Conversion vers la devise de l'entreprise ; `null` = exclu et compté (par
+  // id de vente : le mois est inclus dans « depuis le début », une même vente
+  // ne compte qu'une fois).
+  const convert = makeToReport(ctx);
+  const unconverted = new Set<string>();
+  const add = (r: any): number => {
+    const v = convert(parseFloat(r.total_amount ?? 0) || 0, r.currency);
+    if (v === null) { unconverted.add(String(r.id)); return 0; }
+    return v;
+  };
 
   const [monthly, allTime] = await Promise.all([
-    supabase.from('sales').select('total_amount, customer_name, currency')
+    supabase.from('sales').select('id, total_amount, customer_name, currency')
       .eq('business_id', businessId).gte('created_at', monthStart),
-    supabase.from('sales').select('total_amount, currency')
+    supabase.from('sales').select('id, total_amount, currency')
       .eq('business_id', businessId),
   ]);
 
   const sum = (rows: any[] | null) =>
-    (rows ?? []).reduce((s: number, r: any) => s + toHtg(parseFloat(r.total_amount ?? 0), r.currency), 0);
+    (rows ?? []).reduce((s: number, r: any) => s + add(r), 0);
 
   // Top client this month
   const clientTotals: Record<string, number> = {};
   for (const r of monthly.data ?? []) {
     if (r.customer_name) {
-      clientTotals[r.customer_name] = (clientTotals[r.customer_name] ?? 0) + toHtg(parseFloat(r.total_amount ?? 0), r.currency);
+      clientTotals[r.customer_name] = (clientTotals[r.customer_name] ?? 0) + add(r);
     }
   }
   const topClient = Object.entries(clientTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
@@ -560,6 +582,8 @@ export async function getSalesMetrics(): Promise<SalesMetrics> {
     allTimeTotal: parseFloat(sum(allTime.data).toFixed(2)),
     monthlyCount: (monthly.data ?? []).length,
     topClient,
+    currency:         ctx.defaultCurrency,
+    unconvertedCount: unconverted.size,
   };
 }
 
@@ -567,18 +591,25 @@ export async function getSalesMetrics(): Promise<SalesMetrics> {
 
 export type ClientSummary = {
   name:     string;
+  /** Dans `currency`, la devise de l'entreprise ; hors ventes inconvertibles. */
   total:    number;
   count:    number;
   lastDate: string;
   methods:  string[];
+  currency: string;
+  /** Ventes de ce client restées hors de `total`, faute de taux saisi. */
+  unconvertedCount?: number;
 };
 
 export async function getSalesCRMData(): Promise<ClientSummary[]> {
-  let supabase: any, businessId: string, exchangeRate: number;
+  let supabase: any, businessId: string, ctx: Awaited<ReturnType<typeof getBusinessContext>>;
   try {
-    const ctx = await getBusinessContext();
-    supabase = ctx.supabase; businessId = ctx.businessId; exchangeRate = ctx.exchangeRate;
+    ctx = await getBusinessContext();
+    supabase = ctx.supabase; businessId = ctx.businessId;
   } catch { return []; }
+
+  const convert  = makeToReport(ctx);
+  const currency = ctx.defaultCurrency;
 
   const { data } = await supabase
     .from('sales')
@@ -590,13 +621,14 @@ export async function getSalesCRMData(): Promise<ClientSummary[]> {
   const map = new Map<string, ClientSummary>();
   for (const row of (data ?? [])) {
     const name = row.customer_name ?? 'Anonim';
-    const amt  = parseFloat(String(row.total_amount ?? 0));
-    const amtHtg = (row.currency ?? 'HTG').toUpperCase() === 'USD' ? amt * exchangeRate : amt;
+    const amt  = parseFloat(String(row.total_amount ?? 0)) || 0;
+    const v    = convert(amt, row.currency);
     if (!map.has(name)) {
-      map.set(name, { name, total: 0, count: 0, lastDate: row.created_at, methods: [] });
+      map.set(name, { name, total: 0, count: 0, lastDate: row.created_at, methods: [], currency, unconvertedCount: 0 });
     }
     const c = map.get(name)!;
-    c.total += amtHtg;
+    if (v === null) c.unconvertedCount = (c.unconvertedCount ?? 0) + 1;
+    else c.total += v;
     c.count += 1;
     if (row.created_at > c.lastDate) c.lastDate = row.created_at;
     if (row.payment_method && !c.methods.includes(row.payment_method))

@@ -41,9 +41,10 @@ export function normalizeToBase(
 // dire que le total est incomplet. Jamais de taux inventé.
 //
 // Pourquoi exiger `exchangeRateSet` et pas seulement un nombre : un taux
-// « non renseigné » arrive ici sous forme de nombre valide. Soit 1, la valeur
-// par défaut de `businesses.exchange_rate`, soit 130, le repli de
-// `getBusinessContext()`. Aucun n'a été saisi par le marchand.
+// « non renseigné » arrive ici sous forme de nombre valide, 1 — la valeur par
+// défaut de `businesses.exchange_rate`, et ce que `getBusinessContext()` renvoie
+// pour NULL. Il n'existe plus aucun repli à 130 ; 1 n'a pas été saisi par le
+// marchand.
 //
 // Pas de 'use server' dans ce module : il exporte des fonctions synchrones, que
 // la directive interdit. Les fichiers 'use server' l'importent sans l'exporter.

@@ -22,16 +22,16 @@ export type BusinessContext = {
   userId:          string;
   businessId:      string;
   /**
-   * 1 USD = `exchangeRate` HTG. Vaut 130 quand la base n'a pas de taux : repli
-   * historique conservé tel quel pour les chemins qui ÉCRIVENT un taux dans une
-   * ligne (vente, achat, dépense, écriture comptable). Pour convertir un total
-   * affiché, passer par `makeToReport` (lib/currency.ts), qui lit
-   * `exchangeRateSet` : 130 n'est pas un taux saisi par le marchand.
+   * 1 USD = `exchangeRate` HTG : la valeur réelle de `businesses.exchange_rate`,
+   * 1 quand elle est NULL. Plus aucun repli à 130 : ce nombre n'avait jamais été
+   * saisi par le marchand. Ne JAMAIS l'utiliser sans consulter `exchangeRateSet`
+   * — pour écrire un taux (vente, achat, dépense), refuser quand il est faux ;
+   * pour convertir un total, passer par `makeToReport` (lib/currency.ts).
    */
   exchangeRate:    number;
   /**
-   * Vrai seulement si `businesses.exchange_rate` est un nombre > 1. Ni NULL
-   * (d'où le repli à 130 ci-dessus), ni 1 (valeur par défaut de la colonne).
+   * Vrai seulement si `businesses.exchange_rate` est un nombre > 1. Ni NULL,
+   * ni 1 (valeur par défaut de la colonne).
    */
   exchangeRateSet: boolean;
   defaultCurrency: 'HTG' | 'USD';
@@ -305,7 +305,7 @@ function buildContext(
     supabase,
     userId,
     businessId,
-    exchangeRate:    Number(biz.exchange_rate ?? 130),
+    exchangeRate:    Number(biz.exchange_rate ?? 1),
     exchangeRateSet: isExchangeRateSet(biz.exchange_rate),
     defaultCurrency: (biz.default_currency ?? 'HTG') as 'HTG' | 'USD',
     role,
@@ -357,10 +357,15 @@ export async function verifyBusinessAccess(businessId: string): Promise<Business
   return buildContext(supabase, user.id, businessId, biz ?? {}, role);
 }
 
-export async function getBusinessExchangeRate(supabase: any, businessId: string): Promise<number> {
+/**
+ * Le taux saisi de l'entreprise (1 USD = X HTG), ou `null` s'il ne l'a jamais
+ * été (NULL, ou 1, la valeur par défaut de la colonne). Jamais de repli : à
+ * l'appelant de refuser, ou d'exclure et compter le montant.
+ */
+export async function getBusinessExchangeRate(supabase: any, businessId: string): Promise<number | null> {
   try {
     const ctx = await getBusinessContext();
-    if (ctx.businessId === businessId) return ctx.exchangeRate;
+    if (ctx.businessId === businessId) return ctx.exchangeRateSet ? ctx.exchangeRate : null;
   } catch { /* fall through */ }
 
   const { data } = await supabase
@@ -368,5 +373,5 @@ export async function getBusinessExchangeRate(supabase: any, businessId: string)
     .select('exchange_rate')
     .eq('id', businessId)
     .maybeSingle();
-  return Number(data?.exchange_rate ?? 130);
+  return isExchangeRateSet(data?.exchange_rate) ? Number(data.exchange_rate) : null;
 }

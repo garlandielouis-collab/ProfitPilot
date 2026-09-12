@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { createSaleAction, type CartItemPayload } from '../app/actions/sales';
+import { useCompany } from '../hooks/useCompany';
 import { getCustomers, upsertCustomer, type Customer } from '../app/actions/customers';
 import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
@@ -25,7 +27,8 @@ type ProductOption = {
   purchase_price: number;
   stock_quantity: number;
   category: string;
-  barcode?: string;
+  // `products` n'a pas de colonne `barcode` : le code scanné est le SKU.
+  sku?: string | null;
   image_url?: string;
   currency: 'HTG' | 'USD';
 };
@@ -63,6 +66,14 @@ const KEY_PAY: Record<PaymentKey, PaymentMode> = {
   card: 'Carte Visa', credit: 'Crédit',
 };
 
+/** Même consigne que le refus serveur de createSaleAction (champ `currency`). */
+const RATE_MISSING_MESSAGE = {
+  fr: "Renseignez le taux USD/HTG de l'entreprise (Paramètres) avant d'enregistrer un montant en dollars.",
+  ht: 'Mete to USD/HTG antrepriz la (Paramèt) anvan ou anrejistre yon montan an dola.',
+};
+
+const PRODUCT_COLUMNS = 'id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url,sku';
+
 const MODE_LABELS: Record<PaymentMode, string> = {
   Espèces:     'Espèces',
   Moncash:     'MonCash',
@@ -75,6 +86,12 @@ const MODE_LABELS: Record<PaymentMode, string> = {
 
 export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void }) {
   const { t } = useLanguage();
+  // L'entreprise ACTIVE (celle du sélecteur) et son taux, pas la première créée.
+  const { company } = useCompany();
+  const businessId   = company?.id ?? null;
+  const businessName = company?.name ?? 'Mon Entreprise';
+  // Seulement un taux SAISI : `null` sinon (1 est le défaut de la colonne).
+  const exchangeRate = company?.exchangeRateSet ? company.exchangeRate : null;
   // Products
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [search, setSearch] = useState('');
@@ -88,7 +105,10 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   // Payment
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('Espèces');
   const [currency, setCurrency] = useState<'HTG' | 'USD'>('HTG');
-  const [exchangeRate, setExchangeRate] = useState(1);
+  // La devise EFFECTIVE de la vente : USD seulement avec un taux saisi. Sans
+  // lui, tout reste en HTG, la devise de `sale_price` — aucune conversion à 1.
+  const saleCurrency: 'HTG' | 'USD' = currency === 'USD' && exchangeRate !== null ? 'USD' : 'HTG';
+  const [rateNotice, setRateNotice] = useState(false);
 
   // CRM
   const [clients, setClients] = useState<Customer[]>([]);
@@ -102,27 +122,32 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   const [savingClient, setSavingClient] = useState(false);
 
   // Submission
-  const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [businessName, setBusinessName] = useState('Mon Entreprise');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
 
   // ── Load data ──────────────────────────────────────────────────────────────
 
+  // Taux retiré (ou autre entreprise sans taux) : on revient en HTG.
   useEffect(() => {
+    if (exchangeRate === null && currency === 'USD') setCurrency('HTG');
+    if (exchangeRate !== null) setRateNotice(false);
+  }, [exchangeRate, currency]);
+
+  // Produits et clients de l'entreprise active, rechargés quand elle change :
+  // un panier d'une autre entreprise ne doit pas partir sous ce business_id.
+  useEffect(() => {
+    if (!businessId) return;
+    const bizId: string = businessId;
+    let cancelled = false;
+
     async function init() {
-      const [{ data: userData }, { data: prods }, { data: biz }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.from('products').select('id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url').order('name'),
-        supabase.from('businesses').select('id,name,exchange_rate').order('created_at', { ascending: true }).limit(1).maybeSingle(),
-      ]);
-      setOwnerId(userData.user?.id ?? null);
-      setProducts((prods ?? []) as ProductOption[]);
-      if (biz?.name) setBusinessName(biz.name);
-      if (biz?.id) setBusinessId(biz.id);
-      if (biz?.exchange_rate) setExchangeRate(biz.exchange_rate);
+      const { data: prods } = await supabase
+        .from('products')
+        .select(PRODUCT_COLUMNS)
+        .eq('business_id', bizId)
+        .order('name');
+      if (!cancelled) setProducts((prods ?? []) as ProductOption[]);
     }
 
     async function loadClients() {
@@ -138,9 +163,12 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       }
     }
 
+    setCart([]);
+    setSelectedClient(null);
     init();
     loadClients();
-  }, []);
+    return () => { cancelled = true; };
+  }, [businessId]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
 
@@ -158,7 +186,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   const subtotal = useMemo(() =>
     cart.reduce((s, i) => s + displayUnitPrice(i.product) * i.quantity, 0),
-    [cart, currency, exchangeRate]  // eslint-disable-line react-hooks/exhaustive-deps
+    [cart, saleCurrency, exchangeRate]  // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const discountAmount = useMemo(() =>
@@ -175,14 +203,26 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  // `sale_price` est en HTG (fiche produit), quelle que soit `product.currency`,
+  // qui est la devise du prix d'ACHAT. En USD, conversion au taux saisi
+  // uniquement (saleCurrency n'est 'USD' qu'avec lui), arrondie au centime :
+  // c'est ce prix-là qui est envoyé au serveur.
   function displayUnitPrice(product: ProductOption) {
-    if (product.currency === currency) return product.sale_price;
-    if (product.currency === 'USD') return product.sale_price * exchangeRate;
-    return product.sale_price / exchangeRate;
+    if (saleCurrency === 'HTG' || exchangeRate === null) return product.sale_price;
+    return parseFloat((product.sale_price / exchangeRate).toFixed(2));
+  }
+
+  function toggleCurrency() {
+    if (saleCurrency === 'HTG' && exchangeRate === null) {
+      setRateNotice(true);
+      return;
+    }
+    setRateNotice(false);
+    setCurrency(saleCurrency === 'HTG' ? 'USD' : 'HTG');
   }
 
   function fmtDisplay(n: number) {
-    const sym = currency === 'HTG' ? 'G' : '$';
+    const sym = saleCurrency === 'HTG' ? 'G' : '$';
     return `${sym} ${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
@@ -219,7 +259,12 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
   }
 
   function handleBarcodeDetected(code: string) {
-    const found = products.find(p => p.barcode === code.trim());
+    // Le scan cherchait `p.barcode`, jamais lu (la colonne n'existe pas) : aucun
+    // produit n'était jamais trouvé.
+    const wanted = code.trim().toLowerCase();
+    const found = wanted
+      ? products.find(p => (p.sku ?? '').trim().toLowerCase() === wanted)
+      : undefined;
     setScanMessage(found ? `${t({ fr: 'Ajouté: ', ht: 'Ajoute: ' })}${found.name}` : `${t({ fr: 'Aucun produit pour ', ht: 'Pa gen pwodui pou ' })}${code}`);
     if (found) addToCart(found);
     setScannerOpen(false);
@@ -264,11 +309,8 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
     try {
       const items = cart.map(i => {
-        const unitPrice = i.product.currency === currency
-          ? i.product.sale_price
-          : i.product.currency === 'USD'
-            ? parseFloat((i.product.sale_price * exchangeRate).toFixed(2))
-            : parseFloat((i.product.sale_price / exchangeRate).toFixed(2));
+        // Même prix que l'écran : HTG tel quel, ou converti au taux saisi.
+        const unitPrice = displayUnitPrice(i.product);
         return {
           product_id: i.product.id,
           product_name: i.product.name,
@@ -287,14 +329,17 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         payment_method: dbPaymentMethod,
         payment_status: isCredit ? 'credit' : 'paid',
         tax_amount: 0,
-        currency,
+        currency: saleCurrency,
         discount_percent: discountPercent,
         customer_id: selectedClient?.id,
         customer_name: selectedClient?.name ?? undefined,
       });
 
       if (!result.success) {
-        setError(result.errors.map(e => e.message).join(', '));
+        // Refus « taux manquant » (vente en USD, ou coût d'achat dans l'autre
+        // devise) : la consigne avec son lien vers les Paramètres.
+        if (result.errors.some(e => e.field === 'currency')) setRateNotice(true);
+        setError(result.errors.filter(e => e.field !== 'currency').map(e => e.message).join(', '));
         return;
       }
 
@@ -314,7 +359,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         totalAmount: result.totalAmount,
         paymentMethod: paymentMode === 'Crédit' ? 'Cash' : paymentMode,
         isCredit,
-        currency,
+        currency: saleCurrency,
       };
 
       setInvoiceData(invoice);
@@ -328,7 +373,8 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
       // Reload products to get updated stock quantities
       const { data: freshProds } = await supabase
         .from('products')
-        .select('id,name,sale_price,purchase_price,stock_quantity,category,currency,image_url')
+        .select(PRODUCT_COLUMNS)
+        .eq('business_id', businessId)
         .order('name');
       if (freshProds) setProducts(freshProds as ProductOption[]);
 
@@ -390,9 +436,11 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
                   <p className="truncate text-xs font-semibold text-anthracite">{p.name}</p>
                   <p className="mt-1 text-note text-anthracite/50">{p.category}</p>
                   <div className="mt-2 flex items-center justify-between">
+                    {/* Prix dans la devise de la vente. `p.currency` (devise
+                        d'achat) n'est plus affichée à côté : elle faisait lire
+                        « USD » sous un prix en gourdes. */}
                     <div className="flex items-center gap-1">
                       <p className="text-xs font-bold text-primary">{fmtDisplay(displayUnitPrice(p))}</p>
-                      {p.currency === 'USD' && <span className="text-note font-bold text-primary/60">USD</span>}
                     </div>
                     <p className={`text-note font-medium ${p.stock_quantity < 5 ? 'text-orange-500' : 'text-anthracite/50'}`}>{p.stock_quantity}{t({ fr: ' unités', ht: ' inite' })}</p>
                   </div>
@@ -413,11 +461,23 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
               <h2 className="text-lg font-semibold text-anthracite">
                 Panier <span className="ml-1 text-sm text-anthracite/50">({cart.length})</span>
               </h2>
-              <button type="button" onClick={() => setCurrency(c => c === 'HTG' ? 'USD' : 'HTG')}
+              <button type="button" onClick={toggleCurrency}
+                aria-describedby={rateNotice ? 'sale-rate-notice' : undefined}
                 className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-anthracite transition hover:bg-slate-100">
-                <DollarSign size={13} /> {currency}
+                <DollarSign size={13} /> {saleCurrency}
               </button>
             </div>
+
+            {/* Pas de taux saisi : la vente en dollars n'est pas proposée, et
+                rien n'est converti à 1. */}
+            {rateNotice && exchangeRate === null && (
+              <p id="sale-rate-notice" role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                {t(RATE_MISSING_MESSAGE)}{' '}
+                <Link href="/settings" className="font-bold underline underline-offset-4">
+                  {t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}
+                </Link>
+              </p>
+            )}
 
             {/* Cart items */}
             <div className="max-h-52 overflow-y-auto space-y-2">

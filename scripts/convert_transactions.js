@@ -29,26 +29,52 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
+// Taux réellement saisi par le marchand (1 USD = rate HTG) : > 1. NULL = jamais
+// saisi, 1 = défaut de la colonne. Même règle que isExchangeRateSet
+// (lib/currency.ts). Aucun repli : sans taux, pas de conversion.
+function isExchangeRateSet(rate) {
+  if (rate === null || rate === undefined || rate === '') return false;
+  const n = Number(rate);
+  return Number.isFinite(n) && n > 1;
+}
+
 function toReportCurrency(amount, fromCurrency, reportCurrency, rate) {
   if (!fromCurrency) fromCurrency = reportCurrency;
-  if (fromCurrency.toUpperCase() === reportCurrency) return Number(amount || 0);
-  if (reportCurrency === 'HTG' && fromCurrency.toUpperCase() === 'USD') return Number(amount || 0) * Number(rate || 130);
-  if (reportCurrency === 'USD' && fromCurrency.toUpperCase() === 'HTG') return Number(amount || 0) / Number(rate || 130);
+  const from = fromCurrency.toUpperCase();
+  if (from === reportCurrency) return Number(amount || 0);
+  if (!isExchangeRateSet(rate)) {
+    // Garde-fou : le contrôle de démarrage arrête le script avant d'arriver ici.
+    throw new Error(`Taux USD/HTG non renseigné : conversion ${from} -> ${reportCurrency} impossible.`);
+  }
+  if (reportCurrency === 'HTG' && from === 'USD') return Number(amount || 0) * Number(rate);
+  if (reportCurrency === 'USD' && from === 'HTG') return Number(amount || 0) / Number(rate);
   return Number(amount || 0);
 }
 
 (async () => {
   try {
-    const { data: businesses, error: be } = await supabase.from('businesses').select('id,exchange_rate,default_currency');
+    const { data: businesses, error: be } = await supabase.from('businesses').select('id,name,exchange_rate,default_currency');
     if (be) throw be;
     if (!businesses || businesses.length === 0) {
       console.log('No businesses found.');
       return;
     }
 
+    // Sans taux saisi, aucune conversion : le script s'arrête AVANT d'écrire quoi
+    // que ce soit (CSV ou base), plutôt que de convertir à un taux inventé.
+    const missingRate = businesses.filter((b) => !isExchangeRateSet(b.exchange_rate));
+    if (missingRate.length > 0) {
+      console.error(`Taux USD/HTG non renseigné pour ${missingRate.length} entreprise(s) :`);
+      for (const b of missingRate) {
+        console.error(`  - ${b.id}${b.name ? ` (${b.name})` : ''} : exchange_rate = ${b.exchange_rate ?? 'NULL'}`);
+      }
+      console.error("Renseignez le taux de chaque entreprise (Paramètres), puis relancez. Aucune conversion n'a été faite.");
+      process.exit(1);
+    }
+
     for (const biz of businesses) {
       const bizId = biz.id;
-      const rate = Number(biz.exchange_rate || 130);
+      const rate = Number(biz.exchange_rate);
       const reportCurrency = (biz.default_currency || 'HTG').toUpperCase();
       console.log(`Processing business ${bizId} (report currency=${reportCurrency}, rate=${rate})`);
 

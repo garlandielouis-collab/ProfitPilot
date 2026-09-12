@@ -53,8 +53,8 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true |
   const currency      = payload.currency ?? 'HTG';
 
   // Un achat en dollars ne s'enregistre qu'avec le taux saisi par le marchand :
-  // sinon purchases.exchange_rate et le journal porteraient 130 (repli) ou 1
-  // (défaut de colonne). Refus avant toute écriture.
+  // sinon purchases.exchange_rate et le journal porteraient 1 (défaut de
+  // colonne, ou NULL) — il n'y a plus de repli à 130. Refus avant toute écriture.
   if (currency === 'USD' && !exchangeRateSet) {
     return { error: EXCHANGE_RATE_MISSING_MESSAGE };
   }

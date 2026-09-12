@@ -521,6 +521,16 @@ export async function postEvent(
   if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return null;
 
   try {
+    // Un montant en dollars ne s'écrit qu'avec un taux réellement saisi (> 1).
+    // Sans taux, `insertJournalEntry` retombe sur 1 (`?? 1`) : base_debit /
+    // base_credit porteraient le montant USD comme s'il était en HTG. Refus
+    // DANS le try : l'échec est noté dans journal_posting_failures, l'opération
+    // métier (vente, encaissement, règlement) reste acquise.
+    if (ctx.currency === 'USD' && !(Number(ctx.exchangeRate) > 1)) {
+      throw new Error(
+        "Taux USD/HTG non renseigné : écriture non passée. Renseignez le taux de l'entreprise (Paramètres).",
+      );
+    }
     // Le cœur non gardé : une vente doit se comptabiliser sans l'offre Rapports.
     const entryId = await insertJournalEntry({
       date:           ctx.date,

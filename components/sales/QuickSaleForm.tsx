@@ -17,6 +17,7 @@ import { getProductsAction, type Product } from '../../app/actions/products';
 import { useCompany } from '../../hooks/useCompany';
 import { computeMargin } from '../../lib/margin';
 import { newClientRef, queueSale } from '../../lib/offlineQueue';
+import { unconvertedNotice } from '../../lib/currency';
 import { flagAttention } from '../../lib/pendingAttention';
 import { cn } from '../../lib/utils';
 import {
@@ -49,6 +50,13 @@ const KEY_PAY: Record<PaymentKey, PaymentMode> = {
 const fmt = (n: number, currency: string): string =>
   `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
 
+/**
+ * Devise du PRIX DE VENTE d'un produit (`sale_price`) : HTG, comme sur la fiche
+ * produit. `products.currency` est celle du prix d'ACHAT : elle ne dit rien de
+ * la devise dans laquelle le client paie. La vente est donc toujours en HTG.
+ */
+const SALE_CURRENCY = 'HTG' as const;
+
 export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
   const { company } = useCompany();
 
@@ -72,15 +80,33 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
   //   changer. C'est la règle du budget d'animation : animer le changement
   //   d'état, jamais la décoration.
   const [todayTotal, setTodayTotal]     = useState<number | null>(null);
-  const [flying, setFlying]             = useState<number | null>(null);
+  // Devise du total du jour telle que le serveur l'a calculé (celle de
+  // l'entreprise), et ventes de l'autre devise laissées hors du total faute de
+  // taux saisi.
+  const [todayCurrency, setTodayCurrency]       = useState<string | null>(null);
+  const [todayUnconverted, setTodayUnconverted] = useState(0);
+  // Le montant qui vole garde SA devise : celle de la vente, pas celle du total.
+  const [flying, setFlying]             = useState<{ amount: number; currency: string } | null>(null);
 
-  const exchangeRate = company?.exchangeRate ?? 1;
+  // Seulement un taux SAISI : `null` sinon (1 est le défaut de la colonne).
+  const exchangeRate = company?.exchangeRateSet ? company.exchangeRate : null;
   const currency     = company?.defaultCurrency ?? 'HTG';
+  const totalCurrency = todayCurrency ?? currency;
+
+  function loadTodayTotal() {
+    getTodaySalesTotal()
+      .then((r) => {
+        setTodayTotal(r.total);
+        setTodayCurrency(r.currency);
+        setTodayUnconverted(r.unconvertedCount ?? 0);
+      })
+      .catch(() => {});
+  }
 
   useEffect(() => {
     // Silencieux en cas d'échec : sans total, la ligne ne s'affiche pas — elle
     // ne montre jamais un zéro qui pourrait passer pour « rien vendu ».
-    getTodaySalesTotal().then((r) => setTodayTotal(r.total)).catch(() => {});
+    loadTodayTotal();
   }, []);
 
   useEffect(() => {
@@ -99,18 +125,35 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
   }, [products, search]);
 
   // Marge de la vente en cours — le marchand voit ce qu'il gagne AVANT de valider.
+  //
+  // La vente est en HTG (SALE_CURRENCY) ; le coût d'achat est dans la devise
+  // du produit (`costCurrency`), à ne pas confondre avec elle.
+  const costCurrency = (selected?.currency ?? 'HTG') as 'HTG' | 'USD';
+  const hasCost      = Number(selected?.purchase_price ?? 0) > 0;
+  // Coût d'achat dans l'autre devise sans taux saisi : le serveur refuse la
+  // vente (il ne convertit le coût qu'au taux saisi) et la marge n'est pas
+  // calculée. Même condition que createSaleAction (coût nul : rien à convertir).
+  const costNeedsRate = !!selected && hasCost && costCurrency !== SALE_CURRENCY && exchangeRate === null;
+  // Sans taux saisi, rien n'est converti vers la devise de l'entreprise : les
+  // montants se lisent en HTG, jamais convertis à 1 ou à 130.
+  const displayCurrency = exchangeRate === null ? SALE_CURRENCY : currency;
+  const noConversion    = displayCurrency !== currency;
   const margin = useMemo(() => {
-    if (!selected) return null;
-    return computeMargin({
+    if (!selected || costNeedsRate) return null;
+    const m = computeMargin({
       purchasePrice: selected.purchase_price,
-      costCurrency:  selected.currency ?? 'HTG',
+      // Un coût nul vaut zéro dans les deux devises : aucun taux nécessaire.
+      costCurrency:  hasCost ? costCurrency : SALE_CURRENCY,
       salePrice:     selected.sale_price,
-      saleCurrency:  selected.currency ?? 'HTG',
+      saleCurrency:  SALE_CURRENCY,
       quantity,
-      exchangeRate,
-      displayCurrency: currency,
+      // Taux manquant ⇒ tout est déjà en HTG, et computeMargin ne lit pas le
+      // taux quand aucune conversion n'est nécessaire.
+      exchangeRate:    exchangeRate ?? 1,
+      displayCurrency,
     });
-  }, [selected, quantity, exchangeRate, currency]);
+    return m.computable ? m : null;
+  }, [selected, quantity, exchangeRate, costCurrency, hasCost, costNeedsRate, displayCurrency]);
 
   function reset() {
     setSelected(null);
@@ -137,7 +180,9 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
     const clientRef = newClientRef();
     const payload = {
       business_id:      company.id,
-      currency:         (selected.currency ?? 'HTG') as 'HTG' | 'USD',
+      // La devise du montant envoyé (`sale_price`, HTG), jamais celle du prix
+      // d'achat : le serveur convertit lui-même le coût depuis products.currency.
+      currency:         SALE_CURRENCY,
       payment_method:   MODE_TO_DB[mode],
       payment_status:   (isCredit ? 'credit' : 'paid') as 'credit' | 'paid',
       discount_percent: 0,
@@ -178,7 +223,7 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
       }
 
       toast.success(
-        `Vente enregistrée — ${fmt(result.totalAmount, selected.currency ?? 'HTG')}`,
+        `Vente enregistrée — ${fmt(result.totalAmount, SALE_CURRENCY)}`,
         { description: margin ? `Marge : ${fmt(margin.netMargin, margin.currency)}` : undefined },
       );
 
@@ -198,10 +243,18 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
       // un écran que le marchand ne regarde pas. La pastille l'y attend (§3.7).
       if (isCredit) flagAttention('receivables');
       setConfirmed(true);
-      setFlying(result.totalAmount);
+      const soldIn = SALE_CURRENCY;
+      setFlying({ amount: result.totalAmount, currency: soldIn });
       setTimeout(() => {
         setFlying(null);
-        setTodayTotal((prev) => (prev ?? 0) + result.totalAmount);
+        // Même devise que le total : on l'incrémente sur place. Autre devise :
+        // additionner les deux nombres serait faux, le serveur convertit (ou
+        // compte la vente comme non convertie).
+        if (soldIn === totalCurrency) {
+          setTodayTotal((prev) => (prev ?? 0) + result.totalAmount);
+        } else {
+          loadTodayTotal();
+        }
       }, 680);
       setTimeout(() => { setConfirmed(false); reset(); onSaved?.(); }, 680);
     } catch (err) {
@@ -238,6 +291,7 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
           carte : ce n'est pas un indicateur de plus, c'est le repère de la
           journée en cours. */}
       {todayTotal !== null && (
+        <>
         <div className="relative flex min-h-touch items-center justify-between gap-4 border-b border-border pb-2 dark:border-dark-border">
           <span className="text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">
             Ventes du jour
@@ -245,7 +299,7 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
           <Money
             key={todayTotal}
             value={todayTotal}
-            currency={currency}
+            currency={totalCurrency}
             size="card"
             className={confirmed ? 'transition-colors duration-move ease-pp' : undefined}
           />
@@ -259,10 +313,20 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
               style={{ ['--fly-y' as string]: '-2rem' }}
               aria-hidden
             >
-              +{formatAmount(flying, currency)}
+              +{formatAmount(flying.amount, flying.currency)}
             </span>
           )}
         </div>
+        {/* Total incomplet : des ventes dans l'autre devise en sont restées
+            dehors, faute de taux saisi. */}
+        {todayUnconverted > 0 && (
+          <p role="status" className="text-note text-amber-700 dark:text-amber-400">
+            {unconvertedNotice(todayUnconverted, totalCurrency).fr}
+            {' · '}
+            <Link href="/settings" className="font-bold underline underline-offset-4">Renseigner le taux</Link>
+          </p>
+        )}
+        </>
       )}
 
       {/* Étape 1 — le produit */}
@@ -321,7 +385,7 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
                     <span className="truncate text-body font-bold text-primary dark:text-dark-text">{p.name}</span>
                     {/* Le prix est une DONNÉE : il est en marine, pas en
                         émeraude. L'émeraude est réservée à l'action (§6.3). */}
-                    <Money value={p.sale_price} currency={p.currency ?? 'HTG'} size="body" className="mt-1 block font-bold" />
+                    <Money value={p.sale_price} currency={SALE_CURRENCY} size="body" className="mt-1 block font-bold" />
                     <span className="mt-1 text-note text-muted dark:text-dark-muted">
                       {out ? 'Rupture de stock' : `${p.stock_quantity} en stock`}
                     </span>
@@ -342,7 +406,7 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
               <span className="min-w-0">
                 <span className="block truncate text-card font-bold text-primary dark:text-dark-text">{selected.name}</span>
                 <span className="block text-note text-muted dark:text-dark-muted">
-                  {formatAmount(selected.sale_price, selected.currency ?? 'HTG')} l unité
+                  {formatAmount(selected.sale_price, SALE_CURRENCY)} l unité
                 </span>
               </span>
               <button
@@ -377,12 +441,17 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
             </div>
           </div>
 
-          {/* Le marchand voit ce qu il gagne AVANT de valider. */}
-          {margin && (
-            <div className="flex items-center justify-between rounded-surface bg-surface px-4 py-3 dark:bg-dark-surface2">
-              <span className="text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">Total</span>
-              <span className="flex items-baseline gap-3">
+          {/* Le marchand voit ce qu il gagne AVANT de valider. Sans marge
+              calculable, le total reste affiché : c'est son prix, en HTG. */}
+          <div className="flex items-center justify-between rounded-surface bg-surface px-4 py-3 dark:bg-dark-surface2">
+            <span className="text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">Total</span>
+            <span className="flex items-baseline gap-3">
+              {margin ? (
                 <Money value={margin.revenue} currency={margin.currency} size="card" />
+              ) : (
+                <Money value={selected.sale_price * quantity} currency={SALE_CURRENCY} size="card" />
+              )}
+              {margin && (
                 <span className="text-note text-muted dark:text-dark-muted">
                   marge{' '}
                   <Money
@@ -393,8 +462,24 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
                     className="font-bold"
                   />
                 </span>
-              </span>
-            </div>
+              )}
+            </span>
+          </div>
+          {/* Prix d'achat en dollars sans taux saisi : ni marge, ni vente — le
+              serveur refuserait d'enregistrer un coût converti à un taux inventé. */}
+          {costNeedsRate && (
+            <p role="status" className="-mt-4 text-note text-amber-700 dark:text-amber-400">
+              Prix d&apos;achat en {costCurrency} : renseignez le taux USD/HTG de l&apos;entreprise (Paramètres) pour calculer la marge et enregistrer cette vente.{' '}
+              <Link href="/settings" className="font-bold underline underline-offset-4">Renseigner le taux</Link>
+            </p>
+          )}
+          {/* Pas de taux saisi, entreprise en USD : les montants restent en HTG,
+              sans conversion. */}
+          {margin && noConversion && (
+            <p className="-mt-4 text-note text-muted dark:text-dark-muted">
+              Montants en {displayCurrency} : taux de change non renseigné, aucune conversion en {currency}.{' '}
+              <Link href="/settings" className="font-bold underline underline-offset-4">Renseigner le taux</Link>
+            </p>
           )}
 
           <div className="space-y-2">

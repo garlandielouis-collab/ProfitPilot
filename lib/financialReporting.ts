@@ -6,6 +6,7 @@
 
 import { getSupabaseServer } from './supabaseServerClient';
 import { getTransactionPosting, getAccountByCode } from './chartOfAccounts';
+import { isExchangeRateSet, makeToReport, type ToReport } from './currency';
 
 // ===== TYPES =====
 
@@ -37,6 +38,8 @@ export interface ProfitAndLossReport {
   profitBeforeTax: number;
   estimatedTax: number; // Assuming 30% corporate tax
   netProfit: number;
+  /** Montants dans l'autre devise restés hors des totaux, faute de taux saisi. */
+  unconvertedCount?: number;
 }
 
 export interface BalanceSheetReport {
@@ -60,6 +63,8 @@ export interface BalanceSheetReport {
     totalEquity: number;
   };
   totalLiabilitiesAndEquity: number;
+  /** Montants dans l'autre devise restés hors des totaux, faute de taux saisi. */
+  unconvertedCount?: number;
 }
 
 export interface CashFlowReport {
@@ -84,6 +89,8 @@ export interface CashFlowReport {
   netChangeInCash: number;
   beginningCash: number;
   endingCash: number;
+  /** Montants dans l'autre devise restés hors des totaux, faute de taux saisi. */
+  unconvertedCount?: number;
 }
 
 export interface TransactionRecord {
@@ -156,9 +163,13 @@ function invalidateCache(businessId?: string): void {
 // ===== UTILITY FUNCTIONS =====
 
 /**
- * Récupère le taux de change de la base de données
+ * Le taux de change de l'entreprise, et s'il a réellement été saisi.
+ * `exchangeRateSet` est faux pour NULL, ≤ 1 (défaut de colonne) ou une lecture
+ * impossible : aucune conversion n'est alors faite, jamais de taux de repli.
  */
-async function getExchangeRate(businessId: string): Promise<number> {
+async function getExchangeRate(
+  businessId: string,
+): Promise<{ exchangeRate: number; exchangeRateSet: boolean }> {
   try {
     const supabaseServer = await getSupabaseServer();
     const { data } = await supabaseServer
@@ -167,27 +178,29 @@ async function getExchangeRate(businessId: string): Promise<number> {
       .eq('id', businessId)
       .single();
 
-    return data?.exchange_rate || 1;
+    const rate = Number(data?.exchange_rate);
+    return {
+      exchangeRate:    Number.isFinite(rate) ? rate : 1,
+      exchangeRateSet: isExchangeRateSet(data?.exchange_rate),
+    };
   } catch (error) {
     console.error('Error fetching exchange rate:', error);
-    return 1;
+    return { exchangeRate: 1, exchangeRateSet: false };
   }
 }
 
 /**
- * Convertit un montant d'une devise à une autre
+ * Convertisseur vers la devise du rapport : `makeToReport` (lib/currency), la
+ * même règle que le reste du produit. Il renvoie `null` pour un montant
+ * inconvertible (autre devise sans taux saisi) : l'appelant l'EXCLUT du total
+ * et le COMPTE dans `unconvertedCount`.
  */
-function convertCurrency(
-  amount: number,
-  from: 'HTG' | 'USD',
-  to: 'HTG' | 'USD',
-  exchangeRate: number
-): number {
-  if (from === to) return amount;
-  if (from === 'HTG' && to === 'USD') {
-    return amount / exchangeRate;
-  }
-  return amount * exchangeRate;
+async function getReportConverter(
+  businessId: string,
+  currency: 'HTG' | 'USD',
+): Promise<ToReport> {
+  const fx = await getExchangeRate(businessId);
+  return makeToReport({ ...fx, defaultCurrency: currency });
 }
 
 /**
@@ -296,7 +309,7 @@ export async function generateProfitAndLoss(
   const cached = getFromCache<ProfitAndLossReport>(cacheKey);
   if (cached) return cached;
 
-  const exchangeRate = await getExchangeRate(businessId);
+  const toReport = await getReportConverter(businessId, currency);
   const transactions = await getTransactionsForPeriod(businessId, startDate, endDate);
 
   const report: ProfitAndLossReport = {
@@ -330,8 +343,14 @@ export async function generateProfitAndLoss(
   };
 
   // Agrège les transactions par catégorie
+  let unconvertedCount = 0;
   for (const txn of transactions) {
-    const convertedAmount = convertCurrency(txn.amount, txn.currency, currency, exchangeRate);
+    const convertedAmount = toReport(Number(txn.amount) || 0, txn.currency);
+    // Autre devise sans taux saisi : hors du total, mais compté.
+    if (convertedAmount === null) {
+      unconvertedCount += 1;
+      continue;
+    }
 
     switch (txn.type) {
       case 'Sale':
@@ -375,6 +394,7 @@ export async function generateProfitAndLoss(
   report.profitBeforeTax = report.revenues.totalRevenue - report.expenses.totalExpenses;
   report.estimatedTax = Math.max(0, report.profitBeforeTax * 0.3); // 30% corporate tax
   report.netProfit = report.profitBeforeTax - report.estimatedTax;
+  report.unconvertedCount = unconvertedCount;
 
   setInCache(cacheKey, report);
   return report;
@@ -396,23 +416,32 @@ export async function generateBalanceSheet(
   const cached = getFromCache<BalanceSheetReport>(cacheKey);
   if (cached) return cached;
 
-  const exchangeRate = await getExchangeRate(businessId);
+  const toReport = await getReportConverter(businessId, currency);
 
-  // Récupère l'inventaire actuel (RLS filtre par user_id = auth.uid())
+  // Montant converti, ou 0 s'il est inconvertible (autre devise sans taux
+  // saisi) : exclu du total, et compté dans `unconvertedCount`.
+  let unconvertedCount = 0;
+  const inReport = (amount: unknown, from: string | null | undefined): number => {
+    const v = toReport(Number(amount) || 0, from);
+    if (v === null) {
+      unconvertedCount += 1;
+      return 0;
+    }
+    return v;
+  };
+
+  // Récupère l'inventaire actuel de l'entreprise. `currency` est la devise du
+  // prix d'achat : sans elle, chaque stock était converti comme s'il était en
+  // dollars. `business_id` : un compte peut porter plusieurs entreprises.
   const { data: products } = await supabaseServer
     .from('products')
-    .select('stock_quantity, purchase_price');
+    .select('stock_quantity, purchase_price, currency')
+    .eq('business_id', businessId);
 
   let inventoryValue = 0;
   if (products) {
     inventoryValue = products.reduce((sum: number, p: any) => {
-      const converted = convertCurrency(
-        p.stock_quantity * p.purchase_price,
-        p.currency,
-        currency,
-        exchangeRate
-      );
-      return sum + converted;
+      return sum + inReport(Number(p.stock_quantity) * Number(p.purchase_price), p.currency);
     }, 0);
   }
 
@@ -434,8 +463,7 @@ export async function generateBalanceSheet(
   let accountsPayable = 0;
   if (payables) {
     accountsPayable = payables.reduce((sum: number, p: any) => {
-      const converted = convertCurrency(p.total_amount, p.currency, currency, exchangeRate);
-      return sum + converted;
+      return sum + inReport(p.total_amount, p.currency);
     }, 0);
   }
 
@@ -450,8 +478,7 @@ export async function generateBalanceSheet(
   let cashFromSales = 0;
   if (allSales) {
     cashFromSales = allSales.reduce((sum: number, s: any) => {
-      const converted = convertCurrency(s.total_amount, s.currency, currency, exchangeRate);
-      return sum + converted;
+      return sum + inReport(s.total_amount, s.currency);
     }, 0);
   }
 
@@ -467,8 +494,7 @@ export async function generateBalanceSheet(
   let cashUsed = 0;
   if (allExpenses) {
     cashUsed = allExpenses.reduce((sum: number, e: any) => {
-      const converted = convertCurrency(e.amount, e.currency, currency, exchangeRate);
-      return sum + converted;
+      return sum + inReport(e.amount, e.currency);
     }, 0);
   }
 
@@ -499,6 +525,7 @@ export async function generateBalanceSheet(
       totalEquity: 0,
     },
     totalLiabilitiesAndEquity: 0,
+    unconvertedCount,
   };
 
   report.assets.totalAssets =
@@ -528,7 +555,7 @@ export async function generateCashFlow(
   const cached = getFromCache<CashFlowReport>(cacheKey);
   if (cached) return cached;
 
-  const exchangeRate = await getExchangeRate(businessId);
+  const toReport = await getReportConverter(businessId, currency);
   const transactions = await getTransactionsForPeriod(businessId, startDate, endDate);
 
   // Récupère d'abord le P&L pour le Net Income
@@ -556,11 +583,15 @@ export async function generateCashFlow(
     netChangeInCash: pnl.netProfit,
     beginningCash: 0, // TODO: Calculer le solde initial
     endingCash: pnl.netProfit,
+    // Mêmes transactions que le P&L : ses montants inconvertibles sont ceux-ci.
+    unconvertedCount: pnl.unconvertedCount ?? 0,
   };
 
   // Agrège les flux de trésorerie par catégorie
   for (const txn of transactions) {
-    const convertedAmount = convertCurrency(txn.amount, txn.currency, currency, exchangeRate);
+    const convertedAmount = toReport(Number(txn.amount) || 0, txn.currency);
+    // Déjà compté dans pnl.unconvertedCount (mêmes transactions) : on l'exclut.
+    if (convertedAmount === null) continue;
 
     if (txn.type === 'Expense') {
       if (txn.category === 'CapEx') {

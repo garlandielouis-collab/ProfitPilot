@@ -254,7 +254,10 @@ export async function refreshRateWithAlert(): Promise<RateAlert | null> {
         otherCost:         Number(p.other_cost ?? 0),
         commissionPercent: Number(p.commission_percent ?? 0),
         salePrice:         Number(p.sale_price ?? 0),
-        saleCurrency:      'USD',
+        // Le prix de vente est en gourdes (fiche produit) ; seul le coût est en
+        // USD. En 'USD', 3 000 G de prix passaient pour 3 000 $ et aucun produit
+        // importé ne semblait jamais vendu à perte.
+        saleCurrency:      'HTG',
         exchangeRate:      liveRate,
         displayCurrency:   (defaultCurrency as 'HTG' | 'USD') ?? 'HTG',
       });
