@@ -109,6 +109,10 @@ function RapportsPage() {
   const [period,     setPeriod]     = useState<PeriodType>('FY');
   const [year,       setYear]       = useState(currentYear);
   const [loading,    setLoading]    = useState(true);
+  // Le squelette plein écran ne sert qu'au tout premier chargement. Ensuite,
+  // changer de période garde la page en place (sélecteur, défilement) et
+  // montre le chargement dans le sélecteur et par-dessus l'aperçu.
+  const [firstLoad,  setFirstLoad]  = useState(true);
 
   // ── Real data state ─────────────────────────────────────────────────────────
   const [companyName,  setCompanyName]  = useState('Mon Entreprise');
@@ -140,11 +144,16 @@ function RapportsPage() {
   const handleBeforePrint = useCallback(() => {}, []);
 
   // ── Re-fetch every time period or year changes ──────────────────────────────
+  //
+  // `cancelled` : cliquer T1 puis T2 lance deux requêtes, et rien ne garantit
+  // qu'elles reviennent dans l'ordre. Sans ce garde, la réponse de T1 arrivée
+  // en second affichait les chiffres de T1 sous l'étiquette T2.
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     getReportsDataAction(period as ReportPeriod, year)
       .then((d) => {
-        if (!d) return;
+        if (cancelled || !d) return;
         setCompanyName(d.businessName || 'Mon Entreprise');
         setPeriodLabel(d.periodLabel);
         setCurrency(d.currency);
@@ -173,6 +182,7 @@ function RapportsPage() {
         }
       })
       .catch(() => {
+        if (cancelled) return;
         // Une requête qui échoue ne prouve pas que le compte est vide : on
         // n'invente rien, on ne conclut rien, on n'affiche aucun état.
         setIncomeData(null);
@@ -181,7 +191,12 @@ function RapportsPage() {
         setEquityData(null);
         setKpi({ caNet: 0, cogs: 0, netProfit: 0, cashTotal: 0 });
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+        setFirstLoad(false);
+      });
+    return () => { cancelled = true; };
   }, [period, year]); // ← refetch whenever period or year changes
 
   // Un état financier existe ou n'existe pas. Il n'y a pas d'entre-deux, et
@@ -206,7 +221,7 @@ function RapportsPage() {
     previousYear: year - 1,
   }), [companyName, periodLabel, currency, companyPhone, companyAddress, companySector, companyTaxId, year]);
 
-  if (loading) {
+  if (loading && firstLoad) {
     return (
       <main className="min-h-screen bg-surface px-4 py-6">
         <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
