@@ -38,7 +38,9 @@ import {
 } from '../shared';
 import { deltaPercent } from '../range';
 import { buildPriorities, kpiFormula, pilotSay } from '../narrative';
-import { GOAL_LABELS } from '../../../lib/goals';
+import type { GoalEditor } from '../shared/GoalProgress';
+import { upsertGoal } from '../../../app/actions/goals';
+import { GOAL_LABELS, type GoalMetric } from '../../../lib/goals';
 import type { DashboardState } from '../useDashboard';
 
 const GRADE_LABEL = {
@@ -55,7 +57,7 @@ export function KwasansDashboard({ state, userName }: { state: DashboardState; u
   const { planKey } = useCompanyContext();
   const {
     core, modules, loadingCore, loadingModules,
-    range, setRange, compare, setCompare, isFirstRun,
+    range, setRange, compare, setCompare, isFirstRun, refresh,
   } = state;
 
   const currency = core?.currency ?? 'HTG';
@@ -130,8 +132,33 @@ export function KwasansDashboard({ state, userName }: { state: DashboardState; u
   }, [modules]);
 
   // ── §21 · Les objectifs ──────────────────────────────────────────────────
+  // « Set goal » (§21) se fait sur la carte même. Le lien de l'état vide menait
+  // à /rapports, qui ne fixe aucun objectif : depuis le retrait de
+  // <PilotageBand/>, plus aucun écran ne le permettait. Aucune lecture de plus
+  // au montage — les objectifs arrivent dans le lot des modules ; après
+  // l'enregistrement, `refresh()` relit ce même lot.
+  const goalEditor: GoalEditor = {
+    defaultMetric: 'revenue',
+    save: async (metric, target) => {
+      await upsertGoal({ metric: metric as GoalMetric, targetValue: target });
+      refresh();
+    },
+    labels: {
+      input: (metric) => t({
+        fr: `Objectif du mois — ${GOAL_LABELS[metric as GoalMetric] ?? metric}`,
+        ht: `Objektif mwa a — ${GOAL_LABELS[metric as GoalMetric] ?? metric}`,
+      }),
+      submit:  t({ fr: 'Fixer', ht: 'Fikse' }),
+      edit:    t({ fr: 'Modifier', ht: 'Modifye' }),
+      cancel:  t({ fr: 'Annuler', ht: 'Anile' }),
+      invalid: t({ fr: 'Entrez un objectif supérieur à zéro.', ht: 'Mete yon objektif ki pi gran pase zewo.' }),
+      saved:   t({ fr: 'Objectif enregistré.', ht: 'Objektif la anrejistre.' }),
+    },
+  };
+
   const goals: GoalRow[] = useMemo(() => (modules?.goals ?? []).map((g) => ({
     id: g.id,
+    metric: g.metric,
     label: GOAL_LABELS[g.metric] ?? g.metric,
     current: g.actualValue,
     target: g.targetValue,
@@ -395,6 +422,7 @@ export function KwasansDashboard({ state, userName }: { state: DashboardState; u
                 ht: 'Pa gen objektif pou mwa sa a.',
               })}
               emptyAction={t({ fr: 'Fixer un objectif', ht: 'Mete yon objektif' })}
+              editor={goalEditor}
             />
           </ModuleSection>
         )}

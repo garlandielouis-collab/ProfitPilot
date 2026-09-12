@@ -39,6 +39,21 @@ function formatDate(iso?: string) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+/**
+ * Le nom de la devise dans laquelle l'état est RÉELLEMENT exprimé.
+ *
+ * L'en-tête écrivait « Gourdes Haïtiennes » en dur devant le code : un rapport
+ * tenu en dollars s'imprimait « Gourdes Haïtiennes (USD) », une contradiction
+ * sur le document même qu'on remet au banquier. Un code inconnu s'affiche seul
+ * plutôt que sous un nom deviné.
+ */
+export function currencyName(code?: string | null, lang: 'fr' | 'ht' = 'fr'): string {
+  const c = (code || 'HTG').toUpperCase();
+  if (c === 'HTG') return lang === 'ht' ? 'Goud Ayisyen (HTG)' : 'Gourdes Haïtiennes (HTG)';
+  if (c === 'USD') return lang === 'ht' ? 'Dola Ameriken (USD)' : 'Dollars Américains (USD)';
+  return c;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // ProfitPilot Logo Mark (SVG inline — no external deps)
 // ─────────────────────────────────────────────────────────────────
@@ -282,7 +297,7 @@ export default function ReportLayout({
           <div className="text-note text-muted mt-1">
             Exprimé en{' '}
             <span className="font-medium text-anthracite">
-              Gourdes Haïtiennes ({currency})
+              {currencyName(currency)}
             </span>
           </div>
         </div>

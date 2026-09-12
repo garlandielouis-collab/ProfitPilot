@@ -4,7 +4,8 @@ import { cookies } from 'next/headers';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { type Role, getPermissionsForRole } from '../../lib/rbac';
 import { type Permission } from '../../lib/rbac';
-import { type Feature, planHasFeature, planMaxStores } from '../../lib/planFeatures';
+import { type Feature, planHasFeature, planMaxStores, PLAN_MAX_STORES } from '../../lib/planFeatures';
+import { getPlanLabel, type PlanKey } from '../../lib/plans';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { getPreviewPlanServer } from '../../lib/planPreviewServer';
@@ -261,11 +262,58 @@ export type CreateCompanyInput = {
   taxId?:          string;
 };
 
+/**
+ * Refus (message prêt à afficher) si une entreprise de plus dépasserait l'offre,
+ * `null` sinon.
+ *
+ * `listCompanies()` coupe la liste à `planMaxStores` : sans ce contrôle,
+ * « Nouvelle entreprise » et « Dupliquer » créaient une entreprise que l'écran
+ * n'affichait jamais — payée par personne, invisible pour son propriétaire.
+ *
+ * Le compte est aligné sur CETTE coupe, pas sur `assertStoreAvailable()` : même
+ * lecture d'offre (`resolvePlanKey(…, null)`, sans ouvrir d'essai) et mêmes
+ * lignes (non supprimées, archivées COMPRISES — `listCompanies` les compte dans
+ * sa limite). Exclure les archivées ici laisserait passer exactement
+ * l'entreprise que la liste ferait disparaître.
+ */
+async function companyQuotaRefusal(
+  supabase: Awaited<ReturnType<typeof getSupabaseServer>>,
+  userId: string,
+): Promise<string | null> {
+  const planKey = await resolvePlanKey(supabase, userId, null);
+  const max     = planMaxStores(planKey);
+
+  const { count, error } = await supabase
+    .from('businesses')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', userId)
+    .is('deleted_at', null);
+
+  // Lecture impossible : on refuse plutôt que de créer à l'aveugle au-delà du quota.
+  if (error) return error.message;
+
+  const current = count ?? 0;
+  if (current < max) return null;
+
+  // L'offre à nommer : la première, dans l'ordre du registre, qui admet une
+  // entreprise de plus que ce que le compte possède déjà.
+  const next = (Object.keys(PLAN_MAX_STORES) as PlanKey[])
+    .find((k) => PLAN_MAX_STORES[k] > current);
+
+  const base = `Limite atteinte : l'offre ${getPlanLabel(planKey)} permet ${max} entreprise${max > 1 ? 's' : ''} (vous en avez ${current}).`;
+  return next
+    ? `${base} Passez à l'offre ${getPlanLabel(next)} pour en ajouter une.`
+    : `${base} C'est le maximum de nos offres : archivez ou supprimez une entreprise, ou contactez-nous pour aller au-delà.`;
+}
+
 export async function createCompany(input: CreateCompanyInput): Promise<{ id: string } | { error: string }> {
   try {
     const supabase = await getSupabaseServer();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: 'Non authentifié' };
+
+    const refusal = await companyQuotaRefusal(supabase, user.id);
+    if (refusal) return { error: refusal };
 
     const { data, error } = await supabase
       .from('businesses')
@@ -409,6 +457,10 @@ export async function duplicateCompany(id: string): Promise<{ id: string } | { e
       .single();
 
     if (fetchErr || !src) return { error: fetchErr?.message ?? 'Introuvable' };
+
+    // Une copie est une entreprise de plus : même quota que la création.
+    const refusal = await companyQuotaRefusal(supabase, user.id);
+    if (refusal) return { error: refusal };
 
     const { data: copy, error: insertErr } = await supabase
       .from('businesses')

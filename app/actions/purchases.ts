@@ -92,15 +92,9 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
 
   if (pErr) throw new Error(pErr.message);
   const purchaseId = purchaseRow.id;
-  void logActivity({ action: 'create', entity: 'purchase', entityId: purchaseId, newValues: { product_name: payload.product_name, total: total, status: dbStatus } });
-  void notify({
-    companyId: businessId, triggeredBy: userId,
-    type: 'purchase_created',
-    title: `Nouvel achat — ${payload.product_name}`,
-    body: `Qté : ${payload.quantity} · Montant : ${total.toLocaleString('fr-FR')} ${currency}`,
-    entity: 'purchase', entityId: purchaseId,
-    data: { product: payload.product_name, quantity: payload.quantity, total, currency },
-  });
+  // Le journal d'activité et la notification « Nouvel achat » partent en fin
+  // de parcours, une fois l'achat entièrement écrit : émis ici, ils survivaient
+  // à chacune des annulations ci-dessous et annonçaient un achat disparu.
 
   // ── 2. Insert purchase_item ────────────────────────────────────────────────
   const { error: iErr } = await supabase
@@ -119,7 +113,13 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
       currency,
     });
 
-  if (iErr) throw new Error(iErr.message);
+  // Une ligne refusée laissait l'en-tête en place : un achat sans article,
+  // compté comme dette fournisseur dans /dettes. On défait ce qui a déjà été
+  // écrit pour cet achat avant de rendre l'erreur, comme les étapes suivantes.
+  if (iErr) {
+    await rollbackPurchase(supabase, purchaseId);
+    throw new Error(iErr.message);
+  }
 
   // ── 3. Update product stock (always — goods received on purchase) ──────────
   const { data: product } = await supabase
@@ -230,6 +230,18 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true> 
     await rollbackPurchase(supabase, purchaseId);
     throw new Error(txErr.message);
   }
+
+  // L'achat est complet — en-tête, ligne, stock, mouvement, transaction
+  // fournisseur : c'est maintenant, et seulement maintenant, qu'on l'annonce.
+  void logActivity({ action: 'create', entity: 'purchase', entityId: purchaseId, newValues: { product_name: payload.product_name, total: total, status: dbStatus } });
+  void notify({
+    companyId: businessId, triggeredBy: userId,
+    type: 'purchase_created',
+    title: `Nouvel achat — ${payload.product_name}`,
+    body: `Qté : ${payload.quantity} · Montant : ${total.toLocaleString('fr-FR')} ${currency}`,
+    entity: 'purchase', entityId: purchaseId,
+    data: { product: payload.product_name, quantity: payload.quantity, total, currency },
+  });
 
   try {
     await recordPurchaseEntry({

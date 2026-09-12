@@ -9,7 +9,7 @@ export const SUBSCRIPTION_ACTIVE_KEY = 'pp_subscription_active';
 const TRIAL_HOURS = 720; // 30 jours
 
 const PUBLIC_PATHS = ['/', '/pricing', '/checkout', '/auth/login', '/auth/register', '/onboarding',
-  '/blog', '/faq', '/guide', '/legal', '/updates', '/cookies-debug', '/debug'];
+  '/blog', '/faq', '/guide', '/legal', '/updates'];
 
 // Pages toujours accessibles même si l'essai est expiré
 // (l'utilisateur doit pouvoir se déconnecter, accéder aux paramètres et à l'AI)

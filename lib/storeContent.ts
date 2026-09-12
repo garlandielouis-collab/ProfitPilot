@@ -128,6 +128,9 @@ const BASE: ContentPreset = {
     title:    'Les arrivages du moment',
     subtitle: "Les dernières pièces entrées en boutique. Les quantités sont réelles : quand c'est parti, c'est parti.",
     ctaLabel: 'Découvrir',
+    // Relatif à la VITRINE, pas au site : la section le préfixe au rendu avec
+    // la base de routage (`storeLink`, ContentSections.tsx). Écrit « /products »
+    // pour rester lisible dans l'éditeur.
     ctaHref:  '/products',
   },
 
@@ -146,7 +149,9 @@ const BASE: ContentPreset = {
     steps: [
       { title: 'Choisissez',   body: 'Parcourez le catalogue et ajoutez au panier ce qui vous plaît.' },
       { title: 'Commandez',    body: 'Nom, téléphone, adresse. Trois champs, pas de compte à créer.' },
-      { title: 'Payez',        body: 'MonCash, NatCash, carte, ou en espèces à la livraison.' },
+      // Pas de « carte » : aucune passerelle carte n'est branchée, et le tunnel
+      // d'achat ne la propose pas. Un préréglage ne promet que ce qui existe.
+      { title: 'Payez',        body: 'MonCash, NatCash, ou en espèces à la livraison.' },
       { title: 'Recevez',      body: 'On vous confirme sur WhatsApp et on vous livre.' },
     ],
   },
@@ -165,7 +170,7 @@ const BASE: ContentPreset = {
     items: [
       { value: '7j/7',  label: 'On vous répond',   note: 'WhatsApp' },
       { value: '48 h',  label: 'Livraison capitale', note: 'Après confirmation' },
-      { value: '3',     label: 'Moyens de paiement', note: 'MonCash, NatCash, carte' },
+      { value: '3',     label: 'Moyens de paiement', note: 'MonCash, NatCash, espèces' },
       { value: '100 %', label: 'Prix annoncés',   note: 'Livraison comprise' },
     ],
   },
@@ -179,7 +184,7 @@ const BASE: ContentPreset = {
     enabled: true,
     items: [
       { question: 'Comment puis-je payer ?',
-        answer:   "MonCash, NatCash, carte bancaire, ou en espèces à la livraison. Vous choisissez au moment de la commande — aucun moyen de paiement n'est obligatoire pour parcourir le catalogue." },
+        answer:   "MonCash, NatCash, ou en espèces à la livraison. Vous choisissez au moment de la commande — aucun moyen de paiement n'est obligatoire pour parcourir le catalogue." },
       { question: 'Combien coûte la livraison ?',
         answer:   "Le tarif dépend de votre zone et s'affiche AVANT que vous validiez la commande, jamais après. Pour les zones éloignées, écrivez-nous : on vous donne le montant exact avant que vous payiez quoi que ce soit." },
       { question: 'En combien de temps je reçois ma commande ?',
@@ -710,7 +715,7 @@ const V_TRAITEUR: ContentPreset = {
       { title: 'Choisissez',        body: "La carte du jour ou une commande sur mesure — gâteau, buffet, coffret." },
       { title: 'Date et heure',     body: "Indiquez quand vous voulez être servi. Comptez 24 h pour un plat, 72 h pour un gâteau." },
       { title: 'Livraison ou retrait', body: "Vous passez chercher, ou nous livrons dans la zone métropolitaine." },
-      { title: 'Payez et recevez',  body: "MonCash, NatCash, carte ou à la livraison. On confirme sur WhatsApp." },
+      { title: 'Payez et recevez',  body: "MonCash, NatCash ou à la livraison. On confirme sur WhatsApp." },
     ],
   },
   orderForm: {

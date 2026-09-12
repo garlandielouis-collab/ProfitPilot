@@ -18,11 +18,20 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-const PAYMENT_OPTIONS = [
+// La carte reste listée mais n'est pas sélectionnable : aucune passerelle carte
+// n'est branchée. Cochée, elle apparaissait chez l'acheteur et la commande
+// partait comme un paiement à la livraison, sans qu'aucune carte soit demandée.
+// Une valeur `card` déjà enregistrée n'est pas effacée — le tunnel d'achat
+// l'ignore, et elle resservira le jour où une passerelle existera.
+const PAYMENT_OPTIONS: { value: string; label: string; unavailable?: string }[] = [
   { value: 'cash',    label: 'Paiement à la livraison' },
   { value: 'moncash', label: 'MonCash' },
   { value: 'natcash', label: 'NatCash' },
-  { value: 'card',    label: 'Carte bancaire' },
+  {
+    value: 'card',
+    label: 'Carte bancaire',
+    unavailable: "Non disponible : le paiement par carte n'est pas encore branché. Vos clients ne voient pas cette option.",
+  },
 ];
 
 type Tab = 'general' | 'design' | 'payment' | 'seo' | 'apercu' | 'netlify';
@@ -341,7 +350,10 @@ export default function BoutiquePage() {
             sandbox:       creds.natcash_sandbox,
           },
         };
-        await upsertStoreSettings({ ...form, shipping_modes: shippingModes, payment_credentials } as any);
+        const { slug } = await upsertStoreSettings({ ...form, shipping_modes: shippingModes, payment_credentials } as any);
+        // Le serveur normalise le slug (tiret final retiré, accents) : l'écran
+        // montre l'adresse réellement enregistrée, pas celle qui a été tapée.
+        setForm((f) => ({ ...f, slug }));
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       } catch (e: any) {
@@ -591,7 +603,19 @@ export default function BoutiquePage() {
               <div>
                 <h3 className="mb-4 font-bold text-slate-800">Moyens de paiement</h3>
                 <div className="space-y-2">
-                  {PAYMENT_OPTIONS.map((opt) => (
+                  {PAYMENT_OPTIONS.map((opt) => opt.unavailable ? (
+                    <div key={opt.value} aria-disabled className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <input
+                        type="checkbox" checked={false} disabled readOnly
+                        aria-describedby={`payment-${opt.value}-note`}
+                        className="mt-0.5 h-4 w-4"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-slate-400">{opt.label}</span>
+                        <span id={`payment-${opt.value}-note`} className="block text-xs text-slate-500">{opt.unavailable}</span>
+                      </span>
+                    </div>
+                  ) : (
                     <label key={opt.value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 hover:bg-slate-50 transition">
                       <input type="checkbox" checked={form.payment_methods.includes(opt.value)} onChange={() => togglePayment(opt.value)} className="h-4 w-4 accent-primary" />
                       <span className="text-sm font-medium text-slate-800">{opt.label}</span>

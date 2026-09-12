@@ -15,6 +15,7 @@ import {
 } from '../lib/expenseScope';
 import { useLanguage } from './LanguageWrapper';
 import { csvFilename, downloadCsv, toCsv } from '../lib/documents/csv';
+import { useCompany } from '../hooks/useCompany';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -540,24 +541,43 @@ export function ExpensesPage() {
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+  // ── Conversion USD → HTG ─────────────────────────────────────────────────────
+  //
+  // Les cartes et le total du tableau s'affichent en HTG. Additionner tels quels
+  // 100 USD et 100 HTG donnait « 200 HTG » : chaque dépense en dollars est
+  // convertie au taux de l'entreprise active (`businesses.exchange_rate`,
+  // rafraîchi chaque jour), le même que /dettes et la vente rapide.
+  const { company } = useCompany();
+  const rate = company?.exchangeRate ?? null;
+  const hasUsd = useMemo(() => expenses.some(e => e.currency === 'USD'), [expenses]);
+  // Tant que le taux n'est pas chargé, un total qui contient des dollars ne
+  // s'affiche pas : « … » vaut mieux qu'un chiffre faux.
+  const rateReady = !hasUsd || (rate !== null && rate > 0);
+  const htg = (n: number) => (rateReady ? fmtAmt(n, 'HTG') : '…');
+
   const stats = useMemo(() => {
+    const toHtg = (e: ExpenseRecord) => (e.currency === 'USD' ? e.amount * (rate ?? 0) : e.amount);
+
     const thisMonth  = expenses.filter(e => e.date.startsWith(currentMonth));
-    const totalMonth = thisMonth.reduce((s, e) => s + e.amount, 0);
-    const totalSalary= expenses.filter(e => e.category === 'Salaire').reduce((s, e) => s + e.amount, 0);
+    const totalMonth = thisMonth.reduce((s, e) => s + toHtg(e), 0);
+    const totalSalary= expenses.filter(e => e.category === 'Salaire').reduce((s, e) => s + toHtg(e), 0);
     // Même critère que le filtre « Dettes seulement » : une dette est le statut
     // 'Dette' (traduit de `credit`), pas la catégorie « Remboursements ».
-    const totalDebt  = expenses.filter(e => e.payment_status === 'Dette').reduce((s, e) => s + e.amount, 0);
-    const pending    = expenses.filter(e => e.payment_status === 'En attente').reduce((s, e) => s + e.amount, 0);
+    const totalDebt  = expenses.filter(e => e.payment_status === 'Dette').reduce((s, e) => s + toHtg(e), 0);
+    const pending    = expenses.filter(e => e.payment_status === 'En attente').reduce((s, e) => s + toHtg(e), 0);
 
     // Diagnostic 6 : ce que l'entreprise a réellement dépensé, et ce que le
     // foyer a pris au passage. Ces deux chiffres ne doivent jamais être additionnés.
     const businessMonth = thisMonth.reduce(
-      (s, e) => s + businessShareOf(e.amount, e.scope, e.business_share_pct), 0);
+      (s, e) => s + businessShareOf(toHtg(e), e.scope, e.business_share_pct), 0);
     const personalMonth = thisMonth.reduce(
-      (s, e) => s + personalShareOf(e.amount, e.scope, e.business_share_pct), 0);
+      (s, e) => s + personalShareOf(toHtg(e), e.scope, e.business_share_pct), 0);
 
-    return { totalMonth, totalSalary, totalDebt, pending, businessMonth, personalMonth };
-  }, [expenses, currentMonth]);
+    // Total du pied de tableau : les lignes affichées, filtres compris.
+    const totalFiltered = filtered.reduce((s, e) => s + toHtg(e), 0);
+
+    return { totalMonth, totalSalary, totalDebt, pending, businessMonth, personalMonth, totalFiltered };
+  }, [expenses, filtered, currentMonth, rate]);
 
   // ── Card helper ──────────────────────────────────────────────────────────────
 
@@ -631,35 +651,47 @@ export function ExpensesPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Depans biznis mwa a"
-              value={fmtAmt(stats.businessMonth, 'HTG')}
+              value={htg(stats.businessMonth)}
               sub={stats.personalMonth > 0
-                ? `+ ${fmtAmt(stats.personalMonth, 'HTG')} pèsonèl (pa nan rezilta a)`
+                ? `+ ${htg(stats.personalMonth)} pèsonèl (pa nan rezilta a)`
                 : 'Sèlman sa ki nan rezilta antrepriz la'}
               accent="bg-primary"
               icon={<svg className="h-5 w-5 text-primary" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" /></svg>}
             />
             <StatCard
               label="Total Salè"
-              value={fmtAmt(stats.totalSalary, 'HTG')}
+              value={htg(stats.totalSalary)}
               sub="Salaires cumulés"
               accent="bg-blue-500"
               icon={<svg className="h-5 w-5 text-blue-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
             />
             <StatCard
               label="Total Dèt"
-              value={fmtAmt(stats.totalDebt, 'HTG')}
+              value={htg(stats.totalDebt)}
               sub="Dépenses au statut Dette"
               accent="bg-orange-500"
               icon={<svg className="h-5 w-5 text-orange-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>}
             />
             <StatCard
               label="An Atant"
-              value={fmtAmt(stats.pending, 'HTG')}
+              value={htg(stats.pending)}
               sub="À payer bientôt"
               accent="bg-amber-500"
               icon={<svg className="h-5 w-5 text-amber-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
             />
           </div>
+
+          {/* La conversion se dit : le marchand qui a noté 100 USD doit pouvoir
+              retrouver le chiffre de la carte, et savoir à quel taux il a été
+              calculé. N'apparaît que s'il existe des dépenses en dollars. */}
+          {hasUsd && rateReady && rate !== null && (
+            <p className="-mt-4 text-xs text-[var(--color-muted)]">
+              {t({
+                fr: `Totaux en HTG : les dépenses en USD sont converties au taux de l'entreprise, 1 USD = ${rate.toFixed(2)} HTG.`,
+                ht: `Total an HTG : depans an USD yo konvèti ak to antrepriz la, 1 USD = ${rate.toFixed(2)} HTG.`,
+              })}
+            </p>
+          )}
 
           {/* ── Filters ── */}
           <div className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
@@ -897,7 +929,7 @@ export function ExpensesPage() {
                   <span className="text-sm font-bold text-primary">
                     Total :{' '}
                     <span className="text-primary">
-                      {fmtAmt(filtered.reduce((s, e) => s + e.amount, 0), 'HTG')}
+                      {htg(stats.totalFiltered)}
                     </span>
                   </span>
                 </div>

@@ -21,7 +21,9 @@
 //   `confirm_store_order`, la même transaction que la confirmation manuelle.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { after } from 'next/server';
 import { getSupabaseService } from './supabaseServiceClient';
+import { notify } from './notify';
 
 export type GatewayName = 'moncash' | 'natcash';
 
@@ -66,6 +68,80 @@ export async function storeSlugOf(businessId: string): Promise<string> {
     .eq('business_id', businessId)
     .maybeSingle();
   return (data as any)?.slug ?? '';
+}
+
+// ─── L'alerte au marchand ────────────────────────────────────────────────────
+
+export type StoreOrderEvent = 'placed' | 'paid';
+
+/**
+ * Prévient le propriétaire qu'une commande en ligne l'attend.
+ *
+ * Personne ne le faisait : une commande passée sur la vitrine n'existait pour
+ * le marchand que s'il pensait à ouvrir /boutique/commandes. Vit ici plutôt
+ * que dans `app/actions/store-public.ts` parce que ce fichier-là est
+ * `'use server'` : exportée de là, elle deviendrait un point d'entrée public
+ * par lequel n'importe qui pourrait spammer la cloche d'un marchand.
+ *
+ * Un seul moment par commande :
+ *   'placed'  paiement à la livraison — la commande est ferme dès sa création ;
+ *   'paid'    MonCash / NatCash — au règlement vérifié, PAS à la création. Une
+ *             commande créée puis abandonnée chez la passerelle n'est pas une
+ *             commande ; l'annoncer ferait préparer un colis que personne n'a payé.
+ *
+ * Planifiée avec `after()` : elle part après la réponse, ne rallonge pas le
+ * tunnel d'achat et ne peut pas le faire échouer. `notify` avale déjà ses
+ * erreurs ; le `catch` d'ici couvre la lecture de la commande, et le repli
+ * `void` un appel hors requête, où `after` lève.
+ *
+ * Type `generic`, sans préférence : `sale_created` est gouverné par `new_sale`,
+ * désactivée par défaut — l'alerte ne serait arrivée chez presque personne. Et
+ * on n'invente pas de type (`notifications.type` a pu devenir une énum).
+ */
+export function queueStoreOrderNotification(orderId: string, event: StoreOrderEvent): void {
+  const send = () => sendStoreOrderNotification(orderId, event);
+  try {
+    after(send);
+  } catch {
+    void send();
+  }
+}
+
+async function sendStoreOrderNotification(orderId: string, event: StoreOrderEvent): Promise<void> {
+  try {
+    const svc = getSupabaseService();
+    const { data: order } = await svc
+      .from('orders')
+      .select('id, business_id, order_number, customer_name, total, currency')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!order) return;
+
+    const total    = Number(order.total ?? 0);
+    const currency = (order.currency as string | null) ?? 'HTG';
+
+    await notify({
+      companyId: order.business_id as string,
+      type:      'generic',
+      title:     event === 'paid'
+        ? `Commande payée en ligne — ${order.order_number}`
+        : `Nouvelle commande en ligne — ${order.order_number}`,
+      body:      `${order.customer_name ?? 'Client'} · ${total.toLocaleString('fr-FR')} ${currency}`,
+      entity:    'order',
+      // `notifications.reference_id` est un UUID : l'identifiant, pas le numéro.
+      entityId:  order.id as string,
+      data: {
+        href:     '/boutique/commandes',
+        order:    order.order_number,
+        total,
+        currency,
+        event,
+      },
+    });
+  } catch {
+    // Jamais au détriment de la commande.
+  }
 }
 
 export type SettlementOutcome =
@@ -120,6 +196,12 @@ export async function settleGatewayOrder(params: {
       { orderId: order.id, order: order.order_number, error: (err as Error).message },
     );
     // Le paiement est enregistré ; la commande attend le marchand.
+  }
+
+  // Au PREMIER règlement seulement : un fournisseur qui rappelle deux fois ne
+  // doit pas annoncer deux commandes au marchand.
+  if (order.payment_status !== 'paid') {
+    queueStoreOrderNotification(order.id as string, 'paid');
   }
 
   return {

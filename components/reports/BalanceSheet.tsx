@@ -7,7 +7,7 @@
 
 import React, { memo } from 'react';
 import { useLanguage } from '../LanguageWrapper';
-import ReportLayout, { type ReportMeta } from './ReportLayout';
+import ReportLayout, { currencyName, type ReportMeta } from './ReportLayout';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -315,7 +315,7 @@ function BalanceSheet({ meta, data, showPrevious = true }: Props) {
       {/* Notes */}
       <div className="mt-4 pt-2 border-t border-border">
         <p className="text-note text-slate-400 leading-relaxed">
-          {t({ fr: `Les montants sont exprimés en Gourdes Haïtiennes (${meta.currency ?? 'HTG'}) · L'équation fondamentale ACTIF = CAPITAUX PROPRES + DETTES est vérifiée à chaque opération par le moteur comptable ProfitPilot. — Trésorerie`, ht: `Montan yo eksprime an Goud Ayisyen (${meta.currency ?? 'HTG'}) · Ekasyon fondamantal AKTIF = KAPITAL PWOP + DET yo verifye nan chak operasyon pa motè kontab ProfitPilot. — Trezoreri` })}
+          {t({ fr: `Les montants sont exprimés en ${currencyName(meta.currency)} · L'équation fondamentale ACTIF = CAPITAUX PROPRES + DETTES est vérifiée à chaque opération par le moteur comptable ProfitPilot. — Trésorerie`, ht: `Montan yo eksprime an ${currencyName(meta.currency, 'ht')} · Ekasyon fondamantal AKTIF = KAPITAL PWOP + DET yo verifye nan chak operasyon pa motè kontab ProfitPilot. — Trezoreri` })}
         </p>
       </div>
     </ReportLayout>

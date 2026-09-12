@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { supabase } from '../../lib/supabaseClient';
@@ -325,11 +326,23 @@ function ClientsCRMInner() {
       return;
     }
 
-    const [clientRes, salesRes] = await Promise.all([
+    // ── Solde dû par client ─────────────────────────────────────────────────
+    //
+    // `outstanding_balance` était écrit à 0 en dur : filtre « Débiteurs »
+    // toujours vide, carte « Dette active » à 0 HTG, badge « Dette » jamais
+    // affiché. La source est `v_receivables`, la vue de /creances et /dettes :
+    // le reste dû après paiements partiels (total_amount − paid_amount), ventes
+    // non soldées seulement — un chiffre qui ne contredit pas ces deux écrans.
+    const [clientRes, salesRes, receivRes, bizRes] = await Promise.all([
       clientQuery.order('first_name'),
       businessId
         ? supabase.from('sales').select('customer_id,total_amount').eq('business_id', businessId).not('customer_id', 'is', null)
         : supabase.from('sales').select('customer_id,total_amount').not('customer_id', 'is', null),
+      supabase.from('v_receivables')
+        .select('customer_id,balance_due,currency')
+        .eq('business_id', businessId)
+        .not('customer_id', 'is', null),
+      supabase.from('businesses').select('exchange_rate').eq('id', businessId).maybeSingle(),
     ]);
 
     if (clientRes.error) {
@@ -350,12 +363,24 @@ function ClientsCRMInner() {
       agg[cid].count += 1;
     }
 
+    // Le badge et la carte s'affichent en HTG : un reste dû en USD est converti
+    // au taux de l'entreprise (`businesses.exchange_rate`, NOT NULL), comme les
+    // totaux de /dettes. Additionner 50 USD et 50 HTG aurait affiché « 100 HTG ».
+    if (receivRes.error) console.error('[clients] v_receivables error:', receivRes.error.message);
+    const rate = Number(bizRes.data?.exchange_rate ?? 0);
+    const debt: Record<string, number> = {};
+    for (const r of (receivRes.data ?? []) as any[]) {
+      const due = Number(r.balance_due ?? 0);
+      if (!r.customer_id || !(due > 0)) continue;
+      debt[r.customer_id] = (debt[r.customer_id] ?? 0) + (r.currency === 'USD' ? due * rate : due);
+    }
+
     const enriched: Client[] = clientsData.map((c: any) => {
       const name = `${c.first_name} ${c.last_name}`.trim();
       const { total = 0, count = 0 } = agg[c.id] ?? {};
       return {
         id: c.id, name: name, phone: c.phone ?? null, email: c.email ?? null,
-        outstanding_balance: 0, created_at: c.created_at,
+        outstanding_balance: parseFloat((debt[c.id] ?? 0).toFixed(2)), created_at: c.created_at,
         totalPurchases: total, saleCount: count,
         isVIP: total >= VIP_THRESHOLD || count >= VIP_SALE_COUNT,
       };
@@ -433,17 +458,19 @@ function ClientsCRMInner() {
   }
 
   // ── Print report ──────────────────────────────────────────────────────────
+  //
+  // « Imprimer » sortait une page blanche. globals.css masque à l'impression
+  // tout enfant direct de <body> sauf #pp-print-root : le rapport, rendu au fond
+  // de l'application, disparaissait avec elle, et son `display:none` n'était de
+  // toute façon jamais levé — la règle injectée ne touchait qu'à `visibility`.
+  // Il passe désormais par un portail monté sur <body> sous cet identifiant,
+  // comme /rapports : la feuille globale l'affiche seul, et plus rien n'est
+  // injecté puis retiré (trop tôt sur mobile, où print() ne bloque pas).
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
 
   function handlePrint() {
-    const style = document.createElement('style');
-    style.innerHTML = `@media print {
-      body * { visibility: hidden !important; }
-      #pp-print, #pp-print * { visibility: visible !important; }
-      #pp-print { position: fixed; inset: 0; background: white; color: #111; padding: 32px; font-family: sans-serif; overflow: auto; }
-    }`;
-    document.head.appendChild(style);
     window.print();
-    document.head.removeChild(style);
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -682,7 +709,10 @@ function ClientsCRMInner() {
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     { label: t({ fr: 'Total Achats', ht: 'Total Acha' }), value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ${t({ fr: 'ventes', ht: 'vant' })}`, color: 'text-primary', bg: 'bg-primary/10' },
-                    { label: t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), value: fmt(selected.outstanding_balance), sub: totalDebtActive > 0 ? t({ fr: 'En cours', ht: 'An Kou' }) : t({ fr: 'Aucune', ht: 'Okenn' }), color: totalDebtActive > 0 ? 'text-red-400' : 'text-emerald-400', bg: totalDebtActive > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
+                    // Couleur et mention suivent le même chiffre que la valeur : une vente
+                    // « partielle » compte dans le solde dû sans figurer dans `credits`,
+                    // et la carte affichait alors un montant sous l'étiquette « Aucune ».
+                    { label: t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), value: fmt(selected.outstanding_balance), sub: selected.outstanding_balance > 0 ? t({ fr: 'En cours', ht: 'An Kou' }) : t({ fr: 'Aucune', ht: 'Okenn' }), color: selected.outstanding_balance > 0 ? 'text-red-400' : 'text-emerald-400', bg: selected.outstanding_balance > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
                     { label: t({ fr: 'Moyenne / Vente', ht: 'Mwayèn / Vant' }), value: selected.saleCount ? fmt(selected.totalPurchases / selected.saleCount) : '—', sub: t({ fr: 'Panier moyen', ht: 'Mwayèn' }), color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
                     { label: t({ fr: 'Statistiques', ht: 'Estatistik' }), value: selected.isVIP ? t({ fr: 'Fidèle', ht: 'Fidèl' }) : t({ fr: 'Régulier', ht: 'Regilye' }), sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
                   ].map(({ label, value, sub, color, bg }) => (
@@ -788,9 +818,13 @@ function ClientsCRMInner() {
         )}
       </main>
 
-      {/* ════ Hidden print section ════ */}
-      {selected && (
-        <div id="pp-print" style={{ display: 'none' }}>
+      {/* ════ Print section — portail, enfant direct de <body> ════
+          À l'écran : `display:none`. À l'impression, globals.css affiche
+          #pp-print-root (display:block !important) et masque tout le reste.
+          Monté dès qu'un client est choisi : le bouton « Imprimer » n'existe
+          que dans ce cas, le bloc est donc toujours là quand print() part. */}
+      {isMounted && selected && createPortal(
+        <div id="pp-print-root" style={{ display: 'none' }}>
           <div style={{ fontFamily: 'sans-serif', color: '#111', padding: 32 }}>
             <div style={{ borderBottom: '2px solid #111', paddingBottom: 16, marginBottom: 24 }}>
               <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>{t({ fr: 'ProfitPilot — Rapport Client', ht: 'ProfitPilot — Rapò Kliyan' })}</h1>
@@ -832,7 +866,8 @@ function ClientsCRMInner() {
             </table>
             <p style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center' }}>{t({ fr: 'ProfitPilot · Rapport généré automatiquement', ht: 'ProfitPilot · Rapò otomatikman' })}</p>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ── Modals ── */}

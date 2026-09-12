@@ -1,6 +1,7 @@
 'use server';
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { assertAccess, assertPermission } from '../../lib/entitlements';
 import { revalidatePath } from 'next/cache';
 import { classifyExpenseCategory, isBankPaymentMethod, isAssetCategory, classifyAssetCategory, classifyTransaction, CHART_OF_ACCOUNTS, ACCOUNT_CODES as ENGINE_CODES } from '../../lib/accountingEngine';
 
@@ -160,9 +161,55 @@ function inferAccountClass(code: string): AccountClass {
   }
 }
 
+// ── GARDES : qui peut lire et toucher au journal ─────────────────────────────
+//
+// Ce fichier n'avait aucune garde : n'importe quel membre — un vendeur, un
+// lecteur — pouvait appeler directement la saisie manuelle, la reprise ou le
+// dédoublonnage (qui annule des écritures), et lire bilan et grand livre, sur
+// une offre qui n'inclut pas la comptabilité.
+//
+// Deux gardes, posées sur les POINTS D'ENTRÉE de l'écran `/rapports/comptabilite`
+// seulement, avec la capacité que `nav.tsx` exige pour cet écran
+// (`advanced_reports`) :
+//
+//   lecture  → `reports:read`    (comme `financialReporting.ts`)
+//   écriture → `reports:export`  le registre n'a pas de permission comptable
+//              dédiée ; celle-ci est tenue exactement par les rôles qui ont la
+//              main sur les chiffres (propriétaire, admin, gérant, comptable) et
+//              par aucun rôle de comptoir (caissier, employé, stock) ni par le
+//              lecteur.
+//
+// Les écritures AUTOMATIQUES (postEvent, record*Entry, reverseDocumentEntries)
+// n'ont PAS de garde d'offre, et c'est voulu : elles partent d'une vente, d'un
+// achat, d'une dépense ou d'un règlement, et un marchand sans l'offre doit
+// pouvoir vendre — son journal se tient quand même, prêt le jour où il monte.
+
+async function assertAccountingRead(): Promise<void> {
+  await assertAccess('advanced_reports', 'reports:read');
+}
+
+async function assertAccountingWrite(): Promise<void> {
+  await assertAccess('advanced_reports', 'reports:export');
+}
+
 // ── CORE: Create Journal Entry ────────────────────────────────────────────────
 
+/**
+ * Saisie MANUELLE d'une écriture — le formulaire de `/rapports/comptabilite`.
+ * Gardée : c'est un point d'entrée de l'écran, pas un effet d'une transaction.
+ */
 export async function createJournalEntry(payload: JournalEntryPayload): Promise<string> {
+  await assertAccountingWrite();
+  return insertJournalEntry(payload);
+}
+
+/**
+ * Le cœur, sans garde — réservé aux écritures automatiques de ce module
+ * (`postEvent`, `reverseDocumentEntries`). Non exporté : un fichier
+ * `'use server'` rend chaque export appelable depuis le navigateur, et ce cœur
+ * exposé contournerait la garde de `createJournalEntry`.
+ */
+async function insertJournalEntry(payload: JournalEntryPayload): Promise<string> {
   const { supabase, businessId, userId } = await getBusinessContext();
   const exchangeRate = payload.exchangeRate ?? 1;
 
@@ -515,7 +562,8 @@ export async function postEvent(
   if (!Number.isFinite(amount) || Math.abs(amount) < 0.01) return null;
 
   try {
-    const entryId = await createJournalEntry({
+    // Le cœur non gardé : une vente doit se comptabiliser sans l'offre Rapports.
+    const entryId = await insertJournalEntry({
       date:           ctx.date,
       description:    rule.describe(ctx),
       reference:      ctx.reference ?? ctx.label,
@@ -600,7 +648,9 @@ export async function reverseDocumentEntries(
         })
         .eq('id', je.id);
 
-      const reversalId = await createJournalEntry({
+      // Cœur non gardé : la contre-passation suit la modification ou
+      // l'annulation d'une dépense, quelle que soit l'offre.
+      const reversalId = await insertJournalEntry({
         date:           je.entry_date,
         description:    `ANNULATION — ${je.description}`,
         reference:      je.reference ?? undefined,
@@ -857,6 +907,8 @@ export type PostingFailure = {
 
 export async function getPostingFailures(): Promise<PostingFailure[]> {
   try {
+    // Refus → liste vide, comme tout autre échec de lecture ici.
+    await assertAccountingRead();
     const { supabase, businessId } = await getBusinessContext();
     const { data } = await supabase
       .from('journal_posting_failures')
@@ -881,6 +933,8 @@ export type BackfillResult = {
 };
 
 export async function backfillAllJournalEntries(): Promise<BackfillResult> {
+  // Bouton « Rekonsilye » de l'écran : il écrit dans tout le journal.
+  await assertAccountingWrite();
   const result: BackfillResult = { sales: 0, purchases: 0, expenses: 0, errors: [] };
 
   // Delegates to the reconcilers rather than re-deriving account codes here.
@@ -920,8 +974,16 @@ async function postedDocumentIds(
   return new Set((data ?? []).map((r: any) => r.reference_id));
 }
 
+// Les trois réconciliations balaient tout l'historique et postent en masse.
+// Aucun écran ne les appelle directement (seulement la reprise ci-dessus, et
+// `/api/reconcile` pour les dépenses) : elles reçoivent la permission
+// d'écriture, mais PAS la garde d'offre — la route d'exploitation doit pouvoir
+// combler un trou de journal chez un marchand sans l'offre. La reprise, elle,
+// a déjà vérifié l'offre avant d'arriver ici.
+
 // Reconcile sales: create journal entries for sales that have none
 export async function reconcileMissingSaleEntries(): Promise<number> {
+  await assertPermission('reports:export');
   const { supabase, businessId, exchangeRate } = await getBusinessContext();
 
   const { data: sales } = await supabase
@@ -963,6 +1025,7 @@ export async function reconcileMissingSaleEntries(): Promise<number> {
 
 // Reconcile purchases: create journal entries for purchases that have none
 export async function reconcileMissingPurchaseEntries(): Promise<number> {
+  await assertPermission('reports:export');
   const { supabase, businessId, exchangeRate } = await getBusinessContext();
 
   const { data: purchases } = await supabase
@@ -998,6 +1061,7 @@ export async function reconcileMissingPurchaseEntries(): Promise<number> {
 
 // Reconcile expenses: create journal entries for expenses that have none
 export async function reconcileMissingExpenseEntries(): Promise<number> {
+  await assertPermission('reports:export');
   const { supabase, businessId, exchangeRate } = await getBusinessContext();
 
   // Get all expenses
@@ -1042,6 +1106,9 @@ export async function reconcileMissingExpenseEntries(): Promise<number> {
 // ── REPORTING ACTIONS ─────────────────────────────────────────────────────────
 
 export async function getChartOfAccounts(): Promise<ChartAccount[]> {
+  // Sans appelant aujourd'hui, mais exportée donc appelable : même garde que
+  // les autres lectures de l'écran comptable.
+  await assertAccountingRead();
   const { supabase, businessId } = await getBusinessContext();
 
   // Cleanup: soft-delete non-system accounts that duplicate a system account's code
@@ -1076,6 +1143,7 @@ export async function getChartOfAccounts(): Promise<ChartAccount[]> {
 // `offset` sert au « Charger plus » du grand livre : sans lui, tout ce qui
 // dépassait la première page était invisible, sans le moindre avertissement.
 export async function getJournalEntries(limit = 50, offset = 0) {
+  await assertAccountingRead();
   const { supabase, businessId } = await getBusinessContext();
 
   // Pas de réconciliation ici. Lire le journal ne doit pas l'écrire : ces trois
@@ -1123,6 +1191,7 @@ export async function getJournalEntries(limit = 50, offset = 0) {
 }
 
 export async function getTrialBalance() {
+  await assertAccountingRead();
   const { supabase, businessId } = await getBusinessContext();
 
   // Aggregate from journal_entry_lines
@@ -1156,6 +1225,7 @@ export async function getTrialBalance() {
 }
 
 export async function getIncomeStatement(year: number, month?: number) {
+  await assertAccountingRead();
   const { supabase, businessId } = await getBusinessContext();
 
   const dateFrom = month !== undefined
@@ -1211,6 +1281,7 @@ export async function getIncomeStatement(year: number, month?: number) {
 }
 
 export async function getBalanceSheet() {
+  await assertAccountingRead();
   const { supabase, businessId } = await getBusinessContext();
 
   const { data: lines } = await supabase
@@ -1273,6 +1344,8 @@ export async function getBalanceSheet() {
 // ── CLEANUP: Remove duplicate journal entries ──────────────────────────────
 
 export async function cleanupDuplicateJournalEntries(): Promise<{ removed: number; kept: number }> {
+  // Annule des écritures postées : écriture, pas lecture.
+  await assertAccountingWrite();
   const { supabase, businessId, userId } = await getBusinessContext();
 
   // Ne considère que les écritures POSTÉES : une écriture déjà annulée n'est pas

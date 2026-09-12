@@ -3,6 +3,10 @@
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getBusinessContext } from '../../lib/serverAuth';
 import { debugAuth } from '../../lib/authDebugLog';
+import { PlanLimitError, getActivePlanKey } from '../../lib/entitlements';
+import { productAllowance } from '../../lib/quotas';
+import { getPlanLabel } from '../../lib/plans';
+import { SIGNUP_PRODUCT_SLOTS } from '../../lib/referral';
 
 // â”€â”€ quickCreateSupplier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -73,6 +77,14 @@ export async function quickCreateProduct(payload: {
   // Get authenticated user + business
   const { supabase, userId, businessId } = await getBusinessContext();
 
+  // ── Le plafond du catalogue ───────────────────────────────────────────────
+  //
+  // La création rapide depuis un achat écrit une fiche produit exactement comme
+  // la création normale : elle doit buter sur le même mur. Sans ce contrôle, un
+  // marchand Esansyel au plafond passait par l'écran Achats et « Jusqu'à 50
+  // produits » redevenait une phrase.
+  await assertProductSlotAvailable(supabase, businessId);
+
   const { data, error } = await supabase
     .from('products')
     .insert({
@@ -89,6 +101,41 @@ export async function quickCreateProduct(payload: {
 
   if (error) throw new Error(error.message);
   return data as QuickProductResult;
+}
+
+/**
+ * Lève une `PlanLimitError` si une fiche de plus dépasserait le plafond.
+ *
+ * Même compte et même message que `createProductAction` (app/actions/products.ts).
+ * Dupliqué plutôt qu'importé : tout export d'un fichier 'use server' devient une
+ * action appelable depuis le navigateur, et ce contrôle n'a pas à l'être.
+ */
+async function assertProductSlotAvailable(supabase: any, businessId: string): Promise<void> {
+  const max = await productAllowance();
+  if (!Number.isFinite(max)) return;
+
+  // Compté par entreprise, comme le catalogue lui-même (bonus de parrainage
+  // compris dans `productAllowance`).
+  const { count, error } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('business_id', businessId);
+
+  // Un comptage qui échoue ne doit pas empêcher d'enregistrer un produit :
+  // le catalogue est le socle, pas une fonction payante.
+  if (error) return;
+
+  const current = count ?? 0;
+  if (current < max) return;
+
+  const planLabel = getPlanLabel(await getActivePlanKey());
+  throw new PlanLimitError(
+    max,
+    current,
+    `Votre catalogue est plein : l'offre ${planLabel} couvre ${max} fiches produits. `
+      + `Passez à ${getPlanLabel('Business Pilot')} pour un catalogue sans limite, `
+      + `ou amenez un marchand — chaque filleul inscrit ajoute ${SIGNUP_PRODUCT_SLOTS} fiches.`,
+  );
 }
 
 

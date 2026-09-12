@@ -119,6 +119,18 @@ const sum = (arr: any[], key: string) =>
 
 // ── Period → date range ───────────────────────────────────────────────────────
 
+/** Le lendemain d'une date YYYY-MM-DD : borne exclusive, sans heure à deviner. */
+function dayAfter(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Le jour d'une vente : sa date de vente, la date de saisie en repli seulement. */
+function saleDay(s: any): string {
+  return s.sale_date ?? String(s.created_at ?? '').slice(0, 10);
+}
+
 export type ReportPeriod = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'H1' | 'H2' | 'FY';
 
 function periodToRange(period: ReportPeriod, year: number): { from: Date; to: Date; label: string } {
@@ -177,13 +189,20 @@ export async function getReportsDataAction(
   ] = await Promise.all([
     supabase.from('businesses').select('name, phone, address, sector, tax_id, exchange_rate, default_currency').eq('id', businessId).maybeSingle(),
 
-    // Sales within the selected period
+    // Ventes de la période — sur la DATE DE VENTE, pas sur la date de saisie.
+    // Une vente de mars saisie le 2 avril appartient à mars : filtrer sur
+    // `created_at` la faisait tomber dans le mauvais trimestre, et le rapport
+    // de mars sous-déclarait ce que le cahier du marchand affiche. `created_at`
+    // ne sert de repli que pour une ligne sans `sale_date` (la colonne est
+    // NOT NULL DEFAULT CURRENT_DATE, mais le repli ne coûte rien).
     supabase.from('sales')
-      .select('total_amount, created_at, payment_method, payment_status, currency')
+      .select('total_amount, sale_date, created_at, payment_method, payment_status, currency')
       .eq('business_id', businessId)
       .is('deleted_at', null)
-      .gte('created_at', `${fromIso}T00:00:00`)
-      .lte('created_at', `${toIso}T23:59:59`),
+      .or(
+        `and(sale_date.gte.${fromIso},sale_date.lte.${toIso}),` +
+        `and(sale_date.is.null,created_at.gte.${fromIso},created_at.lt.${dayAfter(toIso)})`,
+      ),
 
     supabase.from('expenses')
       .select('amount, expense_date, payment_method, currency, expense_categories(name)')
@@ -277,8 +296,11 @@ export async function getReportsDataAction(
 
   // ── Legacy sums helper now with currency conversion ────────────────────────
   function legacySumsWithCurrency(fromDateIso: string, toDateIso: string) {
-    const rev = sales.filter((s: any) =>
-      s.created_at >= `${fromDateIso}T00:00:00` && s.created_at <= `${toDateIso}T23:59:59`)
+    // Même clé de période que la requête : la date de vente, pas la saisie.
+    const rev = sales.filter((s: any) => {
+      const day = saleDay(s);
+      return day >= fromDateIso && day <= toDateIso;
+    })
       .reduce((n: number, r: any) => n + toReportCurrency(Number(r.total_amount || 0), r.currency), 0);
     const exp = expenses.filter((e: any) => e.expense_date >= fromDateIso && e.expense_date <= toDateIso)
       .reduce((n: number, r: any) => n + toReportCurrency(Number(r.amount || 0), r.currency), 0);

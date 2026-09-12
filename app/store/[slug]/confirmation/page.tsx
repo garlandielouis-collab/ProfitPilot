@@ -27,6 +27,7 @@ import { getStoreOrder } from '../../../actions/store-public';
 import { getReviewedProductIds } from '../../../actions/store-content';
 import { mintReviewToken } from '../../../../lib/reviewToken';
 import { ReviewForm } from '../../../../components/store/blocks/ReviewForm';
+import { ClearPaidCart } from './ClearPaidCart';
 
 type Props = {
   params:       Promise<{ slug: string }>;
@@ -81,6 +82,11 @@ export default async function ConfirmationPage({ params, searchParams }: Props) 
 
       {order ? (
         <>
+        {/* Le panier ne part qu'ici pour un paiement en ligne : la base dit
+            payée, pas l'URL. */}
+        {order.payment_status === 'paid' && (
+          <ClearPaidCart slug={view.slug} orderId={order.id} />
+        )}
         <section
           className="mt-8 rounded-[var(--st-radius-card)] border p-5 text-left"
           style={{ borderColor: 'var(--st-border)', background: 'var(--st-surface)' }}

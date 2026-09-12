@@ -709,6 +709,24 @@ export function CategoriesSection({ store, section, data, design }: SectionProps
 
 // ── Promotion ───────────────────────────────────────────────────────────────
 
+/**
+ * Le lien d'un bouton, ramené dans le référentiel de la vitrine.
+ *
+ * Le préréglage et le marchand écrivent « /products » : c'est lisible, et
+ * c'est juste sur un sous-domaine. Mais sur `/store/<slug>`, rendu tel quel, il
+ * menait au back-office de ProfitPilot — l'acheteur tombait sur l'écran de
+ * connexion. Une adresse relative reçoit donc la base de la vitrine au rendu ;
+ * une URL absolue (`https://`, `mailto:`, `tel:`) ou une ancre reste telle
+ * quelle, et un chemin déjà préfixé par la base n'est pas préfixé deux fois.
+ */
+function storeLink(href: string, base: string): string {
+  const h = href.trim();
+  if (!h) return `${base}/products`;
+  if (!h.startsWith('/') || h.startsWith('//')) return h;
+  if (base && (h === base || h.startsWith(`${base}/`))) return h;
+  return `${base}${h}`;
+}
+
 export function PromotionSection({ store, design }: SectionProps) {
   const p = store.theme.promotion;
   if (!p.enabled || !p.title.trim()) return null;
@@ -751,7 +769,7 @@ export function PromotionSection({ store, design }: SectionProps) {
           )}
           {p.ctaLabel && (
             <Link
-              href={p.ctaHref || `${store.base}/products`}
+              href={storeLink(p.ctaHref, store.base)}
               className="mt-7 inline-flex min-h-[52px] items-center justify-center px-7 text-[15px] font-semibold transition hover:brightness-95"
               style={{
                 background: 'var(--st-accent)', color: 'var(--st-accent-ink)',

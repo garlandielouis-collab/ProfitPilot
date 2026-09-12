@@ -24,24 +24,56 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Cette invitation a expiré.' }, { status: 410 });
   }
 
+  // L'écran doit savoir s'il faut proposer de CRÉER un mot de passe ou
+  // simplement de rejoindre l'équipe : le porteur du lien voit déjà l'adresse,
+  // lui dire qu'elle a un compte ne lui apprend rien qu'il ne puisse exploiter.
+  // En cas d'échec de lecture, on retombe sur le formulaire de création : le
+  // POST refait la vérification, et c'est lui seul qui décide.
+  const hasAccount = await findAuthUserByEmail(svc, inv.email as string)
+    .then((u) => u !== null)
+    .catch(() => false);
+
   return NextResponse.json({
     id:          inv.id,
     email:       inv.email,
     companyName: (inv as any).businesses?.name ?? 'ProfitPilot',
     expiresAt:   inv.expires_at,
+    hasAccount,
   });
 }
 
-// POST /api/invitations  → accept invitation, create account, join company
+/**
+ * Le compte Auth portant cette adresse, ou `null`.
+ *
+ * Parcourt TOUTES les pages : la première page seule (1 000 comptes) laissait
+ * passer un compte existant pour un nouveau, et `createUser` échouait alors sur
+ * « déjà inscrit ». La comparaison ignore la casse — l'invitation est stockée en
+ * minuscules, un compte ancien ne l'est pas forcément.
+ */
+async function findAuthUserByEmail(
+  svc: ReturnType<typeof getSupabaseService>,
+  email: string,
+): Promise<{ id: string } | null> {
+  const target = email.trim().toLowerCase();
+  const perPage = 1000;
+  for (let page = 1; ; page++) {
+    const { data, error } = await svc.auth.admin.listUsers({ page, perPage });
+    if (error) throw new Error(error.message);
+    const users = data?.users ?? [];
+    const found = users.find((u) => (u.email ?? '').toLowerCase() === target);
+    if (found) return { id: found.id };
+    if (users.length < perPage) return null;
+  }
+}
+
+// POST /api/invitations  → accept invitation, create account (or attach the
+// existing one), join company
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const { token, password } = body ?? {};
 
-  if (!token || !password) {
-    return NextResponse.json({ error: 'Token et mot de passe requis.' }, { status: 400 });
-  }
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' }, { status: 400 });
+  if (!token) {
+    return NextResponse.json({ error: 'Token manquant.' }, { status: 400 });
   }
 
   const svc = getSupabaseService();
@@ -65,18 +97,36 @@ export async function POST(req: NextRequest) {
 
   const email = inv.email as string;
 
-  // Check if user already exists
-  const { data: existingList } = await svc.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const existing = existingList?.users?.find((u) => u.email === email);
+  let existing: { id: string } | null;
+  try {
+    existing = await findAuthUserByEmail(svc, email);
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 
   let userId: string;
 
   if (existing) {
-    // User exists — update their password
+    // ── Compte existant : on ne touche JAMAIS à son mot de passe ─────────────
+    //
+    // Ce chemin remplaçait le mot de passe du compte par celui que tapait le
+    // porteur du lien. Or le lien n'authentifie personne : il suffit qu'il soit
+    // transféré, intercepté ou deviné pour que n'importe qui prenne le contrôle
+    // d'un compte — propriétaire d'une autre entreprise compris — avec ses
+    // données et ses abonnements.
+    //
+    // Le lien reste une invitation : il rattache le compte à l'équipe, ce que
+    // l'employeur a voulu. Pour entrer, la personne se connecte avec SON mot de
+    // passe habituel ; un mot de passe éventuellement envoyé est ignoré.
     userId = existing.id;
-    const { error: pwErr } = await svc.auth.admin.updateUserById(userId, { password });
-    if (pwErr) return NextResponse.json({ error: pwErr.message }, { status: 500 });
   } else {
+    // Nouveau compte : le mot de passe choisi ici devient celui du compte.
+    if (!password || typeof password !== 'string') {
+      return NextResponse.json({ error: 'Mot de passe requis.' }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' }, { status: 400 });
+    }
     // Create new user (email_confirm bypassed — they verified via invitation link)
     const { data: created, error: createErr } = await svc.auth.admin.createUser({
       email,
@@ -108,5 +158,7 @@ export async function POST(req: NextRequest) {
     .update({ accepted_at: new Date().toISOString() })
     .eq('id', inv.id);
 
-  return NextResponse.json({ email, success: true });
+  // `existingAccount` dit à l'écran de ne pas tenter de connexion avec un mot
+  // de passe qui n'est pas celui du compte, mais d'envoyer vers la connexion.
+  return NextResponse.json({ email, success: true, existingAccount: Boolean(existing) });
 }

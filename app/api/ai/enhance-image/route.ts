@@ -22,6 +22,12 @@ import { getBusinessContext } from '../../../../lib/serverAuth';
 import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
 import { storeResultImage } from '../../../../lib/ai/storeResultImage';
 import {
+  InsufficientCreditsError,
+  refundCredits,
+  spendCredits,
+  type AiAction,
+} from '../../../../lib/ai/credits';
+import {
   getEnhancementProvider,
   isPresetKey,
   type EnhancementType,
@@ -38,6 +44,17 @@ const bodySchema = z.object({
     .enum(['full', 'background_only', 'upscale_only'])
     .default('full'),
 });
+
+/**
+ * Le geste facturé, selon la retouche demandée. Les trois clés sont les trois
+ * lignes « image » de `ai_credit_costs` : un détourage ne coûte pas le prix
+ * d'un agrandissement.
+ */
+const CREDIT_ACTION: Record<z.infer<typeof bodySchema>['enhancementType'], AiAction> = {
+  full:            'image_enhance',
+  background_only: 'image_background',
+  upscale_only:    'image_upscale',
+};
 
 /** L'URL publique de l'application, celle que le fournisseur devra rappeler. */
 function appUrl(): string | null {
@@ -134,7 +151,34 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── 5. Le travail ──────────────────────────────────────────────────────────
+  // ── 5. Le débit ────────────────────────────────────────────────────────────
+  //
+  // AVANT le travail et AVANT le fournisseur. `image_enhance` figurait dans la
+  // grille tarifaire, mais personne ne le débitait : chaque retouche était un
+  // appel payant chez un tiers, sans plafond, là où la rédaction et le
+  // merchandising s'arrêtent au solde. Même schéma qu'eux (`lib/ai/credits.ts`)
+  // — et même tolérance : fonctions de crédit absentes de la base, on laisse
+  // passer plutôt que de fermer le Studio.
+  const creditAction = CREDIT_ACTION[enhancementType];
+  const creditRef    = `product:${product.id}`;
+  try {
+    await spendCredits(ctx.businessId, ctx.userId, creditAction, creditRef);
+  } catch (err) {
+    if (err instanceof InsufficientCreditsError) {
+      // 402 et la phrase de `InsufficientCreditsError` telle quelle : le Studio
+      // affiche `error`, et elle dit le coût, le solde et la date de recharge.
+      return NextResponse.json(
+        { error: err.message, code: 'insufficient_credits', cost: err.cost, remaining: err.remaining },
+        { status: 402 },
+      );
+    }
+    return NextResponse.json(
+      { error: 'Impossible de vérifier vos crédits IA pour le moment. Réessayez dans un instant.' },
+      { status: 500 },
+    );
+  }
+
+  // ── 6. Le travail ──────────────────────────────────────────────────────────
   const { data: job, error: jobErr } = await svc
     .from('ai_asset_jobs')
     .insert({
@@ -151,13 +195,15 @@ export async function POST(request: Request) {
     .single();
 
   if (jobErr || !job) {
+    // Rien n'est parti chez le fournisseur : le crédit revient.
+    await refundCredits(ctx.businessId, creditAction, creditRef);
     return NextResponse.json(
       { error: "Impossible d'enregistrer la demande." },
       { status: 500 },
     );
   }
 
-  // ── 6. Le lancement ────────────────────────────────────────────────────────
+  // ── 7. Le lancement ────────────────────────────────────────────────────────
   const webhookUrl =
     `${callbackBase}/api/ai/enhance-image/webhook` +
     `?job=${job.id}&token=${encodeURIComponent(job.callback_token)}`;
@@ -190,6 +236,9 @@ export async function POST(request: Request) {
       .from('ai_asset_jobs')
       .update({ status: 'failed', error_message: message })
       .eq('id', job.id);
+
+    // Le fournisseur a refusé le travail : un travail raté ne se facture pas.
+    await refundCredits(ctx.businessId, creditAction, creditRef);
 
     return NextResponse.json({ error: message, jobId: job.id }, { status: 502 });
   }

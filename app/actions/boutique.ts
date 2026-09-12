@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { assertFeature } from '../../lib/entitlements';
+import { revalidateStore } from '../../lib/storefrontData';
+import { slugify, validateSlug } from '../../lib/storeTheme';
 import { confirmStoreOrder } from './store-public';
 import type { StoreSettings, ShippingMode } from './store-public';
 
@@ -93,7 +95,7 @@ export async function upsertStoreSettings(
     slug?: string;
     payment_credentials?: PaymentCredentials;
   },
-): Promise<void> {
+): Promise<{ slug: string }> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
@@ -109,15 +111,44 @@ export async function upsertStoreSettings(
   delete storeFields.primary_color;
   delete storeFields.secondary_color;
 
-  // Generate slug from business name if not provided
-  if (!storeFields.slug) {
+  // L'ancien slug : il faut l'invalider lui aussi en sortant (voir plus bas).
+  const { data: previous } = await svc
+    .from('store_settings')
+    .select('slug')
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  // Le slug suit les mêmes règles que dans l'éditeur (`saveGeneral`). Cet écran
+  // l'écrivait sans le valider ni vérifier qu'une autre boutique l'avait déjà :
+  // le marchand recevait une violation de contrainte brute, ou rien du tout.
+  let slug = slugify(storeFields.slug ?? '');
+  if (!slug) {
     const { data: biz } = await svc
       .from('businesses')
       .select('name')
       .eq('id', businessId)
       .single();
-    storeFields.slug = slugify((biz as any)?.name ?? businessId);
+    slug = slugify((biz as any)?.name ?? businessId);
   }
+
+  // Un slug inchangé n'est pas revalidé : une vitrine créée avant une règle
+  // (mot réservé ajouté depuis) ne doit pas bloquer l'enregistrement de ses
+  // modes de paiement. Il ne peut de toute façon pas être « pris » — il est à elle.
+  if (slug !== previous?.slug) {
+    const check = validateSlug(slug);
+    if (!check.ok) throw new Error(`Adresse de la boutique : ${check.reason}`);
+
+    const { data: taken } = await svc
+      .from('store_settings')
+      .select('business_id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (taken && taken.business_id !== businessId) {
+      throw new Error(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
+    }
+  }
+  storeFields.slug = slug;
 
   const { error: upsertErr } = await svc.from('store_settings').upsert(
     { ...storeFields, business_id: businessId },
@@ -134,11 +165,15 @@ export async function upsertStoreSettings(
     if (credErr) throw new Error('Erreur sauvegarde des identifiants: ' + credErr.message);
   }
 
+  // La vitrine est en cache (5 min). Sans invalidation, les modes de paiement et
+  // de livraison restaient les anciens côté acheteur — et `create_store_order`,
+  // qui relit la base, refusait le mode que la page lui proposait encore.
+  // L'ancien slug aussi : sinon l'ancienne adresse sert la version en cache.
+  await revalidateStore(previous?.slug ?? null, businessId);
+  await revalidateStore(slug, businessId);
   revalidatePath('/boutique');
-}
 
-function slugify(str: string): string {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return { slug };
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

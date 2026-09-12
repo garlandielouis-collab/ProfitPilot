@@ -16,26 +16,60 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CalendarClock, Layers, Lock, MessageCircle, ShoppingBag, Sparkles } from 'lucide-react';
 import { useCart } from '../../../../components/store/CartContext';
 import { storeSessionId, trackStoreEvent } from '../../../../components/store/blocks/TrackView';
 import { StoreImage } from '../../../../components/store/blocks/StoreImage';
 import { storeMoney } from '../../../../components/store/format';
-import { createStoreOrder } from '../../../actions/store-public';
+import { createStoreOrder, getStoreOrder } from '../../../actions/store-public';
 import { checkCoupon, type CouponCheck } from '../../../actions/store-content';
 import type { ShippingMode } from '../../../actions/store-public';
 import type { StoreView } from '../../../../components/store/types';
 import { designFor } from '../../../../lib/storeDesign';
 import { buildWhatsAppOrderLink, resolveOrderPhone } from '../../../../lib/storeWhatsApp';
+import { forgetPendingOrder, readPendingOrder, rememberPendingOrder } from '../confirmation/pendingOrder';
 
+/**
+ * Les moyens de paiement que ce tunnel sait réellement encaisser.
+ *
+ * Pas de carte : aucune passerelle carte n'existe. Proposée, elle faisait
+ * partir la commande comme un paiement à la livraison sans jamais demander de
+ * carte — l'acheteur croyait avoir payé. Une valeur `card` encore enregistrée
+ * dans les réglages d'une boutique est donc ignorée ici.
+ */
 const PAYMENT_LABELS: Record<string, string> = {
   cash:    'Paiement à la livraison',
   moncash: 'MonCash',
   natcash: 'NatCash',
-  card:    'Carte bancaire',
 };
+
+/**
+ * Ce que l'acheteur lit quand une passerelle le renvoie ici en échec
+ * (`?error=…`, posé par les rappels MonCash et NatCash).
+ *
+ * Chaque message dit s'il peut réessayer. Quand on ne sait pas si l'argent est
+ * parti, il le dit aussi : repayer une commande déjà débitée coûte plus cher à
+ * l'acheteur qu'un appel à la boutique.
+ */
+const RETURN_ERRORS: Record<string, string> = {
+  payment_failed:
+    "Le paiement n'a pas abouti. Votre panier est intact : vous pouvez réessayer.",
+  payment_unverified:
+    "Ce paiement n'a pas pu être rattaché à votre commande. Si votre compte a été débité, contactez la boutique avant de payer à nouveau.",
+  payment_unavailable:
+    "Le paiement en ligne n'est pas disponible pour le moment dans cette boutique. Choisissez un autre moyen de paiement.",
+  payment_error:
+    "Le paiement n'a pas pu être vérifié. Si votre compte a été débité, contactez la boutique avant de payer à nouveau ; sinon, vous pouvez réessayer.",
+};
+
+function returnErrorMessage(code: string | null): string {
+  if (!code) return '';
+  return Object.prototype.hasOwnProperty.call(RETURN_ERRORS, code)
+    ? RETURN_ERRORS[code]
+    : RETURN_ERRORS.payment_error;
+}
 
 type Props = {
   store:          StoreView;
@@ -49,16 +83,22 @@ export function CheckoutClient({
   store, businessId, paymentMethods, shippingModes, paymentFailed,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { items, bundles, total, clear, hydrated } = useCart();
 
   // Un panier qui ne contient QUE des lots n'est pas un panier vide.
   const empty = items.length === 0 && bundles.length === 0;
 
+  // Les réglages de la boutique, réduits à ce qui s'encaisse vraiment.
+  const offered = paymentMethods.filter((m) =>
+    Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, m),
+  );
+
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
     line1: '', line2: '', city: '',
     shipping_mode: shippingModes[0]?.id ?? '',
-    payment:       paymentMethods[0] ?? 'cash',
+    payment:       offered[0] ?? '',
     notes: '',
     // Les trois champs du §6, demandés selon le métier. Vides sur un panier
     // classique : le gabarit ne les affiche même pas.
@@ -73,9 +113,13 @@ export function CheckoutClient({
   const extras = design.checkout;
 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(
-    paymentFailed ? 'Le paiement n\'a pas abouti. Vous pouvez réessayer.' : '',
+  // Tous les codes de retour, pas seulement `payment_failed` : un code inconnu
+  // affiche le message prudent plutôt que rien.
+  const [error, setError] = useState(() =>
+    returnErrorMessage(searchParams.get('error') ?? (paymentFailed ? 'payment_failed' : null)),
   );
+  /** Le numéro d'une commande payée ailleurs, dont ce panier vient d'être vidé. */
+  const [paidOrderNumber, setPaidOrderNumber] = useState<string | null>(null);
 
   // ── Le code promo (§28) ───────────────────────────────────────────────────
   //
@@ -131,6 +175,38 @@ export function CheckoutClient({
       value: total,
     });
   }, [businessId, hydrated, empty, total]);
+
+  // ── Une commande payée sur une autre origine ──────────────────────────────
+  //
+  // Le panier se vide à la confirmation du paiement (confirmation/ClearPaidCart).
+  // Mais MonCash et NatCash ramènent l'acheteur sur le domaine de l'application :
+  // parti du sous-domaine de la boutique, il y a laissé un panier plein que la
+  // confirmation ne voit pas. On demande donc au serveur, au passage suivant, si
+  // la commande en attente a été payée — et seulement alors on vide. Une
+  // commande impayée garde son panier : c'est tout le but.
+  useEffect(() => {
+    if (!hydrated) return;
+    const pending = readPendingOrder(store.slug);
+    if (!pending) return;
+
+    let cancelled = false;
+    getStoreOrder(pending)
+      .then((order) => {
+        if (cancelled) return;
+        if (!order) {
+          forgetPendingOrder(store.slug);
+        } else if (order.payment_status === 'paid') {
+          clear();
+          forgetPendingOrder(store.slug);
+          setPaidOrderNumber(order.order_number);
+        }
+      })
+      .catch(() => {
+        // Réseau : on retentera au prochain passage, le panier reste.
+      });
+
+    return () => { cancelled = true; };
+  }, [hydrated, store.slug, clear]);
 
 
   /**
@@ -225,7 +301,25 @@ export function CheckoutClient({
     return (
       <div className="mx-auto flex min-h-[50vh] max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
         <ShoppingBag className="h-10 w-10 text-[var(--st-ink-3)]" strokeWidth={1.3} aria-hidden />
-        <p className="text-[16px] font-semibold text-[var(--st-ink)]">Votre panier est vide</p>
+        {paidOrderNumber ? (
+          <p className="text-[16px] font-semibold text-[var(--st-ink)]">
+            Votre commande {paidOrderNumber} est payée
+          </p>
+        ) : (
+          <p className="text-[16px] font-semibold text-[var(--st-ink)]">Votre panier est vide</p>
+        )}
+        {/* Un retour de passerelle en échec sur un panier vide (autre origine,
+            panier déjà vidé) : l'erreur reste lisible au lieu d'être avalée par
+            l'écran vide. */}
+        {error && !paidOrderNumber && (
+          <p
+            role="alert"
+            className="rounded-[8px] border px-4 py-3 text-[13px]"
+            style={{ borderColor: '#E3BDB8', background: '#FDF3F2', color: '#8C2F26' }}
+          >
+            {error}
+          </p>
+        )}
         <Link
           href={`${store.base}/products`}
           className="text-[14px] font-semibold text-[var(--st-ink-2)] underline underline-offset-4"
@@ -242,6 +336,11 @@ export function CheckoutClient({
 
     if (!form.name.trim() || !form.phone.trim() || !form.line1.trim() || !form.city.trim()) {
       setError('Nom, téléphone, adresse et ville sont nécessaires pour livrer.');
+      return;
+    }
+
+    if (!form.payment) {
+      setError("Cette boutique ne propose pas encore de moyen de paiement. Contactez-la pour commander.");
       return;
     }
 
@@ -288,13 +387,20 @@ export function CheckoutClient({
           setSubmitting(false);
           return;
         }
-        // La commande est enregistrée côté serveur : le panier peut partir.
-        clear();
+        // Le panier NE part PAS ici. La commande est enregistrée, pas payée :
+        // annulé ou refusé chez la passerelle, l'acheteur revient avec
+        // `?error=…` et trouvait « Votre panier est vide » au lieu de l'erreur.
+        // Il se vide quand la base dit payée (confirmation/ClearPaidCart, ou le
+        // rapprochement ci-dessus) ; on note quelle commande l'engage.
+        rememberPendingOrder(store.slug, json.orderId);
         window.location.href = json.redirectUrl;
         return;
       }
 
+      // Paiement à la livraison : la commande est ferme dès sa création, le
+      // panier peut partir tout de suite.
       const { orderId } = await createStoreOrder(orderData);
+      forgetPendingOrder(store.slug);
       clear();
       router.push(`${store.base}/confirmation?id=${orderId}`);
     } catch (err) {
@@ -407,15 +513,23 @@ export function CheckoutClient({
           )}
 
           <Section title="Paiement">
-            {paymentMethods.map((method) => (
+            {offered.map((method) => (
               <Choice
                 key={method}
                 name="payment"
                 checked={form.payment === method}
                 onSelect={() => setForm({ ...form, payment: method })}
-                label={PAYMENT_LABELS[method] ?? method}
+                label={PAYMENT_LABELS[method]}
               />
             ))}
+            {/* Une boutique qui n'a coché que la carte n'a, en vérité, aucun
+                moyen de paiement : le dire plutôt que d'afficher un titre vide. */}
+            {offered.length === 0 && (
+              <p className="text-[13px] text-[var(--st-ink-2)]">
+                Cette boutique ne propose pas encore de moyen de paiement.
+                Contactez-la pour commander.
+              </p>
+            )}
           </Section>
 
           {/* ── Ce que ce métier demande en plus (§6) ────────────────────

@@ -10,8 +10,11 @@ import { Logo } from '../../../components/Logo';
 type PageState =
   | { phase: 'loading' }
   | { phase: 'invalid'; message: string }
-  | { phase: 'form';    email: string; companyName: string }
-  | { phase: 'success'; email: string; companyName: string };
+  | { phase: 'form';    email: string; companyName: string; hasAccount: boolean }
+  | { phase: 'success'; email: string; companyName: string }
+  // Compte déjà existant : rattaché à l'équipe, mais son mot de passe n'a pas
+  // bougé — la personne se connecte avec celui qu'elle utilise déjà.
+  | { phase: 'joined';  email: string; companyName: string };
 
 // ── Eye icon ─────────────────────────────────────────────────────────────────
 
@@ -57,7 +60,7 @@ function AcceptInvitationInner() {
         if (!res.ok) {
           setState({ phase: 'invalid', message: json.error ?? 'Invitation invalide.' });
         } else {
-          setState({ phase: 'form', email: json.email, companyName: json.companyName });
+          setState({ phase: 'form', email: json.email, companyName: json.companyName, hasAccount: Boolean(json.hasAccount) });
         }
       })
       .catch(() => setState({ phase: 'invalid', message: 'Erreur réseau. Réessayez.' }));
@@ -68,6 +71,29 @@ function AcceptInvitationInner() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError('');
+
+    // Compte existant : aucun mot de passe à choisir — rejoindre suffit.
+    if (state.phase === 'form' && state.hasAccount) {
+      setSubmitting(true);
+      try {
+        const res  = await fetch('/api/invitations', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ token }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setFormError(json.error ?? 'Une erreur est survenue.');
+          setSubmitting(false);
+          return;
+        }
+        setState({ phase: 'joined', email: json.email, companyName: state.companyName });
+      } catch {
+        setFormError('Erreur réseau. Vérifiez votre connexion.');
+        setSubmitting(false);
+      }
+      return;
+    }
 
     if (password.length < 8) {
       setFormError('Le mot de passe doit contenir au moins 8 caractères.');
@@ -91,6 +117,15 @@ function AcceptInvitationInner() {
       if (!res.ok) {
         setFormError(json.error ?? 'Une erreur est survenue.');
         setSubmitting(false);
+        return;
+      }
+
+      // Le compte existait en fait (créé entre l'ouverture du lien et l'envoi) :
+      // le mot de passe tapé ici n'est PAS le sien, on n'essaie pas de s'en servir.
+      if (json.existingAccount) {
+        if (state.phase === 'form') {
+          setState({ phase: 'joined', email: json.email, companyName: state.companyName });
+        }
         return;
       }
 
@@ -183,6 +218,32 @@ function AcceptInvitationInner() {
               </div>
             </div>
 
+            {state.hasAccount ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <h2 className="mb-1 text-xl font-bold text-primary">Rejoindre l&apos;équipe</h2>
+                <p className="text-sm text-slate-500">
+                  Cette adresse a déjà un compte ProfitPilot. Acceptez l&apos;invitation, puis
+                  connectez-vous avec votre mot de passe habituel : il ne change pas.
+                </p>
+
+                {formError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {formError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-sm font-bold text-white transition hover:bg-primary-h disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Acceptation…</>
+                  ) : 'Accepter l\'invitation →'}
+                </button>
+              </form>
+            ) : (
+            <>
             <h2 className="mb-1 text-xl font-bold text-primary">Choisissez votre mot de passe</h2>
             <p className="mb-6 text-sm text-slate-500">
               Créez un mot de passe sécurisé pour votre compte. Minimum 8 caractères.
@@ -275,6 +336,8 @@ function AcceptInvitationInner() {
                 ) : 'Créer mon compte et rejoindre l\'équipe →'}
               </button>
             </form>
+            </>
+            )}
 
             <p className="mt-4 text-center text-xs text-slate-400">
               Déjà un compte ?{' '}
@@ -282,6 +345,28 @@ function AcceptInvitationInner() {
                 Se connecter
               </a>
             </p>
+          </div>
+        )}
+
+        {/* ── Joined (compte existant) ── */}
+        {state.phase === 'joined' && (
+          <div className="rounded-3xl border border-emerald-200 bg-white p-8 text-center space-y-5">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
+              <svg className="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-primary">Invitation acceptée.</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Votre compte <strong className="text-primary">{state.email}</strong> fait maintenant partie de{' '}
+                <strong className="text-primary">{state.companyName}</strong>.<br />
+                Connectez-vous avec votre mot de passe habituel.
+              </p>
+            </div>
+            <a href="/auth/login" className="inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h">
+              Se connecter →
+            </a>
           </div>
         )}
 

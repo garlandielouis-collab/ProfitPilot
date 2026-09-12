@@ -2,6 +2,7 @@
 
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { failIfUnreadable } from '../../lib/storeRead';
+import { queueStoreOrderNotification } from '../../lib/storePaymentGateway';
 
 
 
@@ -612,6 +613,14 @@ export async function createStoreOrder(input: CreateOrderInput): Promise<Created
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.out_order_id) throw new Error('La commande n\'a pas pu être enregistrée.');
+
+  // L'alerte au marchand. Ici pour le paiement à la livraison : la commande est
+  // ferme dès maintenant. Pour MonCash et NatCash elle part au règlement
+  // vérifié (`settleGatewayOrder`), pas pour une commande que l'acheteur peut
+  // encore abandonner chez la passerelle. Planifiée, jamais bloquante.
+  if (input.payment_method !== 'moncash' && input.payment_method !== 'natcash') {
+    queueStoreOrderNotification(row.out_order_id as string, 'placed');
+  }
 
   return {
     orderId:       row.out_order_id as string,
