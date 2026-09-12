@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 import {
   listReceivables, markReceivablePaid, prepareReceivableReminder,
   recordReceivablePayment, setReceivableDueDate,
-  type Receivable, type ReceivableStatus, type ReceivablesSummary,
+  type Receivable, type ReceivableRefusal, type ReceivableStatus, type ReceivablesSummary,
 } from '../../app/actions/receivables';
 import { Badge, BottomSheet, Button, FilterPill, Money, formatAmount, type BadgeTone } from '../ds';
 import { cn } from '../../lib/utils';
@@ -52,6 +52,30 @@ function ageLabel(saleDate: string): string {
   if (days === 1) return 'hier';
   if (days < 31) return `il y a ${days} j`;
   return `il y a ${Math.floor(days / 30)} mois`;
+}
+
+/** Pourquoi rien n'a été encaissé, dit au marchand. */
+function refusalMessage(res: { reason: ReceivableRefusal; balanceDue?: number; currency?: string }): string {
+  switch (res.reason) {
+    case 'forbidden':
+      return "Votre rôle ne permet pas d'encaisser une créance.";
+    case 'invalid_amount':
+      return 'Entrez le montant reçu.';
+    case 'exceeds_balance': {
+      // Centimes affichés s'il y en a : arrondi à l'unité, le solde montré
+      // (« 1 001 ») serait lui-même refusé une fois retapé.
+      const due = res.balanceDue ?? 0;
+      return `Le solde n'est que de ${formatAmount(due, res.currency ?? 'HTG', Number.isInteger(due) ? 0 : 2)} — rien n'a été encaissé.`;
+    }
+    case 'already_settled':
+      return "Cette créance est déjà soldée — rien n'a été encaissé.";
+    case 'cancelled':
+      return "Cette vente a été annulée — rien n'a été encaissé.";
+    case 'not_found':
+      return "Créance introuvable — rien n'a été encaissé.";
+    case 'changed':
+      return "Cette créance vient d'être modifiée ailleurs — rien n'a été encaissé, vérifiez le solde.";
+  }
 }
 
 export function ReceivablesPanel() {
@@ -83,14 +107,24 @@ export function ReceivablesPanel() {
   }, [data, filter]);
 
   async function settle(r: Receivable) {
+    // Un 2e appui pendant l'encaissement ne repart pas au serveur.
+    if (settled) return;
     setSettled(r.saleId);
     try {
-      await markReceivablePaid(r.saleId);
+      const res = await markReceivablePaid(r.saleId);
+      if (!res.settled) {
+        // Rien n'a été encaissé : la ligne ne se barre pas, et la liste
+        // rechargée montre l'état réel (déjà soldée, montant modifié…).
+        setSettled(null);
+        toast.error(refusalMessage(res));
+        await load();
+        return;
+      }
       // On laisse la chorégraphie se jouer avant de recharger : rembourser
       // doit faire du bien, au client comme au marchand.
       await new Promise((resolve) => setTimeout(resolve, 680));
       await load();
-      toast.success(`${r.customerName} — créance soldée.`);
+      toast.success(`${r.customerName} — ${formatAmount(res.amount, res.currency)} encaissés, créance soldée.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Mise à jour impossible.');
     } finally {
@@ -309,8 +343,22 @@ function ActionSheet({
     }
     setBusy('partial');
     try {
-      await recordReceivablePayment(item.saleId, amount);
-      toast.success(`${formatAmount(amount, item.currency)} encaissés.`);
+      const res = await recordReceivablePayment(item.saleId, amount);
+      if (!res.settled) {
+        toast.error(refusalMessage(res));
+        // Le reste dû affiché n'est plus le bon : on recharge et on referme,
+        // la feuille rouverte montrera le montant réel.
+        if (res.reason !== 'invalid_amount' && res.reason !== 'forbidden') {
+          await onChanged();
+          onClose();
+        }
+        return;
+      }
+      toast.success(
+        res.fullyPaid
+          ? `${formatAmount(res.amount, res.currency)} encaissés — créance soldée.`
+          : `${formatAmount(res.amount, res.currency)} encaissés — reste ${formatAmount(res.balanceDue, res.currency)}.`,
+      );
       await onChanged();
       onClose();
     } catch (err) {

@@ -46,11 +46,14 @@ type Sale = {
 };
 
 type ClientCredit = {
+  /** id de la vente — ce qu'attend markCustomerCreditPaid. */
   id: string;
   invoice_number: string | null;
+  /** Montant facturé (total_amount), dans la devise de la vente. */
   amount: number;
+  /** Reste dû (balance_due de v_receivables). `null` = vue indisponible → « … ». */
+  due: number | null;
   currency: string;
-  payment_status: 'À Crédit' | 'Payé';
   created_at: string;
 };
 
@@ -68,6 +71,16 @@ type Invoice = {
 
 const VIP_THRESHOLD  = 50_000;   // HTG — total purchases to be VIP
 const VIP_SALE_COUNT = 5;        // OR >= 5 sales
+
+// Une vente n'est plus « due » une fois payée, annulée ou remboursée. Le
+// déclencheur fn_on_sale_payment compte comme ouvertes credit, partial, pending
+// et overdue ; `v_receivables` n'écarte que `paid` — les ventes annulées ou
+// remboursées sont retirées ici, comme le fait markCustomerCreditPaid.
+const CLOSED_SALE_STATUSES = new Set(['paid', 'cancelled', 'refunded']);
+const OPEN_SALE_STATUSES   = new Set(['credit', 'partial', 'pending', 'overdue']);
+// Sous un centime, markCustomerCreditPaid répond « déjà soldée » : la vente ne
+// compte donc ni dans la dette ni dans la liste des créances.
+const OWED_MIN = 0.01;
 
 // `sales.payment_status` est l'énum payment_status_type : on l'affiche en mots,
 // la valeur brute ne sort plus que si la base en ajoute une inconnue ici.
@@ -252,9 +265,8 @@ function ClientsCRMInner() {
   const [invoices,     setInvoices]     = useState<Invoice[]>([]);
   const [credits,      setCredits]      = useState<ClientCredit[]>([]);
   const [busyCredit,   setBusyCredit]   = useState<Set<string>>(new Set());
-  // Chargés avec la liste (loadClients) : reste dû par vente, depuis
-  // `v_receivables`, et taux USD→HTG de l'entreprise. `null` = indisponible.
-  const [receivables,  setReceivables]  = useState<Map<string, { due: number; currency: string }> | null>(null);
+  // Chargé avec la liste (loadClients) : taux USD→HTG de l'entreprise.
+  // `null` = indisponible.
   const [rate,         setRate]         = useState<number | null>(null);
 
   // modals
@@ -351,9 +363,11 @@ function ClientsCRMInner() {
       clientQuery.order('first_name'),
       // `currency` pour convertir, `deleted_at` pour ne pas compter une vente
       // supprimée — `v_receivables` les écarte déjà, « Total Achats » aussi.
+      // `id` + `payment_status` : écarter de la dette les ventes annulées ou
+      // remboursées, que `v_receivables` laisse passer.
       businessId
-        ? supabase.from('sales').select('customer_id,total_amount,currency').eq('business_id', businessId).is('deleted_at', null).not('customer_id', 'is', null)
-        : supabase.from('sales').select('customer_id,total_amount,currency').is('deleted_at', null).not('customer_id', 'is', null),
+        ? supabase.from('sales').select('id,customer_id,total_amount,currency,payment_status').eq('business_id', businessId).is('deleted_at', null).not('customer_id', 'is', null)
+        : supabase.from('sales').select('id,customer_id,total_amount,currency,payment_status').is('deleted_at', null).not('customer_id', 'is', null),
       supabase.from('v_receivables')
         .select('sale_id,customer_id,balance_due,currency')
         .eq('business_id', businessId)
@@ -392,12 +406,17 @@ function ClientsCRMInner() {
     }
 
     if (receivRes.error) console.error('[clients] v_receivables error:', receivRes.error.message);
+    // Mêmes règles que la liste « Créances en cours » de la fiche (loadDetail) :
+    // une vente annulée/remboursée ou un reste dû sous le centime ne compte pas.
+    const closedSaleIds = new Set<string>(
+      ((salesRes.data ?? []) as any[])
+        .filter(s => CLOSED_SALE_STATUSES.has(s.payment_status))
+        .map(s => s.id as string),
+    );
     const debt: Record<string, { amount: number; pending: boolean }> = {};
-    const bySale = new Map<string, { due: number; currency: string }>();
     for (const r of (receivRes.data ?? []) as any[]) {
       const due = Number(r.balance_due ?? 0);
-      if (r.sale_id) bySale.set(r.sale_id, { due, currency: r.currency ?? 'HTG' });
-      if (!r.customer_id || !(due > 0)) continue;
+      if (!r.customer_id || !(due >= OWED_MIN) || closedSaleIds.has(r.sale_id)) continue;
       if (!debt[r.customer_id]) debt[r.customer_id] = { amount: 0, pending: false };
       const v = toHtg(due, r.currency);
       if (v === null) debt[r.customer_id].pending = true; else debt[r.customer_id].amount += v;
@@ -417,7 +436,6 @@ function ClientsCRMInner() {
     });
 
     setRate(bizRate);
-    setReceivables(receivRes.error ? null : bySale);
     setClients(enriched);
     if (!selectedId && enriched.length > 0) setSelectedId(enriched[0].id);
     setLoading(false);
@@ -430,20 +448,31 @@ function ClientsCRMInner() {
     setDetailLoad(true);
     const userResult = await supabase.auth.getUser();
     const businessId = userResult.data?.user ? await resolveBusinessId(userResult.data.user.id) : null;
-    const [salesRes, creditsRes] = await Promise.all([
-      supabase.from('sales')
-        .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
-        .eq('customer_id', clientId)
-        .is('deleted_at', null)
-        .if(businessId != null, (query: any) => query.eq('business_id', businessId))
-        .order('created_at', { ascending: false }),
-      supabase.from('sales')
-        .select('id,invoice_number,total_amount,currency,payment_status,created_at')
-        .eq('customer_id', clientId)
-        .is('deleted_at', null)
-        .if(businessId != null, (query: any) => query.eq('business_id', businessId))
-        .eq('payment_status', 'credit')
-        .order('created_at', { ascending: false }),
+    // ── Créances en cours ────────────────────────────────────────────────────
+    //
+    // La liste ne prenait que `payment_status = 'credit'` : après un acompte, la
+    // vente passe à `partial` et disparaissait, alors que la carte « Dette
+    // active » la comptait encore. Source désormais identique à cette carte :
+    // `v_receivables` (reste dû après paiements partiels), pour ce client.
+    //
+    // `.if()` n'existe pas dans supabase-js (postgrest-js n'a aucune méthode de
+    // ce nom) : l'appel levait « query.if is not a function », et la fiche ne
+    // chargeait ni l'historique ni les créances. Le filtre entreprise est donc
+    // ajouté à la main, seulement quand l'entreprise est connue.
+    let salesQuery = supabase.from('sales')
+      .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
+      .eq('customer_id', clientId)
+      .is('deleted_at', null);
+    let receivQuery = supabase.from('v_receivables')
+      .select('sale_id,invoice_number,total_amount,balance_due,currency,sale_date')
+      .eq('customer_id', clientId);
+    if (businessId != null) {
+      salesQuery  = salesQuery.eq('business_id', businessId);
+      receivQuery = receivQuery.eq('business_id', businessId);
+    }
+    const [salesRes, receivRes] = await Promise.all([
+      salesQuery.order('created_at', { ascending: false }),
+      receivQuery.order('sale_date', { ascending: false }),
     ]);
 
     // Group sales → invoices
@@ -455,10 +484,33 @@ function ClientsCRMInner() {
       invMap[key].itemCount += 1;
     }
     setInvoices(Object.values(invMap).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    setCredits((creditsRes.data ?? []).map((c: any) => ({
-      id: c.id, invoice_number: c.invoice_number ?? null, amount: Number(c.total_amount),
-      currency: c.currency ?? 'HTG', payment_status: 'À Crédit' as const, created_at: c.created_at,
-    })));
+
+    const saleById = new Map<string, any>(((salesRes.data ?? []) as any[]).map(s => [s.id as string, s]));
+    if (receivRes.error) {
+      // Vue indisponible : les ventes ouvertes restent listées — et encaissables —
+      // mais leur reste dû s'affiche « … » plutôt qu'un chiffre deviné.
+      console.error('[clients] loadDetail v_receivables error:', receivRes.error.message);
+      setCredits(((salesRes.data ?? []) as any[])
+        .filter(s => OPEN_SALE_STATUSES.has(s.payment_status))
+        .map(s => ({
+          id: s.id, invoice_number: s.invoice_number ?? null, amount: Number(s.total_amount),
+          due: null, currency: s.currency ?? 'HTG', created_at: s.created_at,
+        })));
+    } else {
+      setCredits(((receivRes.data ?? []) as any[])
+        .filter(r => {
+          const sale = saleById.get(r.sale_id);
+          return Number(r.balance_due ?? 0) >= OWED_MIN && !(sale && CLOSED_SALE_STATUSES.has(sale.payment_status));
+        })
+        .map(r => {
+          const sale = saleById.get(r.sale_id);
+          return {
+            id: r.sale_id, invoice_number: r.invoice_number ?? null, amount: Number(r.total_amount),
+            due: Number(r.balance_due), currency: r.currency ?? 'HTG',
+            created_at: sale?.created_at ?? r.sale_date,
+          };
+        }));
+    }
     setDetailLoad(false);
   }, []);
 
@@ -535,14 +587,10 @@ function ClientsCRMInner() {
   //
   // Le badge additionnait `total_amount` de chaque vente à crédit, USD et HTG
   // mêlés : un acompte ne le faisait pas baisser, et 50 USD + 50 HTG y
-  // valaient « 100 HTG ». Le reste dû vient de `v_receivables`, déjà chargée
-  // pour la carte « Dette active » ; le total est converti comme elle.
-  // `due: null` = vue indisponible → « … ». Une vente soldée par acomptes
-  // (reste dû nul) ne figure plus parmi les créances en cours.
-  const openCredits = useMemo(() => credits
-    .filter(c => c.payment_status === 'À Crédit')
-    .map(c => ({ ...c, due: receivables ? (receivables.get(c.id)?.due ?? 0) : null }))
-    .filter(c => c.due === null || c.due > 0), [credits, receivables]);
+  // valaient « 100 HTG ». `credits` porte le reste dû de `v_receivables`, la
+  // source de la carte « Dette active » (mêmes ventes, même seuil) ; le total
+  // est converti comme elle. `due: null` = vue indisponible → « … ».
+  const openCredits = credits;
 
   const convertToHtg = useCallback((amount: number, currency: string): number | null =>
     currency === 'USD' ? (rate === null ? null : amount * rate) : amount, [rate]);

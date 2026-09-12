@@ -187,7 +187,10 @@ type CreditSettlement =
  * rattachée à une vente.
  */
 export async function markCustomerCreditPaid(transactionOrSaleId: string): Promise<CreditSettlement> {
-  const { supabase, businessId, userId } = await getBusinessContext();
+  const { supabase, businessId, userId, can } = await getBusinessContext();
+  // Même droit que /creances : encaisser fait entrer de l'argent en caisse et
+  // éteint une créance. Une action serveur est appelable par tout membre.
+  if (!can('debts:write')) throw new Error('Action non autorisée.');
 
   // Column names follow the real customer_transactions schema: customer_id /
   // description / reference_type+reference_id — not client_id / sale_id / notes.

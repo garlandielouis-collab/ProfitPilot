@@ -16,28 +16,13 @@ import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
 import { isAuthorizedCron } from '../../../../lib/cronAuth';
 import { notify } from '../../../../lib/notify';
 import { buildWeeklyDigest, buildWhatsAppLink } from '../../../../lib/whatsappReport';
+import { makeToReport, isExchangeRateSet } from '../../../../lib/currency';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
-
-// Même règle que `makeToReport` dans app/actions/ai.ts (non importable : un
-// fichier 'use server' n'exporte que des fonctions async). Ramène un montant à
-// la devise de l'entreprise au taux `exchange_rate` (1 USD = taux HTG) ; `null`
-// quand le taux est absent ou nul — le montant est alors exclu, jamais inventé.
-function makeToReport(exchangeRate: number, reportCurrency: 'HTG' | 'USD') {
-  const rateOk = Number.isFinite(exchangeRate) && exchangeRate > 0;
-  return (amount: number, currency: string | null | undefined): number | null => {
-    const c = (currency ?? 'HTG').toUpperCase();
-    if (c === reportCurrency) return amount;
-    if (!rateOk) return null;
-    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
-    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
-    return amount;
-  };
-}
 
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req)) {
@@ -62,13 +47,18 @@ export async function GET(req: NextRequest) {
 
   for (const biz of businesses ?? []) {
     // Devise ET taux de CETTE entreprise : le message affiche ses montants en
-    // `default_currency`, et chaque vente y est ramenée au taux `exchange_rate`.
-    // Pas de taux de repli : un taux absent exclut la vente, et le message le
-    // dit. Chaque vente exclue est comptée une fois (par id), même si elle
-    // apparaît aussi en ligne de vente et en créance.
+    // `default_currency`, et chaque vente y est ramenée au taux `exchange_rate`
+    // par `makeToReport` (lib/currency.ts). Pas de taux de repli : un taux non
+    // renseigné (NULL, ou 1 par défaut de colonne) exclut la vente, et le
+    // message le dit. Chaque vente exclue est comptée une fois (par id), même
+    // si elle apparaît aussi en ligne de vente et en créance.
     const reportCurrency: 'HTG' | 'USD' =
       String(biz.default_currency ?? 'HTG').toUpperCase() === 'USD' ? 'USD' : 'HTG';
-    const convert = makeToReport(Number(biz.exchange_rate), reportCurrency);
+    const convert = makeToReport({
+      exchangeRate:    Number(biz.exchange_rate),
+      exchangeRateSet: isExchangeRateSet(biz.exchange_rate),
+      defaultCurrency: reportCurrency,
+    });
     const unconverted = new Set<string>();
     const toReport = (amount: number, currency: string | null | undefined, saleId: string): number | null => {
       if (amount === 0) return 0;

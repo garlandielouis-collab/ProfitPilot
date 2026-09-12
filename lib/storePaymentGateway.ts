@@ -70,6 +70,47 @@ export async function storeSlugOf(businessId: string): Promise<string> {
   return (data as any)?.slug ?? '';
 }
 
+// ─── MonCash : l'API et son jeton ────────────────────────────────────────────
+//
+// Le lancement et le rappel avaient chacun leur copie de `getMoncashToken`.
+// Celle du rappel ne regardait ni le statut HTTP ni la présence du jeton : un
+// refus d'authentification partait vérifier la transaction avec
+// `Bearer undefined`, et le journal disait « verify failed (401) », loin de la
+// cause.
+
+const MONCASH_API_PROD    = 'https://moncashbutton.digicelgroup.com/Api';
+const MONCASH_API_SANDBOX = 'https://sandbox.moncashbutton.digicelgroup.com/Api';
+
+/** La racine de l'API MonCash — production ou bac à sable. */
+export function moncashApiBase(sandbox: boolean): string {
+  return sandbox ? MONCASH_API_SANDBOX : MONCASH_API_PROD;
+}
+
+/**
+ * Un jeton OAuth MonCash pour les identifiants du marchand. Lève si MonCash ne
+ * répond pas OK ou ne renvoie pas de jeton.
+ */
+export async function getMoncashToken(creds: GatewayCredentials): Promise<string> {
+  const res = await fetch(`${moncashApiBase(creds.sandbox)}/oauth/token?grant_type=client_credentials`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(`${creds.client_id}:${creds.client_secret}`).toString('base64'),
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`MonCash auth failed (${res.status}): ${txt.slice(0, 300)}`);
+  }
+  const json = await res.json().catch(() => null);
+  const token = json?.access_token;
+  if (typeof token !== 'string' || token === '') {
+    throw new Error('MonCash auth: jeton absent de la réponse');
+  }
+  return token;
+}
+
 // ─── Le montant demandé à la passerelle ──────────────────────────────────────
 //
 // MonCash et NatCash encaissent des gourdes. `orders.total`, lui, est exprimé
@@ -243,6 +284,36 @@ export async function prepareGatewayCharge(params: {
   return charge;
 }
 
+/** La tentative ouverte au lancement par `prepareGatewayCharge`. */
+type GatewayAttempt = {
+  id:       string;
+  amount:   number | string | null;
+  currency: string | null;
+  status:   string;
+  raw:      Record<string, unknown> | null;
+};
+
+/**
+ * La tentative de lancement la plus récente pour cette commande et cette
+ * passerelle — `null` si la commande n'en a pas (lancée avant qu'on les
+ * enregistre). Une erreur de lecture lève.
+ */
+async function latestInitiationAttempt(
+  orderId: string,
+  gateway: GatewayName,
+): Promise<GatewayAttempt | null> {
+  const { data, error } = await getSupabaseService()
+    .from('payment_transactions')
+    .select('id, amount, currency, status, raw')
+    .eq('order_id', orderId)
+    .eq('gateway', gateway)
+    .eq('raw->>stage', 'initiation')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`[${gateway}] tentative de paiement illisible : ${error.message}`);
+  return ((data ?? [])[0] as GatewayAttempt | undefined) ?? null;
+}
+
 export type ExpectedAmount =
   | { ok: true;  amount: number; source: 'frozen' | 'recomputed' }
   | { ok: false; reason: string };
@@ -264,18 +335,7 @@ export async function expectedGatewayAmount(params: {
   order:   { id: string; business_id: string; total: number | string | null; currency: string | null };
   gateway: GatewayName;
 }): Promise<ExpectedAmount> {
-  const svc = getSupabaseService();
-  const { data, error } = await svc
-    .from('payment_transactions')
-    .select('amount, currency')
-    .eq('order_id', params.order.id)
-    .eq('gateway', params.gateway)
-    .eq('raw->>stage', 'initiation')
-    .order('created_at', { ascending: false })
-    .limit(1);
-  if (error) throw new Error(`[${params.gateway}] montant figé illisible : ${error.message}`);
-
-  const frozen = (data ?? [])[0] as { amount: number | string | null; currency: string | null } | undefined;
+  const frozen = await latestInitiationAttempt(params.order.id, params.gateway);
   const frozenAmount = Number(frozen?.amount);
   if (
     frozen
@@ -431,6 +491,217 @@ export async function transactionSettledElsewhere(params: {
   return (data ?? []).length > 0;
 }
 
+// ─── Le suivi des tentatives : payment_transactions ─────────────────────────
+//
+// `prepareGatewayCharge` ouvre une tentative `pending`. Personne ne la fermait :
+// un paiement encaissé comme un paiement refusé restait `pending` pour
+// toujours, sans identifiant de transaction ni réponse du fournisseur.
+//
+// Transitions écrites ici, toujours conditionnelles au statut LU (verrou
+// optimiste — `raw` est fusionné côté code, PostgREST ne sait pas faire
+// `raw || …`) :
+//   pending → failed      refus au rappel (payment_failed / payment_unverified)
+//   pending → succeeded   paiement vérifié et encaissé
+//   failed  → succeeded   refus suivi d'un paiement vérifié pour la même
+//                         commande : l'argent est arrivé, le refus reste lisible
+//                         dans `raw.failure`
+// Jamais succeeded → failed ; `refunded` n'est jamais touché. `stage`,
+// `order_total`, `exchange_rate`… restent en place : `expectedGatewayAmount`
+// relit la ligne par `raw->>stage`.
+//
+// Rien ici ne lève : le suivi ne doit ni empêcher l'encaissement, ni priver
+// l'acheteur de sa redirection. Une commande lancée avant ce suivi n'a pas de
+// tentative ; on n'en invente pas après coup, on le journalise.
+
+type AttemptOutcome =
+  | { status: 'succeeded'; transactionId: string; providerResponse?: unknown }
+  | {
+      status:            'failed';
+      code:              'payment_failed' | 'payment_unverified';
+      reason:            string;
+      transactionId:     string;
+      providerResponse?: unknown;
+    };
+
+/** `latestInitiationAttempt` qui ne lève pas : absence et erreur sont journalisées. */
+async function readAttemptQuietly(orderId: string, gateway: GatewayName): Promise<GatewayAttempt | null> {
+  try {
+    const attempt = await latestInitiationAttempt(orderId, gateway);
+    if (!attempt) {
+      console.warn(`[${gateway}] suivi de paiement : aucune tentative enregistrée (commande lancée avant le suivi ?)`, { orderId });
+    }
+    return attempt;
+  } catch (err) {
+    console.error(`[${gateway}] suivi de paiement : tentative illisible`, { orderId, error: (err as Error).message });
+    return null;
+  }
+}
+
+async function recordAttemptOutcome(
+  attempt: GatewayAttempt,
+  gateway: GatewayName,
+  outcome: AttemptOutcome,
+): Promise<void> {
+  const log = {
+    attemptId:     attempt.id,
+    from:          attempt.status,
+    to:            outcome.status,
+    transactionId: outcome.transactionId,
+  };
+
+  const allowedFrom = outcome.status === 'succeeded' ? ['pending', 'failed'] : ['pending'];
+  if (!allowedFrom.includes(attempt.status)) {
+    // Même issue déjà écrite (rappel rejoué) : rien à dire. Sinon on garde
+    // l'état existant — jamais succeeded → failed — et on le note.
+    if (attempt.status !== outcome.status) {
+      console.warn(`[${gateway}] suivi de paiement : transition ignorée`, log);
+    }
+    return;
+  }
+
+  try {
+    const svc = getSupabaseService();
+    const raw = attempt.raw && typeof attempt.raw === 'object' && !Array.isArray(attempt.raw)
+      ? attempt.raw
+      : {};
+    const at = new Date().toISOString();
+
+    const write = (fields: Record<string, unknown>) =>
+      svc
+        .from('payment_transactions')
+        .update(fields)
+        .eq('id', attempt.id)
+        .eq('status', attempt.status)
+        .select('id');
+
+    if (outcome.status === 'failed') {
+      const { data, error } = await write({
+        status: 'failed',
+        raw: {
+          ...raw,
+          failure: {
+            at,
+            code:                    outcome.code,
+            reason:                  outcome.reason,
+            // L'identifiant reçu dans l'URL n'est pas vérifié : il reste dans
+            // `raw`, hors de la colonne unique, où un rejeu pourrait occuper la
+            // place de la transaction légitime.
+            received_transaction_id: outcome.transactionId,
+            provider_response:       outcome.providerResponse ?? null,
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      if ((data ?? []).length === 0) {
+        console.warn(`[${gateway}] suivi de paiement : tentative modifiée entre-temps, rien écrit`, log);
+      }
+      return;
+    }
+
+    const settlement = {
+      at,
+      transaction_id:    outcome.transactionId,
+      provider_response: outcome.providerResponse ?? null,
+    };
+
+    let { data, error } = await write({
+      status:         'succeeded',
+      transaction_id: outcome.transactionId,
+      raw:            { ...raw, settlement },
+    });
+
+    // (gateway, transaction_id) est unique : une AUTRE ligne porte déjà cette
+    // transaction. Le paiement a été vérifié pour CETTE commande : la tentative
+    // passe quand même `succeeded`, sans la colonne, conflit noté dans `raw`.
+    if (error?.code === '23505') {
+      console.error(`[${gateway}] suivi de paiement : transaction déjà portée par une autre ligne`, log);
+      ({ data, error } = await write({
+        status: 'succeeded',
+        raw:    { ...raw, settlement: { ...settlement, transaction_id_conflict: true } },
+      }));
+    }
+
+    if (error) throw new Error(error.message);
+    if ((data ?? []).length === 0) {
+      console.warn(`[${gateway}] suivi de paiement : tentative modifiée entre-temps, rien écrit`, log);
+    }
+  } catch (err) {
+    console.error(`[${gateway}] suivi de paiement non écrit`, { ...log, error: (err as Error).message });
+  }
+}
+
+/**
+ * Ferme la tentative de paiement de la commande sur un refus du rappel
+ * (`payment_failed` / `payment_unverified`). Ne lève jamais.
+ *
+ * Pas pour `payment_unavailable` ni `payment_error` : ce ne sont pas des refus
+ * du paiement — l'acheteur a peut-être payé, et un rappel suivant l'encaissera.
+ */
+export async function recordGatewayRefusal(params: {
+  orderId:           string;
+  gateway:           GatewayName;
+  code:              'payment_failed' | 'payment_unverified';
+  reason:            string;
+  transactionId:     string;
+  providerResponse?: unknown;
+}): Promise<void> {
+  const attempt = await readAttemptQuietly(params.orderId, params.gateway);
+  if (!attempt) return;
+  await recordAttemptOutcome(attempt, params.gateway, {
+    status:           'failed',
+    code:             params.code,
+    reason:           params.reason,
+    transactionId:    params.transactionId,
+    providerResponse: params.providerResponse,
+  });
+}
+
+/**
+ * Aligne le taux de la vente sur celui FIGÉ au lancement.
+ *
+ * `confirm_store_order` écrit `sales.exchange_rate` au taux COURANT de
+ * l'entreprise. Si le marchand l'a changé pendant que l'acheteur payait, la
+ * vente d'une commande en USD porterait un autre taux que celui auquel les
+ * gourdes ont été encaissées. La fonction ne passe aucune écriture comptable, et
+ * ni `sale_items` ni `inventory_movements` ne portent de taux : la vente est la
+ * seule ligne à reprendre.
+ *
+ * Ne lève jamais : un taux non aligné se corrige, un encaissement bloqué non.
+ */
+async function alignSaleExchangeRate(params: {
+  saleId:     string;
+  businessId: string;
+  orderId:    string;
+  gateway:    GatewayName;
+  attempt:    GatewayAttempt;
+}): Promise<void> {
+  const raw = params.attempt.raw;
+  if (!raw || String(raw.order_currency ?? '').toUpperCase() !== 'USD') return;
+
+  const log = { orderId: params.orderId, saleId: params.saleId, frozenRate: raw.exchange_rate };
+  const frozen = Number(raw.exchange_rate);
+  if (raw.exchange_rate == null || !Number.isFinite(frozen) || frozen <= 1) {
+    console.error(`[${params.gateway}] taux figé illisible : vente laissée au taux courant`, log);
+    return;
+  }
+
+  try {
+    const { data, error } = await getSupabaseService()
+      .from('sales')
+      .update({ exchange_rate: frozen })
+      .eq('id', params.saleId)
+      .eq('business_id', params.businessId)
+      .eq('currency', 'USD')
+      .select('id');
+    if (error) throw new Error(error.message);
+    if ((data ?? []).length === 0) {
+      console.warn(`[${params.gateway}] taux figé non appliqué : vente introuvable ou pas en USD`, log);
+    }
+  } catch (err) {
+    console.error(`[${params.gateway}] taux figé non appliqué à la vente`, { ...log, error: (err as Error).message });
+  }
+}
+
 export type SettlementOutcome =
   | { ok: true;  slug: string; orderId: string; orderNumber: string; businessId: string }
   | { ok: false; slug: string; reason: string };
@@ -447,11 +718,18 @@ export type SettlementOutcome =
  * marchand la voit dans sa liste avec l'argent reçu, et tranche lui-même. Perdre
  * la trace d'un paiement encaissé serait pire que laisser une commande en
  * attente.
+ *
+ * Ferme aussi la tentative `payment_transactions` (`succeeded`, identifiant et
+ * réponse vérifiée du fournisseur) et, au premier règlement d'une commande en
+ * USD, recale la vente créée sur le taux figé au lancement. Ni l'un ni l'autre
+ * ne peut faire échouer l'encaissement.
  */
 export async function settleGatewayOrder(params: {
   orderId:       string;
   gateway:       GatewayName;
   transactionId: string;
+  /** La réponse de vérification du fournisseur, gardée dans `payment_transactions.raw`. */
+  providerResponse?: unknown;
 }): Promise<SettlementOutcome> {
   const svc = getSupabaseService();
 
@@ -487,11 +765,13 @@ export async function settleGatewayOrder(params: {
 
   const firstSettlement = (marked ?? []).length > 0;
 
-  if (
+  const otherTransaction = Boolean(
     !firstSettlement
     && order.payment_transaction_id
-    && order.payment_transaction_id !== params.transactionId
-  ) {
+    && order.payment_transaction_id !== params.transactionId,
+  );
+
+  if (otherTransaction) {
     // Commande déjà réglée par une autre transaction : peut-être un double
     // paiement de l'acheteur. On n'écrase rien ; le journal garde la trace.
     console.error(`[${params.gateway}] commande déjà réglée par une autre transaction`, {
@@ -502,8 +782,24 @@ export async function settleGatewayOrder(params: {
     });
   }
 
+  // La tentative : fermée en `succeeded`, et relue pour son taux figé. Pas pour
+  // un double paiement — elle appartient à la transaction qui a réglé la
+  // commande. Ne lève jamais.
+  const attempt = otherTransaction ? null : await readAttemptQuietly(order.id, params.gateway);
+  if (attempt) {
+    await recordAttemptOutcome(attempt, params.gateway, {
+      status:           'succeeded',
+      transactionId:    params.transactionId,
+      providerResponse: params.providerResponse,
+    });
+  }
+
+  let saleId: string | null = null;
   try {
-    await svc.rpc('confirm_store_order', { p_order_id: order.id }).throwOnError();
+    const { data: confirmedSaleId } = await svc
+      .rpc('confirm_store_order', { p_order_id: order.id })
+      .throwOnError();
+    saleId = typeof confirmedSaleId === 'string' ? confirmedSaleId : null;
     await svc.from('orders').update({ status: 'confirmed' }).eq('id', order.id);
   } catch (err) {
     console.error(
@@ -511,6 +807,19 @@ export async function settleGatewayOrder(params: {
       { orderId: order.id, order: order.order_number, error: (err as Error).message },
     );
     // Le paiement est enregistré ; la commande attend le marchand.
+  }
+
+  // Le taux figé, au PREMIER règlement et pour la seule vente que CE règlement
+  // vient de créer : une vente préexistante (commande confirmée à la main avant
+  // le paiement) garde le taux auquel elle a été enregistrée.
+  if (firstSettlement && !order.sale_id && saleId && attempt) {
+    await alignSaleExchangeRate({
+      saleId,
+      businessId: order.business_id as string,
+      orderId:    order.id as string,
+      gateway:    params.gateway,
+      attempt,
+    });
   }
 
   // Au PREMIER règlement seulement : un fournisseur qui rappelle deux fois ne

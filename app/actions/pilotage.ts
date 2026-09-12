@@ -11,6 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { makeToReport, type ToReport } from '../../lib/currency';
 import { assertFeature, hasFeature } from '../../lib/entitlements';
 import { refreshRateWithAlert, type RateAlert } from './exchangeRate';
 import { getGoalProgress, type GoalProgress } from './goals';
@@ -47,31 +48,21 @@ const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0)
 // ─────────────────────────────────────────────────────────────────────────────
 // Conversion vers la devise de l'entreprise
 //
-// Même règle que `makeToReport` dans app/actions/ai.ts (un fichier 'use server'
-// n'exporte que des fonctions async : elle ne peut pas être importée d'ici).
 // `v_receivables`, `sales` et `sale_items` portent chacun leur devise :
 // 100 USD + 100 HTG ne font pas « 200 HTG ». Chaque montant est ramené à
-// `businesses.default_currency` au taux `businesses.exchange_rate`
-// (1 USD = taux HTG). `null` = conversion impossible (taux absent ou nul) :
-// l'appelant exclut le montant ET le compte, au lieu d'inventer un chiffre.
+// `businesses.default_currency` par `makeToReport` (lib/currency.ts), la règle
+// unique. `null` = conversion impossible (taux non renseigné) : l'appelant
+// exclut le montant ET le compte, au lieu d'inventer un chiffre.
+//
+// Les montants lus dans `v_monthly_kpis` et `v_product_profitability` sont déjà
+// convertis par la vue (20260911_views_multidevise.sql), avec la même règle :
+// ne pas les repasser dans `makeToReport`.
 // ─────────────────────────────────────────────────────────────────────────────
-
-function makeToReport(exchangeRate: number, reportCurrency: 'HTG' | 'USD') {
-  const rateOk = Number.isFinite(exchangeRate) && exchangeRate > 0;
-  return (amount: number, currency: string | null | undefined): number | null => {
-    const c = (currency ?? 'HTG').toUpperCase();
-    if (c === reportCurrency) return amount;
-    if (!rateOk) return null;
-    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
-    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
-    return amount;
-  };
-}
 
 /** Créances ouvertes / en retard, converties ; les inconvertibles sont comptées à part. */
 function sumReceivables(
   rows: any[] | null | undefined,
-  convert: ReturnType<typeof makeToReport>,
+  convert: ToReport,
 ): { open: number; overdue: number; unconvertedCount: number } {
   let open = 0;
   let overdue = 0;
@@ -220,7 +211,7 @@ export type HealthSnapshot = HealthResult & {
  */
 export async function getHealthScore(periodStart?: string): Promise<HealthSnapshot> {
   await assertFeature('health_score');
-  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
   const period = periodStart ?? monthStartOf(new Date());
   const from   = period;
@@ -255,7 +246,7 @@ export async function getHealthScore(periodStart?: string): Promise<HealthSnapsh
     open: openReceivables,
     overdue: overdueReceivables,
     unconvertedCount,
-  } = sumReceivables(receivables, makeToReport(exchangeRate, defaultCurrency));
+  } = sumReceivables(receivables, makeToReport({ exchangeRate, exchangeRateSet, defaultCurrency }));
 
   const result = computeHealthScore({
     revenue:          k.revenue,
@@ -317,7 +308,7 @@ export async function getHealthHistory(months = 6): Promise<
 
 export async function getInsights(limit = 5): Promise<Insight[]> {
   await assertFeature('auto_recommendations');
-  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
   const period   = monthStartOf(new Date());
   const previous = addMonths(period, -1);
@@ -388,7 +379,7 @@ export async function getInsights(limit = 5): Promise<Insight[]> {
 
   // Les messages affichent `defaultCurrency` : chaque créance y est ramenée.
   // Une créance inconvertible est exclue du total et signalée à part.
-  const convert = makeToReport(exchangeRate, defaultCurrency);
+  const convert = makeToReport({ exchangeRate, exchangeRateSet, defaultCurrency });
   let unconvertedCount = 0;
   const receivables: Array<{ id: string; clientName: string; balanceDue: number; daysOverdue: number }> = [];
   for (const r of (recv ?? []) as any[]) {
@@ -454,7 +445,7 @@ export type WeeklyDigest = {
  */
 export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyDigest> {
   await assertFeature('weekly_whatsapp_report');
-  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
   const end   = new Date(reference);
   const start = new Date(end.getTime() - 6 * 86_400_000);
@@ -497,7 +488,7 @@ export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyD
   // Le message affiche `defaultCurrency` : ventes, marges et créances y sont
   // ramenées. Une vente inconvertible est exclue des totaux et comptée une
   // seule fois (par id), même si elle apparaît aussi en ligne et en créance.
-  const convert = makeToReport(exchangeRate, defaultCurrency);
+  const convert = makeToReport({ exchangeRate, exchangeRateSet, defaultCurrency });
   const unconverted = new Set<string>();
   const toReport = (amount: number, currency: string | null | undefined, saleId: string): number | null => {
     if (amount === 0) return 0;
@@ -619,7 +610,7 @@ export type CreditFile = {
  */
 export async function getCreditFile(months = 12): Promise<CreditFile> {
   await assertFeature('credit_export');
-  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
   const firstPeriod = addMonths(monthStartOf(new Date()), -(months - 1));
 
@@ -645,7 +636,7 @@ export async function getCreditFile(months = 12): Promise<CreditFile> {
   ]);
 
   const rows = (kpis ?? []).map((r: any) => mapKpi(r, r.period_start));
-  const recvTotals = sumReceivables(recv, makeToReport(exchangeRate, defaultCurrency));
+  const recvTotals = sumReceivables(recv, makeToReport({ exchangeRate, exchangeRateSet, defaultCurrency }));
 
   const revenue          = rows.reduce((s, r) => s + r.revenue, 0);
   const grossMargin      = rows.reduce((s, r) => s + r.grossMargin, 0);

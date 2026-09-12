@@ -19,6 +19,7 @@ import {
   amountShortfall,
   expectedGatewayAmount,
   readGatewayCredentials,
+  recordGatewayRefusal,
   settleGatewayOrder,
   storeSlugOf,
   transactionSettledElsewhere,
@@ -192,6 +193,13 @@ export async function GET(req: NextRequest) {
         order:   order.order_number,
         transactionId,
       });
+      await recordGatewayRefusal({
+        orderId: order.id,
+        gateway: 'natcash',
+        code:    'payment_unverified',
+        reason:  'transaction déjà rattachée à une autre commande',
+        transactionId,
+      });
       return backToCheckout('payment_unverified');
     }
 
@@ -203,6 +211,7 @@ export async function GET(req: NextRequest) {
     // Les gourdes que ce paiement doit couvrir. Sans elles on ne peut rien
     // comparer ; l'acheteur a peut-être déjà payé, d'où `payment_unverified`
     // (« contactez la boutique ») plutôt que « choisissez un autre moyen ».
+    // La tentative reste `pending` : ne pas savoir n'est pas un refus.
     const expected = await expectedGatewayAmount({ order, gateway: 'natcash' });
     if (!expected.ok) {
       console.error('[natcash callback] paiement non encaissé : montant attendu inconnu —', expected.reason, {
@@ -223,13 +232,22 @@ export async function GET(req: NextRequest) {
         order:   order.order_number,
         transactionId,
       });
+      await recordGatewayRefusal({
+        orderId:          order.id,
+        gateway:          'natcash',
+        code:             refusal.code,
+        reason:           refusal.reason,
+        transactionId,
+        providerResponse: result,
+      });
       return backToCheckout(refusal.code);
     }
 
     const settled = await settleGatewayOrder({
-      orderId:       order.id,
-      gateway:       'natcash',
+      orderId:          order.id,
+      gateway:          'natcash',
       transactionId,
+      providerResponse: result,
     });
 
     if (!settled.ok) {

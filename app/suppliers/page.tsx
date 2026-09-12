@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { formatCurrency } from '../../lib/utils';
 import { upsertSupplier, deleteSupplier, markPurchasePaid } from '../actions/suppliers';
 import { useLanguage } from '../../components/LanguageWrapper';
+import { useCompany } from '../../hooks/useCompany';
 import { EntityDocuments } from '../../components/documents/EntityDocuments';
 import {
   ChevronDown, ChevronUp, CreditCard, Edit2, Loader2, Plus,
@@ -14,6 +15,8 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type Currency = 'HTG' | 'USD';
+
 type Purchase = {
   id: string;
   po_number: string;
@@ -21,6 +24,10 @@ type Purchase = {
   quantity: number;
   unit_cost: number;
   total_amount: number;
+  paid_amount: number;
+  /** Reste dû : total_amount − paid_amount, jamais négatif (règle de /dettes). */
+  remaining: number;
+  currency: Currency;
   payment_status: string;
   purchase_date: string;
 };
@@ -31,10 +38,34 @@ type Supplier = {
   email?: string;
   phone?: string;
   discount_percent: number;
-  outstanding_balance: number;
-  total_purchased: number;
+  /** Au moins un achat non soldé avec un reste dû, quelle que soit la devise. */
+  hasDebt: boolean;
   created_at: string;
   purchases: Purchase[];
+};
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+// Statuts d'un achat non soldé — ceux que le déclencheur fn_on_purchase_payment
+// compte dans la dette fournisseur. `paid`, `cancelled` et `refunded` n'ont rien
+// à régler : markPurchasePaid les refuse.
+const OPEN_PURCHASE_STATUSES = new Set(['credit', 'partial', 'pending', 'overdue']);
+// Sous un centime, markPurchasePaid répond « déjà payé ».
+const OWED_MIN = 0.01;
+
+function isOwed(p: Purchase) {
+  return OPEN_PURCHASE_STATUSES.has(p.payment_status) && p.remaining >= OWED_MIN;
+}
+
+// `purchases.payment_status` est l'énum payment_status_type, en minuscules.
+const PURCHASE_STATUS_LABEL: Record<string, { fr: string; ht: string }> = {
+  pending:   { fr: 'En attente', ht: 'Annatant' },
+  partial:   { fr: 'Partiel',    ht: 'Pasyèl' },
+  paid:      { fr: 'Payé',       ht: 'Peye' },
+  credit:    { fr: 'Crédit',     ht: 'Kredi' },
+  overdue:   { fr: 'En retard',  ht: 'An reta' },
+  cancelled: { fr: 'Annulé',     ht: 'Anile' },
+  refunded:  { fr: 'Remboursé',  ht: 'Ranbouse' },
 };
 
 // ── Edit Modal ────────────────────────────────────────────────────────────────
@@ -187,8 +218,8 @@ function DeleteModal({
         {hasPurchases && (
           <p className="mt-2 text-sm text-slate-500">
             {t({
-              fr: `Ses ${supplier.purchases.length} achat(s) restent dans votre historique, toujours rattachés à ce fournisseur${supplier.outstanding_balance > 0 ? ', et les dettes en cours restent à payer' : ''}.`,
-              ht: `${supplier.purchases.length} acha li yo rete nan istorik ou, toujou mare ak founisè sa a${supplier.outstanding_balance > 0 ? ', epi dèt ki poko peye yo rete pou peye' : ''}.`,
+              fr: `Ses ${supplier.purchases.length} achat(s) restent dans votre historique, toujours rattachés à ce fournisseur${supplier.hasDebt ? ', et les dettes en cours restent à payer' : ''}.`,
+              ht: `${supplier.purchases.length} acha li yo rete nan istorik ou, toujou mare ak founisè sa a${supplier.hasDebt ? ', epi dèt ki poko peye yo rete pou peye' : ''}.`,
             })}
           </p>
         )}
@@ -262,7 +293,7 @@ export default function SuppliersPage() {
         .from('purchases')
         .select(`
           id, supplier_id, po_number, purchase_date,
-          total_amount, payment_status,
+          total_amount, paid_amount, currency, payment_status,
           purchase_items ( product_name, quantity, unit_cost )
         `)
         .is('deleted_at', null)
@@ -274,30 +305,37 @@ export default function SuppliersPage() {
         const items: any[] = (p as any).purchase_items ?? [];
         const firstItem = items[0];
         if (!purchMap[p.supplier_id]) purchMap[p.supplier_id] = [];
+        const total = Number(p.total_amount);
+        const paid  = Number((p as any).paid_amount ?? 0);
         purchMap[p.supplier_id].push({
           id:           p.id,
           po_number:    p.po_number ?? p.id,
           product_name: items.map((i: any) => i.product_name).join(', ') || '—',
           quantity:     items.reduce((s: number, i: any) => s + Number(i.quantity), 0),
           unit_cost:    Number(firstItem?.unit_cost ?? 0),
-          total_amount: Number(p.total_amount),
+          total_amount: total,
+          paid_amount:  paid,
+          // Ce qui reste dû, pas le total : un règlement partiel alimente
+          // paid_amount (même règle que /dettes et markPurchasePaid).
+          remaining:    parseFloat(Math.max(0, total - paid).toFixed(2)),
+          currency:     (p as any).currency === 'USD' ? 'USD' : 'HTG',
           payment_status: p.payment_status,
           purchase_date: p.purchase_date,
         });
       }
 
+      // Les sommes (dette, total acheté) sont calculées au rendu : elles
+      // convertissent les USD au taux de l'entreprise, chargé à part.
       setSuppliers(
         (suppData ?? []).map((s: any) => {
           const supplierPurchases = purchMap[s.id] ?? [];
-          const computedTotal = supplierPurchases.reduce((sum, p) => sum + p.total_amount, 0);
           return {
             id:                  s.id,
             name:                s.name,
             email:               s.email ?? undefined,
             phone:               s.phone ?? undefined,
             discount_percent:    Number(s.discount_percent ?? 0),
-            outstanding_balance: supplierPurchases.filter(p => p.payment_status !== 'paid').reduce((sum, p) => sum + p.total_amount, 0),
-            total_purchased:     computedTotal,
+            hasDebt:             supplierPurchases.some(isOwed),
             created_at:          s.created_at,
             purchases:           supplierPurchases,
           };
@@ -367,10 +405,41 @@ export default function SuppliersPage() {
 
   // ── Derived stats ───────────────────────────────────────────────────────────
 
-  const totalDebt = useMemo(
-    () => suppliers.reduce((s, sup) => s + sup.outstanding_balance, 0),
-    [suppliers]
-  );
+  // Le solde dû additionnait `total_amount` de tout achat non « paid » : un
+  // acompte ne le faisait pas baisser, un achat annulé y restait, et 50 USD +
+  // 50 HTG y valaient « 100 HTG ». Désormais : reste dû des achats non soldés,
+  // USD convertis au taux de l'entreprise comme sur /dettes. Sans taux valide,
+  // un total qui contient des USD s'affiche « … » plutôt qu'un chiffre faux.
+  const { company } = useCompany();
+  const rate = company?.exchangeRate && company.exchangeRate > 0 ? company.exchangeRate : null;
+
+  const totals = useMemo(() => {
+    const sumHtg = (items: Purchase[], amount: (p: Purchase) => number): number | null => {
+      let sum = 0;
+      for (const p of items) {
+        const n = amount(p);
+        if (p.currency === 'USD') {
+          if (rate === null) return null;
+          sum += n * rate;
+        } else {
+          sum += n;
+        }
+      }
+      return sum;
+    };
+
+    const bySupplier = new Map<string, { owed: number | null; purchased: number | null }>();
+    let debt: number | null = 0;
+    for (const sup of suppliers) {
+      const owed      = sumHtg(sup.purchases.filter(isOwed), p => p.remaining);
+      const purchased = sumHtg(sup.purchases, p => p.total_amount);
+      bySupplier.set(sup.id, { owed, purchased });
+      debt = debt === null || owed === null ? null : debt + owed;
+    }
+    return { bySupplier, debt };
+  }, [suppliers, rate]);
+
+  const htg = (n: number | null) => (n === null ? '…' : formatCurrency(n));
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -484,7 +553,7 @@ export default function SuppliersPage() {
                   Total Achat à Crédit
                 </p>
                 <p className="mt-0.5 text-2xl font-bold text-anthracite">
-                  {formatCurrency(totalDebt)}
+                  {htg(totals.debt)}
                 </p>
                 <p className="text-note text-anthracite/40">Dette totale en cours</p>
               </div>
@@ -510,7 +579,8 @@ export default function SuppliersPage() {
               <div className="divide-y divide-slate-100">
                 {suppliers.map(sup => {
                   const isExpanded = expandedId === sup.id;
-                  const hasDebt = sup.outstanding_balance > 0;
+                  const hasDebt = sup.hasDebt;
+                  const supTotals = totals.bySupplier.get(sup.id) ?? { owed: null, purchased: null };
 
                   return (
                     <div key={sup.id}>
@@ -561,7 +631,7 @@ export default function SuppliersPage() {
                         {/* Dette + badge */}
                         <div className="w-36 text-right">
                           <p className={`text-sm font-bold ${hasDebt ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {formatCurrency(sup.outstanding_balance)}
+                            {htg(supTotals.owed)}
                           </p>
                           <span
                             className={`rounded-full px-2 py-0.5 text-note font-semibold ${
@@ -619,6 +689,7 @@ export default function SuppliersPage() {
                                       <th className="pb-2 px-2 text-right font-medium">Qté</th>
                                       <th className="pb-2 px-2 text-right font-medium">Prix unit.</th>
                                       <th className="pb-2 px-2 text-right font-medium">Total</th>
+                                      <th className="pb-2 px-2 text-right font-medium">{t({ fr: 'Reste dû', ht: 'Rès dwe' })}</th>
                                       <th className="pb-2 px-2 text-center font-medium">Date</th>
                                       <th className="pb-2 px-2 text-center font-medium">Statut</th>
                                       <th className="pb-2 pl-2"></th>
@@ -637,10 +708,26 @@ export default function SuppliersPage() {
                                           {p.quantity}
                                         </td>
                                         <td className="py-2.5 px-2 text-right text-slate-600">
-                                          {formatCurrency(p.unit_cost)}
+                                          {formatCurrency(p.unit_cost, p.currency)}
                                         </td>
                                         <td className="py-2.5 px-2 text-right font-semibold text-anthracite">
-                                          {formatCurrency(p.total_amount)}
+                                          {formatCurrency(p.total_amount, p.currency)}
+                                        </td>
+                                        {/* Reste dû dans la devise de l'achat ; le total en
+                                            rappel quand un paiement partiel a été versé. */}
+                                        <td className="py-2.5 px-2 text-right">
+                                          {isOwed(p) ? (
+                                            <>
+                                              <p className="font-semibold text-red-600">{formatCurrency(p.remaining, p.currency)}</p>
+                                              {p.paid_amount >= OWED_MIN && (
+                                                <p className="text-note text-slate-400">
+                                                  {t({ fr: 'sur ', ht: 'sou ' })}{formatCurrency(p.total_amount, p.currency)}
+                                                </p>
+                                              )}
+                                            </>
+                                          ) : (
+                                            <span className="text-slate-400">—</span>
+                                          )}
                                         </td>
                                         <td className="py-2.5 px-2 text-center text-xs text-slate-500">
                                           {new Date(p.purchase_date).toLocaleDateString('fr-FR')}
@@ -650,14 +737,19 @@ export default function SuppliersPage() {
                                             className={`rounded-full px-2 py-0.5 text-note font-semibold ${
                                               p.payment_status === 'paid'
                                                 ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-red-100 text-red-700'
+                                                : p.payment_status === 'cancelled' || p.payment_status === 'refunded'
+                                                  ? 'bg-slate-100 text-slate-600'
+                                                  : 'bg-red-100 text-red-700'
                                             }`}
                                           >
-                                            {p.payment_status === 'paid' ? 'Peye' : 'Kredi'}
+                                            {t(PURCHASE_STATUS_LABEL[p.payment_status] ?? { fr: p.payment_status, ht: p.payment_status })}
                                           </span>
                                         </td>
                                         <td className="py-2.5 pl-2">
-                                          {p.payment_status === 'credit' && (
+                                          {/* Tout achat non soldé (credit, partial, pending,
+                                              overdue) avec un reste dû : markPurchasePaid règle
+                                              ce reste, pas le total. */}
+                                          {isOwed(p) && (
                                             <button
                                               onClick={() => handlePurchasePaid(p.id)}
                                               disabled={busyPurchases.has(p.id)}
@@ -681,13 +773,13 @@ export default function SuppliersPage() {
                                 <span className="text-xs text-slate-500">
                                   Total acha :{' '}
                                   <span className="font-semibold text-anthracite">
-                                    {formatCurrency(sup.total_purchased)}
+                                    {htg(supTotals.purchased)}
                                   </span>
                                 </span>
                                 <span className="text-xs text-slate-500">
                                   Rès dwe :{' '}
-                                  <span className={`font-semibold ${sup.outstanding_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                    {formatCurrency(sup.outstanding_balance)}
+                                  <span className={`font-semibold ${hasDebt ? 'text-red-600' : 'text-emerald-600'}`}>
+                                    {htg(supTotals.owed)}
                                   </span>
                                 </span>
                               </div>

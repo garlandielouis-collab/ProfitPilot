@@ -78,7 +78,10 @@ type PurchaseSettlement =
  * journal.
  */
 export async function markPurchasePaid(purchaseId: string): Promise<PurchaseSettlement> {
-  const { supabase, businessId, userId } = await getBusinessContext();
+  const { supabase, businessId, userId, can } = await getBusinessContext();
+  // Même droit que /dettes : payer fait sortir de l'argent de la caisse. Une
+  // action serveur est appelable par tout membre.
+  if (!can('debts:write')) throw new Error('Action non autorisée.');
 
   // 1. Get purchase
   const { data: purchase, error: fetchErr } = await supabase

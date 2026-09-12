@@ -9,6 +9,7 @@ import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { getSupabaseServer } from './supabaseServerClient';
 import { type Role, type Permission, roleHasPermission, getPermissionsForRole } from './rbac';
+import { isExchangeRateSet } from './currency';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -20,7 +21,19 @@ export type BusinessContext = {
   supabase:        Awaited<ReturnType<typeof getSupabaseServer>>;
   userId:          string;
   businessId:      string;
+  /**
+   * 1 USD = `exchangeRate` HTG. Vaut 130 quand la base n'a pas de taux : repli
+   * historique conservé tel quel pour les chemins qui ÉCRIVENT un taux dans une
+   * ligne (vente, achat, dépense, écriture comptable). Pour convertir un total
+   * affiché, passer par `makeToReport` (lib/currency.ts), qui lit
+   * `exchangeRateSet` : 130 n'est pas un taux saisi par le marchand.
+   */
   exchangeRate:    number;
+  /**
+   * Vrai seulement si `businesses.exchange_rate` est un nombre > 1. Ni NULL
+   * (d'où le repli à 130 ci-dessus), ni 1 (valeur par défaut de la colonne).
+   */
+  exchangeRateSet: boolean;
   defaultCurrency: 'HTG' | 'USD';
   role:            Role;
   can:             (permission: Permission) => boolean;
@@ -277,6 +290,7 @@ function buildContext(
     userId,
     businessId,
     exchangeRate:    Number(biz.exchange_rate ?? 130),
+    exchangeRateSet: isExchangeRateSet(biz.exchange_rate),
     defaultCurrency: (biz.default_currency ?? 'HTG') as 'HTG' | 'USD',
     role,
     can: (permission: Permission) => roleHasPermission(role, permission),

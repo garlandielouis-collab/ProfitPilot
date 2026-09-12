@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   checkGatewayCurrency,
+  getMoncashToken,
+  moncashApiBase,
   paymentUnavailableResponse,
   prepareGatewayCharge,
   readGatewayCredentials,
@@ -8,35 +10,17 @@ import {
 import { createStoreOrder } from '../../../../actions/store-public';
 
 // ── MonCash API helpers ───────────────────────────────────────────────────────
+// L'URL de l'API et le jeton OAuth vivent dans lib/storePaymentGateway.ts,
+// partagés avec le rappel.
 
-const MC_PROD = 'https://moncashbutton.digicelgroup.com/Api';
-const MC_SAND = 'https://sandbox.moncashbutton.digicelgroup.com/Api';
 const MC_REDIR_PROD = 'https://moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect';
 const MC_REDIR_SAND = 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect';
-
-async function getMoncashToken(clientId: string, clientSecret: string, sandbox: boolean): Promise<string> {
-  const base = sandbox ? MC_SAND : MC_PROD;
-  const res = await fetch(`${base}/oauth/token?grant_type=client_credentials`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`MonCash auth failed (${res.status}): ${txt}`);
-  }
-  const json = await res.json();
-  return json.access_token as string;
-}
 
 async function createMoncashPayment(
   token: string, sandbox: boolean,
   amount: number, orderId: string,
 ): Promise<string> {
-  const base = sandbox ? MC_SAND : MC_PROD;
+  const base = moncashApiBase(sandbox);
   const res = await fetch(`${base}/v1/CreatePayment`, {
     method: 'POST',
     headers: {
@@ -112,7 +96,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Get MonCash OAuth token
-    const accessToken = await getMoncashToken(creds.client_id, creds.client_secret, sandbox);
+    const accessToken = await getMoncashToken(creds);
 
     // 6. Create MonCash payment — orderId = our DB order UUID for verification
     const paymentToken = await createMoncashPayment(accessToken, sandbox, charge.amount, orderDbId);

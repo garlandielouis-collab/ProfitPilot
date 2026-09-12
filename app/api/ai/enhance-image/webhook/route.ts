@@ -25,8 +25,10 @@
 //      configuré : Replicate (`REPLICATE_WEBHOOK_SECRET`). Sans le secret, la
 //      route fonctionne comme avant et le journalise — la poser ne doit pas
 //      être la condition pour que la production tienne le jour du déploiement.
-//      fal.ai signe aussi (ED25519, clés publiées en JWKS) ; ce n'est pas
-//      implémenté ici, les couches 3 et 4 le couvrent.
+//      fal.ai signe aussi (ED25519, clés publiées en JWKS) : vérifiée quand
+//      `FAL_WEBHOOK_VERIFY=1` (lib/ai/falWebhookSignature.ts). Clés JWKS
+//      injoignables : non vérifiable, pas refusée — les couches 3 et 4
+//      tiennent.
 //   3. L'IDENTIFIANT : le rappel doit parler de la prédiction que CE travail a
 //      lancée (`provider_job_id`). Un travail qui n'en a pas encore n'est pas
 //      touché — l'interrogation du Studio ou le balayage quotidien s'en
@@ -47,6 +49,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getSupabaseService } from '../../../../../lib/supabaseServiceClient';
 import { getEnhancementProvider } from '../../../../../lib/ai/imageEnhancer';
 import { deliverImageJob, failImageJob } from '../../../../../lib/ai/credits';
+import { verifyFalSignature } from '../../../../../lib/ai/falWebhookSignature';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -165,6 +168,13 @@ export async function POST(request: Request) {
         "n'est pas vérifiée (restent le jeton, l'identifiant et la réinterrogation).",
       );
     }
+  } else if (provider.name === 'fal') {
+    // Désactivée ou clés injoignables : 'disabled', journalisé dans le module.
+    signature = await verifyFalSignature(request.headers, rawBody);
+    if (signature === 'invalid') {
+      console.warn('[ai-webhook] rappel fal à la signature invalide, ignoré', job.id);
+      return ok();
+    }
   }
 
   // ── 3. L'identifiant ───────────────────────────────────────────────────────
@@ -219,7 +229,7 @@ export async function POST(request: Request) {
 
   // Le fournisseur ne répond pas (réseau, 5xx) ou pas encore. Un succès dont
   // la signature a été VÉRIFIÉE peut être livré sur la foi du corps : c'est
-  // bien Replicate qui parle. Tout le reste attend l'interrogation du Studio
+  // bien le fournisseur qui parle. Tout le reste attend l'interrogation du Studio
   // ou le balayage — un échec n'est jamais écrit sans confirmation.
   if (claimed.status === 'completed' && signature === 'valid') {
     await deliverImageJob(job, claimed.imageUrl);

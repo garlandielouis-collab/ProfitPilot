@@ -166,7 +166,7 @@ export async function reconcileMissingSaleEntries(): Promise<number> {
 
   const { data: sales } = await supabase
     .from('sales')
-    .select('id, invoice_number, total_amount, currency, payment_method, payment_status, sale_date, created_at')
+    .select('id, invoice_number, total_amount, currency, exchange_rate, payment_method, payment_status, sale_date, created_at')
     .eq('business_id', businessId)
     .is('deleted_at', null);
 
@@ -179,11 +179,17 @@ export async function reconcileMissingSaleEntries(): Promise<number> {
   let created = 0;
   for (const s of sales) {
     const saleId = (s as any).id;
+    // Le taux de la vente quand il a été saisi (> 1) : une vente boutique en USD
+    // porte le taux figé au paiement, pas celui du jour de la reprise. 1 est la
+    // valeur par défaut de la colonne, pas un taux.
+    const saleRate = Number((s as any).exchange_rate);
     const ctx: PostingContext = {
       amount:        Number((s as any).total_amount),
       date:          (s as any).sale_date ?? ((s as any).created_at as string).split('T')[0],
       currency:      (((s as any).currency as any) ?? 'HTG') as 'HTG' | 'USD',
-      exchangeRate:  ((s as any).currency as any) === 'USD' ? exchangeRate : 1,
+      exchangeRate:  ((s as any).currency as any) === 'USD'
+        ? (Number.isFinite(saleRate) && saleRate > 1 ? saleRate : exchangeRate)
+        : 1,
       isCredit:      (s as any).payment_status === 'credit',
       paymentMethod: (s as any).payment_method ?? undefined,
       label:         (s as any).invoice_number ?? saleId,

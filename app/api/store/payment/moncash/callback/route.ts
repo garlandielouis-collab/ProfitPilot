@@ -16,32 +16,17 @@ import { getSupabaseService } from '../../../../../../lib/supabaseServiceClient'
 import {
   amountShortfall,
   expectedGatewayAmount,
+  getMoncashToken,
+  moncashApiBase,
   readGatewayCredentials,
+  recordGatewayRefusal,
   settleGatewayOrder,
   storeSlugOf,
   transactionSettledElsewhere,
 } from '../../../../../../lib/storePaymentGateway';
 
-const MC_PROD = 'https://moncashbutton.digicelgroup.com/Api';
-const MC_SAND = 'https://sandbox.moncashbutton.digicelgroup.com/Api';
-
-async function getMoncashToken(clientId: string, clientSecret: string, sandbox: boolean) {
-  const base = sandbox ? MC_SAND : MC_PROD;
-  const res = await fetch(`${base}/oauth/token?grant_type=client_credentials`, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-  });
-  const json = await res.json();
-  return json.access_token as string;
-}
-
 async function verifyMoncashTransaction(token: string, sandbox: boolean, transactionId: string) {
-  const base = sandbox ? MC_SAND : MC_PROD;
-  const res = await fetch(`${base}/v1/RetrieveTransactionPaymentById`, {
+  const res = await fetch(`${moncashApiBase(sandbox)}/v1/RetrieveTransactionPaymentById`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -178,6 +163,13 @@ export async function GET(req: NextRequest) {
         order:   order.order_number,
         transactionId,
       });
+      await recordGatewayRefusal({
+        orderId: order.id,
+        gateway: 'moncash',
+        code:    'payment_unverified',
+        reason:  'transaction déjà rattachée à une autre commande',
+        transactionId,
+      });
       return backToCheckout('payment_unverified');
     }
 
@@ -189,6 +181,7 @@ export async function GET(req: NextRequest) {
     // Les gourdes que ce paiement doit couvrir. Sans elles on ne peut rien
     // comparer ; l'acheteur a peut-être déjà payé, d'où `payment_unverified`
     // (« contactez la boutique ») plutôt que « choisissez un autre moyen ».
+    // La tentative reste `pending` : ne pas savoir n'est pas un refus.
     const expected = await expectedGatewayAmount({ order, gateway: 'moncash' });
     if (!expected.ok) {
       console.error('[moncash callback] paiement non encaissé : montant attendu inconnu —', expected.reason, {
@@ -199,7 +192,9 @@ export async function GET(req: NextRequest) {
       return backToCheckout('payment_unverified');
     }
 
-    const accessToken  = await getMoncashToken(creds.client_id, creds.client_secret, creds.sandbox);
+    // Un jeton refusé ou absent lève : `catch` → `payment_error`, la tentative
+    // reste `pending` (l'acheteur a peut-être payé, rien n'a été vérifié).
+    const accessToken  = await getMoncashToken(creds);
     const verification = await verifyMoncashTransaction(accessToken, creds.sandbox, transactionId);
 
     const refusal = refuseMoncashPayment(verification, order, transactionId, expected.amount);
@@ -209,13 +204,22 @@ export async function GET(req: NextRequest) {
         order:   order.order_number,
         transactionId,
       });
+      await recordGatewayRefusal({
+        orderId:          order.id,
+        gateway:          'moncash',
+        code:             refusal.code,
+        reason:           refusal.reason,
+        transactionId,
+        providerResponse: verification,
+      });
       return backToCheckout(refusal.code);
     }
 
     const settled = await settleGatewayOrder({
-      orderId:       order.id,
-      gateway:       'moncash',
+      orderId:          order.id,
+      gateway:          'moncash',
       transactionId,
+      providerResponse: verification,
     });
 
     if (!settled.ok) {

@@ -3,6 +3,7 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { hasFeature } from '../../lib/entitlements';
+import { makeToReport, isExchangeRateSet, type ToReport } from '../../lib/currency';
 
 // ── Dashboard v2 types ────────────────────────────────────────────────────────
 
@@ -57,20 +58,10 @@ export type DashboardV2Data = {
 //
 // Une vente en USD et une dépense en HTG ne s'additionnent pas telles quelles.
 // Chaque montant est ramené à `businesses.default_currency` au taux
-// `businesses.exchange_rate` (1 USD = taux HTG), la source de /dettes et des
-// dépenses. Renvoie `null` quand la conversion est impossible (taux absent ou
-// nul) : l'appelant exclut alors le montant au lieu d'inventer un chiffre.
-function makeToReport(exchangeRate: number, reportCurrency: 'HTG' | 'USD') {
-  const rateOk = Number.isFinite(exchangeRate) && exchangeRate > 0;
-  return (amount: number, currency: string | null | undefined): number | null => {
-    const c = (currency ?? 'HTG').toUpperCase();
-    if (c === reportCurrency) return amount;
-    if (!rateOk) return null;
-    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
-    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
-    return amount;
-  };
-}
+// `businesses.exchange_rate` (1 USD = taux HTG) par `makeToReport`
+// (lib/currency.ts), la règle unique. Elle renvoie `null` quand la conversion
+// est impossible (taux non renseigné) : l'appelant exclut alors le montant au
+// lieu d'inventer un chiffre.
 
 // ── getDashboardV2Action ──────────────────────────────────────────────────────
 
@@ -190,10 +181,15 @@ export async function getDashboardV2Action(
     reorder_point: alertMap.get(p.id) ?? null,
   })) as DashboardProduct[];
 
-  // ── Exchange rate (now from parallel fetch) ────────────────────────────────
-  const exchangeRate   = Number((biz as any)?.exchange_rate ?? 130);
+  // ── Taux et devise (lus en parallèle ci-dessus) ───────────────────────────
+  // Pas de taux de repli : un taux non renseigné (NULL, ou 1 par défaut) exclut
+  // les montants étrangers au lieu de les compter à 130.
   const reportCurrency = ((biz as any)?.default_currency ?? 'HTG') as 'HTG' | 'USD';
-  const convert  = makeToReport(exchangeRate, reportCurrency);
+  const convert  = makeToReport({
+    exchangeRate:    Number((biz as any)?.exchange_rate),
+    exchangeRateSet: isExchangeRateSet((biz as any)?.exchange_rate),
+    defaultCurrency: reportCurrency,
+  });
   const toReport = (amount: number, currency: string): number => convert(amount, currency) ?? 0;
 
   // ── Build ledger ──────────────────────────────────────────────────────────
@@ -364,13 +360,16 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
   if (!(await hasFeature('ai_assistant'))) return EMPTY;
 
   let businessId: string, userId: string, supabase: any;
-  let exchangeRate: number, reportCurrency: 'HTG' | 'USD';
+  let reportCurrency: 'HTG' | 'USD', convert: ToReport;
   try {
     const ctx = await getBusinessContext();
     businessId = ctx.businessId; userId = ctx.userId; supabase = ctx.supabase;
-    // Taux et devise de l'entreprise courante, lus sur la même ligne
-    // `businesses` que getBusinessContext() a résolue (cookie multi-entreprise).
-    exchangeRate = ctx.exchangeRate; reportCurrency = ctx.defaultCurrency;
+    // Taux (avec son indicateur « renseigné ») et devise de l'entreprise
+    // courante, lus sur la même ligne `businesses` que getBusinessContext() a
+    // résolue (cookie multi-entreprise). Le repli à 130 du contexte n'est pas
+    // un taux : `makeToReport` l'ignore quand `exchangeRateSet` est faux.
+    reportCurrency = ctx.defaultCurrency;
+    convert = makeToReport(ctx);
   } catch { return EMPTY; }
 
   // Les montants étaient additionnés sans regarder leur devise, puis étiquetés
@@ -378,7 +377,6 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
   // « 200 HTG ». Chaque montant est désormais converti vers la devise de
   // l'entreprise ; un montant inconvertible est exclu ET compté, pour que
   // l'assistant sache que le total est incomplet.
-  const convert = makeToReport(exchangeRate, reportCurrency);
   let unconvertedCount = 0;
   const toReport = (amount: unknown, currency: string | null | undefined): number => {
     const v = convert(Number(amount ?? 0), currency);
