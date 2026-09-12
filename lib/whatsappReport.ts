@@ -50,6 +50,11 @@ export type WeeklyDigestInput = {
   topProduct?: { name: string; grossMargin: number } | null;
   receivablesDue: Array<{ clientName: string; balanceDue: number; daysOverdue: number }>;
   insights?: Insight[];
+  /**
+   * Ventes dans l'autre devise laissées hors des montants ci-dessus faute de
+   * taux de change valide. Tous les montants reçus sont déjà en `currency`.
+   */
+  unconvertedCount?: number;
 };
 
 /**
@@ -72,6 +77,14 @@ export function buildWeeklyDigest(input: WeeklyDigestInput): string {
     const delta = ((input.revenue - input.previousRevenue) / input.previousRevenue) * 100;
     const arrow = delta >= 0 ? '🔼' : '🔽';
     lines.push(`${arrow} vs semaine passée : ${delta >= 0 ? '+' : ''}${delta.toFixed(0)}%`);
+  }
+
+  // Des totaux incomplets doivent le dire, sinon ils passent pour exacts.
+  const unconverted = input.unconvertedCount ?? 0;
+  if (unconverted > 0) {
+    const s = unconverted > 1 ? 's' : '';
+    const other = cur.toUpperCase() === 'USD' ? 'HTG' : 'USD';
+    lines.push(`⚠️ ${unconverted} vente${s} en ${other} non comptée${s} : taux de change manquant (Paramètres).`);
   }
 
   if (input.topProduct) {

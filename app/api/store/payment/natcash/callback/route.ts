@@ -16,6 +16,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseService } from '../../../../../../lib/supabaseServiceClient';
 import {
+  amountShortfall,
+  expectedGatewayAmount,
   readGatewayCredentials,
   settleGatewayOrder,
   storeSlugOf,
@@ -86,8 +88,10 @@ function pick(obj: any, ...keys: string[]): unknown {
  */
 function refuseNatcashPayment(
   result: any,
-  order: { id: string; total: number | string | null },
+  order: { id: string },
   transactionId: string,
+  /** Les gourdes demandées au lancement (`expectedGatewayAmount`). */
+  expectedHtg: number,
 ): Refusal | null {
   if (!result || typeof result !== 'object') {
     return { code: 'payment_unverified', reason: 'réponse vide ou illisible' };
@@ -122,19 +126,18 @@ function refuseNatcashPayment(
   }
 
   // L'initiation demande des gourdes : un montant dans une autre devise ne se
-  // compare pas au total.
+  // compare pas au montant attendu.
   const currency = pick(payment, 'currency');
   if (currency != null && String(currency).toUpperCase() !== 'HTG') {
     return { code: 'payment_unverified', reason: `devise « ${currency} » ≠ HTG` };
   }
 
-  // Le montant payé couvre-t-il le total calculé par la base ? Le centime de
-  // tolérance absorbe l'arrondi d'un nombre passé en JSON.
-  const amount = pick(payment, 'amount', 'cost');
-  const paid   = Number(amount);
-  const due    = Number(order.total);
-  if (amount == null || !Number.isFinite(paid) || !Number.isFinite(due) || paid + 0.01 < due) {
-    return { code: 'payment_unverified', reason: `montant payé ${amount ?? '(absent)'} < total ${order.total}` };
+  // Le montant payé couvre-t-il les gourdes demandées au lancement ? Plus le
+  // total : pour une commande en USD, il est en dollars, et quelques gourdes
+  // l'auraient « couvert ».
+  const shortfall = amountShortfall(pick(payment, 'amount', 'cost'), expectedHtg);
+  if (shortfall) {
+    return { code: 'payment_unverified', reason: shortfall };
   }
 
   return null;
@@ -163,7 +166,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: order } = await svc
       .from('orders')
-      .select('id, business_id, order_number, payment_status, total')
+      .select('id, business_id, order_number, payment_status, total, currency')
       .eq('id', orderDbId)
       .maybeSingle();
 
@@ -197,10 +200,23 @@ export async function GET(req: NextRequest) {
       return backToCheckout('payment_unavailable');
     }
 
+    // Les gourdes que ce paiement doit couvrir. Sans elles on ne peut rien
+    // comparer ; l'acheteur a peut-être déjà payé, d'où `payment_unverified`
+    // (« contactez la boutique ») plutôt que « choisissez un autre moyen ».
+    const expected = await expectedGatewayAmount({ order, gateway: 'natcash' });
+    if (!expected.ok) {
+      console.error('[natcash callback] paiement non encaissé : montant attendu inconnu —', expected.reason, {
+        orderId: order.id,
+        order:   order.order_number,
+        transactionId,
+      });
+      return backToCheckout('payment_unverified');
+    }
+
     const accessToken = await getNatcashToken(creds.client_id, creds.client_secret, creds.sandbox);
     const result      = await verifyNatcashPayment(accessToken, creds.sandbox, transactionId);
 
-    const refusal = refuseNatcashPayment(result, order, transactionId);
+    const refusal = refuseNatcashPayment(result, order, transactionId, expected.amount);
     if (refusal) {
       console.error('[natcash callback] paiement non encaissé :', refusal.reason, {
         orderId: order.id,

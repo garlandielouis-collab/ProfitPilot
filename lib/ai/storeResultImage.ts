@@ -21,8 +21,11 @@ export async function storeResultImage(
   sourceUrl: string,
   businessId: string,
   jobId: string,
+  // Le balayage du cron quotidien raccourcit ce délai : il partage soixante
+  // secondes avec les autres balayages de la nuit.
+  timeoutMs = 30_000,
 ): Promise<string> {
-  const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(30_000) });
+  const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(timeoutMs) });
   if (!res.ok) throw new Error(`Image du fournisseur illisible (${res.status}).`);
 
   const contentType = res.headers.get('content-type') ?? 'image/png';

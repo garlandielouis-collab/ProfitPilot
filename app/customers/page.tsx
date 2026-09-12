@@ -475,7 +475,19 @@ function ClientsCRMInner() {
       // Plus de branche « faux crédit » : un règlement passe par la base, ou
       // il ne passe pas. Une créance soldée à l'écran mais pas en comptabilité
       // est exactement le genre de mensonge que cet audit chasse.
-      await markCustomerCreditPaid(creditId);
+      const res = await markCustomerCreditPaid(creditId);
+      // Rien d'encaissé (déjà soldée, annulée, ou reste dû changé entre
+      // l'affichage et le clic) : on le dit, puis on recharge pour que la ligne
+      // périmée affiche l'état réel.
+      if (!res.settled) {
+        alert(t(
+          res.reason === 'already_settled'
+            ? { fr: 'Cette vente est déjà soldée : rien n\'a été encaissé.', ht: 'Vant sa a deja peye nèt : anyen pa touche.' }
+            : res.reason === 'cancelled'
+              ? { fr: 'Cette vente est annulée ou remboursée : rien n\'a été encaissé.', ht: 'Vant sa a anile oswa ranbouse : anyen pa touche.' }
+              : { fr: 'Le reste dû vient de changer : rien n\'a été encaissé. Vérifiez le montant puis réessayez.', ht: 'Montan ki rete a sot chanje : anyen pa touche. Verifye montan an epi eseye ankò.' },
+        ));
+      }
       if (selectedId) await loadDetail(selectedId);
       await loadClients();
     } catch (e: any) { alert(e.message); }

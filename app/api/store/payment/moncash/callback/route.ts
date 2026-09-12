@@ -14,9 +14,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseService } from '../../../../../../lib/supabaseServiceClient';
 import {
+  amountShortfall,
+  expectedGatewayAmount,
   readGatewayCredentials,
   settleGatewayOrder,
   storeSlugOf,
+  transactionSettledElsewhere,
 } from '../../../../../../lib/storePaymentGateway';
 
 const MC_PROD = 'https://moncashbutton.digicelgroup.com/Api';
@@ -81,8 +84,10 @@ type Refusal = {
  */
 function refuseMoncashPayment(
   verification: any,
-  order: { id: string; total: number | string | null },
+  order: { id: string },
   transactionId: string,
+  /** Les gourdes demandées au lancement (`expectedGatewayAmount`). */
+  expectedHtg: number,
 ): Refusal | null {
   const payment = verification?.payment;
   if (!payment || typeof payment !== 'object') {
@@ -106,12 +111,12 @@ function refuseMoncashPayment(
     return { code: 'payment_unverified', reason: `transaction « ${reportedTx} » ≠ « ${transactionId} »` };
   }
 
-  // Le montant payé couvre-t-il le total calculé par la base ? Le centime de
-  // tolérance absorbe l'arrondi d'un nombre passé en JSON.
-  const paid = Number(payment.cost);
-  const due  = Number(order.total);
-  if (!Number.isFinite(paid) || !Number.isFinite(due) || paid + 0.01 < due) {
-    return { code: 'payment_unverified', reason: `montant payé ${payment.cost} < total ${order.total}` };
+  // Le montant payé couvre-t-il les gourdes demandées au lancement ? Plus le
+  // total : pour une commande en USD, il est en dollars, et quelques gourdes
+  // l'auraient « couvert ».
+  const shortfall = amountShortfall(payment.cost, expectedHtg);
+  if (shortfall) {
+    return { code: 'payment_unverified', reason: shortfall };
   }
 
   return null;
@@ -145,7 +150,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: order } = await svc
       .from('orders')
-      .select('id, business_id, order_number, payment_status, total')
+      .select('id, business_id, order_number, payment_status, total, currency')
       .eq('id', orderDbId)
       .maybeSingle();
 
@@ -165,15 +170,39 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Une transaction qui a déjà réglé une autre commande ne règle pas
+    // celle-ci. Contrôle local, indépendant de la forme de la réponse MonCash.
+    if (await transactionSettledElsewhere({ gateway: 'moncash', transactionId, orderId: order.id })) {
+      console.error('[moncash callback] paiement non encaissé : transaction déjà rattachée à une autre commande', {
+        orderId: order.id,
+        order:   order.order_number,
+        transactionId,
+      });
+      return backToCheckout('payment_unverified');
+    }
+
     const creds = await readGatewayCredentials(order.business_id, 'moncash');
     if (!creds) {
       return backToCheckout('payment_unavailable');
     }
 
+    // Les gourdes que ce paiement doit couvrir. Sans elles on ne peut rien
+    // comparer ; l'acheteur a peut-être déjà payé, d'où `payment_unverified`
+    // (« contactez la boutique ») plutôt que « choisissez un autre moyen ».
+    const expected = await expectedGatewayAmount({ order, gateway: 'moncash' });
+    if (!expected.ok) {
+      console.error('[moncash callback] paiement non encaissé : montant attendu inconnu —', expected.reason, {
+        orderId: order.id,
+        order:   order.order_number,
+        transactionId,
+      });
+      return backToCheckout('payment_unverified');
+    }
+
     const accessToken  = await getMoncashToken(creds.client_id, creds.client_secret, creds.sandbox);
     const verification = await verifyMoncashTransaction(accessToken, creds.sandbox, transactionId);
 
-    const refusal = refuseMoncashPayment(verification, order, transactionId);
+    const refusal = refuseMoncashPayment(verification, order, transactionId, expected.amount);
     if (refusal) {
       console.error('[moncash callback] paiement non encaissé :', refusal.reason, {
         orderId: order.id,

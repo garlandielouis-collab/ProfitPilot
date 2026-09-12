@@ -21,11 +21,11 @@ import { z } from 'zod';
 import { assertFeature } from '../../../../lib/entitlements';
 import { getBusinessContext } from '../../../../lib/serverAuth';
 import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
-import { storeResultImage } from '../../../../lib/ai/storeResultImage';
 import {
   IMAGE_CREDIT_ACTION,
+  IMAGE_JOB_STALE_MS,
   InsufficientCreditsError,
-  completeImageJob,
+  deliverImageJob,
   failImageJob,
   imageJobCreditRef,
   refundDebit,
@@ -280,7 +280,7 @@ export async function GET(request: Request) {
   const readJob = async () => {
     const { data } = await svc
       .from('ai_asset_jobs')
-      .select('id, status, processed_image_url, original_image_url, error_message, provider, provider_job_id, created_at, prompt_preset')
+      .select('id, status, processed_image_url, original_image_url, error_message, provider, provider_job_id, enhancement_type, created_at, prompt_preset')
       .eq('id', jobId)
       .eq('business_id', businessId)   // cloisonnement : pas le travail d'un autre
       .maybeSingle();
@@ -293,14 +293,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Travail introuvable.' }, { status: 404 });
   }
 
-  const stale =
-    job.status === 'processing' &&
-    Date.now() - new Date(job.created_at).getTime() > 20_000;
+  const age   = Date.now() - new Date(job.created_at).getTime();
+  const stale = job.status === 'processing' && age > 20_000;
 
   if (stale && job.provider_job_id) {
     const provider = getEnhancementProvider();
     if (provider && provider.name === job.provider) {
-      const result = await provider.poll(job.provider_job_id).catch(() => null);
+      const result = await provider
+        .poll(job.provider_job_id, { enhancementType: job.enhancement_type })
+        .catch(() => null);
 
       // Le rappel du fournisseur peut arriver pendant qu'on interroge. Les deux
       // chemins passent par les mêmes transitions conditionnelles : le premier
@@ -308,23 +309,22 @@ export async function GET(request: Request) {
       // rembourse pas une seconde fois. D'où la relecture : on renvoie l'état
       // réellement en base, pas celui que CET appel croyait écrire.
       if (result?.status === 'completed') {
-        let stored: string | null = null;
-        try {
-          stored = await storeResultImage(result.imageUrl, businessId, job.id);
-        } catch (err) {
-          // Même règle que le rappel : image irrécupérable, échec, remboursement.
-          // Laisser lever gardait le travail « en cours » pour toujours — le
-          // Studio ignore les réponses en erreur et réinterroge sans fin.
-          await failImageJob(
-            { id: job.id, business_id: businessId },
-            err instanceof Error ? err.message : 'Image irrécupérable.',
-          );
-        }
-        if (stored) await completeImageJob(job.id, stored).catch(() => false);
+        // Même règle que le rappel (`deliverImageJob`) : image irrécupérable,
+        // échec, remboursement. Laisser lever gardait le travail « en cours »
+        // pour toujours — le Studio ignore les réponses en erreur et réinterroge
+        // sans fin.
+        await deliverImageJob({ id: job.id, business_id: businessId }, result.imageUrl);
         return NextResponse.json((await readJob()) ?? job);
       }
 
-      if (result?.status === 'failed') {
+      // « Introuvable » n'est cru qu'au-delà du seuil du balayage. Avant, un
+      // 404 peut venir d'une URL d'interrogation fausse (fal.ai) ou d'un
+      // fournisseur pas encore à jour, et le prendre au mot tuerait — et
+      // rembourserait — une retouche que le rappel s'apprête à livrer.
+      if (
+        result?.status === 'failed' ||
+        (result?.status === 'not_found' && age > IMAGE_JOB_STALE_MS)
+      ) {
         await failImageJob({ id: job.id, business_id: businessId }, result.error);
         return NextResponse.json((await readJob()) ?? job);
       }

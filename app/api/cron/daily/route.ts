@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Cron quotidien — créances (Diagnostic 3), stock bas (Bonus 6), parrainage,
 // et depuis la Phase 3 du centre documentaire, les échéances de papiers (§34).
+// Et le filet du Studio photo : les retouches IA restées bloquées.
 //
 // « Les gens me doivent de l'argent, mais j'oublie qui et depuis quand. »
 // C'est l'app qui doit se souvenir : chaque matin, elle prévient le marchand
@@ -28,6 +29,12 @@ import { notify } from '../../../../lib/notify';
 import { sweepDocumentExpirations } from '../../../../lib/documents/expirationSweep';
 import { sweepReferralActivations } from '../../../actions/referrals';
 import { sweepReviewRequests } from '../../../../lib/reviewRequestSweep';
+import {
+  getEnhancementProvider,
+  type EnhancementProvider,
+  type EnhancementType,
+} from '../../../../lib/ai/imageEnhancer';
+import { IMAGE_JOB_STALE_MS, deliverImageJob, failImageJob } from '../../../../lib/ai/credits';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -134,12 +141,138 @@ async function sweepLowStock(svc: SupabaseClient): Promise<number> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Retouches IA bloquées
+//
+// Une retouche est débitée au lancement et ne se clôt que par le rappel du
+// fournisseur ou par l'interrogation du Studio — qui n'a lieu que fenêtre
+// ouverte. Rappel perdu et Studio fermé, ou lancement dont l'identifiant de
+// fournisseur n'a pas pu être écrit : le travail restait `pending` ou
+// `processing` pour toujours, et le marchand avait payé une retouche qu'il ne
+// recevrait jamais.
+//
+// Deux seuils :
+//
+//   30 MIN (`IMAGE_JOB_STALE_MS`) — une retouche prend deux minutes. Au-delà,
+//   on demande une dernière fois au fournisseur : terminée, on rapatrie
+//   l'image ; échouée ou introuvable, échec et remboursement ; encore en
+//   cours, on attend. Sans identifiant de fournisseur à ce stade, le lancement
+//   n'a jamais été enregistré : échec et remboursement.
+//
+//   6 H — seuil dur. Encore ouverte, fournisseur muet, ou fournisseur changé
+//   dans la configuration entre-temps : échec et remboursement. Le crédit
+//   n'attend pas indéfiniment une image qui ne viendra pas.
+//
+// Avec un passage par jour, un travail vu entre les deux seuils et encore en
+// cours est donc tranché le lendemain.
+//
+// Toutes les écritures passent par `failImageJob` / `deliverImageJob` :
+// transitions conditionnelles, si bien qu'un rappel tardif ou le Studio qui
+// interroge au même instant ne font ni rembourser deux fois, ni rouvrir un
+// travail clos.
+//
+// Le budget : ce balayage passe EN DERNIER, pour ne jamais retarder les
+// alertes des marchands, et n'entame plus de travail passé trente secondes de
+// cron. Le reste attend le passage suivant.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const IMAGE_JOB_HARD_LIMIT_MS = 6 * 3_600_000;
+/** Travaux examinés par passage, les plus anciens d'abord. */
+const IMAGE_JOB_BATCH = 25;
+/** Aucun travail entamé au-delà de ce délai depuis le début du cron (`maxDuration` = 60 s). */
+const IMAGE_SWEEP_DEADLINE_MS = 30_000;
+/** Téléchargement de l'image rendue, raccourci pour tenir dans le budget. */
+const IMAGE_FETCH_TIMEOUT_MS = 12_000;
+
+type StuckImageJob = {
+  id:               string;
+  business_id:      string;
+  provider:         string | null;
+  provider_job_id:  string | null;
+  enhancement_type: EnhancementType | null;
+  created_at:       string;
+};
+
+type ImageJobSweep = { completed: number; failed: number; left: number };
+
+async function settleStuckImageJob(
+  job:      StuckImageJob,
+  provider: EnhancementProvider | null,
+  now:      number,
+): Promise<'completed' | 'failed' | 'unchanged'> {
+  const ref     = { id: job.id, business_id: job.business_id };
+  const expired = now - new Date(job.created_at).getTime() > IMAGE_JOB_HARD_LIMIT_MS;
+  const fail    = async (message: string): Promise<'failed' | 'unchanged'> =>
+    (await failImageJob(ref, message)) ? 'failed' : 'unchanged';
+
+  if (!job.provider_job_id) {
+    return fail("Le fournisseur n'a jamais confirmé la prise en charge de la retouche. Vos crédits ont été rendus.");
+  }
+
+  if (!provider || provider.name !== job.provider) {
+    return expired
+      ? fail('Retouche abandonnée : le fournisseur ne peut plus être interrogé. Vos crédits ont été rendus.')
+      : 'unchanged';
+  }
+
+  const result = await provider.poll(job.provider_job_id, { enhancementType: job.enhancement_type });
+
+  if (result.status === 'completed') {
+    return deliverImageJob(ref, result.imageUrl, IMAGE_FETCH_TIMEOUT_MS);
+  }
+  if (result.status === 'failed' || result.status === 'not_found') {
+    return fail(result.error);
+  }
+  return expired
+    ? fail('Retouche abandonnée : toujours sans résultat après six heures. Vos crédits ont été rendus.')
+    : 'unchanged';
+}
+
+async function sweepStuckImageJobs(svc: SupabaseClient, deadline: number): Promise<ImageJobSweep> {
+  const now = Date.now();
+
+  const { data, error } = await svc
+    .from('ai_asset_jobs')
+    .select('id, business_id, provider, provider_job_id, enhancement_type, created_at')
+    .in('status', ['pending', 'processing'])
+    .lt('created_at', new Date(now - IMAGE_JOB_STALE_MS).toISOString())
+    .order('created_at', { ascending: true })
+    .limit(IMAGE_JOB_BATCH);
+
+  if (error) throw new Error(error.message);
+
+  const provider = getEnhancementProvider();
+  const tally: ImageJobSweep = { completed: 0, failed: 0, left: 0 };
+
+  for (const job of (data ?? []) as StuckImageJob[]) {
+    // Budget épuisé : ce travail et les suivants attendent le prochain passage.
+    if (Date.now() > deadline) {
+      tally.left++;
+      continue;
+    }
+
+    try {
+      const outcome = await settleStuckImageJob(job, provider, now);
+      if (outcome === 'completed') tally.completed++;
+      else if (outcome === 'failed') tally.failed++;
+      else tally.left++;
+    } catch (err) {
+      // Un travail en panne n'arrête pas les suivants.
+      console.error('[cron/daily] retouche bloquée non traitée', job.id, err);
+      tally.left++;
+    }
+  }
+
+  return tally;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const svc = getSupabaseService();
   const failures: string[] = [];
 
@@ -178,6 +311,14 @@ export async function GET(req: NextRequest) {
     sent: 0, skipped: 0, failed: 0,
   });
 
+  // Les retouches IA bloquées : débitées, jamais livrées, jamais remboursées.
+  // En dernier et sous budget — voir la section plus haut.
+  const imageJobs = await run(
+    'imageJobs',
+    () => sweepStuckImageJobs(svc, startedAt + IMAGE_SWEEP_DEADLINE_MS),
+    { completed: 0, failed: 0, left: 0 },
+  );
+
   return NextResponse.json({
     ok: failures.length === 0,
     receivableAlerts,
@@ -188,6 +329,9 @@ export async function GET(req: NextRequest) {
     reviewRequestsSent:    reviews.sent,
     reviewRequestsSkipped: reviews.skipped,
     reviewRequestsFailed:  reviews.failed,
+    imageJobsCompleted:    imageJobs.completed,
+    imageJobsFailed:       imageJobs.failed,
+    imageJobsLeft:         imageJobs.left,
     ...(failures.length > 0 ? { failures } : {}),
   });
 }

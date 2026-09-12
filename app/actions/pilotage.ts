@@ -45,6 +45,63 @@ function endOfMonth(iso: string): string {
 const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Conversion vers la devise de l'entreprise
+//
+// Même règle que `makeToReport` dans app/actions/ai.ts (un fichier 'use server'
+// n'exporte que des fonctions async : elle ne peut pas être importée d'ici).
+// `v_receivables`, `sales` et `sale_items` portent chacun leur devise :
+// 100 USD + 100 HTG ne font pas « 200 HTG ». Chaque montant est ramené à
+// `businesses.default_currency` au taux `businesses.exchange_rate`
+// (1 USD = taux HTG). `null` = conversion impossible (taux absent ou nul) :
+// l'appelant exclut le montant ET le compte, au lieu d'inventer un chiffre.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function makeToReport(exchangeRate: number, reportCurrency: 'HTG' | 'USD') {
+  const rateOk = Number.isFinite(exchangeRate) && exchangeRate > 0;
+  return (amount: number, currency: string | null | undefined): number | null => {
+    const c = (currency ?? 'HTG').toUpperCase();
+    if (c === reportCurrency) return amount;
+    if (!rateOk) return null;
+    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
+    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
+    return amount;
+  };
+}
+
+/** Créances ouvertes / en retard, converties ; les inconvertibles sont comptées à part. */
+function sumReceivables(
+  rows: any[] | null | undefined,
+  convert: ReturnType<typeof makeToReport>,
+): { open: number; overdue: number; unconvertedCount: number } {
+  let open = 0;
+  let overdue = 0;
+  let unconvertedCount = 0;
+  for (const r of rows ?? []) {
+    // Une créance soldée (solde 0) n'a rien à convertir : elle ne doit pas
+    // gonfler le compte des montants exclus.
+    const amount = num(r.balance_due);
+    const v = amount === 0 ? 0 : convert(amount, r.currency);
+    if (v === null) { unconvertedCount += 1; continue; }
+    open += v;
+    if (r.status === 'overdue' || r.status === 'critical') overdue += v;
+  }
+  return { open, overdue, unconvertedCount };
+}
+
+/** Recommandation qui dit que des créances manquent au calcul, faute de taux. */
+function unconvertedInsight(count: number, reportCurrency: 'HTG' | 'USD'): Insight {
+  const other = reportCurrency === 'HTG' ? 'USD' : 'HTG';
+  const s = count > 1 ? 's' : '';
+  return {
+    id:       'fx-rate-missing',
+    severity: 'warning',
+    message:  `${count} créance${s} en ${other} non comptée${s} : le taux de change de l’entreprise est absent.`,
+    action:   'Renseignez le taux USD/HTG dans les paramètres.',
+    href:     '/settings',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // KPI mensuels & comparaisons (Bonus 7)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -153,6 +210,8 @@ export type HealthSnapshot = HealthResult & {
   grossMargin: number;
   openReceivables: number;
   currency: string;
+  /** Créances dans l'autre devise laissées hors du score faute de taux valide. */
+  unconvertedCount: number;
 };
 
 /**
@@ -161,7 +220,7 @@ export type HealthSnapshot = HealthResult & {
  */
 export async function getHealthScore(periodStart?: string): Promise<HealthSnapshot> {
   await assertFeature('health_score');
-  const { supabase, businessId, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
 
   const period = periodStart ?? monthStartOf(new Date());
   const from   = period;
@@ -183,7 +242,7 @@ export async function getHealthScore(periodStart?: string): Promise<HealthSnapsh
       .lte('sale_date', to),
     supabase
       .from('v_receivables')
-      .select('balance_due, status')
+      .select('balance_due, status, currency')
       .eq('business_id', businessId),
   ]);
 
@@ -192,10 +251,11 @@ export async function getHealthScore(periodStart?: string): Promise<HealthSnapsh
   const activeDays = new Set((saleDays ?? []).map((r: any) => r.sale_date)).size;
   const periodDays = Number(to.slice(8, 10));
 
-  const openReceivables = (receivables ?? []).reduce((s: number, r: any) => s + num(r.balance_due), 0);
-  const overdueReceivables = (receivables ?? [])
-    .filter((r: any) => r.status === 'overdue' || r.status === 'critical')
-    .reduce((s: number, r: any) => s + num(r.balance_due), 0);
+  const {
+    open: openReceivables,
+    overdue: overdueReceivables,
+    unconvertedCount,
+  } = sumReceivables(receivables, makeToReport(exchangeRate, defaultCurrency));
 
   const result = computeHealthScore({
     revenue:          k.revenue,
@@ -230,6 +290,7 @@ export async function getHealthScore(periodStart?: string): Promise<HealthSnapsh
     grossMargin:     k.grossMargin,
     openReceivables,
     currency:        defaultCurrency,
+    unconvertedCount,
   };
 }
 
@@ -256,7 +317,7 @@ export async function getHealthHistory(months = 6): Promise<
 
 export async function getInsights(limit = 5): Promise<Insight[]> {
   await assertFeature('auto_recommendations');
-  const { supabase, businessId, defaultCurrency, userId } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
 
   const period   = monthStartOf(new Date());
   const previous = addMonths(period, -1);
@@ -275,10 +336,12 @@ export async function getInsights(limit = 5): Promise<Insight[]> {
       supabase
         .from('products')
         .select('id, name, stock_quantity, reorder_point')
-        .eq('user_id', userId),
+        // Cadrage par entreprise : `user_id` n'est que l'auteur de la fiche. Un
+        // produit créé par un employé échappait sinon à l'alerte de stock.
+        .eq('business_id', businessId),
       supabase
         .from('v_receivables')
-        .select('sale_id, customer_name, balance_due, days_overdue')
+        .select('sale_id, customer_name, balance_due, days_overdue, currency')
         .eq('business_id', businessId),
       supabase
         .from('exchange_rate_history')
@@ -323,7 +386,24 @@ export async function getInsights(limit = 5): Promise<Insight[]> {
     });
   }
 
-  return generateInsights(
+  // Les messages affichent `defaultCurrency` : chaque créance y est ramenée.
+  // Une créance inconvertible est exclue du total et signalée à part.
+  const convert = makeToReport(exchangeRate, defaultCurrency);
+  let unconvertedCount = 0;
+  const receivables: Array<{ id: string; clientName: string; balanceDue: number; daysOverdue: number }> = [];
+  for (const r of (recv ?? []) as any[]) {
+    const amount     = num(r.balance_due);
+    const balanceDue = amount === 0 ? 0 : convert(amount, r.currency);
+    if (balanceDue === null) { unconvertedCount += 1; continue; }
+    receivables.push({
+      id:          r.sale_id,
+      clientName:  r.customer_name ?? 'Client',
+      balanceDue,
+      daysOverdue: num(r.days_overdue),
+    });
+  }
+
+  const list = generateInsights(
     {
       currency:            defaultCurrency,
       revenue:             cur.revenue,
@@ -334,17 +414,20 @@ export async function getInsights(limit = 5): Promise<Insight[]> {
       previousGrossMargin: prev.grossMargin,
       personalExpenses:    cur.personalExpenses,
       products:            productInputs,
-      receivables: (recv ?? []).map((r: any) => ({
-        id:          r.sale_id,
-        clientName:  r.customer_name ?? 'Client',
-        balanceDue:  num(r.balance_due),
-        daysOverdue: num(r.days_overdue),
-      })),
+      receivables,
       dormantCustomers: [],
       rateVariationPercent: rate?.variation_pct != null ? num(rate.variation_pct) : undefined,
     },
     limit,
   );
+  if (unconvertedCount === 0) return list;
+
+  // Après les alertes critiques, avant le reste : le total des créances affiché
+  // plus haut est incomplet, le marchand doit le savoir.
+  const firstNonCritical = list.findIndex((i) => i.severity !== 'critical');
+  const at = firstNonCritical === -1 ? list.length : firstNonCritical;
+  return [...list.slice(0, at), unconvertedInsight(unconvertedCount, defaultCurrency), ...list.slice(at)]
+    .slice(0, limit);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -359,6 +442,10 @@ export type WeeklyDigest = {
   revenue: number;
   grossMargin: number;
   salesCount: number;
+  /** Devise de tous les montants ci-dessus : celle de l'entreprise. */
+  currency: string;
+  /** Ventes dans l'autre devise laissées hors des totaux faute de taux valide. */
+  unconvertedCount: number;
 };
 
 /**
@@ -367,7 +454,7 @@ export type WeeklyDigest = {
  */
 export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyDigest> {
   await assertFeature('weekly_whatsapp_report');
-  const { supabase, businessId, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
 
   const end   = new Date(reference);
   const start = new Date(end.getTime() - 6 * 86_400_000);
@@ -381,37 +468,58 @@ export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyD
       supabase.from('businesses').select('name, whatsapp_number').eq('id', businessId).maybeSingle(),
       supabase
         .from('sales')
-        .select('id, total_amount')
+        .select('id, total_amount, currency')
         .eq('business_id', businessId)
         .is('deleted_at', null)
         .gte('sale_date', iso(start))
         .lte('sale_date', iso(end)),
       supabase
         .from('sales')
-        .select('total_amount')
+        .select('id, total_amount, currency')
         .eq('business_id', businessId)
         .is('deleted_at', null)
         .gte('sale_date', iso(prevStart))
         .lte('sale_date', iso(prevEnd)),
       supabase
         .from('sale_items')
-        .select('product_name, quantity, unit_price, cost_price, line_total, sales!inner(sale_date, deleted_at)')
+        .select('sale_id, product_name, quantity, unit_price, cost_price, line_total, currency, sales!inner(sale_date, deleted_at)')
         .eq('business_id', businessId)
+        // Le CA ci-dessus exclut les ventes supprimées ; la marge aussi.
+        .is('sales.deleted_at', null)
         .gte('sales.sale_date', iso(start))
         .lte('sales.sale_date', iso(end)),
       supabase
         .from('v_receivables')
-        .select('customer_name, balance_due, days_overdue, status')
+        .select('sale_id, customer_name, balance_due, days_overdue, status, currency')
         .eq('business_id', businessId),
     ]);
 
-  const revenue     = (sales ?? []).reduce((s: number, r: any) => s + num(r.total_amount), 0);
-  const prevRevenue = (prevSales ?? []).reduce((s: number, r: any) => s + num(r.total_amount), 0);
+  // Le message affiche `defaultCurrency` : ventes, marges et créances y sont
+  // ramenées. Une vente inconvertible est exclue des totaux et comptée une
+  // seule fois (par id), même si elle apparaît aussi en ligne et en créance.
+  const convert = makeToReport(exchangeRate, defaultCurrency);
+  const unconverted = new Set<string>();
+  const toReport = (amount: number, currency: string | null | undefined, saleId: string): number | null => {
+    if (amount === 0) return 0;
+    const v = convert(amount, currency);
+    if (v === null) unconverted.add(saleId);
+    return v;
+  };
+  const sumSales = (rows: any[] | null | undefined): number =>
+    (rows ?? []).reduce((s: number, r: any) => s + (toReport(num(r.total_amount), r.currency, r.id) ?? 0), 0);
+
+  const revenue     = sumSales(sales);
+  const prevRevenue = sumSales(prevSales);
 
   const marginByProduct = new Map<string, number>();
   let grossMargin = 0;
   for (const it of items ?? []) {
-    const margin = num((it as any).line_total) - num((it as any).cost_price) * num((it as any).quantity);
+    const margin = toReport(
+      num((it as any).line_total) - num((it as any).cost_price) * num((it as any).quantity),
+      (it as any).currency,
+      (it as any).sale_id,
+    );
+    if (margin === null) continue;
     grossMargin += margin;
     const name = (it as any).product_name ?? 'Produit';
     marginByProduct.set(name, (marginByProduct.get(name) ?? 0) + margin);
@@ -421,16 +529,25 @@ export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyD
     .sort((a, b) => b[1] - a[1])
     .map(([name, m]) => ({ name, grossMargin: m }))[0] ?? null;
 
-  const receivablesDue = (recv ?? [])
-    .filter((r: any) => ['due_soon', 'overdue', 'critical'].includes(r.status))
-    .map((r: any) => ({
+  const receivablesDue: Array<{ clientName: string; balanceDue: number; daysOverdue: number }> = [];
+  for (const r of (recv ?? []) as any[]) {
+    if (!['due_soon', 'overdue', 'critical'].includes(r.status)) continue;
+    const balanceDue = toReport(num(r.balance_due), r.currency, r.sale_id);
+    if (balanceDue === null) continue;
+    receivablesDue.push({
       clientName:  r.customer_name ?? 'Client',
-      balanceDue:  num(r.balance_due),
+      balanceDue,
       daysOverdue: Math.max(num(r.days_overdue), 0),
-    }))
-    .sort((a, b) => b.daysOverdue - a.daysOverdue);
+    });
+  }
+  receivablesDue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  const unconvertedCount = unconverted.size;
 
-  const insights = (await hasFeature('auto_recommendations')) ? await getInsights(3) : [];
+  // Le message porte déjà sa propre ligne « taux manquant » : la recommandation
+  // équivalente ferait doublon.
+  const insights = (await hasFeature('auto_recommendations'))
+    ? (await getInsights(4)).filter((i) => i.id !== 'fx-rate-missing').slice(0, 3)
+    : [];
 
   const message = buildWeeklyDigest({
     businessName:    biz?.name ?? 'Mon business',
@@ -444,6 +561,7 @@ export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyD
     topProduct,
     receivablesDue,
     insights,
+    unconvertedCount,
   });
 
   await supabase.from('report_deliveries').insert({
@@ -452,7 +570,10 @@ export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyD
     channel:      'whatsapp',
     period_start: iso(start),
     period_end:   iso(end),
-    payload:      { revenue, grossMargin, salesCount: (sales ?? []).length },
+    payload:      {
+      revenue, grossMargin, salesCount: (sales ?? []).length,
+      currency: defaultCurrency, unconvertedCount,
+    },
     status:       'generated',
   });
 
@@ -464,6 +585,8 @@ export async function buildWeeklyReport(reference = new Date()): Promise<WeeklyD
     revenue,
     grossMargin,
     salesCount:  (sales ?? []).length,
+    currency:    defaultCurrency,
+    unconvertedCount,
   };
 }
 
@@ -485,7 +608,8 @@ export type CreditFile = {
     averageMonthlyRevenue: number;
     marginPercent: number;
   };
-  receivables: { open: number; overdue: number };
+  /** En devise de l'entreprise ; `unconvertedCount` créances exclues faute de taux valide. */
+  receivables: { open: number; overdue: number; unconvertedCount: number };
   healthScore: number | null;
 };
 
@@ -495,7 +619,7 @@ export type CreditFile = {
  */
 export async function getCreditFile(months = 12): Promise<CreditFile> {
   await assertFeature('credit_export');
-  const { supabase, businessId, defaultCurrency } = await getBusinessContext();
+  const { supabase, businessId, defaultCurrency, exchangeRate } = await getBusinessContext();
 
   const firstPeriod = addMonths(monthStartOf(new Date()), -(months - 1));
 
@@ -509,7 +633,7 @@ export async function getCreditFile(months = 12): Promise<CreditFile> {
       .order('period_start', { ascending: true }),
     supabase
       .from('v_receivables')
-      .select('balance_due, status')
+      .select('balance_due, status, currency')
       .eq('business_id', businessId),
     supabase
       .from('financial_health_snapshots')
@@ -521,6 +645,7 @@ export async function getCreditFile(months = 12): Promise<CreditFile> {
   ]);
 
   const rows = (kpis ?? []).map((r: any) => mapKpi(r, r.period_start));
+  const recvTotals = sumReceivables(recv, makeToReport(exchangeRate, defaultCurrency));
 
   const revenue          = rows.reduce((s, r) => s + r.revenue, 0);
   const grossMargin      = rows.reduce((s, r) => s + r.grossMargin, 0);
@@ -552,10 +677,9 @@ export async function getCreditFile(months = 12): Promise<CreditFile> {
       marginPercent:         revenue > 0 ? Math.round((grossMargin / revenue) * 1000) / 10 : 0,
     },
     receivables: {
-      open: (recv ?? []).reduce((s: number, r: any) => s + num(r.balance_due), 0),
-      overdue: (recv ?? [])
-        .filter((r: any) => r.status === 'overdue' || r.status === 'critical')
-        .reduce((s: number, r: any) => s + num(r.balance_due), 0),
+      open:             recvTotals.open,
+      overdue:          recvTotals.overdue,
+      unconvertedCount: recvTotals.unconvertedCount,
     },
     healthScore: health?.score != null ? num(health.score) : null,
   };

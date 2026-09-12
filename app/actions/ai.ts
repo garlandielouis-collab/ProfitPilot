@@ -400,8 +400,12 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
       .eq('business_id', businessId).is('deleted_at', null).gte('expense_date', weekStart),
     supabase.from('products').select('id, name, stock_quantity, sale_price, purchase_price, category')
       .eq('business_id', businessId),
-    supabase.from('purchases').select('id, total_amount, currency, payment_status, purchase_date')
-      .eq('business_id', businessId).is('deleted_at', null).eq('payment_status', 'credit'),
+    // Tout achat pas encore soldé, pas seulement le statut 'credit' : un
+    // règlement partiel alimente `paid_amount`, et la dette est ce qui reste dû
+    // (même calcul que /dettes), pas le montant total de l'achat.
+    supabase.from('purchases').select('id, total_amount, paid_amount, currency, payment_status, purchase_date')
+      .eq('business_id', businessId).is('deleted_at', null)
+      .not('payment_status', 'in', '(paid,cancelled,refunded)'),
   ]);
 
   const sales    = (salesRes.data  ?? []) as any[];
@@ -413,14 +417,23 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
   // `unconvertedCount` ne compte pas deux fois le même montant.
   const saleAmounts     = sales.map((r: any) => toReport(r.total_amount, r.currency));
   const expenseAmounts  = expenses.map((r: any) => toReport(r.amount, r.currency));
-  const purchaseAmounts = purchases.map((r: any) => toReport(r.total_amount, r.currency));
+  // Reste dû par achat. Un achat déjà soldé n'entre ni dans les dettes ni dans
+  // `unconvertedCount`.
+  const openPurchases = purchases
+    .map((r: any) => ({
+      date:      r.purchase_date as string,
+      remaining: Math.max(Number(r.total_amount ?? 0) - Number(r.paid_amount ?? 0), 0),
+      currency:  r.currency as string | null,
+    }))
+    .filter((p) => p.remaining > 0);
+  const debtAmounts = openPurchases.map((p) => toReport(p.remaining, p.currency));
 
   const totalSales    = saleAmounts.reduce((s: number, v: number) => s + v, 0);
   const totalExpenses = expenseAmounts.reduce((s: number, v: number) => s + v, 0);
   const profit        = totalSales - totalExpenses;
-  const totalDebts    = purchaseAmounts.reduce((s: number, v: number) => s + v, 0);
-  const overdueDebts  = purchases.reduce(
-    (s: number, p: any, i: number) => (p.purchase_date < fifteenAgoStr ? s + purchaseAmounts[i] : s), 0);
+  const totalDebts    = debtAmounts.reduce((s: number, v: number) => s + v, 0);
+  const overdueDebts  = openPurchases.reduce(
+    (s: number, p, i: number) => (p.date < fifteenAgoStr ? s + debtAmounts[i] : s), 0);
 
   const topProducts = Object.values(
     sales.reduce((acc: any, s: any, i: number) => {

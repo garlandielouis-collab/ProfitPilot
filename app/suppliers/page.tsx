@@ -345,7 +345,18 @@ export default function SuppliersPage() {
   async function handlePurchasePaid(purchaseId: string) {
     setBusyPurchases(s => new Set(s).add(purchaseId));
     try {
-      await markPurchasePaid(purchaseId);
+      const res = await markPurchasePaid(purchaseId);
+      // Rien de réglé (déjà payé, annulé, ou reste dû changé entre l'affichage
+      // et le clic) : on le dit, puis on recharge pour afficher l'état réel.
+      if (!res.settled) {
+        alert(t(
+          res.reason === 'already_settled'
+            ? { fr: 'Cet achat est déjà payé : rien n\'a été enregistré.', ht: 'Acha sa a deja peye : anyen pa anrejistre.' }
+            : res.reason === 'cancelled'
+              ? { fr: 'Cet achat est annulé ou remboursé : rien n\'a été enregistré.', ht: 'Acha sa a anile oswa ranbouse : anyen pa anrejistre.' }
+              : { fr: 'Le reste dû vient de changer : rien n\'a été enregistré. Vérifiez le montant puis réessayez.', ht: 'Montan ki rete a sot chanje : anyen pa anrejistre. Verifye montan an epi eseye ankò.' },
+        ));
+      }
       await loadAll();
     } catch (e: any) {
       alert(e.message);

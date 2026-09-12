@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readGatewayCredentials } from '../../../../../lib/storePaymentGateway';
+import {
+  checkGatewayCurrency,
+  paymentUnavailableResponse,
+  prepareGatewayCharge,
+  readGatewayCredentials,
+} from '../../../../../lib/storePaymentGateway';
 import { createStoreOrder } from '../../../../actions/store-public';
 
 // ── MonCash API helpers ───────────────────────────────────────────────────────
@@ -64,6 +69,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Données manquantes' }, { status: 400 });
     }
 
+    // Les identifiants de paiement, la devise et la commande doivent désigner la
+    // même boutique : sinon l'argent part chez un marchand et la commande chez un
+    // autre.
+    if (orderData.business_id !== businessId) {
+      return NextResponse.json({ error: 'Boutique incohérente' }, { status: 400 });
+    }
+
     // 1. Les identifiants du marchand
     const creds = await readGatewayCredentials(businessId, 'moncash');
     if (!creds) {
@@ -74,20 +86,38 @@ export async function POST(req: NextRequest) {
 
     const sandbox = creds.sandbox;
 
-    // 2. La commande, avec son total calculé par la base
+    // 2. La vitrine est-elle facturable en gourdes ? Vérifié AVANT de créer la
+    // commande : une boutique en USD sans taux ne doit pas laisser une commande
+    // impayable à chaque essai.
+    const currencyCheck = await checkGatewayCurrency(businessId);
+    if (!currencyCheck.ok) {
+      console.error('[moncash] paiement non lancé :', currencyCheck.reason, { businessId });
+      return paymentUnavailableResponse();
+    }
+
+    // 3. La commande, avec son total calculé par la base
     //
     // `orderData.total` venait du navigateur : on demandait à la passerelle
-    // d'encaisser un montant que l'acheteur pouvait choisir. C'est `total`
-    // ci-dessous qui part chez MonCash — celui des prix relus dans le catalogue.
-    const { orderId: orderDbId, orderNumber, total } = await createStoreOrder(orderData);
+    // d'encaisser un montant que l'acheteur pouvait choisir. Le montant qui part
+    // chez MonCash vient des prix relus dans le catalogue.
+    const { orderId: orderDbId, orderNumber } = await createStoreOrder(orderData);
 
-    // 3. Get MonCash OAuth token
+    // 4. Le montant en gourdes. MonCash n'encaisse que des gourdes : une
+    // commande en USD part à son équivalent au taux de l'entreprise, figé ici
+    // pour que le rappel compare le paiement à ce qui a été demandé.
+    const charge = await prepareGatewayCharge({ orderId: orderDbId, gateway: 'moncash' });
+    if (!charge.ok) {
+      console.error('[moncash] paiement non lancé :', charge.reason, { orderId: orderDbId });
+      return paymentUnavailableResponse();
+    }
+
+    // 5. Get MonCash OAuth token
     const accessToken = await getMoncashToken(creds.client_id, creds.client_secret, sandbox);
 
-    // 4. Create MonCash payment — orderId = our DB order UUID for verification
-    const paymentToken = await createMoncashPayment(accessToken, sandbox, total, orderDbId);
+    // 6. Create MonCash payment — orderId = our DB order UUID for verification
+    const paymentToken = await createMoncashPayment(accessToken, sandbox, charge.amount, orderDbId);
 
-    // 5. Build redirect URL
+    // 7. Build redirect URL
     // We append orderId so our callback can look up the order without a second MonCash call.
     const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? req.nextUrl.origin;
     const callbackUrl = `${appUrl}/api/store/payment/moncash/callback?orderId=${orderDbId}`;

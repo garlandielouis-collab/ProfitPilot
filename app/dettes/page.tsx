@@ -433,10 +433,24 @@ function DettesInner() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
+  // Un règlement refusé n'a rien écrit : dette déjà soldée (double clic, autre
+  // onglet), annulée, ou reste dû changé entre l'affichage et le clic. Le
+  // rechargement qui suit remplace la ligne périmée par l'état réel.
+  function settlementRefused(reason: 'already_settled' | 'cancelled' | 'changed') {
+    return t(
+      reason === 'already_settled'
+        ? { fr: 'Déjà soldé : aucun montant n\'a été enregistré.', ht: 'Sa a deja peye nèt : okenn kòb pa anrejistre.' }
+        : reason === 'cancelled'
+          ? { fr: 'Document annulé ou remboursé : aucun montant n\'a été enregistré.', ht: 'Dokiman sa a anile oswa ranbouse : okenn kòb pa anrejistre.' }
+          : { fr: 'Le reste dû vient de changer : rien n\'a été enregistré. Vérifiez le montant puis réessayez.', ht: 'Montan ki rete a sot chanje : anyen pa anrejistre. Verifye montan an epi eseye ankò.' },
+    );
+  }
+
   async function handlePayDebt(debtId: string) {
     setPayingId(debtId);
     try {
-      await recordDebtPayment({ purchase_id: debtId });
+      const res = await recordDebtPayment({ purchase_id: debtId });
+      if (!res.settled) alert(settlementRefused(res.reason));
       await loadAll();
     } catch { alert('Erè pandan peman an.'); }
     setPayingId(null);
@@ -445,7 +459,8 @@ function DettesInner() {
   async function handlePayCredit(creditId: string) {
     setPayingId(creditId);
     try {
-      await markCustomerCreditPaid(creditId);
+      const res = await markCustomerCreditPaid(creditId);
+      if (!res.settled) alert(settlementRefused(res.reason));
       await loadAll();
     } catch { alert('Erè pandan mak kòm peye.'); }
     setPayingId(null);

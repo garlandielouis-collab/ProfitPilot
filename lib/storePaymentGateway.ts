@@ -21,7 +21,7 @@
 //   `confirm_store_order`, la même transaction que la confirmation manuelle.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { after } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { getSupabaseService } from './supabaseServiceClient';
 import { notify } from './notify';
 
@@ -68,6 +68,262 @@ export async function storeSlugOf(businessId: string): Promise<string> {
     .eq('business_id', businessId)
     .maybeSingle();
   return (data as any)?.slug ?? '';
+}
+
+// ─── Le montant demandé à la passerelle ──────────────────────────────────────
+//
+// MonCash et NatCash encaissent des gourdes. `orders.total`, lui, est exprimé
+// dans `orders.currency` — la devise de la vitrine, recopiée par
+// `create_store_order`. Les deux routes de lancement envoyaient ce nombre tel
+// quel : une commande de 25 USD était facturée 25 gourdes, et le rappel, qui
+// comparait le montant payé à ce même total, l'acceptait.
+//
+// Une commande en USD est désormais facturée son équivalent en gourdes au taux
+// de l'entreprise (`businesses.exchange_rate`, 1 USD = X HTG). Ce montant est
+// FIGÉ au lancement dans `payment_transactions` ; le rappel compare le montant
+// payé à cette ligne, plus au total. Un seul endroit dit « combien de gourdes
+// cette commande doit rapporter ».
+
+export type GatewayCharge =
+  | { ok: true;  amount: number; orderCurrency: 'HTG' | 'USD'; exchangeRate: number | null }
+  | { ok: false; reason: string };
+
+/**
+ * Le montant en gourdes à demander pour un total exprimé dans `currency`.
+ *
+ * Arrondi EXPLICITE pour l'USD : au centime d'abord (en virgule flottante,
+ * 1,1 × 100 donne 110,00000000000001), puis à la gourde SUPÉRIEURE. Le
+ * marchand ne reçoit jamais moins que son prix en dollars — l'acheteur paie au
+ * plus une gourde de plus —, et un montant entier ne dépend pas de la façon
+ * dont chaque passerelle traite les centimes. Un total en gourdes part tel que
+ * la base l'a calculé, comme avant.
+ *
+ * Un taux ≤ 1 est refusé : `exchange_rate` vaut 1 par défaut, c'est-à-dire
+ * « jamais renseigné », et un dollar ne vaut jamais une gourde. Mieux vaut ne
+ * pas lancer le paiement que facturer 25 gourdes une commande de 25 dollars.
+ */
+export function htgChargeFor(
+  total: number | string | null,
+  currency: string | null,
+  exchangeRate: number | string | null,
+): GatewayCharge {
+  const amount = Number(total);
+  if (total == null || !Number.isFinite(amount)) {
+    return { ok: false, reason: `total illisible « ${total ?? '(absent)'} »` };
+  }
+
+  const code = String(currency ?? '').trim().toUpperCase() || 'HTG';
+  if (code === 'HTG') {
+    return { ok: true, amount, orderCurrency: 'HTG', exchangeRate: null };
+  }
+  if (code !== 'USD') {
+    return { ok: false, reason: `devise « ${currency} » non facturable en gourdes` };
+  }
+
+  const rate = Number(exchangeRate);
+  if (exchangeRate == null || !Number.isFinite(rate) || rate <= 1) {
+    return { ok: false, reason: `taux USD→HTG absent ou invalide « ${exchangeRate ?? '(absent)'} »` };
+  }
+
+  const cents = Math.round(amount * rate * 100) / 100;
+  return { ok: true, amount: Math.ceil(cents), orderCurrency: 'USD', exchangeRate: rate };
+}
+
+/**
+ * `businesses.exchange_rate` quand la devise est l'USD, `null` sinon — une
+ * commande en gourdes ne dépend d'aucun taux. Une erreur de lecture lève.
+ */
+async function exchangeRateFor(
+  currency: string | null,
+  businessId: string,
+): Promise<number | string | null> {
+  if (String(currency ?? '').trim().toUpperCase() !== 'USD') return null;
+
+  const svc = getSupabaseService();
+  const { data, error } = await svc
+    .from('businesses')
+    .select('exchange_rate')
+    .eq('id', businessId)
+    .maybeSingle();
+  if (error) throw new Error(`taux de change illisible : ${error.message}`);
+  return (data as any)?.exchange_rate ?? null;
+}
+
+/**
+ * La vitrine peut-elle être payée par passerelle ? À demander AVANT de créer
+ * la commande : une boutique en USD sans taux utilisable laisserait, à chaque
+ * essai de l'acheteur, une commande `pending` que personne ne paiera.
+ *
+ * Lit la devise là où `create_store_order` la prend (`store_settings.currency`
+ * de la vitrine active). Sans vitrine active, on laisse la création de commande
+ * le dire à l'acheteur, avec son propre message. Le montant, lui, est calculé
+ * depuis la commande créée (`prepareGatewayCharge`).
+ */
+export async function checkGatewayCurrency(
+  businessId: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const svc = getSupabaseService();
+  const { data, error } = await svc
+    .from('store_settings')
+    .select('currency')
+    .eq('business_id', businessId)
+    .eq('is_active', true)
+    .limit(1);
+  if (error) throw new Error(`devise de la vitrine illisible : ${error.message}`);
+
+  const store = (data ?? [])[0] as { currency?: string | null } | undefined;
+  if (!store) return { ok: true };
+
+  const currency = store.currency ?? null;
+  const probe = htgChargeFor(1, currency, await exchangeRateFor(currency, businessId));
+  return probe.ok ? { ok: true } : probe;
+}
+
+/**
+ * Le montant à demander à la passerelle pour une commande qui vient d'être
+ * créée — calculé depuis ce que la base a enregistré (total ET devise), puis
+ * figé dans `payment_transactions`.
+ *
+ * La ligne est une tentative `pending`, sans identifiant de transaction (la
+ * passerelle ne l'a pas encore donné) ; `raw` garde le total d'origine, sa
+ * devise et le taux appliqué. C'est elle que le rappel relit : un taux modifié
+ * par le marchand pendant que l'acheteur paie ne change pas le montant attendu.
+ *
+ * Commande en USD dont le montant n'a pas pu être figé : refus. Le rappel
+ * devrait sinon recalculer au taux du moment, et pourrait refuser un paiement
+ * légitime. En gourdes rien ne dépend d'un taux : l'échec est journalisé et le
+ * paiement part.
+ */
+export async function prepareGatewayCharge(params: {
+  orderId: string;
+  gateway: GatewayName;
+}): Promise<GatewayCharge> {
+  const svc = getSupabaseService();
+  const { data: order, error } = await svc
+    .from('orders')
+    .select('id, business_id, total, currency')
+    .eq('id', params.orderId)
+    .maybeSingle();
+  if (error) throw new Error(`[${params.gateway}] commande illisible : ${error.message}`);
+  if (!order) return { ok: false, reason: 'commande introuvable' };
+
+  const charge = htgChargeFor(
+    order.total,
+    order.currency,
+    await exchangeRateFor(order.currency, order.business_id),
+  );
+  if (!charge.ok) return charge;
+
+  const { error: freezeError } = await svc.from('payment_transactions').insert({
+    business_id: order.business_id,
+    order_id:    order.id,
+    gateway:     params.gateway,
+    amount:      charge.amount,
+    currency:    'HTG',
+    status:      'pending',
+    raw: {
+      stage:          'initiation',
+      order_total:    Number(order.total),
+      order_currency: charge.orderCurrency,
+      exchange_rate:  charge.exchangeRate,
+      rounding:       charge.orderCurrency === 'USD' ? 'cent_then_ceil_htg' : null,
+    },
+  });
+
+  if (freezeError) {
+    if (charge.orderCurrency === 'USD') {
+      return { ok: false, reason: `montant HTG non figé : ${freezeError.message}` };
+    }
+    console.error(`[${params.gateway}] tentative de paiement non enregistrée`, {
+      orderId: order.id,
+      error:   freezeError.message,
+    });
+  }
+
+  return charge;
+}
+
+export type ExpectedAmount =
+  | { ok: true;  amount: number; source: 'frozen' | 'recomputed' }
+  | { ok: false; reason: string };
+
+/**
+ * Les gourdes que le paiement de cette commande doit couvrir, pour le rappel.
+ *
+ * Le montant figé au lancement (`prepareGatewayCharge`) quand il existe. À
+ * défaut — commande lancée avant que ce montant soit figé, ou commande en
+ * gourdes dont la tentative n'a pas été enregistrée — recalculé comme au
+ * lancement. LIMITE de ce repli pour une commande en USD : il prend le taux
+ * COURANT de l'entreprise. Si le marchand l'a modifié entre le lancement et le
+ * rappel, un paiement légitime peut être refusé (taux monté) ou un paiement
+ * plus faible accepté (taux baissé, dans la limite de l'écart).
+ *
+ * Une erreur de lecture lève : ne pas savoir n'est pas une autorisation.
+ */
+export async function expectedGatewayAmount(params: {
+  order:   { id: string; business_id: string; total: number | string | null; currency: string | null };
+  gateway: GatewayName;
+}): Promise<ExpectedAmount> {
+  const svc = getSupabaseService();
+  const { data, error } = await svc
+    .from('payment_transactions')
+    .select('amount, currency')
+    .eq('order_id', params.order.id)
+    .eq('gateway', params.gateway)
+    .eq('raw->>stage', 'initiation')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`[${params.gateway}] montant figé illisible : ${error.message}`);
+
+  const frozen = (data ?? [])[0] as { amount: number | string | null; currency: string | null } | undefined;
+  const frozenAmount = Number(frozen?.amount);
+  if (
+    frozen
+    && frozen.amount != null
+    && Number.isFinite(frozenAmount)
+    && String(frozen.currency ?? '').toUpperCase() === 'HTG'
+  ) {
+    return { ok: true, amount: frozenAmount, source: 'frozen' };
+  }
+
+  const charge = htgChargeFor(
+    params.order.total,
+    params.order.currency,
+    await exchangeRateFor(params.order.currency, params.order.business_id),
+  );
+  return charge.ok ? { ok: true, amount: charge.amount, source: 'recomputed' } : charge;
+}
+
+/**
+ * Pourquoi le montant payé ne couvre pas les gourdes attendues — ou `null`.
+ * Le centime de tolérance absorbe l'arrondi d'un nombre passé en JSON ; un
+ * montant absent ou illisible vaut refus.
+ */
+export function amountShortfall(paid: unknown, expectedHtg: number): string | null {
+  const value = Number(paid);
+  if (paid == null || paid === '' || !Number.isFinite(value)) {
+    return `montant payé absent ou illisible « ${String(paid ?? '(absent)')} »`;
+  }
+  if (!Number.isFinite(expectedHtg) || value + 0.01 < expectedHtg) {
+    return `montant payé ${value} HTG < ${expectedHtg} HTG attendus`;
+  }
+  return null;
+}
+
+/**
+ * Réponse d'une route de lancement quand la commande ne peut pas être facturée
+ * en gourdes. Le `code` est celui des retours de passerelle : la page de
+ * commande affiche le même message, sans recharger — panier et formulaire
+ * restent remplis.
+ */
+export function paymentUnavailableResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: "Le paiement en ligne n'est pas disponible pour le moment dans cette boutique.",
+      code:  'payment_unavailable',
+    },
+    { status: 409 },
+  );
 }
 
 // ─── L'alerte au marchand ────────────────────────────────────────────────────

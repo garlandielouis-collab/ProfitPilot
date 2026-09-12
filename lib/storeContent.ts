@@ -129,7 +129,7 @@ const BASE: ContentPreset = {
     subtitle: "Les dernières pièces entrées en boutique. Les quantités sont réelles : quand c'est parti, c'est parti.",
     ctaLabel: 'Découvrir',
     // Relatif à la VITRINE, pas au site : la section le préfixe au rendu avec
-    // la base de routage (`storeLink`, ContentSections.tsx). Écrit « /products »
+    // la base de routage (`storeLink`, components/store/sections/storeLink.ts). Écrit « /products »
     // pour rester lisible dans l'éditeur.
     ctaHref:  '/products',
   },

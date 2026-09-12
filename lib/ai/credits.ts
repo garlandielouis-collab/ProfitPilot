@@ -31,6 +31,7 @@ import { planAiCredits } from '../planFeatures';
 import { getSupabaseService } from '../supabaseServiceClient';
 import type { PlanKey } from '../plans';
 import type { EnhancementType } from './imageEnhancer';
+import { storeResultImage } from './storeResultImage';
 
 /** Les actions facturées. Les mêmes chaînes que `ai_credit_costs.action`. */
 export type AiAction =
@@ -317,4 +318,42 @@ export async function completeImageJob(jobId: string, processedImageUrl: string)
     .select('id');
 
   return !error && !!data && data.length > 0;
+}
+
+/**
+ * Âge à partir duquel une retouche encore ouverte est tenue pour bloquée.
+ *
+ * Une retouche normale se termine en deux minutes ; à trente, le rappel s'est
+ * perdu ou le lancement n'a jamais abouti. C'est le seuil du balayage du cron
+ * quotidien (`app/api/cron/daily`), et celui à partir duquel l'interrogation du
+ * Studio croit un « introuvable » du fournisseur (`PollResult`).
+ */
+export const IMAGE_JOB_STALE_MS = 30 * 60_000;
+
+/**
+ * Rapatrie l'image rendue par le fournisseur, puis marque la retouche terminée.
+ *
+ * Image irrécupérable : échec et remboursement — plutôt qu'un travail « terminé »
+ * sur l'URL éphémère d'un fournisseur, qui expirera en silence, ou qu'un
+ * travail laissé « en cours » pour toujours.
+ *
+ * Le chemin commun du rappel, de l'interrogation du Studio et du balayage.
+ * Renvoie ce que CET appel a écrit : `unchanged` quand un autre chemin a clos
+ * le travail entre-temps. Ne lève pas.
+ */
+export async function deliverImageJob(
+  job:        { id: string; business_id: string },
+  sourceUrl:  string,
+  timeoutMs?: number,
+): Promise<'completed' | 'failed' | 'unchanged'> {
+  let stored: string;
+  try {
+    stored = await storeResultImage(sourceUrl, job.business_id, job.id, timeoutMs);
+  } catch (err) {
+    const failed = await failImageJob(job, err instanceof Error ? err.message : 'Image irrécupérable.');
+    return failed ? 'failed' : 'unchanged';
+  }
+
+  const completed = await completeImageJob(job.id, stored).catch(() => false);
+  return completed ? 'completed' : 'unchanged';
 }

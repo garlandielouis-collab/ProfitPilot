@@ -383,7 +383,14 @@ export function CheckoutClient({
         });
         const json = await res.json();
         if (!res.ok || json.error) {
-          setError(json.error ?? 'Le paiement n\'a pas pu démarrer.');
+          // Un `code` de retour connu (`payment_unavailable` : commande en USD
+          // sans taux utilisable) affiche le même message qu'au retour d'une
+          // passerelle, sans recharger la page ni vider le formulaire.
+          setError(
+            json.code
+              ? returnErrorMessage(json.code)
+              : (json.error ?? 'Le paiement n\'a pas pu démarrer.'),
+          );
           setSubmitting(false);
           return;
         }
