@@ -73,7 +73,8 @@ export async function createStore(name: string) {
       owner_id:         user.id,
       name:             name.trim(),
       default_currency: 'HTG',
-      exchange_rate:    130,
+      // Pas de taux : la base met 1, « non renseigné ». Un 130 écrit ici passait
+      // pour un taux saisi, et chaque montant en USD y était converti.
     })
     .select('id, name')
     .single();

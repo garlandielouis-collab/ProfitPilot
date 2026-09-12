@@ -510,7 +510,7 @@ export function NewPurchaseForm() {
     setSuccess('');
 
     try {
-      await savePurchase({
+      const res = await savePurchase({
         supplier_id:             supplier!.id,
         product_id:              product!.id,
         product_name:            product!.name,
@@ -523,6 +523,8 @@ export function NewPurchaseForm() {
         metadata,
         warehouse_id:            warehouse?.id,
       });
+      // Refus renvoyé (et non levé) : son message survit en production.
+      if (res !== true) throw new Error(res.error);
 
       setSuccess(t({ fr: 'Achat enregistré.', ht: 'Acha anrejistre.' }));
       // Reset form

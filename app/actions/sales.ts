@@ -89,6 +89,10 @@ function isInvoiceNumberConflict(err: any): boolean {
 
 const INVOICE_NUMBER_ATTEMPTS = 5;
 
+/** Non exporté : un fichier 'use server' n'exporte que des fonctions async. */
+const EXCHANGE_RATE_MISSING_MESSAGE =
+  "Renseignez le taux USD/HTG de l'entreprise (Paramètres) avant d'enregistrer un montant en dollars.";
+
 // ── Main action ───────────────────────────────────────────────────────────────
 
 export async function createSaleAction(input: CreateSaleInput): Promise<CreateSaleResult> {
@@ -140,7 +144,15 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   }
 
   // ── 3. Exchange rate — already cached in verifyBusinessAccess context ────
+  // Un montant en dollars ne s'enregistre qu'avec le taux saisi par le
+  // marchand : `exchangeRate` vaut 130 (repli) ou 1 (défaut de colonne) quand
+  // il ne l'a jamais renseigné, et ce taux-là finirait dans sales.exchange_rate
+  // puis dans base_debit/base_credit du journal. Refus AVANT toute écriture.
   const exchangeRate = ctx.exchangeRate;
+  const rateMissing = [{ field: 'currency', message: EXCHANGE_RATE_MISSING_MESSAGE }];
+  if (data.currency === 'USD' && !ctx.exchangeRateSet) {
+    return { success: false, errors: rateMissing };
+  }
 
   // ── 4. Check stock via warehouse_stock + products fallback ──────────────
   type StockRow = { product_id: string; variant_id: string | null; quantity: number };
@@ -151,7 +163,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
       .eq('business_id', businessId)
       .in('product_id', productIds),
     sb.from('products')
-      .select('id, stock_quantity')
+      .select('id, stock_quantity, purchase_price, currency')
       .in('id', productIds),
   ]);
 
@@ -192,6 +204,66 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
   const discountAmount = fmt2(subtotal * (data.discount_percent / 100));
   const totalAmount = fmt2(subtotal - discountAmount + data.tax_amount);
   const paidAmount = data.payment_status === 'paid' ? totalAmount : data.payment_status === 'partial' ? 0 : 0;
+
+  // ── 5b. Coût d'achat de chaque ligne, dans la devise de la vente ─────────
+  // Résolu AVANT l'insertion : une conversion impossible doit refuser la vente
+  // sans rien laisser derrière elle.
+  //
+  // sale_items.cost_price est lu tel quel par recordSaleCogs (posting.ts), qui
+  // le poste dans la devise de la vente. `products.purchase_price` est, lui,
+  // exprimé dans `products.currency` : c'est la devise choisie à côté du champ
+  // « Pri Acha » (ProductsClient), et celle que computeLandedCost (lib/margin)
+  // et l'inventaire lui attribuent. Un produit acheté en USD vendu en HTG
+  // doit donc voir son coût converti, sinon la marge brute est fausse d'un
+  // facteur ~130.
+  //
+  // `product_variants.purchase_price` n'a pas de devise et aucun écran ne le
+  // saisit : il est repris tel quel, comme avant.
+  const variantIds = data.items.filter((i) => i.variant_id).map((i) => i.variant_id!);
+  const variantCost = new Map<string, number>();
+  if (variantIds.length > 0) {
+    const { data: variants } = await sb
+      .from('product_variants')
+      .select('id, purchase_price')
+      .in('id', variantIds);
+    for (const v of variants ?? []) variantCost.set(v.id, Number(v.purchase_price ?? 0));
+  }
+
+  const productCost = new Map<string, { cost: number; currency: string }>();
+  for (const p of prodResult.data ?? []) {
+    productCost.set(p.id, {
+      cost:     Number(p.purchase_price ?? 0),
+      currency: String(p.currency ?? 'HTG').toUpperCase(),
+    });
+  }
+
+  const lineCosts: number[] = [];
+  for (const item of data.items) {
+    const fromVariant = item.variant_id ? (variantCost.get(item.variant_id) ?? 0) : 0;
+    if (fromVariant !== 0) { lineCosts.push(fromVariant); continue; }
+
+    // Pas de coût de variante : celui du produit. Sans ce repli, cost_price
+    // restait à 0 pour tout produit sans variante, l'écriture de coût des
+    // ventes était sautée et la marge brute égalait le chiffre d'affaires.
+    const prod = productCost.get(item.product_id);
+    if (!prod || !prod.cost || prod.currency === data.currency) {
+      lineCosts.push(prod?.cost ?? 0);
+      continue;
+    }
+    if (prod.currency !== 'HTG' && prod.currency !== 'USD') {
+      // Devise inconnue : aucun coût plutôt qu'un coût deviné (recordSaleCogs
+      // saute alors l'écriture au lieu de fausser la marge).
+      lineCosts.push(0);
+      continue;
+    }
+    if (!ctx.exchangeRateSet) {
+      return { success: false, errors: rateMissing };
+    }
+    const converted = prod.currency === 'USD'
+      ? prod.cost * exchangeRate   // coût USD → vente HTG
+      : prod.cost / exchangeRate;  // coût HTG → vente USD
+    lineCosts.push(parseFloat(converted.toFixed(4)));
+  }
 
   // ── 6. Insert sale ───────────────────────────────────────────────────────
   const firstRank = await nextInvoiceRank(sb, businessId);
@@ -245,7 +317,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
 
   // ── 7. Insert sale_items ─────────────────────────────────────────────────
   const multiplier = 1 - data.discount_percent / 100;
-  const saleItems = data.items.map((item) => ({
+  const saleItems = data.items.map((item, idx) => ({
     sale_id:          saleId,
     business_id:      businessId,
     product_id:       item.product_id,
@@ -254,39 +326,13 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     sku:              item.sku ?? null,
     quantity:         item.quantity,
     unit_price:       item.unit_price,
-    cost_price:       0, // will be updated from product_variants below
+    cost_price:       lineCosts[idx] ?? 0, // déjà dans la devise de la vente (5b)
     discount_percent: item.discount_percent,
     line_total:       fmt2(item.unit_price * item.quantity * multiplier),
     tax_rate:         item.tax_rate,
     tax_amount:       fmt2(item.unit_price * item.quantity * (item.tax_rate / 100)),
     currency:         data.currency,
   }));
-
-  // Fetch purchase_price for each variant
-  const variantIds = data.items.filter((i) => i.variant_id).map((i) => i.variant_id!);
-  if (variantIds.length > 0) {
-    const { data: variants } = await sb
-      .from('product_variants')
-      .select('id, purchase_price')
-      .in('id', variantIds);
-    const priceMap = new Map((variants ?? []).map((v: any) => [v.id, Number(v.purchase_price ?? 0)]));
-    for (const si of saleItems) {
-      if (si.variant_id) si.cost_price = priceMap.get(si.variant_id) ?? 0;
-    }
-  }
-
-  // Fall back to the product's own cost when the line carries no variant. Without
-  // this, cost_price stayed 0 for every variant-less product: the COGS entry was
-  // skipped and gross margin came out equal to revenue.
-  const missingCost = saleItems.filter((si) => si.cost_price === 0 && si.product_id);
-  if (missingCost.length > 0) {
-    const { data: prods } = await sb
-      .from('products')
-      .select('id, purchase_price')
-      .in('id', missingCost.map((si) => si.product_id));
-    const prodCost = new Map((prods ?? []).map((p: any) => [p.id, Number(p.purchase_price ?? 0)]));
-    for (const si of missingCost) si.cost_price = prodCost.get(si.product_id) ?? 0;
-  }
 
   const { error: siErr } = await sb.from('sale_items').insert(saleItems);
   if (siErr) {

@@ -163,6 +163,10 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       // Un commerce supprimé ne redevient pas actif parce qu'un vieux cookie
       // le désigne encore.
       .is('deleted_at', null)
+      // Ni un commerce archivé : l'écran (company.ts) l'écarte déjà. Sans ce
+      // filtre, la page affichait une entreprise et les actions écrivaient
+      // dans celle, archivée, que désignait encore le cookie.
+      .is('archived_at', null)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
@@ -184,6 +188,10 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       .select('id, owner_id, exchange_rate, default_currency')
       .eq('owner_id', userId)
       .is('deleted_at', null)
+      // Les commerces actifs d'abord. Un compte dont TOUS les commerces sont
+      // archivés retombe sur l'un d'eux plutôt que de s'en voir créer un
+      // nouveau en silence (plus bas, `!biz` crée une entreprise).
+      .order('archived_at', { ascending: true, nullsFirst: true })
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -194,7 +202,7 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   async function getMemberBusiness() {
     const { data, error } = await supabase
       .from('business_members')
-      .select('businesses (id, owner_id, exchange_rate, default_currency)')
+      .select('businesses (id, owner_id, exchange_rate, default_currency, archived_at, deleted_at)')
       .eq('user_id', userId)
       .eq('is_active', true)
       .is('deleted_at', null)
@@ -202,10 +210,17 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
       // ancienne. Sans tri, `limit(1)` renvoyait une ligne au hasard — et donc
       // potentiellement un commerce différent d'une session à l'autre.
       .order('joined_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      // Quelques adhésions au plus : on les lit pour préférer un commerce actif
+      // (non archivé, non supprimé), et ne retomber sur un archivé qu'à défaut.
+      .limit(20);
     if (error) throw new Error(error.message);
-    return data?.businesses ?? null;
+    const joined = (data ?? [])
+      .map((m: any) => (Array.isArray(m.businesses) ? m.businesses[0] : m.businesses))
+      .filter((b: any) => b && !b.deleted_at);
+    const pick = joined.find((b: any) => !b.archived_at) ?? joined[0] ?? null;
+    if (!pick) return null;
+    const { archived_at: _a, deleted_at: _d, ...biz } = pick;
+    return biz as { id: string; owner_id: string; exchange_rate: number | null; default_currency: string | null };
   }
 
   let biz = null;
@@ -262,7 +277,8 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
         owner_id:         userId,
         name:             user.user_metadata?.business_name ?? user.user_metadata?.full_name ?? 'Mon Entreprise',
         default_currency: 'HTG',
-        exchange_rate:    130,
+        // Pas de exchange_rate : la colonne vaut 1 par défaut, soit « non
+        // renseigné ». Écrire 130 ici le faisait passer pour un taux saisi.
       })
       .select('id, exchange_rate, default_currency')
       .single();

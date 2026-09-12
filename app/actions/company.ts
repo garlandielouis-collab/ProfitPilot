@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { getPreviewPlanServer } from '../../lib/planPreviewServer';
 import { resolvePlanKey } from '../../lib/trial';
+import { isExchangeRateSet } from '../../lib/currency';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -322,7 +323,9 @@ export async function createCompany(input: CreateCompanyInput): Promise<{ id: st
         name:             input.name.trim(),
         sector:           input.sector ?? null,
         default_currency: input.defaultCurrency ?? 'HTG',
-        exchange_rate:    input.exchangeRate ?? 130,
+        // Seulement un taux réellement saisi. Sinon la colonne garde son
+        // défaut (1 = « non renseigné ») au lieu d'un 130 inventé.
+        ...(isExchangeRateSet(input.exchangeRate) ? { exchange_rate: input.exchangeRate } : {}),
         country:          input.country ?? 'Haiti',
         timezone:         input.timezone ?? 'America/Port-au-Prince',
         email:            input.email ?? null,

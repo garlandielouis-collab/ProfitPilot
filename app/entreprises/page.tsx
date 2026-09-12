@@ -43,17 +43,25 @@ type FormData = {
   email: string; phone: string; address: string; taxId: string;
 };
 
+// Taux vide : c'est au marchand de le saisir. Un 130 pré-rempli était
+// enregistré comme s'il l'avait tapé.
 const EMPTY_FORM: FormData = {
-  name: '', sector: '', defaultCurrency: 'HTG', exchangeRate: '130',
+  name: '', sector: '', defaultCurrency: 'HTG', exchangeRate: '',
   country: 'Haiti', timezone: 'America/Port-au-Prince',
   email: '', phone: '', address: '', taxId: '',
 };
+
+/** Taux saisi (> 1), ou `undefined` : rien n'est alors écrit en base. */
+function parseRate(v: string): number | undefined {
+  const n = parseFloat(v);
+  return Number.isFinite(n) && n > 1 ? n : undefined;
+}
 
 function toInput(f: FormData): CreateCompanyInput {
   return {
     name: f.name, sector: f.sector || undefined,
     defaultCurrency: f.defaultCurrency,
-    exchangeRate: parseFloat(f.exchangeRate) || 130,
+    exchangeRate: parseRate(f.exchangeRate),
     country: f.country || 'Haiti',
     timezone: f.timezone || 'America/Port-au-Prince',
     email: f.email || undefined, phone: f.phone || undefined,
@@ -65,7 +73,8 @@ function fromRow(r: CompanyRow): FormData {
   return {
     name: r.name, sector: r.sector ?? '',
     defaultCurrency: r.defaultCurrency,
-    exchangeRate: String(r.exchangeRate),
+    // 1 = défaut de colonne, jamais renseigné : champ vide plutôt que « 1 ».
+    exchangeRate: r.exchangeRate > 1 ? String(r.exchangeRate) : '',
     country: r.country, timezone: r.timezone,
     email: r.email ?? '', phone: r.phone ?? '',
     address: r.address ?? '', taxId: r.taxId ?? '',
@@ -154,7 +163,7 @@ function CompanyModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-slate-400">Taux de change (HTG/USD)</label>
-              <input {...field('exchangeRate')} type="number" min="1" step="0.01"
+              <input {...field('exchangeRate')} type="number" min="1" step="0.01" placeholder="ex. 131.50"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-primary/40" />
             </div>
             <div>

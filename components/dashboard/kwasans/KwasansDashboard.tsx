@@ -38,6 +38,7 @@ import {
 } from '../shared';
 import { deltaPercent } from '../range';
 import { buildPriorities, kpiFormula, pilotSay } from '../narrative';
+import { unconvertedNotice } from '../../../lib/currency';
 import type { GoalEditor } from '../shared/GoalProgress';
 import { upsertGoal } from '../../../app/actions/goals';
 import { GOAL_LABELS, type GoalMetric } from '../../../lib/goals';
@@ -63,6 +64,9 @@ export function KwasansDashboard({ state, userName }: { state: DashboardState; u
   const currency = core?.currency ?? 'HTG';
   const finance  = core?.finance ?? null;
   const baseline = core?.baseline ?? null;
+  // Montants restés hors des totaux faute de taux saisi. Le lot des modules ne
+  // compte que ses propres documents (produits, commandes) : pas de doublon.
+  const fxMissing = (core?.unconvertedCount ?? 0) + (modules?.unconvertedCount ?? 0);
 
   const level = dashboardLevel(planKey);
   const ctx   = { level, can, canUse };
@@ -323,6 +327,21 @@ export function KwasansDashboard({ state, userName }: { state: DashboardState; u
           disparaître de l'écran. Elle se place avant les indicateurs parce
           qu'elle périme les indicateurs. */}
       {canUse('rate_alerts') && <RateAlertBanner />}
+
+      {/* Des montants dans l'autre devise sont restés hors des totaux, faute
+          de taux saisi : les indicateurs qui suivent sont incomplets. */}
+      {fxMissing > 0 && (
+        <AlertCard
+          items={[{
+            id: 'fx-rate-missing',
+            tone: 'warning',
+            text: t(unconvertedNotice(fxMissing, currency)),
+            action: t({ fr: 'Renseigner le taux', ht: 'Mete to a' }),
+            href: '/settings',
+          }]}
+          allClearLabel=""
+        />
+      )}
 
       {/* ── §14 · CINQ KPI, chacun une porte ─────────────────────────────── */}
       {loadingCore && !core ? (

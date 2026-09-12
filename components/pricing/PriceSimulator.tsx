@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { simulateProductPrice, type PriceSimulation } from '../../app/actions/profitability';
@@ -85,6 +86,17 @@ export function PriceSimulator({ productId }: { productId: string }) {
             </button>
           ))}
         </div>
+
+        {/* Sans taux saisi, un produit acheté ou vendu dans une autre devise
+            que celle de l'entreprise ne se projette pas : aucun scénario. */}
+        {(data.unconvertedCount ?? 0) > 0 && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+            Simulation indisponible : taux de change manquant pour ramener ce produit dans la devise de l’entreprise.{' '}
+            <Link href="/settings" className="font-semibold underline underline-offset-2">
+              Renseigner le taux
+            </Link>
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {data.scenarios.map((s) => {

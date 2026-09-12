@@ -37,6 +37,7 @@ import {
   type AlertItem,
 } from '../shared';
 import { deltaPercent } from '../range';
+import { unconvertedNotice } from '../../../lib/currency';
 import { buildPriorities, kpiFormula, pilotSay } from '../narrative';
 import type { DashboardState } from '../useDashboard';
 
@@ -112,6 +113,18 @@ export function EsansyelDashboard({ state, userName }: { state: DashboardState; 
         }),
         action: t({ fr: 'Voir', ht: 'Gade' }),
         href: '/creances',
+      });
+    }
+    // Les totaux ci-dessus sont incomplets : des montants dans l'autre devise
+    // en sont restés dehors, faute de taux saisi. Le marchand doit le savoir.
+    const unconverted = core.unconvertedCount ?? 0;
+    if (unconverted > 0) {
+      list.push({
+        id: 'fx-rate-missing',
+        tone: 'warning',
+        text: t(unconvertedNotice(unconverted, core.currency)),
+        action: t({ fr: 'Renseigner le taux', ht: 'Mete to a' }),
+        href: '/settings',
       });
     }
     return list;

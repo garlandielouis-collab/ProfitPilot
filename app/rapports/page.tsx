@@ -12,6 +12,7 @@ import { WeeklyDigestCard } from '../../components/reports/WeeklyDigestCard';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { getReportsDataAction, type ReportPeriod } from '../actions/reports';
+import { unconvertedNotice } from '../../lib/currency';
 import { Button, FirstRun, NoResult } from '../../components/ds';
 
 import IncomeStatement,   { type IncomeStatementData }  from '../../components/reports/IncomeStatement';
@@ -133,6 +134,8 @@ function RapportsPage() {
   // jamais rien enregistré — de l'exercice sans activité, où il suffit de
   // changer d'année. Deux écrans vides, deux messages, deux sorties.
   const [hasAny, setHasAny] = useState(true);
+  // Documents restés hors des montants faute de taux de change saisi.
+  const [unconverted, setUnconverted] = useState(0);
 
   // ── Print portal always mounted — no race condition ────────────────────────
   // Portal is a direct <body> child (#pp-print-root) so the CSS rule
@@ -165,6 +168,7 @@ function RapportsPage() {
         setCompanyTaxId(  d.businessTaxId   ?? '');
 
         setHasAny(d.hasAnyData);
+        setUnconverted(d.hasRealData ? (d.unconvertedCount ?? 0) : 0);
 
         if (d.hasRealData) {
           setIncomeData(d.income);
@@ -183,6 +187,7 @@ function RapportsPage() {
       })
       .catch(() => {
         if (cancelled) return;
+        setUnconverted(0);
         // Une requête qui échoue ne prouve pas que le compte est vide : on
         // n'invente rien, on ne conclut rien, on n'affiche aucun état.
         setIncomeData(null);
@@ -270,6 +275,18 @@ function RapportsPage() {
               <KpiCard label={t({ fr: 'Résultat net', ht: 'Rezilta nèt' })}        value={htg(kpi.netProfit, currency)} sub={periodLabel} color={kpi.netProfit >= 0 ? 'green' : 'red'} />
               <KpiCard label={t({ fr: 'Trésorerie totale', ht: 'Trezoreri total' })}  value={htg(kpi.cashTotal, currency)} sub={t({ fr: 'Disponible', ht: 'Disponib' })}                             color="blue"  />
             </div>
+          )}
+
+          {/* Un montant dans l'autre devise n'entre dans les états qu'au taux
+              saisi par le marchand. Sans taux, il en sort : le dire. */}
+          {hasReport && unconverted > 0 && (
+            <p className="text-note text-muted">
+              {t(unconvertedNotice(unconverted, currency))}
+              {' · '}
+              <Link href="/settings" className="font-semibold text-primary underline underline-offset-2">
+                {t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}
+              </Link>
+            </p>
           )}
 
           {/* ── Rapport hebdo WhatsApp (Bonus 1) + dossier crédit (Bonus 5) ── */}

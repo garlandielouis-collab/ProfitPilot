@@ -21,6 +21,7 @@ import {
   type ProductRanking,
   type ProfitabilityReport,
 } from '../../app/actions/profitability';
+import { unconvertedNotice } from '../../lib/currency';
 
 const fmt = (n: number, currency: string): string =>
   `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
@@ -137,6 +138,18 @@ export function ProfitabilityTable() {
           sub={dormant.length > 0 ? 'Pwodwi nan stock ki pa janm vann' : 'Anyen bloke nan stock la'}
         />
       </div>
+
+      {/* Les montants ci-dessus laissent de côté les ventes dans l'autre devise
+          tant que le taux n'est pas saisi : le dire, et dire où le saisir. */}
+      {(report.unconvertedCount ?? 0) > 0 && (
+        <p className="text-note text-slate-500">
+          {unconvertedNotice(report.unconvertedCount ?? 0, report.currency).ht}
+          {' · '}
+          <Link href="/settings" className="font-semibold underline underline-offset-2">
+            Mete to a
+          </Link>
+        </p>
+      )}
 
       {toCut.length > 0 && (
         <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">

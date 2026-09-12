@@ -8,6 +8,7 @@ import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { recordDebtPayment } from '../actions/debts';
 import { markCustomerCreditPaid } from '../actions/customers';
 import { markExpensePaid } from '../actions/expenses';
+import { isExchangeRateSet } from '../../lib/currency';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,14 @@ function fmtDate(iso: string) {
 function fmtAmt(n: number, currency = 'HTG') {
   return new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
     .format(n) + ' ' + currency;
+}
+
+/**
+ * 1 USD = taux HTG, ou `null` si le marchand ne l'a pas saisi. Ni NULL ni 1
+ * (défaut de la colonne) ne sont un taux : pas de repli inventé.
+ */
+function rateOf(raw: unknown): number | null {
+  return isExchangeRateSet(raw) ? Number(raw) : null;
 }
 
 function waLink(phone: string | null, message: string): string | null {
@@ -234,7 +243,8 @@ function DettesInner() {
 
   // ── Business context ──────────────────────────────────────────────────────────
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const [exchangeRate, setExchangeRate] = useState(130);
+  // 1 USD = `exchangeRate` HTG, ou `null` sans taux saisi (voir `rateOf`).
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
 
   const getBusinessId = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -243,7 +253,7 @@ function DettesInner() {
     const activeStore = cookieMatch ? cookieMatch[1] : null;
     if (activeStore) {
       const { data: activeBiz } = await supabase.from('businesses').select('id, exchange_rate').eq('id', activeStore).maybeSingle();
-      if (activeBiz) { setBusinessId(activeBiz.id); setExchangeRate(Number(activeBiz.exchange_rate ?? 130)); return activeBiz.id; }
+      if (activeBiz) { setBusinessId(activeBiz.id); setExchangeRate(rateOf(activeBiz.exchange_rate)); return activeBiz.id; }
     }
     const { data: biz } = await supabase
       .from('businesses')
@@ -255,14 +265,14 @@ function DettesInner() {
       .maybeSingle();
     if (biz) {
       setBusinessId(biz.id);
-      setExchangeRate(Number(biz.exchange_rate ?? 130));
+      setExchangeRate(rateOf(biz.exchange_rate));
       return biz.id;
     }
     // Fallback: check membership
     const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user.id).eq('is_active', true).maybeSingle();
     if (member?.business_id) {
       const { data: mb } = await supabase.from('businesses').select('id, exchange_rate').eq('id', member.business_id).maybeSingle();
-      if (mb) { setBusinessId(mb.id); setExchangeRate(Number(mb.exchange_rate ?? 130)); return mb.id; }
+      if (mb) { setBusinessId(mb.id); setExchangeRate(rateOf(mb.exchange_rate)); return mb.id; }
     }
     return null;
   }, []);
@@ -274,7 +284,7 @@ function DettesInner() {
       .select('exchange_rate')
       .eq('id', businessId)
       .maybeSingle();
-    if (bizRes?.exchange_rate) setExchangeRate(Number(bizRes.exchange_rate));
+    if (bizRes) setExchangeRate(rateOf(bizRes.exchange_rate));
   }, [businessId]);
 
   // Auto-refresh exchange rate every 60s + on tab visibility change
@@ -503,11 +513,24 @@ function DettesInner() {
     return rows;
   }, [clientCredits, creditStatus, creditCritOnly, creditSearch]);
 
-  // Summary numbers (all converted to HTG for the top stat cards)
-  const toHtg = (amt: number, cur: string) => (cur === 'USD' ? amt * exchangeRate : amt);
-  const totalDebtUnpaid    = useMemo(() => supplierDebts.filter(d => d.payment_status === 'À Crédit').reduce((s, d) => s + toHtg(d.amount, d.currency), 0), [supplierDebts, exchangeRate]);
-  const totalCreditUnpaid  = useMemo(() => clientCredits.filter(c => c.payment_status === 'À Crédit').reduce((s, c) => s + toHtg(c.amount, c.currency), 0), [clientCredits, exchangeRate]);
-  const totalExpenseUnpaid = useMemo(() => expenseDebts.filter(e => e.payment_status === 'À Crédit').reduce((s, e) => s + toHtg(e.amount, e.currency), 0), [expenseDebts, exchangeRate]);
+  // Totaux des cartes et des pieds de section, en HTG. Un montant en USD n'y
+  // entre qu'au taux SAISI par le marchand : sans taux, le total qui en contient
+  // vaut `null` et s'affiche « … », plutôt qu'un chiffre à un taux inventé.
+  // Chaque ligne du tableau garde son montant dans sa propre devise.
+  const sumHtg = (rows: Array<{ amount: number; currency: string }>): number | null => {
+    let total = 0;
+    for (const r of rows) {
+      if (r.currency !== 'USD' || !r.amount) { total += r.amount; continue; }
+      if (exchangeRate === null) return null;
+      total += r.amount * exchangeRate;
+    }
+    return total;
+  };
+  const totalDebtUnpaid    = useMemo(() => sumHtg(supplierDebts.filter(d => d.payment_status === 'À Crédit')), [supplierDebts, exchangeRate]);
+  const totalCreditUnpaid  = useMemo(() => sumHtg(clientCredits.filter(c => c.payment_status === 'À Crédit')), [clientCredits, exchangeRate]);
+  const totalExpenseUnpaid = useMemo(() => sumHtg(expenseDebts.filter(e => e.payment_status === 'À Crédit')), [expenseDebts, exchangeRate]);
+  const fmtTotal = (n: number | null) => (n === null ? '…' : fmtAmt(n));
+  const rateMissing = totalDebtUnpaid === null || totalCreditUnpaid === null || totalExpenseUnpaid === null;
   const critDebts   = useMemo(() => supplierDebts.filter(d => d.etat === 'Critique' && d.payment_status === 'À Crédit').length, [supplierDebts]);
   const critCredits = useMemo(() => clientCredits.filter(c => c.etat === 'Critique' && c.payment_status === 'À Crédit').length, [clientCredits]);
   const critExpenses = useMemo(() => expenseDebts.filter(e => e.etat === 'Critique' && e.payment_status === 'À Crédit').length, [expenseDebts]);
@@ -528,16 +551,30 @@ function DettesInner() {
         </div>
 
         {/* ── Stat Cards ──────────────────────────────────────────────────────── */}
+        {/* Sans taux saisi, les totaux qui contiennent des dollars restent en
+            « … » : le dire, et dire où le saisir. */}
+        {rateMissing && (
+          <p className="text-xs text-[var(--color-muted)]">
+            {t({
+              fr: 'Taux de change non renseigné : les totaux qui contiennent des montants en USD ne sont pas calculés.',
+              ht: 'To chanj la pa ranpli : total ki gen montan an USD pa kalkile.',
+            })}{' '}
+            <Link href="/settings" className="font-semibold underline underline-offset-2 hover:text-[var(--color-text)]">
+              {t({ fr: 'Renseigner le taux', ht: 'Mete to a' })}
+            </Link>
+          </p>
+        )}
+
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <StatCard label={t({ fr: 'Dettes Fournisseurs', ht: 'Dèt Founisè' })} value={fmtAmt(totalDebtUnpaid)}
+          <StatCard label={t({ fr: 'Dettes Fournisseurs', ht: 'Dèt Founisè' })} value={fmtTotal(totalDebtUnpaid)}
             accent="text-orange-400" glow="bg-orange-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>}
           />
-          <StatCard label={t({ fr: 'Créances Clients', ht: 'Kreyans Kliyan' })} value={fmtAmt(totalCreditUnpaid)}
+          <StatCard label={t({ fr: 'Créances Clients', ht: 'Kreyans Kliyan' })} value={fmtTotal(totalCreditUnpaid)}
             accent="text-blue-400" glow="bg-blue-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>}
           />
-          <StatCard label={t({ fr: 'Dépenses Dues', ht: 'Depans Dite' })} value={fmtAmt(totalExpenseUnpaid)}
+          <StatCard label={t({ fr: 'Dépenses Dues', ht: 'Depans Dite' })} value={fmtTotal(totalExpenseUnpaid)}
             accent="text-violet-400" glow="bg-violet-500"
             icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>}
           />
@@ -698,7 +735,7 @@ function DettesInner() {
 
           {/* Section footer */}
           <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-orange-400 font-semibold">{fmtAmt(totalDebtUnpaid)}</span></span>
+            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-orange-400 font-semibold">{fmtTotal(totalDebtUnpaid)}</span></span>
             <span>{t({ fr: 'Critique:', ht: 'Critique:' })} <span className="text-red-400 font-semibold">{critDebts}</span></span>
             <span>{t({ fr: 'Attention:', ht: 'Atansyon:' })} <span className="text-orange-400 font-semibold">{supplierDebts.filter(d => d.etat === 'Atansyon' && d.payment_status === 'À Crédit').length}</span></span>
           </div>
@@ -825,7 +862,7 @@ function DettesInner() {
           </div>
 
           <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-violet-400 font-semibold">{fmtAmt(totalExpenseUnpaid)}</span></span>
+            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-violet-400 font-semibold">{fmtTotal(totalExpenseUnpaid)}</span></span>
             <span>{t({ fr: 'Critique:', ht: 'Critique:' })} <span className="text-red-400 font-semibold">{critExpenses}</span></span>
             <span>{t({ fr: 'Attention:', ht: 'Atansyon:' })} <span className="text-orange-400 font-semibold">{expenseDebts.filter(e => e.etat === 'Atansyon' && e.payment_status === 'À Crédit').length}</span></span>
           </div>
@@ -985,7 +1022,7 @@ function DettesInner() {
 
           {/* Section footer */}
           <div className="border-t border-[var(--color-border)] px-5 py-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-blue-400 font-semibold">{fmtAmt(totalCreditUnpaid)}</span></span>
+            <span>{t({ fr: 'Total en attente:', ht: 'Total annatant:' })} <span className="text-blue-400 font-semibold">{fmtTotal(totalCreditUnpaid)}</span></span>
             <span>{t({ fr: 'Critique:', ht: 'Critique:' })} <span className="text-red-400 font-semibold">{critCredits}</span></span>
             <span>{t({ fr: 'Attention:', ht: 'Atansyon:' })} <span className="text-orange-400 font-semibold">{clientCredits.filter(c => c.etat === 'Atansyon' && c.payment_status === 'À Crédit').length}</span></span>
           </div>

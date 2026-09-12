@@ -34,12 +34,13 @@ import { Button, Card, FirstRun, Money, Stack } from '../../ds';
 import { RateAlertBanner } from '../../pilotage/RateAlertBanner';
 import { dashboardLevel, moduleEnabled } from '../../../lib/dashboardLevel';
 import {
-  DailyBrief, DashboardHeader, ExecutiveSummary, ForecastChart, GoalProgress,
+  AlertCard, DailyBrief, DashboardHeader, ExecutiveSummary, ForecastChart, GoalProgress,
   HealthScore, InsightCard, ModuleSection, RecommendationList, SkeletonKpis,
   TopProducts, TrendChart,
   type GoalRow, type HealthDimension, type SummaryItem,
 } from '../shared';
 import { deltaPercent } from '../range';
+import { unconvertedNotice } from '../../../lib/currency';
 import { forecastNext, MIN_MONTHS } from '../forecast';
 import {
   buildDailyBrief, buildOpportunities, buildPriorities, kpiFormula, pilotSay,
@@ -70,6 +71,9 @@ export function ElitDashboard({ state, userName }: { state: DashboardState; user
   const currency = core?.currency ?? 'HTG';
   const finance  = core?.finance ?? null;
   const baseline = core?.baseline ?? null;
+  // Montants restés hors des totaux faute de taux saisi. Le lot des modules ne
+  // compte que ses propres documents (produits, commandes) : pas de doublon.
+  const fxMissing = (core?.unconvertedCount ?? 0) + (modules?.unconvertedCount ?? 0);
 
   const level = dashboardLevel(planKey);
   const ctx   = { level, can, canUse };
@@ -304,6 +308,21 @@ export function ElitDashboard({ state, userName }: { state: DashboardState; user
           gourde/dollar bouge, la marge d'hier n'est plus celle d'aujourd'hui.
           Une prévision posée sur un taux périmé serait une prévision fausse. */}
       {canUse('rate_alerts') && <RateAlertBanner />}
+
+      {/* Des montants dans l'autre devise sont restés hors des totaux, faute
+          de taux saisi : le brief et les indicateurs qui suivent sont incomplets. */}
+      {fxMissing > 0 && (
+        <AlertCard
+          items={[{
+            id: 'fx-rate-missing',
+            tone: 'warning',
+            text: t(unconvertedNotice(fxMissing, currency)),
+            action: t({ fr: 'Renseigner le taux', ht: 'Mete to a' }),
+            href: '/settings',
+          }]}
+          allClearLabel=""
+        />
+      )}
 
       {/* ── §40 · DAILY BRIEF — l'état du commerce en 15 secondes ────────── */}
       <DailyBrief lines={brief} loading={loadingCore && !core} />

@@ -163,7 +163,9 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
     address:          '',
     website:          '',
     tax_id:           '',
-    exchange_rate:    130,
+    // 1 = « non renseigné » (valeur par défaut de la colonne). 130 pré-rempli
+    // était enregistré tel quel au premier « Enregistrer », comme un vrai taux.
+    exchange_rate:    1,
     default_currency: 'HTG',
   });
   const [rateLoading, setRateLoading] = useState(false);
@@ -179,7 +181,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
         address:          dbData.address          ?? '',
         website:          dbData.website          ?? '',
         tax_id:           dbData.tax_id           ?? '',
-        exchange_rate:    Number(dbData.exchange_rate ?? 130),
+        exchange_rate:    Number(dbData.exchange_rate ?? 1),
         default_currency: (dbData.default_currency as 'HTG' | 'USD') ?? 'HTG',
       });
     }
@@ -286,11 +288,18 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
           <div>
             <Label>{t({ fr: 'Taux USD → HTG', ht: 'To USD → HTG' })}</Label>
             <div className="flex gap-2">
+              {/* Un taux ≤ 1 n'est pas un taux : champ vide. Vidé, il repart à 1
+                  (« non renseigné ») pour que le reste du profil s'enregistre. */}
               <Input
                 type="number"
                 step="0.01"
-                value={form.exchange_rate}
-                onChange={(e) => setForm(prev => ({ ...prev, exchange_rate: Number(e.target.value) }))}
+                min="0"
+                placeholder={t({ fr: 'ex. 131.50', ht: 'egz. 131.50' })}
+                value={Number(form.exchange_rate) > 1 ? form.exchange_rate : ''}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setForm(prev => ({ ...prev, exchange_rate: Number.isFinite(v) && v > 0 ? v : 1 }));
+                }}
               />
               <button
                 type="button"
@@ -350,7 +359,9 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
         <button
           type="button"
           onClick={handleSave}
-          disabled={profile.mutation.isPending}
+          // Pas avant d'avoir lu le profil : le formulaire vide écrasait sinon
+          // le vrai nom et le vrai taux de l'entreprise.
+          disabled={profile.mutation.isPending || !dbData}
           className="flex items-center gap-2 rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink shadow-lg shadow-emerald-500/20 hover:bg-accent-h transition disabled:opacity-50"
         >
           <Save className="h-4 w-4" />

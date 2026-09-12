@@ -32,6 +32,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { makeToReport, type ReportFx } from '../../lib/currency';
 import { getActivePlanKey } from '../../lib/entitlements';
 import { planHasFeature } from '../../lib/planFeatures';
 import { roleHasPermission } from '../../lib/rbac';
@@ -141,6 +142,12 @@ export type DashboardCore = {
     hasStore: boolean;
     monthsOfHistory: number;
   };
+  /**
+   * Documents (vente, dépense, achat…) dont un montant est resté hors des
+   * totaux ci-dessus : autre devise, taux de change non saisi. Un document est
+   * compté une fois. Optionnel : absent d'un socle mis en cache avant.
+   */
+  unconvertedCount?: number;
 };
 
 export type MonthlyPoint = {
@@ -218,6 +225,12 @@ export type DashboardModules = {
   customers: CustomerIntel | null;
   team: TeamIntel | null;
   store: StoreIntel | null;
+  /**
+   * Produits et commandes dont un montant est resté hors des totaux du lot :
+   * autre devise, taux non saisi. Les ventes et créances que le socle compte
+   * déjà sont exclues ici aussi, mais pas recomptées. Optionnel.
+   */
+  unconvertedCount?: number;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,15 +282,29 @@ function bucketKey(date: Date, bucket: DashboardRangeInput['bucket']): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Le taux du jour de l'entreprise, appliqué une fois pour toutes. */
-function converter(rate: number, report: 'HTG' | 'USD') {
-  return (amount: number, currency: string | null | undefined): number => {
-    const c = (currency ?? report).toUpperCase();
-    if (c === report) return num(amount);
-    if (report === 'HTG' && c === 'USD') return num(amount) * rate;
-    if (report === 'USD' && c === 'HTG') return num(amount) / rate;
-    return num(amount);
+/**
+ * Le convertisseur d'un lot, vers la devise de l'entreprise, au taux SAISI par
+ * le marchand (`makeToReport`). Jamais de taux de repli : un montant
+ * inconvertible renvoie `null` et son document (`key`) est noté, pour dire que
+ * le total est incomplet. `key` à `null` : exclure sans compter, parce que
+ * l'autre lot compte déjà ce document.
+ */
+function reportConverter(fx: ReportFx) {
+  const convert = makeToReport(fx);
+  const unconverted = new Set<string>();
+  const toReport = (
+    amount: unknown, currency: string | null | undefined, key: string | null,
+  ): number | null => {
+    const n = num(amount);
+    if (n === 0) return 0;
+    const v = convert(n, currency);
+    if (v === null && key !== null) unconverted.add(key);
+    return v;
   };
+  /** Pour une somme : l'inconvertible y entre pour 0, et reste compté. */
+  const add = (amount: unknown, currency: string | null | undefined, key: string | null): number =>
+    toReport(amount, currency, key) ?? 0;
+  return { toReport, add, unconverted };
 }
 
 /** La date d'un mouvement, quelle que soit la colonne qui la porte. */
@@ -305,7 +332,7 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
     return null;
   }
 
-  const { supabase, businessId, exchangeRate, defaultCurrency, role } = ctx;
+  const { supabase, businessId, defaultCurrency, role } = ctx;
   const planKey = await getActivePlanKey();
   const level   = dashboardLevel(planKey);
 
@@ -322,7 +349,9 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
 
   const { from, to, bucket } = input;
   const base = input.baseline ?? shiftBack(from, to);
-  const toReport = converter(num(exchangeRate) || 130, defaultCurrency);
+  // Période ET base de comparaison : un montant exclu de la base fausse la
+  // variation affichée, il est donc compté aussi.
+  const { toReport, add, unconverted } = reportConverter(ctx);
 
   const salesCols = 'id, sale_date, total_amount, paid_amount, balance_due, currency, payment_status, customer_id, created_by';
 
@@ -358,30 +387,30 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
     // chiffre d'affaires en additionnant le classement des produits.
     seesFinance
       ? supabase.from('sale_items')
-          .select('product_id, product_name, quantity, line_total, cost_price, currency, sales!inner(business_id, sale_date, deleted_at)')
+          .select('sale_id, product_id, product_name, quantity, line_total, cost_price, currency, sales!inner(business_id, sale_date, deleted_at)')
           .eq('sales.business_id', businessId).is('sales.deleted_at', null)
           .gte('sales.sale_date', from).lte('sales.sale_date', to)
       : Promise.resolve({ data: [] }),
     seesFinance
       ? supabase.from('sale_items')
-          .select('quantity, line_total, cost_price, currency, sales!inner(business_id, sale_date, deleted_at)')
+          .select('sale_id, quantity, line_total, cost_price, currency, sales!inner(business_id, sale_date, deleted_at)')
           .eq('sales.business_id', businessId).is('sales.deleted_at', null)
           .gte('sales.sale_date', base.from).lte('sales.sale_date', base.to)
       : Promise.resolve({ data: [] }),
 
     seesFinance
-      ? supabase.from('expenses').select('amount, currency, expense_date, payment_status')
+      ? supabase.from('expenses').select('id, amount, currency, expense_date, payment_status')
           .eq('business_id', businessId).is('deleted_at', null)
           .gte('expense_date', from).lte('expense_date', to)
       : Promise.resolve({ data: [] }),
     seesFinance
-      ? supabase.from('expenses').select('amount, currency, expense_date')
+      ? supabase.from('expenses').select('id, amount, currency, expense_date')
           .eq('business_id', businessId).is('deleted_at', null)
           .gte('expense_date', base.from).lte('expense_date', base.to)
       : Promise.resolve({ data: [] }),
 
     seesFinance
-      ? supabase.from('purchases').select('total_amount, balance_due, currency, purchase_date')
+      ? supabase.from('purchases').select('id, total_amount, balance_due, currency, purchase_date')
           .eq('business_id', businessId).is('deleted_at', null)
           .gte('purchase_date', from).lte('purchase_date', to)
       : Promise.resolve({ data: [] }),
@@ -394,7 +423,7 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
       ? supabase.from('low_stock_alerts').select('product_id, reorder_point').eq('business_id', businessId)
       : Promise.resolve({ data: [] }),
 
-    supabase.from('v_receivables').select('balance_due, status, days_overdue, currency').eq('business_id', businessId),
+    supabase.from('v_receivables').select('sale_id, balance_due, status, days_overdue, currency').eq('business_id', businessId),
 
     supabase.from('customers').select('id', { count: 'exact', head: true }).eq('business_id', businessId),
     supabase.from('store_settings').select('is_active, slug').eq('business_id', businessId).maybeSingle(),
@@ -422,13 +451,22 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
   const buildFinance = (
     saleRows: any[], itemRows: any[], expenseRows: any[], purchaseRows: any[],
   ): FinanceBlock => {
-    const revenue = saleRows.reduce((s, r) => s + toReport(r.total_amount, r.currency), 0);
-    const cogs    = itemRows.reduce((s, r) => s + toReport(num(r.cost_price) * num(r.quantity), r.currency), 0);
-    const spend   = expenseRows.reduce((s, r) => s + toReport(r.amount, r.currency), 0);
-    const cashIn  = saleRows.reduce((s, r) => s + toReport(r.paid_amount ?? r.total_amount, r.currency), 0);
-    const debt    = purchaseRows.reduce((s, r) => s + toReport(r.balance_due ?? 0, r.currency), 0);
+    // Le panier moyen se calcule sur les ventes réellement comptées dans le
+    // chiffre d'affaires : diviser par toutes les ventes le ferait baisser.
+    let revenue = 0;
+    let revenueSales = 0;
+    for (const r of saleRows) {
+      const v = toReport(r.total_amount, r.currency, `sale:${r.id}`);
+      if (v === null) continue;
+      revenue += v;
+      revenueSales += 1;
+    }
+    const cogs    = itemRows.reduce((s, r) => s + add(num(r.cost_price) * num(r.quantity), r.currency, `sale:${r.sale_id}`), 0);
+    const spend   = expenseRows.reduce((s, r) => s + add(r.amount, r.currency, `expense:${r.id}`), 0);
+    const cashIn  = saleRows.reduce((s, r) => s + add(r.paid_amount ?? r.total_amount, r.currency, `sale:${r.id}`), 0);
+    const debt    = purchaseRows.reduce((s, r) => s + add(r.balance_due ?? 0, r.currency, `purchase:${r.id}`), 0);
     const cashOut = spend + purchaseRows.reduce(
-      (s, r) => s + toReport(num(r.total_amount) - num(r.balance_due ?? 0), r.currency), 0,
+      (s, r) => s + add(num(r.total_amount) - num(r.balance_due ?? 0), r.currency, `purchase:${r.id}`), 0,
     );
     return {
       revenue,
@@ -439,7 +477,7 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
       netProfit: revenue - cogs - spend,
       cashFlow: cashIn - cashOut,
       salesCount: saleRows.length,
-      averageOrderValue: saleRows.length > 0 ? revenue / saleRows.length : 0,
+      averageOrderValue: revenueSales > 0 ? revenue / revenueSales : 0,
       supplierDebt: debt,
     };
   };
@@ -463,9 +501,9 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
   };
 
   if (seesFinance) {
-    for (const s of sales)     put(s.sale_date,     'revenue',  toReport(s.total_amount, s.currency));
-    for (const e of expenses)  put(e.expense_date,  'expenses', toReport(e.amount, e.currency));
-    for (const p of purchases) put(p.purchase_date, 'expenses', toReport(p.total_amount, p.currency));
+    for (const s of sales)     put(s.sale_date,     'revenue',  add(s.total_amount, s.currency, `sale:${s.id}`));
+    for (const e of expenses)  put(e.expense_date,  'expenses', add(e.amount, e.currency, `expense:${e.id}`));
+    for (const p of purchases) put(p.purchase_date, 'expenses', add(p.total_amount, p.currency, `purchase:${p.id}`));
   }
 
   const series: SeriesPoint[] = [...buckets.values()]
@@ -489,8 +527,8 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
     outOfStock,
     unpaidInvoices: openRows.length,
     overdueInvoices: overdueRows.length,
-    overdueAmount: overdueRows.reduce((s, r) => s + toReport(r.balance_due, r.currency), 0),
-    openReceivables: openRows.reduce((s, r) => s + toReport(r.balance_due, r.currency), 0),
+    overdueAmount: overdueRows.reduce((s, r) => s + add(r.balance_due, r.currency, `sale:${r.sale_id}`), 0),
+    openReceivables: openRows.reduce((s, r) => s + add(r.balance_due, r.currency, `sale:${r.sale_id}`), 0),
     currency: defaultCurrency,
   };
 
@@ -500,8 +538,10 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
     if (!it.product_id) continue;
     const entry = byProduct.get(it.product_id) ?? { name: it.product_name ?? '—', units: 0, revenue: 0, cost: 0 };
     entry.units   += num(it.quantity);
-    entry.revenue += toReport(it.line_total, it.currency);
-    entry.cost    += toReport(num(it.cost_price) * num(it.quantity), it.currency);
+    // Ligne inconvertible : hors du CA ET du coût à la fois (même devise), la
+    // marge reste calculée sur des montants homogènes.
+    entry.revenue += add(it.line_total, it.currency, `sale:${it.sale_id}`);
+    entry.cost    += add(num(it.cost_price) * num(it.quantity), it.currency, `sale:${it.sale_id}`);
     byProduct.set(it.product_id, entry);
   }
 
@@ -560,6 +600,7 @@ export async function getDashboardCore(input: DashboardRangeInput): Promise<Dash
       hasStore:     Boolean((storeRes as any)?.data?.is_active),
       monthsOfHistory,
     },
+    unconvertedCount: unconverted.size,
   };
 }
 
@@ -575,7 +616,7 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
     return null;
   }
 
-  const { supabase, businessId, exchangeRate, defaultCurrency, role } = ctx;
+  const { supabase, businessId, defaultCurrency, role } = ctx;
   const planKey = await getActivePlanKey();
   const level   = dashboardLevel(planKey);
 
@@ -601,7 +642,10 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
   const wantsHistory   = moduleEnabled('performance_compare', moduleCtx) || moduleEnabled('forecast', moduleCtx);
   const wantsGoals     = moduleEnabled('goals', moduleCtx);
 
-  const toReport = converter(num(exchangeRate) || 130, defaultCurrency);
+  // Les ventes et créances lues ici, le socle les compte déjà : elles sont
+  // exclues des sommes mais notées sans clé (`null`). Seuls les produits et les
+  // commandes de la boutique, propres à ce lot, alimentent son compteur.
+  const { toReport, add, unconverted } = reportConverter(ctx);
   const { from, to } = input;
   const base = input.baseline ?? shiftBack(from, to);
 
@@ -694,7 +738,7 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
       ? supabase.from('store_settings').select('is_active, slug, currency').eq('business_id', businessId).maybeSingle()
       : Promise.resolve({ data: null }),
     wantsStore
-      ? supabase.from('orders').select('total, currency, status, payment_status, created_at')
+      ? supabase.from('orders').select('id, total, currency, status, payment_status, created_at')
           .eq('business_id', businessId)
           .gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`)
       : Promise.resolve({ data: [] }),
@@ -732,9 +776,9 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
     ).getDate();
 
     const openRows = ((monthReceivablesRes.data ?? []) as any[]).filter((r) => r.status !== 'paid');
-    const open    = openRows.reduce((s, r) => s + toReport(r.balance_due, r.currency), 0);
+    const open    = openRows.reduce((s, r) => s + add(r.balance_due, r.currency, null), 0);
     const overdue = openRows.filter((r) => r.status === 'overdue' || r.status === 'critical')
-      .reduce((s, r) => s + toReport(r.balance_due, r.currency), 0);
+      .reduce((s, r) => s + add(r.balance_due, r.currency, null), 0);
 
     const result = computeHealthScore({
       revenue:          currentMonth?.revenue ?? 0,
@@ -771,9 +815,17 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
       ((lastSaleRes.data ?? []) as any[]).map((r) => [r.product_id, r.last_sold_at ?? null]),
     );
 
-    const value = products.reduce(
-      (s, p) => s + num(p.stock_quantity) * toReport(num(p.purchase_price) || num(p.sale_price), p.currency), 0,
-    );
+    // Coût d'achat dans la devise de la fiche ; à défaut, le prix de vente, que
+    // la fiche produit saisit en HTG. Un produit sans stock ne pèse rien : il
+    // n'a pas à compter comme exclu.
+    const value = products.reduce((s, p) => {
+      const qty = num(p.stock_quantity);
+      if (qty <= 0) return s;
+      const unit = num(p.purchase_price) > 0
+        ? add(p.purchase_price, p.currency, `product:${p.id}`)
+        : add(p.sale_price, 'HTG', `product:${p.id}`);
+      return s + qty * unit;
+    }, 0);
     const totalUnits = [...soldUnits.values()].reduce((s, n) => s + n, 0);
     const totalStock = products.reduce((s, p) => s + num(p.stock_quantity), 0);
 
@@ -863,14 +915,14 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
     for (const s of ((memberSalesRes.data ?? []) as any[])) {
       if (!s.created_by) continue;
       const entry = revenueBy.get(s.created_by) ?? { revenue: 0, count: 0 };
-      entry.revenue += toReport(s.total_amount, s.currency);
+      entry.revenue += add(s.total_amount, s.currency, null);
       entry.count += 1;
       revenueBy.set(s.created_by, entry);
     }
     const baseRevenueBy = new Map<string, number>();
     for (const s of ((baseMemberSalesRes.data ?? []) as any[])) {
       if (!s.created_by) continue;
-      baseRevenueBy.set(s.created_by, (baseRevenueBy.get(s.created_by) ?? 0) + toReport(s.total_amount, s.currency));
+      baseRevenueBy.set(s.created_by, (baseRevenueBy.get(s.created_by) ?? 0) + add(s.total_amount, s.currency, null));
     }
 
     const nonOwner = members.filter((m) => m.role !== 'owner').map((m) => m.user_id);
@@ -900,7 +952,15 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
     const settings = (storeRes as any)?.data ?? null;
     const orders = (ordersRes.data ?? []) as any[];
     const paid = orders.filter((o) => o.payment_status === 'paid' || o.status === 'completed');
-    const revenue = paid.reduce((s, o) => s + toReport(o.total, o.currency), 0);
+    // Le panier moyen se calcule sur les commandes comptées dans le total.
+    let revenue = 0;
+    let revenueOrders = 0;
+    for (const o of paid) {
+      const v = toReport(o.total, o.currency, `order:${o.id}`);
+      if (v === null) continue;
+      revenue += v;
+      revenueOrders += 1;
+    }
     const pending = orders.filter((o) => o.payment_status !== 'paid' && o.status !== 'completed');
 
     store = {
@@ -908,9 +968,9 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
       slug: settings?.slug ?? null,
       orders: paid.length,
       revenue,
-      averageOrderValue: paid.length > 0 ? revenue / paid.length : 0,
+      averageOrderValue: revenueOrders > 0 ? revenue / revenueOrders : 0,
       pendingOrders: pending.length,
-      pendingValue: pending.reduce((s, o) => s + toReport(o.total, o.currency), 0),
+      pendingValue: pending.reduce((s, o) => s + add(o.total, o.currency, `order:${o.id}`), 0),
       currency: defaultCurrency,
     };
   }
@@ -920,5 +980,6 @@ export async function getDashboardModules(input: DashboardRangeInput): Promise<D
     health, history,
     goals: (goalsRes ?? []) as GoalProgress[],
     inventory, customers, team, store,
+    unconvertedCount: unconverted.size,
   };
 }

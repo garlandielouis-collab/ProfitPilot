@@ -1,6 +1,7 @@
 'use server';
 
 import { getBusinessContext } from '../../lib/serverAuth';
+import { makeToReport, type ReportFx } from '../../lib/currency';
 import { hasFeature } from '../../lib/entitlements';
 import { isAssetCategory } from '../../lib/accountingEngine';
 import type { IncomeStatementData } from '../../components/reports/IncomeStatement';
@@ -38,6 +39,12 @@ export type ReportsData = {
     netProfit: number;
     cashTotal: number;
   };
+
+  /**
+   * Documents (vente, dépense, achat, produit, créance) dont un montant est
+   * resté hors des états : autre devise, taux de change non saisi. Optionnel.
+   */
+  unconvertedCount?: number;
 
   // Period summaries
   periodSummary: {
@@ -155,12 +162,17 @@ export async function getReportsDataAction(
   // retombe sur son jeu de démonstration au lieu de servir de vrais chiffres.
   if (!(await hasFeature('advanced_reports'))) return emptyReports();
 
-  let supabase: any, businessId: string, userId: string;
+  let supabase: any, businessId: string, userId: string, fx: ReportFx;
   try {
     const ctx = await getBusinessContext();
     supabase   = ctx.supabase;
     businessId = ctx.businessId;
     userId     = ctx.userId;
+    fx = {
+      exchangeRate:    ctx.exchangeRate,
+      exchangeRateSet: ctx.exchangeRateSet,
+      defaultCurrency: ctx.defaultCurrency,
+    };
   } catch { return emptyReports(); }
   const now = new Date();
   const mo  = now.getMonth();
@@ -187,7 +199,8 @@ export async function getReportsDataAction(
     { data: accountBalances },
     { data: everSold },
   ] = await Promise.all([
-    supabase.from('businesses').select('name, phone, address, sector, tax_id, exchange_rate, default_currency').eq('id', businessId).maybeSingle(),
+    // Taux et devise viennent du contexte (même ligne `businesses`) : voir `fx`.
+    supabase.from('businesses').select('name, phone, address, sector, tax_id').eq('id', businessId).maybeSingle(),
 
     // Ventes de la période — sur la DATE DE VENTE, pas sur la date de saisie.
     // Une vente de mars saisie le 2 avril appartient à mars : filtrer sur
@@ -196,7 +209,7 @@ export async function getReportsDataAction(
     // ne sert de repli que pour une ligne sans `sale_date` (la colonne est
     // NOT NULL DEFAULT CURRENT_DATE, mais le repli ne coûte rien).
     supabase.from('sales')
-      .select('total_amount, sale_date, created_at, payment_method, payment_status, currency')
+      .select('id, total_amount, sale_date, created_at, payment_method, payment_status, currency')
       .eq('business_id', businessId)
       .is('deleted_at', null)
       .or(
@@ -205,22 +218,22 @@ export async function getReportsDataAction(
       ),
 
     supabase.from('expenses')
-      .select('amount, expense_date, payment_method, currency, expense_categories(name)')
+      .select('id, amount, expense_date, payment_method, currency, expense_categories(name)')
       .eq('business_id', businessId)
       .is('deleted_at', null)
       .gte('expense_date', fromIso)
       .lte('expense_date', toIso),
 
     supabase.from('purchases')
-      .select('total_amount, payment_status, purchase_date, currency')
+      .select('id, total_amount, payment_status, purchase_date, currency')
       .eq('business_id', businessId)
       .is('deleted_at', null)
       .gte('purchase_date', fromIso)
       .lte('purchase_date', toIso),
 
-    supabase.from('products').select('stock_quantity, purchase_price, currency').eq('business_id', businessId),
+    supabase.from('products').select('id, stock_quantity, purchase_price, currency').eq('business_id', businessId),
 
-    supabase.from('customer_transactions').select('amount, type, currency').eq('business_id', businessId).eq('type', 'credit'),
+    supabase.from('customer_transactions').select('id, amount, type, currency').eq('business_id', businessId).eq('type', 'credit'),
 
     // Real account balances from double-entry accounting (posted entries only)
     supabase.from('journal_entry_lines')
@@ -247,18 +260,19 @@ export async function getReportsDataAction(
   const businessAddress = biz?.address ?? '';
   const businessSector = biz?.sector  ?? '';
   const businessTaxId  = biz?.tax_id  ?? '';
-  // Exchange rate: 1 USD = X HTG. Default 130 if not set.
-  const exchangeRate   = Number(biz?.exchange_rate ?? 130);
-  // Default currency from business settings (what we report in)
-  const reportCurrency: 'HTG' | 'USD' = (biz?.default_currency ?? 'HTG') as 'HTG' | 'USD';
+  // Devise du rapport : celle de l'entreprise. Chaque montant y est ramené par
+  // `makeToReport`, au taux SAISI par le marchand. Sans taux, un montant dans
+  // l'autre devise sort des totaux et son document est compté une fois
+  // (`unconvertedCount`) : jamais de taux de repli.
+  const reportCurrency: 'HTG' | 'USD' = fx.defaultCurrency;
+  const convert     = makeToReport(fx);
+  const unconverted = new Set<string>();
 
-  // Convert any amount to the reporting currency
-  function toReportCurrency(amount: number, currency: string): number {
-    const amtCurrency = (currency ?? 'HTG').toUpperCase();
-    if (amtCurrency === reportCurrency) return amount;
-    if (reportCurrency === 'HTG' && amtCurrency === 'USD') return amount * exchangeRate;
-    if (reportCurrency === 'USD' && amtCurrency === 'HTG') return amount / exchangeRate;
-    return amount;
+  function toReportCurrency(amount: number, currency: string | null | undefined, key: string): number {
+    if (!amount) return 0;
+    const v = convert(amount, currency);
+    if (v === null) { unconverted.add(key); return 0; }
+    return v;
   }
 
   const sales    = (salesRaw    ?? []) as any[];
@@ -289,9 +303,9 @@ export async function getReportsDataAction(
 
   // ── Period sums — converted to reporting currency ────────────────────────────
   const selectedRevenue  = sales.reduce((s: number, r: any) =>
-    s + toReportCurrency(Number(r.total_amount || 0), r.currency), 0);
+    s + toReportCurrency(Number(r.total_amount || 0), r.currency, `sale:${r.id}`), 0);
   const selectedExpenses = expenses.reduce((s: number, r: any) =>
-    s + toReportCurrency(Number(r.amount || 0), r.currency), 0);
+    s + toReportCurrency(Number(r.amount || 0), r.currency, `expense:${r.id}`), 0);
   const selectedProfit   = selectedRevenue - selectedExpenses;
 
   // ── Legacy sums helper now with currency conversion ────────────────────────
@@ -301,9 +315,9 @@ export async function getReportsDataAction(
       const day = saleDay(s);
       return day >= fromDateIso && day <= toDateIso;
     })
-      .reduce((n: number, r: any) => n + toReportCurrency(Number(r.total_amount || 0), r.currency), 0);
+      .reduce((n: number, r: any) => n + toReportCurrency(Number(r.total_amount || 0), r.currency, `sale:${r.id}`), 0);
     const exp = expenses.filter((e: any) => e.expense_date >= fromDateIso && e.expense_date <= toDateIso)
-      .reduce((n: number, r: any) => n + toReportCurrency(Number(r.amount || 0), r.currency), 0);
+      .reduce((n: number, r: any) => n + toReportCurrency(Number(r.amount || 0), r.currency, `expense:${r.id}`), 0);
     return { revenue: rev, expenses: exp, profit: rev - exp };
   }
 
@@ -347,15 +361,15 @@ export async function getReportsDataAction(
 
   for (const e of expenses) {
     const field = classifyExpenseField(getCat(e));
-    const amt   = toReportCurrency(Number(e.amount || 0), e.currency);
+    const amt   = toReportCurrency(Number(e.amount || 0), e.currency, `expense:${e.id}`);
     incomeBuckets[field] = (incomeBuckets[field] ?? 0) + amt;
   }
 
   // ── Purchases — converted to reporting currency ──────────────────────────
   const cogs = purch.filter((p: any) => p.payment_status === 'paid' || p.payment_status === 'Payé')
-    .reduce((s: number, p: any) => s + toReportCurrency(Number(p.total_amount || 0), p.currency || 'HTG'), 0);
+    .reduce((s: number, p: any) => s + toReportCurrency(Number(p.total_amount || 0), p.currency || 'HTG', `purchase:${p.id}`), 0);
   const detteFournisseurs = purch.filter((p: any) => p.payment_status === 'credit' || p.payment_status === 'À Crédit')
-    .reduce((s: number, p: any) => s + toReportCurrency(Number(p.total_amount || 0), p.currency || 'HTG'), 0);
+    .reduce((s: number, p: any) => s + toReportCurrency(Number(p.total_amount || 0), p.currency || 'HTG', `purchase:${p.id}`), 0);
 
   // ── Revenue & profit ───────────────────────────────────────────────────────
   const caNet     = yearSums.revenue;
@@ -364,12 +378,16 @@ export async function getReportsDataAction(
   const netProfit  = grossProfit - totalOpex;
 
   // ── Stock value — converted to reporting currency ──────────────────────────
-  const stockValue = prods.reduce((s: number, p: any) =>
-    s + (Number(p.stock_quantity || 0) * toReportCurrency(Number(p.purchase_price || 0), p.currency || 'HTG')), 0);
+  // Un produit sans stock ne pèse rien : il n'a pas à compter comme exclu.
+  const stockValue = prods.reduce((s: number, p: any) => {
+    const qty = Number(p.stock_quantity || 0);
+    if (!qty) return s;
+    return s + qty * toReportCurrency(Number(p.purchase_price || 0), p.currency || 'HTG', `product:${p.id}`);
+  }, 0);
 
   // ── Client receivables — convert if currency present
   const creancesClients = credits.filter((c: any) => c.type === 'credit')
-    .reduce((s: number, c: any) => s + toReportCurrency(Number(c.amount || 0), c.currency || reportCurrency), 0);
+    .reduce((s: number, c: any) => s + toReportCurrency(Number(c.amount || 0), c.currency || reportCurrency, `credit:${c.id}`), 0);
 
   // ── Cash total (approximation: revenue - expenses - purchases paid) ────────
   const cashTotal = Math.max(0, caNet - totalOpex - cogs);
@@ -434,9 +452,9 @@ export async function getReportsDataAction(
 
   // ── Cash Flow Statement ────────────────────────────────────────────────────
   const cashMonCash = sales.filter((s: any) => s.payment_method === 'MonCash')
-    .reduce((n: number, s: any) => n + toReportCurrency(Number(s.total_amount || 0), s.currency), 0);
+    .reduce((n: number, s: any) => n + toReportCurrency(Number(s.total_amount || 0), s.currency, `sale:${s.id}`), 0);
   const cashCard = sales.filter((s: any) => ['Card','Natcash'].includes(s.payment_method))
-    .reduce((n: number, s: any) => n + toReportCurrency(Number(s.total_amount || 0), s.currency), 0);
+    .reduce((n: number, s: any) => n + toReportCurrency(Number(s.total_amount || 0), s.currency, `sale:${s.id}`), 0);
   const cashCash  = caNet - cashMonCash - cashCard;
 
   const cashflow: CashFlowData = {
@@ -490,6 +508,7 @@ export async function getReportsDataAction(
     cashflow,
     equity,
     kpi: { caNet, cogs, netProfit, cashTotal },
+    unconvertedCount: unconverted.size,
     periodSummary: {
       month:      monthSums,
       quarter:    quarterSums,

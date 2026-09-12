@@ -85,6 +85,24 @@ export function makeToReport(fx: ReportFx): ToReport {
   };
 }
 
+/**
+ * La mention qui accompagne un total incomplet : `count` montants dans l'autre
+ * devise sont restés hors du total, faute de taux saisi (`makeToReport` a
+ * renvoyé `null`). Renvoie `{ fr, ht }` pour `t()` : une phrase figée côté
+ * serveur serait intraduisible en créole.
+ */
+export function unconvertedNotice(
+  count: number,
+  reportCurrency: string | null | undefined,
+): { fr: string; ht: string } {
+  const other = (reportCurrency ?? 'HTG').toUpperCase() === 'USD' ? 'HTG' : 'USD';
+  const s = count > 1 ? 's' : '';
+  return {
+    fr: `${count} montant${s} en ${other} non compté${s} : taux de change manquant`,
+    ht: `${count} montan an ${other} pa konte : to chanj la manke`,
+  };
+}
+
 export async function fetchLiveExchangeRate(): Promise<number | null> {
   try {
     const res = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });

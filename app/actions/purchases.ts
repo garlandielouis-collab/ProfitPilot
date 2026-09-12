@@ -33,16 +33,32 @@ async function rollbackPurchase(supabase: any, purchaseId: string) {
 
 // ── savePurchase ──────────────────────────────────────────────────────────────
 
-export async function savePurchase(payload: SavePurchasePayload): Promise<true> {
+/** Non exporté : un fichier 'use server' n'exporte que des fonctions async. */
+const EXCHANGE_RATE_MISSING_MESSAGE =
+  "Renseignez le taux USD/HTG de l'entreprise (Paramètres) avant d'enregistrer un montant en dollars.";
+
+/**
+ * `{ error }` pour un refus que le formulaire doit afficher tel quel : en
+ * production, Next masque le message d'une exception levée par une action.
+ */
+export async function savePurchase(payload: SavePurchasePayload): Promise<true | { error: string }> {
   if (!payload.supplier_id)  throw new Error('Founisè obligatwa.');
   if (!payload.product_id)   throw new Error('Pwodui obligatwa.');
   if (payload.quantity <= 0) throw new Error('Kantite pa valab.');
   if (payload.purchase_price_per_unit < 0) throw new Error('Pri inite pa valab.');
 
-  const { supabase, businessId, userId, exchangeRate } = await getBusinessContext();
+  const { supabase, businessId, userId, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
   const discountPct   = payload.discount_percent ?? 0;
   const currency      = payload.currency ?? 'HTG';
+
+  // Un achat en dollars ne s'enregistre qu'avec le taux saisi par le marchand :
+  // sinon purchases.exchange_rate et le journal porteraient 130 (repli) ou 1
+  // (défaut de colonne). Refus avant toute écriture.
+  if (currency === 'USD' && !exchangeRateSet) {
+    return { error: EXCHANGE_RATE_MISSING_MESSAGE };
+  }
+
   const subtotal      = parseFloat((payload.quantity * payload.purchase_price_per_unit).toFixed(2));
   const discountAmt   = parseFloat((subtotal * discountPct / 100).toFixed(2));
   const total         = parseFloat(payload.total_purchase_amount.toFixed(2));

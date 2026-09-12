@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { supabase } from '../../lib/supabaseClient';
 import { formatCurrency } from '../../lib/utils';
@@ -55,6 +55,14 @@ const OWED_MIN = 0.01;
 
 function isOwed(p: Purchase) {
   return OPEN_PURCHASE_STATUSES.has(p.payment_status) && p.remaining >= OWED_MIN;
+}
+
+// Un achat annulé ou remboursé reste LISTÉ dans l'historique avec son statut,
+// mais n'entre dans aucune somme (« Total acha » compris).
+const VOID_PURCHASE_STATUSES = new Set(['cancelled', 'refunded']);
+
+function isCounted(p: Purchase) {
+  return !VOID_PURCHASE_STATUSES.has(p.payment_status);
 }
 
 // `purchases.payment_status` est l'énum payment_status_type, en minuscules.
@@ -252,6 +260,17 @@ function DeleteModal({
 
 export default function SuppliersPage() {
   const { t } = useLanguage();
+  // Entreprise active (cookie pp_active_store, résolu côté serveur comme
+  // getBusinessContext) : toutes les lectures de la page sont cadrées dessus.
+  // S'en remettre à la RLS mélangeait les fournisseurs et achats de toutes les
+  // entreprises du compte, convertis au taux de la seule entreprise active.
+  const { company, loading: companyLoading } = useCompany();
+  const businessId = company?.id ?? null;
+  const businessIdRef = useRef<string | null>(businessId);
+  businessIdRef.current = businessId;
+  // Numéro de la dernière lecture lancée : une réponse arrivée après un
+  // changement d'entreprise est ignorée au lieu d'écraser la liste.
+  const loadSeq = useRef(0);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -273,22 +292,39 @@ export default function SuppliersPage() {
     supabase.auth.getUser().then((res: any) => {
       setOwnerId(res.data?.user?.id ?? null);
     });
-    loadAll();
   }, []);
+
+  // Lecture au montage ET à chaque changement d'entreprise active. Tant que
+  // l'entreprise n'est pas connue, aucune requête : pas de liste mélangée
+  // transitoire. La liste de l'entreprise précédente est vidée tout de suite,
+  // pour ne pas s'afficher sous le taux de la nouvelle.
+  useEffect(() => {
+    loadSeq.current++;
+    setSuppliers([]);
+    setExpandedId(null);
+    if (!businessId) return;
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId]);
 
   // ── Data loading ────────────────────────────────────────────────────────────
 
   async function loadAll() {
+    const bizId = businessIdRef.current;
+    if (!bizId) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       // 1. Fetch suppliers with their running totals
       const { data: suppData } = await supabase
         .from('suppliers')
         .select('id,name,email,phone,discount_percent,created_at')
+        .eq('business_id', bizId)
         .is('deleted_at', null)
         .order('name');
 
-      // 2. Fetch purchases with their items in one query
+      // 2. Fetch purchases with their items in one query — achats ET lignes
+      //    cadrés sur l'entreprise active (purchase_items.business_id NOT NULL).
       const { data: purchData } = await supabase
         .from('purchases')
         .select(`
@@ -296,8 +332,13 @@ export default function SuppliersPage() {
           total_amount, paid_amount, currency, payment_status,
           purchase_items ( product_name, quantity, unit_cost )
         `)
+        .eq('business_id', bizId)
+        .eq('purchase_items.business_id', bizId)
         .is('deleted_at', null)
         .order('purchase_date', { ascending: false });
+
+      // L'entreprise a changé pendant la lecture : cette réponse est périmée.
+      if (seq !== loadSeq.current) return;
 
       // 3. Build supplier_id → purchases map
       const purchMap: Record<string, Purchase[]> = {};
@@ -344,7 +385,7 @@ export default function SuppliersPage() {
     } catch (e: any) {
       console.error('[loadAll suppliers]', e?.message);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
 
@@ -352,7 +393,10 @@ export default function SuppliersPage() {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim() || !ownerId) return;
+    // upsertSupplier écrit business_id = getBusinessContext() (même cookie
+    // pp_active_store que `company`) : pas d'ajout tant que l'entreprise active
+    // n'est pas connue ici.
+    if (!form.name.trim() || !ownerId || !businessId) return;
     setFormSaving(true);
     setFormErr('');
     try {
@@ -410,7 +454,7 @@ export default function SuppliersPage() {
   // 50 HTG y valaient « 100 HTG ». Désormais : reste dû des achats non soldés,
   // USD convertis au taux de l'entreprise comme sur /dettes. Sans taux valide,
   // un total qui contient des USD s'affiche « … » plutôt qu'un chiffre faux.
-  const { company } = useCompany();
+  // `company` est lu en tête de composant : même entreprise que les lectures.
   const rate = company?.exchangeRate && company.exchangeRate > 0 ? company.exchangeRate : null;
 
   const totals = useMemo(() => {
@@ -432,7 +476,8 @@ export default function SuppliersPage() {
     let debt: number | null = 0;
     for (const sup of suppliers) {
       const owed      = sumHtg(sup.purchases.filter(isOwed), p => p.remaining);
-      const purchased = sumHtg(sup.purchases, p => p.total_amount);
+      // Annulés/remboursés exclus : ils restent listés, ils ne s'additionnent pas.
+      const purchased = sumHtg(sup.purchases.filter(isCounted), p => p.total_amount);
       bySupplier.set(sup.id, { owed, purchased });
       debt = debt === null || owed === null ? null : debt + owed;
     }
@@ -517,7 +562,7 @@ export default function SuppliersPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={formSaving || !form.name.trim()}
+                disabled={formSaving || !form.name.trim() || !businessId}
                 className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-h disabled:opacity-50"
               >
                 {formSaving ? (
@@ -569,7 +614,9 @@ export default function SuppliersPage() {
               </p>
             </div>
 
-            {loading ? (
+            {/* Sans entreprise active, aucune lecture n'est lancée : on attend le
+                contexte d'entreprise, pas une requête qui ne partira jamais. */}
+            {(businessId ? loading : companyLoading) ? (
               <p className="py-12 text-center text-sm text-slate-400">Chargement…</p>
             ) : suppliers.length === 0 ? (
               <p className="py-12 text-center text-sm text-slate-400">

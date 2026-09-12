@@ -60,6 +60,8 @@ type ClientCredit = {
 type Invoice = {
   invoice_number: string;
   total: number;
+  /** Part de `total` qui compte dans les sommes : ventes annulées/remboursées exclues. */
+  countedTotal: number;
   currency: string;
   payment_method: string;
   payment_status: string;
@@ -78,6 +80,11 @@ const VIP_SALE_COUNT = 5;        // OR >= 5 sales
 // remboursées sont retirées ici, comme le fait markCustomerCreditPaid.
 const CLOSED_SALE_STATUSES = new Set(['paid', 'cancelled', 'refunded']);
 const OPEN_SALE_STATUSES   = new Set(['credit', 'partial', 'pending', 'overdue']);
+// Une vente annulée ou remboursée reste LISTÉE dans l'historique avec son
+// statut, mais n'entre dans aucune somme : ni « Total Achats », ni le nombre de
+// ventes (et donc ni « Moyenne / Vente » ni le statut fidèle), ni le total de
+// l'historique, ni le rapport imprimé.
+const VOID_SALE_STATUSES   = new Set(['cancelled', 'refunded']);
 // Sous un centime, markCustomerCreditPaid répond « déjà soldée » : la vente ne
 // compte donc ni dans la dette ni dans la liste des créances.
 const OWED_MIN = 0.01;
@@ -398,7 +405,7 @@ function ClientsCRMInner() {
     const agg: Record<string, { total: number; count: number; pending: boolean }> = {};
     for (const s of (salesRes.data ?? []) as any[]) {
       const cid = s.customer_id;
-      if (!cid) continue;
+      if (!cid || VOID_SALE_STATUSES.has(s.payment_status)) continue;
       if (!agg[cid]) agg[cid] = { total: 0, count: 0, pending: false };
       const v = toHtg(Number(s.total_amount), s.currency);
       if (v === null) agg[cid].pending = true; else agg[cid].total += v;
@@ -479,8 +486,9 @@ function ClientsCRMInner() {
     const invMap: Record<string, Invoice> = {};
     for (const s of salesRes.data ?? []) {
       const key = s.invoice_number ?? s.id;
-      if (!invMap[key]) invMap[key] = { invoice_number: s.invoice_number ?? '—', total: 0, currency: s.currency, payment_method: s.payment_method, payment_status: s.payment_status, date: s.created_at, itemCount: 0 };
+      if (!invMap[key]) invMap[key] = { invoice_number: s.invoice_number ?? '—', total: 0, countedTotal: 0, currency: s.currency, payment_method: s.payment_method, payment_status: s.payment_status, date: s.created_at, itemCount: 0 };
       invMap[key].total += Number(s.total_amount);
+      if (!VOID_SALE_STATUSES.has(s.payment_status)) invMap[key].countedTotal += Number(s.total_amount);
       invMap[key].itemCount += 1;
     }
     setInvoices(Object.values(invMap).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -605,11 +613,13 @@ function ClientsCRMInner() {
     return sum;
   }, [openCredits, convertToHtg]);
 
-  // Pied de l'historique : factures HTG et USD converties avant la somme.
+  // Pied de l'historique : factures HTG et USD converties avant la somme. Les
+  // ventes annulées/remboursées restent listées mais ne comptent pas (countedTotal).
   const historyTotal = useMemo(() => {
     let sum = 0;
     for (const inv of invoices) {
-      const v = convertToHtg(inv.total, inv.currency);
+      if (inv.countedTotal === 0) continue;
+      const v = convertToHtg(inv.countedTotal, inv.currency);
       if (v === null) return null;
       sum += v;
     }

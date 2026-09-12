@@ -156,7 +156,7 @@ function ExpenseModal({
     if (!amt || amt <= 0) return setErr('Montant invalide (> 0).');
     setSaving(true); setErr('');
     try {
-      await upsertExpense({
+      const res = await upsertExpense({
         id:             record?.id,
         description:    form.description.trim(),
         category:       form.category,
@@ -169,6 +169,8 @@ function ExpenseModal({
         scope:              form.scope,
         business_share_pct: form.scope === 'mixed' ? Number(form.share) || 0 : undefined,
       });
+      // Refus renvoyé (et non levé) : son message survit en production.
+      if (res?.error) throw new Error(res.error);
       onSaved(); onClose();
     } catch (e: any) { setErr(e.message); }
     setSaving(false);

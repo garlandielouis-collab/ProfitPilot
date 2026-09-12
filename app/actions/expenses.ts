@@ -79,11 +79,27 @@ async function findOrCreateCategory(
 
 // ── upsertExpense ─────────────────────────────────────────────────────────────
 
-export async function upsertExpense(payload: ExpensePayload): Promise<void> {
+/** Non exporté : un fichier 'use server' n'exporte que des fonctions async. */
+const EXCHANGE_RATE_MISSING_MESSAGE =
+  "Renseignez le taux USD/HTG de l'entreprise (Paramètres) avant d'enregistrer un montant en dollars.";
+
+/**
+ * `{ error }` pour un refus que le formulaire doit afficher tel quel : en
+ * production, Next masque le message d'une exception levée par une action.
+ */
+export async function upsertExpense(payload: ExpensePayload): Promise<{ error: string } | undefined> {
   if (!payload.description?.trim()) throw new Error('Deskripsyon obligatwa.');
   if (!payload.amount || payload.amount <= 0) throw new Error('Montan pa valab.');
 
-  const { supabase, businessId, userId, exchangeRate } = await getBusinessContext();
+  const { supabase, businessId, userId, exchangeRate, exchangeRateSet } = await getBusinessContext();
+
+  // Une dépense en dollars (création comme modification) ne s'enregistre
+  // qu'avec le taux saisi par le marchand : sinon expenses.exchange_rate et le
+  // journal porteraient 130 (repli) ou 1 (défaut de colonne). Refus avant toute
+  // écriture — findOrCreateCategory ci-dessous peut déjà insérer une catégorie.
+  if ((payload.currency ?? 'HTG') === 'USD' && !exchangeRateSet) {
+    return { error: EXCHANGE_RATE_MISSING_MESSAGE };
+  }
 
   const dbStatus = STATUS_MAP[payload.payment_status] ?? 'paid';
   const dbMethod = payload.payment_method
@@ -214,6 +230,7 @@ export async function upsertExpense(payload: ExpensePayload): Promise<void> {
 
   revalidatePath('/expenses');
   revalidatePath('/rapports/comptabilite');
+  return undefined;
 }
 
 // ── deleteExpense ─────────────────────────────────────────────────────────────
