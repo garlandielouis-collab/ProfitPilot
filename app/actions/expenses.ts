@@ -2,7 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
-import { recordExpenseEntry, recordExpensePaymentEntry, reverseDocumentEntries } from './accounting';
+import { recordExpenseEntry, recordExpensePaymentEntry, reverseDocumentEntries } from '../../lib/accounting/posting';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { mapCategoryToAccountCode } from '../../lib/accountingEngine';

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { verifyBusinessAccess, getBusinessContext } from '../../lib/serverAuth';
 import { createSaleSchema, type CreateSaleInput } from '../../lib/validations';
-import { recordSaleEntry } from './accounting';
+import { recordSaleEntry } from '../../lib/accounting/posting';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 

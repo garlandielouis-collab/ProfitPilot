@@ -23,10 +23,15 @@ type Client = {
   email: string | null;
   outstanding_balance: number;
   created_at: string;
-  // enriched client-side
+  // enriched client-side — montants en HTG, USD convertis au taux de l'entreprise
   totalPurchases: number;
   saleCount: number;
   isVIP: boolean;
+  /** Au moins une vente/créance non soldée avec un reste dû > 0 (quelle que soit la devise). */
+  hasDebt: boolean;
+  /** Des montants USD n'ont pas pu être convertis (taux indisponible) : afficher « … ». */
+  purchasesPending: boolean;
+  debtPending: boolean;
 };
 
 type Sale = {
@@ -83,6 +88,11 @@ function fmt(n: number, currency = 'HTG') {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
   }
   return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' HTG';
+}
+
+/** Un total qui contient des USD non convertis ne s'affiche pas : « … » vaut mieux qu'un chiffre faux. */
+function fmtTotal(n: number | null, pending = false) {
+  return n === null || pending ? '…' : fmt(n);
 }
 
 function statusLabel(status: string) {
@@ -242,6 +252,10 @@ function ClientsCRMInner() {
   const [invoices,     setInvoices]     = useState<Invoice[]>([]);
   const [credits,      setCredits]      = useState<ClientCredit[]>([]);
   const [busyCredit,   setBusyCredit]   = useState<Set<string>>(new Set());
+  // Chargés avec la liste (loadClients) : reste dû par vente, depuis
+  // `v_receivables`, et taux USD→HTG de l'entreprise. `null` = indisponible.
+  const [receivables,  setReceivables]  = useState<Map<string, { due: number; currency: string }> | null>(null);
+  const [rate,         setRate]         = useState<number | null>(null);
 
   // modals
   const [showModal,    setShowModal]    = useState(false);
@@ -335,11 +349,13 @@ function ClientsCRMInner() {
     // non soldées seulement — un chiffre qui ne contredit pas ces deux écrans.
     const [clientRes, salesRes, receivRes, bizRes] = await Promise.all([
       clientQuery.order('first_name'),
+      // `currency` pour convertir, `deleted_at` pour ne pas compter une vente
+      // supprimée — `v_receivables` les écarte déjà, « Total Achats » aussi.
       businessId
-        ? supabase.from('sales').select('customer_id,total_amount').eq('business_id', businessId).not('customer_id', 'is', null)
-        : supabase.from('sales').select('customer_id,total_amount').not('customer_id', 'is', null),
+        ? supabase.from('sales').select('customer_id,total_amount,currency').eq('business_id', businessId).is('deleted_at', null).not('customer_id', 'is', null)
+        : supabase.from('sales').select('customer_id,total_amount,currency').is('deleted_at', null).not('customer_id', 'is', null),
       supabase.from('v_receivables')
-        .select('customer_id,balance_due,currency')
+        .select('sale_id,customer_id,balance_due,currency')
         .eq('business_id', businessId)
         .not('customer_id', 'is', null),
       supabase.from('businesses').select('exchange_rate').eq('id', businessId).maybeSingle(),
@@ -354,38 +370,54 @@ function ClientsCRMInner() {
     }
 
     const clientsData = clientRes.data ?? [];
-    const agg: Record<string, { total: number; count: number }> = {};
-    for (const s of salesRes.data ?? []) {
+
+    // Tous les montants de l'écran s'affichent en HTG : un montant en USD est
+    // converti au taux de l'entreprise (`businesses.exchange_rate`, NOT NULL),
+    // comme les totaux de /dettes et des dépenses. Additionner 50 USD et 50 HTG
+    // aurait affiché « 100 HTG ». Sans taux valide, le montant USD reste hors du
+    // total et le total s'affiche « … » plutôt qu'un chiffre faux.
+    const rawRate = Number(bizRes.data?.exchange_rate);
+    const bizRate = !bizRes.error && Number.isFinite(rawRate) && rawRate > 0 ? rawRate : null;
+    const toHtg = (amount: number, currency: string | null | undefined): number | null =>
+      currency === 'USD' ? (bizRate === null ? null : amount * bizRate) : amount;
+
+    const agg: Record<string, { total: number; count: number; pending: boolean }> = {};
+    for (const s of (salesRes.data ?? []) as any[]) {
       const cid = s.customer_id;
       if (!cid) continue;
-      if (!agg[cid]) agg[cid] = { total: 0, count: 0 };
-      agg[cid].total += Number(s.total_amount);
+      if (!agg[cid]) agg[cid] = { total: 0, count: 0, pending: false };
+      const v = toHtg(Number(s.total_amount), s.currency);
+      if (v === null) agg[cid].pending = true; else agg[cid].total += v;
       agg[cid].count += 1;
     }
 
-    // Le badge et la carte s'affichent en HTG : un reste dû en USD est converti
-    // au taux de l'entreprise (`businesses.exchange_rate`, NOT NULL), comme les
-    // totaux de /dettes. Additionner 50 USD et 50 HTG aurait affiché « 100 HTG ».
     if (receivRes.error) console.error('[clients] v_receivables error:', receivRes.error.message);
-    const rate = Number(bizRes.data?.exchange_rate ?? 0);
-    const debt: Record<string, number> = {};
+    const debt: Record<string, { amount: number; pending: boolean }> = {};
+    const bySale = new Map<string, { due: number; currency: string }>();
     for (const r of (receivRes.data ?? []) as any[]) {
       const due = Number(r.balance_due ?? 0);
+      if (r.sale_id) bySale.set(r.sale_id, { due, currency: r.currency ?? 'HTG' });
       if (!r.customer_id || !(due > 0)) continue;
-      debt[r.customer_id] = (debt[r.customer_id] ?? 0) + (r.currency === 'USD' ? due * rate : due);
+      if (!debt[r.customer_id]) debt[r.customer_id] = { amount: 0, pending: false };
+      const v = toHtg(due, r.currency);
+      if (v === null) debt[r.customer_id].pending = true; else debt[r.customer_id].amount += v;
     }
 
     const enriched: Client[] = clientsData.map((c: any) => {
       const name = `${c.first_name} ${c.last_name}`.trim();
-      const { total = 0, count = 0 } = agg[c.id] ?? {};
+      const { total = 0, count = 0, pending: purchasesPending = false } = agg[c.id] ?? {};
+      const d = debt[c.id];
       return {
         id: c.id, name: name, phone: c.phone ?? null, email: c.email ?? null,
-        outstanding_balance: parseFloat((debt[c.id] ?? 0).toFixed(2)), created_at: c.created_at,
+        outstanding_balance: parseFloat((d?.amount ?? 0).toFixed(2)), created_at: c.created_at,
         totalPurchases: total, saleCount: count,
         isVIP: total >= VIP_THRESHOLD || count >= VIP_SALE_COUNT,
+        hasDebt: !!d, purchasesPending, debtPending: d?.pending ?? false,
       };
     });
 
+    setRate(bizRate);
+    setReceivables(receivRes.error ? null : bySale);
     setClients(enriched);
     if (!selectedId && enriched.length > 0) setSelectedId(enriched[0].id);
     setLoading(false);
@@ -402,11 +434,13 @@ function ClientsCRMInner() {
       supabase.from('sales')
         .select('id,invoice_number,total_amount,currency,payment_method,payment_status,discount_percent,created_at')
         .eq('customer_id', clientId)
+        .is('deleted_at', null)
         .if(businessId != null, (query: any) => query.eq('business_id', businessId))
         .order('created_at', { ascending: false }),
       supabase.from('sales')
         .select('id,invoice_number,total_amount,currency,payment_status,created_at')
         .eq('customer_id', clientId)
+        .is('deleted_at', null)
         .if(businessId != null, (query: any) => query.eq('business_id', businessId))
         .eq('payment_status', 'credit')
         .order('created_at', { ascending: false }),
@@ -479,13 +513,48 @@ function ClientsCRMInner() {
     let list = clients;
     if (search) list = list.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search) || c.email?.toLowerCase().includes(search.toLowerCase()));
     if (filter === 'vip')    list = list.filter(c => c.isVIP);
-    if (filter === 'debtor') list = [...list].sort((a, b) => b.outstanding_balance - a.outstanding_balance).filter(c => c.outstanding_balance > 0);
+    if (filter === 'debtor') list = [...list].sort((a, b) => b.outstanding_balance - a.outstanding_balance).filter(c => c.hasDebt);
     return list;
   }, [clients, search, filter]);
 
   const selected = useMemo(() => clients.find(c => c.id === selectedId) ?? null, [clients, selectedId]);
 
-  const totalDebtActive = useMemo(() => credits.filter(c => c.payment_status === 'À Crédit').reduce((s, c) => s + c.amount, 0), [credits]);
+  // ── Créances en cours : le RESTE DÛ, pas le montant de la vente ───────────
+  //
+  // Le badge additionnait `total_amount` de chaque vente à crédit, USD et HTG
+  // mêlés : un acompte ne le faisait pas baisser, et 50 USD + 50 HTG y
+  // valaient « 100 HTG ». Le reste dû vient de `v_receivables`, déjà chargée
+  // pour la carte « Dette active » ; le total est converti comme elle.
+  // `due: null` = vue indisponible → « … ». Une vente soldée par acomptes
+  // (reste dû nul) ne figure plus parmi les créances en cours.
+  const openCredits = useMemo(() => credits
+    .filter(c => c.payment_status === 'À Crédit')
+    .map(c => ({ ...c, due: receivables ? (receivables.get(c.id)?.due ?? 0) : null }))
+    .filter(c => c.due === null || c.due > 0), [credits, receivables]);
+
+  const convertToHtg = useCallback((amount: number, currency: string): number | null =>
+    currency === 'USD' ? (rate === null ? null : amount * rate) : amount, [rate]);
+
+  const totalDebtActive = useMemo(() => {
+    let sum = 0;
+    for (const c of openCredits) {
+      const v = c.due === null ? null : convertToHtg(c.due, c.currency);
+      if (v === null) return null;
+      sum += v;
+    }
+    return sum;
+  }, [openCredits, convertToHtg]);
+
+  // Pied de l'historique : factures HTG et USD converties avant la somme.
+  const historyTotal = useMemo(() => {
+    let sum = 0;
+    for (const inv of invoices) {
+      const v = convertToHtg(inv.total, inv.currency);
+      if (v === null) return null;
+      sum += v;
+    }
+    return sum;
+  }, [invoices, convertToHtg]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -604,11 +673,11 @@ function ClientsCRMInner() {
                       />
                     )}
                   </div>
-                  <p className="text-xs text-[var(--color-muted)]">{c.saleCount} {c.saleCount !== 1 ? t({ fr: 'ventes', ht: 'vant' }) : t({ fr: 'vente', ht: 'vant' })} · {fmt(c.totalPurchases)}</p>
+                  <p className="text-xs text-[var(--color-muted)]">{c.saleCount} {c.saleCount !== 1 ? t({ fr: 'ventes', ht: 'vant' }) : t({ fr: 'vente', ht: 'vant' })} · {fmtTotal(c.totalPurchases, c.purchasesPending)}</p>
                 </div>
-                {c.outstanding_balance > 0 && (
+                {c.hasDebt && (
                   <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-note font-bold text-red-400">
-                    {fmt(c.outstanding_balance)}
+                    {fmtTotal(c.outstanding_balance, c.debtPending)}
                   </span>
                 )}
               </div>
@@ -654,7 +723,7 @@ function ClientsCRMInner() {
                   {selected.isVIP && (
                     <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">{t({ fr: 'Client fidèle', ht: 'Kliyan fidèl' })}</span>
                   )}
-                  {selected.outstanding_balance > 0 && (
+                  {selected.hasDebt && (
                     <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">{t({ fr: 'Dette', ht: 'Dèt' })}</span>
                   )}
                 </div>
@@ -708,12 +777,12 @@ function ClientsCRMInner() {
                 <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">{t({ fr: 'Analytique', ht: 'Analitik' })}</p>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: t({ fr: 'Total Achats', ht: 'Total Acha' }), value: fmt(selected.totalPurchases), sub: `${selected.saleCount} ${t({ fr: 'ventes', ht: 'vant' })}`, color: 'text-primary', bg: 'bg-primary/10' },
+                    { label: t({ fr: 'Total Achats', ht: 'Total Acha' }), value: fmtTotal(selected.totalPurchases, selected.purchasesPending), sub: `${selected.saleCount} ${t({ fr: 'ventes', ht: 'vant' })}`, color: 'text-primary', bg: 'bg-primary/10' },
                     // Couleur et mention suivent le même chiffre que la valeur : une vente
                     // « partielle » compte dans le solde dû sans figurer dans `credits`,
                     // et la carte affichait alors un montant sous l'étiquette « Aucune ».
-                    { label: t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), value: fmt(selected.outstanding_balance), sub: selected.outstanding_balance > 0 ? t({ fr: 'En cours', ht: 'An Kou' }) : t({ fr: 'Aucune', ht: 'Okenn' }), color: selected.outstanding_balance > 0 ? 'text-red-400' : 'text-emerald-400', bg: selected.outstanding_balance > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10' },
-                    { label: t({ fr: 'Moyenne / Vente', ht: 'Mwayèn / Vant' }), value: selected.saleCount ? fmt(selected.totalPurchases / selected.saleCount) : '—', sub: t({ fr: 'Panier moyen', ht: 'Mwayèn' }), color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+                    { label: t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), value: fmtTotal(selected.outstanding_balance, selected.debtPending), sub: selected.hasDebt ? t({ fr: 'En cours', ht: 'An Kou' }) : t({ fr: 'Aucune', ht: 'Okenn' }), color: selected.hasDebt ? 'text-red-400' : 'text-emerald-400', bg: selected.hasDebt ? 'bg-red-500/10' : 'bg-emerald-500/10' },
+                    { label: t({ fr: 'Moyenne / Vente', ht: 'Mwayèn / Vant' }), value: selected.saleCount ? fmtTotal(selected.totalPurchases / selected.saleCount, selected.purchasesPending) : '—', sub: t({ fr: 'Panier moyen', ht: 'Mwayèn' }), color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
                     { label: t({ fr: 'Statistiques', ht: 'Estatistik' }), value: selected.isVIP ? t({ fr: 'Fidèle', ht: 'Fidèl' }) : t({ fr: 'Régulier', ht: 'Regilye' }), sub: selected.isVIP ? `+${VIP_THRESHOLD / 1000}k HTG` : `< ${VIP_THRESHOLD / 1000}k HTG`, color: selected.isVIP ? 'text-amber-400' : 'text-[var(--color-muted)]', bg: selected.isVIP ? 'bg-amber-500/10' : 'bg-[var(--color-surface)]' },
                   ].map(({ label, value, sub, color, bg }) => (
                     <div key={label as string} className={`rounded-surface border border-[var(--color-border)] ${bg} p-4 backdrop-blur-xl`}>
@@ -726,21 +795,28 @@ function ClientsCRMInner() {
               </section>
 
               {/* ── Credit/Debt section ── */}
-              {credits.some(c => c.payment_status === 'À Crédit') && (
+              {openCredits.length > 0 && (
                 <section className="rounded-surface border border-red-500/20 bg-red-500/5 p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-widest text-red-400">{t({ fr: 'Créances en cours', ht: 'Kreyans an kou' })}</p>
-                    <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400">{fmt(totalDebtActive)}</span>
+                    <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400">{fmtTotal(totalDebtActive)}</span>
                   </div>
                   <div className="space-y-2">
-                    {credits.filter(c => c.payment_status === 'À Crédit').map(cc => (
+                    {openCredits.map(cc => (
                       <div key={cc.id} className="flex items-center justify-between rounded-2xl bg-[var(--color-surface)] px-4 py-3">
                         <div>
                           <p className="font-mono text-xs text-[var(--color-muted)]">{cc.invoice_number ?? '—'}</p>
                           <p className="text-note text-[var(--color-muted)]">{new Date(cc.created_at).toLocaleDateString('fr-FR')} · {daysSince(cc.created_at)} {t({ fr: 'jours', ht: 'jou' })}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <p className="font-bold text-red-400">{fmt(cc.amount, cc.currency)}</p>
+                          {/* Reste dû dans la devise de la vente ; le montant
+                              facturé en rappel quand un acompte a été versé. */}
+                          <div className="text-right">
+                            <p className="font-bold text-red-400">{cc.due === null ? '…' : fmt(cc.due, cc.currency)}</p>
+                            {cc.due !== null && cc.due < cc.amount && (
+                              <p className="text-note text-[var(--color-muted)]">{t({ fr: 'sur ', ht: 'sou ' })}{fmt(cc.amount, cc.currency)}</p>
+                            )}
+                          </div>
                           <button onClick={() => handlePayCredit(cc.id)} disabled={busyCredit.has(cc.id)}
                             className="rounded-xl bg-accent px-3 py-1.5 text-xs font-bold text-accent-ink transition hover:bg-accent-h disabled:opacity-50">
                             {busyCredit.has(cc.id) ? '…' : t({ fr: 'Encaisser', ht: 'Touche' })}
@@ -799,7 +875,7 @@ function ClientsCRMInner() {
                 <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3">
                   <span className="text-xs text-[var(--color-muted)]">{invoices.length} {t({ fr: 'factures', ht: 'fakti' })}</span>
                   <span className="text-sm font-bold text-primary">
-                    {t({ fr: 'Total: ', ht: 'Total: ' })}{fmt(invoices.reduce((s, i) => s + i.total, 0))}
+                    {t({ fr: 'Total: ', ht: 'Total: ' })}{fmtTotal(historyTotal)}
                   </span>
                 </div>
               </section>
@@ -835,7 +911,7 @@ function ClientsCRMInner() {
             <p style={{ color: '#555', fontSize: 13, marginBottom: 24 }}>{t({ fr: 'Client depuis ', ht: 'Kliyan depi ' })}{new Date(selected.created_at).toLocaleDateString('fr-FR')}</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 32 }}>
-              {[[t({ fr: 'Total Achats', ht: 'Total Acha' }), fmt(selected.totalPurchases)], [t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), fmt(selected.outstanding_balance)], [t({ fr: 'Nombre de Ventes', ht: 'Nòm Ventes' }), String(selected.saleCount)]].map(([l, v]) => (
+              {[[t({ fr: 'Total Achats', ht: 'Total Acha' }), fmtTotal(selected.totalPurchases, selected.purchasesPending)], [t({ fr: 'Dette Active', ht: 'Dèt Aktif' }), fmtTotal(selected.outstanding_balance, selected.debtPending)], [t({ fr: 'Nombre de Ventes', ht: 'Nòm Ventes' }), String(selected.saleCount)]].map(([l, v]) => (
                 <div key={l as string} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 16 }}>
                   <p style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', marginBottom: 4 }}>{l}</p>
                   <p style={{ fontSize: 20, fontWeight: 700 }}>{v}</p>

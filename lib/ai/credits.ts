@@ -30,6 +30,7 @@ import { getActivePlanKey } from '../entitlements';
 import { planAiCredits } from '../planFeatures';
 import { getSupabaseService } from '../supabaseServiceClient';
 import type { PlanKey } from '../plans';
+import type { EnhancementType } from './imageEnhancer';
 
 /** Les actions facturées. Les mêmes chaînes que `ai_credit_costs.action`. */
 export type AiAction =
@@ -160,4 +161,160 @@ export async function refundCredits(
     // Un remboursement raté ne doit pas masquer l'erreur qu'il accompagne :
     // l'appelant est déjà en train de rapporter un échec au marchand.
   }
+}
+
+/**
+ * Rend ce qui a été débité sous une référence, et seulement ce qui n'a pas
+ * encore été rendu. Renvoie le nombre de crédits rendus. Ne lève jamais.
+ *
+ * Deux différences avec `refundCredits()`, et elles sont la raison d'être de
+ * cette fonction :
+ *
+ *   LE MONTANT VIENT DU GRAND LIVRE, pas de la grille. `ai_credit_refund()`
+ *   relit `ai_credit_costs` au moment du remboursement : si le tarif a changé
+ *   entre le lancement et l'échec, le marchand récupère un autre montant que
+ *   celui qu'il a payé. Et si le débit n'a jamais eu lieu (fonctions absentes,
+ *   coût nul à l'époque), il récupère des crédits qu'il n'a jamais dépensés.
+ *
+ *   ELLE NE REND PAS DEUX FOIS. Rien dans la base n'empêche deux lignes de
+ *   remboursement pour la même référence (pas d'index unique, et en ajouter un
+ *   demande une migration). On compare donc débité et déjà rendu avant
+ *   d'écrire. Ce contrôle lit puis écrit : il n'est pas atomique, c'est une
+ *   ceinture. La garantie, pour le Studio photo, est la transition de statut de
+ *   `failImageJob()` ; ceci rattrape un appelant qui l'oublierait.
+ *
+ * La référence doit désigner UN geste facturé (`imageJobCreditRef()`), pas un
+ * objet sur lequel on en fait plusieurs : sous `product:<id>`, le remboursement
+ * de la deuxième retouche ratée croiserait le débit de la première réussie.
+ */
+export async function refundDebit(businessId: string, reference: string): Promise<number> {
+  try {
+    const svc = getSupabaseService();
+    const { data, error } = await svc
+      .from('ai_credit_ledger')
+      .select('action, delta')
+      .eq('business_id', businessId)
+      .eq('reference', reference);
+
+    if (error || !data) {
+      console.error('[ai-credits] lecture du grand livre impossible, remboursement non fait', reference, error?.message);
+      return 0;
+    }
+
+    // Par action : `image_enhance` débité, `image_enhance_refund` rendu — la
+    // convention que suit déjà `ai_credit_refund()`.
+    const debited  = new Map<string, number>();
+    const refunded = new Map<string, number>();
+    for (const row of data as { action: string; delta: number }[]) {
+      const delta = Number(row.delta) || 0;
+      if (row.action.endsWith('_refund')) {
+        const base = row.action.slice(0, -'_refund'.length);
+        refunded.set(base, (refunded.get(base) ?? 0) + delta);
+      } else if (delta < 0) {
+        debited.set(row.action, (debited.get(row.action) ?? 0) - delta);
+      }
+    }
+
+    let total = 0;
+    for (const [action, paid] of debited) {
+      const due = paid - (refunded.get(action) ?? 0);
+      if (due <= 0) continue;
+
+      const { error: insertErr } = await svc.from('ai_credit_ledger').insert({
+        business_id: businessId,
+        delta:       due,
+        action:      `${action}_refund`,
+        reference,
+      });
+      if (insertErr) {
+        console.error('[ai-credits] remboursement non écrit', reference, insertErr.message);
+        continue;
+      }
+      total += due;
+    }
+    return total;
+  } catch (err) {
+    console.error('[ai-credits] remboursement impossible', reference, err);
+    return 0;
+  }
+}
+
+// ── Studio photo ────────────────────────────────────────────────────────────
+//
+// Une retouche se débite au lancement mais n'échoue souvent que plus tard :
+// dans le rappel du fournisseur, ou quand on va l'interroger parce que le
+// rappel s'est perdu. Ces deux chemins peuvent découvrir le même échec, dans
+// n'importe quel ordre, parfois dans la même seconde. Les fonctions ci-dessous
+// sont le seul endroit où un travail passe en échec, pour qu'un seul d'entre
+// eux rembourse.
+
+/** Le geste facturé, selon la retouche demandée : les trois lignes « image » de `ai_credit_costs`. */
+export const IMAGE_CREDIT_ACTION: Record<EnhancementType, AiAction> = {
+  full:            'image_enhance',
+  background_only: 'image_background',
+  upscale_only:    'image_upscale',
+};
+
+/** La référence du débit d'une retouche : le travail, pas le produit (voir `refundDebit()`). */
+export function imageJobCreditRef(jobId: string): string {
+  return `ai_asset_job:${jobId}`;
+}
+
+/** Les statuts d'où un travail peut encore finir, d'une façon ou d'une autre. */
+const OPEN_JOB_STATUSES = ['pending', 'processing'] as const;
+
+/**
+ * Fait passer une retouche en échec et rembourse — une seule fois, quel que
+ * soit le nombre d'appelants qui constatent l'échec.
+ *
+ * La garantie est la requête elle-même : `UPDATE … WHERE status IN ('pending',
+ * 'processing') RETURNING id`. Deux appels concurrents se sérialisent sur le
+ * verrou de la ligne ; le second réévalue sa condition sur la version écrite
+ * par le premier, ne trouve plus rien, et ne rembourse pas. Un travail déjà
+ * terminé ne change pas non plus : on ne rembourse jamais une retouche livrée.
+ *
+ * Renvoie `true` si CET appel a fait la transition. Ne lève jamais : un rappel
+ * de fournisseur ne doit pas échouer à cause d'un remboursement.
+ */
+export async function failImageJob(
+  job:     { id: string; business_id: string },
+  message: string,
+): Promise<boolean> {
+  try {
+    const { data, error } = await getSupabaseService()
+      .from('ai_asset_jobs')
+      .update({ status: 'failed', error_message: message.slice(0, 500) })
+      .eq('id', job.id)
+      .in('status', [...OPEN_JOB_STATUSES])
+      .select('id');
+
+    if (error || !data || data.length === 0) return false;
+
+    await refundDebit(job.business_id, imageJobCreditRef(job.id));
+    return true;
+  } catch (err) {
+    console.error('[ai-credits] échec de retouche non enregistré', job.id, err);
+    return false;
+  }
+}
+
+/**
+ * Marque une retouche terminée, si elle ne l'est pas déjà — ni en échec.
+ *
+ * Même transition conditionnelle que `failImageJob()`, et pour la même raison :
+ * sans elle, un rappel qui échoue à rapatrier l'image (échec, remboursement)
+ * pouvait être suivi d'une interrogation qui réussit et écrase le statut —
+ * retouche livrée ET remboursée.
+ *
+ * Renvoie `true` si CET appel a fait la transition.
+ */
+export async function completeImageJob(jobId: string, processedImageUrl: string): Promise<boolean> {
+  const { data, error } = await getSupabaseService()
+    .from('ai_asset_jobs')
+    .update({ status: 'completed', processed_image_url: processedImageUrl, error_message: null })
+    .eq('id', jobId)
+    .in('status', [...OPEN_JOB_STATUSES])
+    .select('id');
+
+  return !error && !!data && data.length > 0;
 }

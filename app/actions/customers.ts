@@ -1,7 +1,7 @@
 'use server';
 
 import { getBusinessContext } from '../../lib/serverAuth';
-import { recordSalePaymentEntry } from './accounting';
+import { recordSalePaymentEntry } from '../../lib/accounting/posting';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';

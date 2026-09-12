@@ -33,6 +33,7 @@
 
 import Link from 'next/link';
 import { Section } from './Shell';
+import { storeLink } from './storeLink';
 import { FadeIn } from '../blocks/FadeIn';
 import { sectionTitle } from '../../../lib/storeSections';
 import type { SectionProps } from './types';
@@ -92,7 +93,7 @@ export function PresentationSection({ store, section, design }: SectionProps) {
 
             {cta && (
               <Link
-                href={p.ctaHref.trim() || `${store.base}/products`}
+                href={storeLink(p.ctaHref, store.base)}
                 className="mt-8 inline-flex min-h-[52px] items-center justify-center px-7 text-[15px] font-semibold transition hover:brightness-95"
                 style={{
                   background:   'var(--st-accent)',

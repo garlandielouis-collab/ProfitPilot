@@ -144,6 +144,37 @@ async function sendStoreOrderNotification(orderId: string, event: StoreOrderEven
   }
 }
 
+/**
+ * Vrai si cette transaction a déjà réglé une AUTRE commande de la passerelle.
+ *
+ * Le rappel reçoit l'identifiant de transaction dans l'URL : rien n'empêche
+ * de rejouer celui d'un achat réussi avec l'identifiant d'une autre commande.
+ * La vérification auprès du fournisseur doit déjà le refuser (la référence ne
+ * correspond pas) ; ce contrôle-ci ne dépend que de notre base, et tient même
+ * si le fournisseur ne renvoie pas la référence qu'on attend.
+ *
+ * Une erreur de lecture lève : ne pas savoir n'est pas une autorisation.
+ */
+export async function transactionSettledElsewhere(params: {
+  gateway:       GatewayName;
+  transactionId: string;
+  orderId:       string;
+}): Promise<boolean> {
+  const svc = getSupabaseService();
+  const { data, error } = await svc
+    .from('orders')
+    .select('id')
+    .eq('payment_gateway', params.gateway)
+    .eq('payment_transaction_id', params.transactionId)
+    .neq('id', params.orderId)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`[${params.gateway}] lecture des transactions impossible : ${error.message}`);
+  }
+  return (data ?? []).length > 0;
+}
+
 export type SettlementOutcome =
   | { ok: true;  slug: string; orderId: string; orderNumber: string; businessId: string }
   | { ok: false; slug: string; reason: string };
@@ -170,7 +201,7 @@ export async function settleGatewayOrder(params: {
 
   const { data: order } = await svc
     .from('orders')
-    .select('id, business_id, order_number, payment_status, sale_id')
+    .select('id, business_id, order_number, payment_status, payment_transaction_id, sale_id')
     .eq('id', params.orderId)
     .maybeSingle();
 
@@ -178,14 +209,42 @@ export async function settleGatewayOrder(params: {
 
   const slug = await storeSlugOf(order.business_id);
 
-  await svc
+  // Conditionnelle : seule une commande pas encore payée passe à « paid ». Deux
+  // rappels simultanés lisent tous deux `unpaid` ; un seul modifie la ligne, et
+  // la transaction enregistrée n'est jamais écrasée par la seconde. C'est ce
+  // résultat — pas le statut lu plus haut — qui dit si le règlement est le
+  // premier. (`payment_status` est NOT NULL : le `neq` n'écarte pas de NULL.)
+  const { data: marked, error: markError } = await svc
     .from('orders')
     .update({
       payment_status:         'paid',
       payment_transaction_id: params.transactionId,
       payment_gateway:        params.gateway,
     })
-    .eq('id', order.id);
+    .eq('id', order.id)
+    .neq('payment_status', 'paid')
+    .select('id');
+
+  if (markError) {
+    throw new Error(`[${params.gateway}] commande non marquée payée : ${markError.message}`);
+  }
+
+  const firstSettlement = (marked ?? []).length > 0;
+
+  if (
+    !firstSettlement
+    && order.payment_transaction_id
+    && order.payment_transaction_id !== params.transactionId
+  ) {
+    // Commande déjà réglée par une autre transaction : peut-être un double
+    // paiement de l'acheteur. On n'écrase rien ; le journal garde la trace.
+    console.error(`[${params.gateway}] commande déjà réglée par une autre transaction`, {
+      orderId:  order.id,
+      order:    order.order_number,
+      recorded: order.payment_transaction_id,
+      received: params.transactionId,
+    });
+  }
 
   try {
     await svc.rpc('confirm_store_order', { p_order_id: order.id }).throwOnError();
@@ -200,7 +259,7 @@ export async function settleGatewayOrder(params: {
 
   // Au PREMIER règlement seulement : un fournisseur qui rappelle deux fois ne
   // doit pas annoncer deux commandes au marchand.
-  if (order.payment_status !== 'paid') {
+  if (firstSettlement) {
     queueStoreOrderNotification(order.id as string, 'paid');
   }
 

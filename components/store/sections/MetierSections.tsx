@@ -29,6 +29,7 @@ import {
   PackageCheck, Layers, Check, ArrowRight, Quote, PlayCircle, Newspaper,
 } from 'lucide-react';
 import { Section, SectionHeader } from './Shell';
+import { storeLink } from './storeLink';
 import { StoreImage } from '../blocks/StoreImage';
 import { ProductGrid } from '../blocks/ProductGrid';
 import { storeMoney } from '../format';
@@ -339,7 +340,7 @@ export function PackagesSection({ store, section, design }: SectionProps) {
                   colonne inachevée. */}
               {item.ctaLabel.trim() && item.ctaHref.trim() && (
                 <a
-                  href={item.ctaHref}
+                  href={storeLink(item.ctaHref, store.base)}
                   target={item.ctaHref.startsWith('http') ? '_blank' : undefined}
                   rel={item.ctaHref.startsWith('http') ? 'noopener noreferrer' : undefined}
                   className="mt-auto flex min-h-[48px] w-full items-center justify-center pt-0 text-[14px] font-semibold transition hover:brightness-95"
@@ -547,7 +548,7 @@ export function JournalSection({ store, section, design }: SectionProps) {
           return linked ? (
             <a
               key={i}
-              href={item.href}
+              href={storeLink(item.href, store.base)}
               target={external ? '_blank' : undefined}
               rel={external ? 'noopener noreferrer' : undefined}
               className="group flex flex-col"

@@ -53,6 +53,25 @@ export type DashboardV2Data = {
   extra?: DashboardExtra;
 };
 
+// ── Conversion vers la devise de l'entreprise ────────────────────────────────
+//
+// Une vente en USD et une dépense en HTG ne s'additionnent pas telles quelles.
+// Chaque montant est ramené à `businesses.default_currency` au taux
+// `businesses.exchange_rate` (1 USD = taux HTG), la source de /dettes et des
+// dépenses. Renvoie `null` quand la conversion est impossible (taux absent ou
+// nul) : l'appelant exclut alors le montant au lieu d'inventer un chiffre.
+function makeToReport(exchangeRate: number, reportCurrency: 'HTG' | 'USD') {
+  const rateOk = Number.isFinite(exchangeRate) && exchangeRate > 0;
+  return (amount: number, currency: string | null | undefined): number | null => {
+    const c = (currency ?? 'HTG').toUpperCase();
+    if (c === reportCurrency) return amount;
+    if (!rateOk) return null;
+    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
+    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
+    return amount;
+  };
+}
+
 // ── getDashboardV2Action ──────────────────────────────────────────────────────
 
 export async function getDashboardV2Action(
@@ -174,13 +193,8 @@ export async function getDashboardV2Action(
   // ── Exchange rate (now from parallel fetch) ────────────────────────────────
   const exchangeRate   = Number((biz as any)?.exchange_rate ?? 130);
   const reportCurrency = ((biz as any)?.default_currency ?? 'HTG') as 'HTG' | 'USD';
-  const toReport = (amount: number, currency: string): number => {
-    const c = (currency ?? 'HTG').toUpperCase();
-    if (c === reportCurrency) return amount;
-    if (reportCurrency === 'HTG' && c === 'USD') return amount * exchangeRate;
-    if (reportCurrency === 'USD' && c === 'HTG') return amount / exchangeRate;
-    return amount;
-  };
+  const convert  = makeToReport(exchangeRate, reportCurrency);
+  const toReport = (amount: number, currency: string): number => convert(amount, currency) ?? 0;
 
   // ── Build ledger ──────────────────────────────────────────────────────────
   const seenInvoices = new Set<string>();
@@ -324,6 +338,10 @@ export type WeeklySummary = {
   totalDebts: number;
   overdueDebts: number;
   cashAvailable: number;
+  /** Devise de TOUS les montants ci-dessus : celle de l'entreprise. */
+  currency: 'HTG' | 'USD';
+  /** Montants dans l'autre devise laissés hors des totaux faute de taux valide. */
+  unconvertedCount: number;
 };
 
 export type DashboardData = {
@@ -339,16 +357,34 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
     totalSales: 0, totalExpenses: 0, profit: 0, salesCount: 0,
     productsSold: 0, criticalStockItems: 0, topProducts: [],
     lowStockProducts: [], totalDebts: 0, overdueDebts: 0, cashAvailable: 0,
+    currency: 'HTG', unconvertedCount: 0,
   };
 
   // Le résumé hebdomadaire alimente le contexte de Pilot AI : même offre.
   if (!(await hasFeature('ai_assistant'))) return EMPTY;
 
   let businessId: string, userId: string, supabase: any;
+  let exchangeRate: number, reportCurrency: 'HTG' | 'USD';
   try {
     const ctx = await getBusinessContext();
     businessId = ctx.businessId; userId = ctx.userId; supabase = ctx.supabase;
+    // Taux et devise de l'entreprise courante, lus sur la même ligne
+    // `businesses` que getBusinessContext() a résolue (cookie multi-entreprise).
+    exchangeRate = ctx.exchangeRate; reportCurrency = ctx.defaultCurrency;
   } catch { return EMPTY; }
+
+  // Les montants étaient additionnés sans regarder leur devise, puis étiquetés
+  // « HTG » dans le contexte de Pilot AI : 100 USD + 100 HTG y devenaient
+  // « 200 HTG ». Chaque montant est désormais converti vers la devise de
+  // l'entreprise ; un montant inconvertible est exclu ET compté, pour que
+  // l'assistant sache que le total est incomplet.
+  const convert = makeToReport(exchangeRate, reportCurrency);
+  let unconvertedCount = 0;
+  const toReport = (amount: unknown, currency: string | null | undefined): number => {
+    const v = convert(Number(amount ?? 0), currency);
+    if (v === null) { unconvertedCount += 1; return 0; }
+    return v;
+  };
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -358,13 +394,13 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
   const fifteenAgoStr = fifteenDaysAgo.toISOString().split('T')[0];
 
   const [salesRes, expRes, prodsRes, purchRes] = await Promise.all([
-    supabase.from('sales').select('id, total_amount, customer_name, created_at')
+    supabase.from('sales').select('id, total_amount, currency, customer_name, created_at')
       .eq('business_id', businessId).is('deleted_at', null).gte('created_at', weekStart + 'T00:00:00'),
-    supabase.from('expenses').select('id, amount, expense_date')
+    supabase.from('expenses').select('id, amount, currency, expense_date')
       .eq('business_id', businessId).is('deleted_at', null).gte('expense_date', weekStart),
     supabase.from('products').select('id, name, stock_quantity, sale_price, purchase_price, category')
       .eq('business_id', businessId),
-    supabase.from('purchases').select('id, total_amount, payment_status, purchase_date')
+    supabase.from('purchases').select('id, total_amount, currency, payment_status, purchase_date')
       .eq('business_id', businessId).is('deleted_at', null).eq('payment_status', 'credit'),
   ]);
 
@@ -373,19 +409,24 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
   const products = (prodsRes.data  ?? []) as any[];
   const purchases= (purchRes.data  ?? []) as any[];
 
-  const totalSales    = sales.reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0);
-  const totalExpenses = expenses.reduce((s: number, r: any) => s + Number(r.amount ?? 0), 0);
+  // Une seule conversion par ligne : les sommes ci-dessous la réutilisent, et
+  // `unconvertedCount` ne compte pas deux fois le même montant.
+  const saleAmounts     = sales.map((r: any) => toReport(r.total_amount, r.currency));
+  const expenseAmounts  = expenses.map((r: any) => toReport(r.amount, r.currency));
+  const purchaseAmounts = purchases.map((r: any) => toReport(r.total_amount, r.currency));
+
+  const totalSales    = saleAmounts.reduce((s: number, v: number) => s + v, 0);
+  const totalExpenses = expenseAmounts.reduce((s: number, v: number) => s + v, 0);
   const profit        = totalSales - totalExpenses;
-  const totalDebts    = purchases.reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0);
-  const overdueDebts  = purchases
-    .filter((p: any) => p.purchase_date < fifteenAgoStr)
-    .reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0);
+  const totalDebts    = purchaseAmounts.reduce((s: number, v: number) => s + v, 0);
+  const overdueDebts  = purchases.reduce(
+    (s: number, p: any, i: number) => (p.purchase_date < fifteenAgoStr ? s + purchaseAmounts[i] : s), 0);
 
   const topProducts = Object.values(
-    sales.reduce((acc: any, s: any) => {
+    sales.reduce((acc: any, s: any, i: number) => {
       const name = s.customer_name ?? 'Kliyan';
       if (!acc[name]) acc[name] = { name, quantity: 0, revenue: 0 };
-      acc[name].revenue += Number(s.total_amount ?? 0);
+      acc[name].revenue += saleAmounts[i];
       acc[name].quantity += 1;
       return acc;
     }, {})
@@ -405,5 +446,7 @@ export async function getWeeklySummaryAction(): Promise<WeeklySummary> {
     totalDebts,
     overdueDebts,
     cashAvailable: profit - totalDebts,
+    currency:      reportCurrency,
+    unconvertedCount,
   };
 }

@@ -44,6 +44,7 @@ import { StoreImage } from '../blocks/StoreImage';
 import { FadeIn } from '../blocks/FadeIn';
 import { Section, SectionHeader } from './Shell';
 import { OrderRequestForm } from './OrderRequestForm';
+import { storeLink } from './storeLink';
 import { sectionTitle } from '../../../lib/storeSections';
 import { resolveOrderPhone } from '../../../lib/storeWhatsApp';
 import { IMAGE_SIZES } from '../../../lib/storeImage';
@@ -327,7 +328,7 @@ export function CtaBandSection({ store, design }: SectionProps) {
 
           {c.ctaLabel.trim() && (
             <Link
-              href={c.ctaHref.trim() || `${store.base}/products`}
+              href={storeLink(c.ctaHref, store.base)}
               className="mt-8 inline-flex min-h-[52px] items-center justify-center px-8 text-[15px] font-semibold transition hover:brightness-95"
               style={{
                 background:   'var(--st-accent)',

@@ -16,16 +16,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { assertFeature } from '../../../../lib/entitlements';
 import { getBusinessContext } from '../../../../lib/serverAuth';
 import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
 import { storeResultImage } from '../../../../lib/ai/storeResultImage';
 import {
+  IMAGE_CREDIT_ACTION,
   InsufficientCreditsError,
-  refundCredits,
+  completeImageJob,
+  failImageJob,
+  imageJobCreditRef,
+  refundDebit,
   spendCredits,
-  type AiAction,
 } from '../../../../lib/ai/credits';
 import {
   getEnhancementProvider,
@@ -44,17 +48,6 @@ const bodySchema = z.object({
     .enum(['full', 'background_only', 'upscale_only'])
     .default('full'),
 });
-
-/**
- * Le geste facturé, selon la retouche demandée. Les trois clés sont les trois
- * lignes « image » de `ai_credit_costs` : un détourage ne coûte pas le prix
- * d'un agrandissement.
- */
-const CREDIT_ACTION: Record<z.infer<typeof bodySchema>['enhancementType'], AiAction> = {
-  full:            'image_enhance',
-  background_only: 'image_background',
-  upscale_only:    'image_upscale',
-};
 
 /** L'URL publique de l'application, celle que le fournisseur devra rappeler. */
 function appUrl(): string | null {
@@ -159,8 +152,19 @@ export async function POST(request: Request) {
   // merchandising s'arrêtent au solde. Même schéma qu'eux (`lib/ai/credits.ts`)
   // — et même tolérance : fonctions de crédit absentes de la base, on laisse
   // passer plutôt que de fermer le Studio.
-  const creditAction = CREDIT_ACTION[enhancementType];
-  const creditRef    = `product:${product.id}`;
+  //
+  // Le geste facturé dépend de la retouche : un détourage ne coûte pas le prix
+  // d'un agrandissement (`IMAGE_CREDIT_ACTION`).
+  //
+  // L'identifiant du travail est tiré ICI, avant le débit, pour que le débit
+  // porte la référence du travail et non celle du produit. Un échec peut être
+  // découvert bien après — rappel du fournisseur, interrogation directe — et le
+  // remboursement doit alors retrouver exactement CE débit : sous
+  // `product:<id>`, la deuxième retouche d'un même produit se confondrait avec
+  // la première.
+  const creditAction = IMAGE_CREDIT_ACTION[enhancementType];
+  const jobId        = randomUUID();
+  const creditRef    = imageJobCreditRef(jobId);
   try {
     await spendCredits(ctx.businessId, ctx.userId, creditAction, creditRef);
   } catch (err) {
@@ -182,6 +186,7 @@ export async function POST(request: Request) {
   const { data: job, error: jobErr } = await svc
     .from('ai_asset_jobs')
     .insert({
+      id:                 jobId,
       business_id:        ctx.businessId,
       user_id:            ctx.userId,
       product_id:         product.id,
@@ -195,8 +200,9 @@ export async function POST(request: Request) {
     .single();
 
   if (jobErr || !job) {
-    // Rien n'est parti chez le fournisseur : le crédit revient.
-    await refundCredits(ctx.businessId, creditAction, creditRef);
+    // Rien n'est parti chez le fournisseur : le crédit revient — le montant
+    // réellement débité, lu dans le grand livre.
+    await refundDebit(ctx.businessId, creditRef);
     return NextResponse.json(
       { error: "Impossible d'enregistrer la demande." },
       { status: 500 },
@@ -220,25 +226,31 @@ export async function POST(request: Request) {
     await svc
       .from('ai_asset_jobs')
       .update({
-        status:          'processing',
         provider:        started.provider,
         provider_job_id: started.providerJobId,
       })
       .eq('id', job.id);
+
+    // `processing` seulement si le travail est encore `pending`. Un fournisseur
+    // rapide peut avoir déjà rappelé — terminé, ou échoué et remboursé — et
+    // réécrire `processing` par-dessus rouvrirait un travail clos : il
+    // pourrait alors être « échoué » une seconde fois par l'interrogation.
+    await svc
+      .from('ai_asset_jobs')
+      .update({ status: 'processing' })
+      .eq('id', job.id)
+      .eq('status', 'pending');
 
     return NextResponse.json({ jobId: job.id, status: 'processing' }, { status: 202 });
   } catch (err) {
     // L'échec est écrit sur le travail, pas seulement renvoyé : le marchand
     // doit retrouver la raison en rouvrant le Studio, pas seulement dans le
     // message éphémère qui a disparu quand il a changé d'écran.
-    const message = err instanceof Error ? err.message : 'Lancement impossible.';
-    await svc
-      .from('ai_asset_jobs')
-      .update({ status: 'failed', error_message: message })
-      .eq('id', job.id);
-
+    //
     // Le fournisseur a refusé le travail : un travail raté ne se facture pas.
-    await refundCredits(ctx.businessId, creditAction, creditRef);
+    // `failImageJob` écrit l'échec et rembourse, une seule fois.
+    const message = err instanceof Error ? err.message : 'Lancement impossible.';
+    await failImageJob({ id: job.id, business_id: ctx.businessId }, message);
 
     return NextResponse.json({ error: message, jobId: job.id }, { status: 502 });
   }
@@ -263,13 +275,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'jobId manquant.' }, { status: 400 });
   }
 
+  const businessId = ctx.businessId;
   const svc = getSupabaseService();
-  const { data: job } = await svc
-    .from('ai_asset_jobs')
-    .select('id, status, processed_image_url, original_image_url, error_message, provider, provider_job_id, created_at, prompt_preset')
-    .eq('id', jobId)
-    .eq('business_id', ctx.businessId)   // cloisonnement : pas le travail d'un autre
-    .maybeSingle();
+  const readJob = async () => {
+    const { data } = await svc
+      .from('ai_asset_jobs')
+      .select('id, status, processed_image_url, original_image_url, error_message, provider, provider_job_id, created_at, prompt_preset')
+      .eq('id', jobId)
+      .eq('business_id', businessId)   // cloisonnement : pas le travail d'un autre
+      .maybeSingle();
+    return data;
+  };
+
+  const job = await readJob();
 
   if (!job) {
     return NextResponse.json({ error: 'Travail introuvable.' }, { status: 404 });
@@ -284,21 +302,31 @@ export async function GET(request: Request) {
     if (provider && provider.name === job.provider) {
       const result = await provider.poll(job.provider_job_id).catch(() => null);
 
+      // Le rappel du fournisseur peut arriver pendant qu'on interroge. Les deux
+      // chemins passent par les mêmes transitions conditionnelles : le premier
+      // qui écrit gagne, le second ne change rien — et en particulier ne
+      // rembourse pas une seconde fois. D'où la relecture : on renvoie l'état
+      // réellement en base, pas celui que CET appel croyait écrire.
       if (result?.status === 'completed') {
-        const stored = await storeResultImage(result.imageUrl, ctx.businessId, job.id);
-        await svc
-          .from('ai_asset_jobs')
-          .update({ status: 'completed', processed_image_url: stored })
-          .eq('id', job.id);
-        return NextResponse.json({ ...job, status: 'completed', processed_image_url: stored });
+        let stored: string | null = null;
+        try {
+          stored = await storeResultImage(result.imageUrl, businessId, job.id);
+        } catch (err) {
+          // Même règle que le rappel : image irrécupérable, échec, remboursement.
+          // Laisser lever gardait le travail « en cours » pour toujours — le
+          // Studio ignore les réponses en erreur et réinterroge sans fin.
+          await failImageJob(
+            { id: job.id, business_id: businessId },
+            err instanceof Error ? err.message : 'Image irrécupérable.',
+          );
+        }
+        if (stored) await completeImageJob(job.id, stored).catch(() => false);
+        return NextResponse.json((await readJob()) ?? job);
       }
 
       if (result?.status === 'failed') {
-        await svc
-          .from('ai_asset_jobs')
-          .update({ status: 'failed', error_message: result.error })
-          .eq('id', job.id);
-        return NextResponse.json({ ...job, status: 'failed', error_message: result.error });
+        await failImageJob({ id: job.id, business_id: businessId }, result.error);
+        return NextResponse.json((await readJob()) ?? job);
       }
     }
   }

@@ -2,7 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
-import { recordPurchaseEntry } from './accounting';
+import { recordPurchaseEntry } from '../../lib/accounting/posting';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 

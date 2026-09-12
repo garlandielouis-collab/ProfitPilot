@@ -12,6 +12,9 @@
 // navigateur — la vue `v_ai_asset_jobs` que lit l'éditeur ne contient pas la
 // colonne — et comparé ici en temps constant.
 //
+// Ce jeton garde aussi le remboursement : un rappel « échec » rend les crédits
+// de la retouche, et aucun changement d'état n'a lieu avant sa vérification.
+//
 // Le rappel répond toujours 200, y compris sur un travail déjà traité ou
 // inconnu. Un fournisseur qui reçoit une erreur réessaie, parfois longtemps ;
 // et un code d'erreur différencié dirait à qui sonde la route quels
@@ -23,6 +26,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { getSupabaseService } from '../../../../../lib/supabaseServiceClient';
 import { getEnhancementProvider } from '../../../../../lib/ai/imageEnhancer';
 import { storeResultImage } from '../../../../../lib/ai/storeResultImage';
+import { completeImageJob, failImageJob } from '../../../../../lib/ai/credits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,7 +58,10 @@ export async function POST(request: Request) {
   if (!job || !tokensMatch(token, job.callback_token)) return ok();
 
   // Rappel en double : les fournisseurs en envoient, et un travail déjà terminé
-  // ne doit pas voir son image remplacée par un second téléchargement.
+  // ne doit pas voir son image remplacée par un second téléchargement. Ce n'est
+  // qu'un raccourci : la garantie contre le double remboursement est la
+  // transition conditionnelle de `failImageJob` / `completeImageJob`, qui tient
+  // aussi quand l'interrogation directe passe entre cette lecture et l'écriture.
   if (job.status === 'completed' || job.status === 'failed') return ok();
 
   const provider = getEnhancementProvider();
@@ -66,32 +73,24 @@ export async function POST(request: Request) {
   if (result.status === 'processing') return ok();
 
   if (result.status === 'failed') {
-    await svc
-      .from('ai_asset_jobs')
-      .update({ status: 'failed', error_message: result.error.slice(0, 500) })
-      .eq('id', job.id);
+    // Rien ne sera livré : échec, et le crédit débité au lancement revient.
+    await failImageJob(job, result.error);
     return ok();
   }
 
   // Terminé : on rapatrie l'image avant de marquer le travail terminé. Si le
   // téléchargement échoue, le travail passe en échec — plutôt que d'être marqué
-  // « terminé » avec l'URL éphémère d'un fournisseur, qui expirera en silence.
+  // « terminé » avec l'URL éphémère d'un fournisseur, qui expirera en silence —
+  // et le marchand, qui ne reçoit rien, est remboursé.
+  let stored: string;
   try {
-    const stored = await storeResultImage(result.imageUrl, job.business_id, job.id);
-    await svc
-      .from('ai_asset_jobs')
-      .update({ status: 'completed', processed_image_url: stored, error_message: null })
-      .eq('id', job.id);
+    stored = await storeResultImage(result.imageUrl, job.business_id, job.id);
   } catch (err) {
-    await svc
-      .from('ai_asset_jobs')
-      .update({
-        status: 'failed',
-        error_message: (err instanceof Error ? err.message : 'Image irrécupérable.').slice(0, 500),
-      })
-      .eq('id', job.id);
+    await failImageJob(job, err instanceof Error ? err.message : 'Image irrécupérable.');
+    return ok();
   }
 
+  await completeImageJob(job.id, stored).catch(() => false);
   return ok();
 }
 

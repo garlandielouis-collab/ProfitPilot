@@ -24,6 +24,8 @@ type WeeklySummary = {
   totalDebts:         number;
   overdueDebts:       number;
   cashAvailable:      number;
+  currency?:          'HTG' | 'USD';
+  unconvertedCount?:  number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -31,14 +33,23 @@ type WeeklySummary = {
 function buildContextBlock(ws: WeeklySummary): string {
   const debtRatio  = ws.totalSales > 0 ? ws.totalDebts / ws.totalSales : 0;
   const debtWarn   = debtRatio > 0.3 ? ' ⚠️ ALERTE: Dettes élevées!' : '';
+  // Les montants arrivent déjà convertis dans la devise de l'entreprise
+  // (getWeeklySummaryAction). L'étiquette « HTG » écrite en dur mentait à
+  // l'assistant pour un commerce qui tient ses comptes en USD. Le corps de la
+  // requête vient du navigateur : seule une valeur connue est acceptée.
+  const cur        = ws.currency === 'USD' ? 'USD' : 'HTG';
+  const skipped    = Number(ws.unconvertedCount ?? 0);
+  const skipNote   = skipped > 0
+    ? `\n- ⚠️ ${skipped} montant(s) dans une autre devise exclu(s) des totaux : taux de change indisponible. Les totaux sont incomplets.`
+    : '';
   return `
-**Données actuelles:**
-- Ventes: ${ws.totalSales.toFixed(0)} HTG | Dépenses: ${ws.totalExpenses.toFixed(0)} HTG | Profit: ${ws.profit.toFixed(0)} HTG
-- Dettes totales: ${ws.totalDebts.toFixed(0)} HTG${debtWarn} | En retard: ${ws.overdueDebts.toFixed(0)} HTG
-- Cash disponible: ${ws.cashAvailable.toFixed(0)} HTG | Ratio dettes/ventes: ${(debtRatio * 100).toFixed(1)}%
+**Données actuelles (montants en ${cur}):**
+- Ventes: ${ws.totalSales.toFixed(0)} ${cur} | Dépenses: ${ws.totalExpenses.toFixed(0)} ${cur} | Profit: ${ws.profit.toFixed(0)} ${cur}
+- Dettes totales: ${ws.totalDebts.toFixed(0)} ${cur}${debtWarn} | En retard: ${ws.overdueDebts.toFixed(0)} ${cur}
+- Cash disponible: ${ws.cashAvailable.toFixed(0)} ${cur} | Ratio dettes/ventes: ${(debtRatio * 100).toFixed(1)}%
 - Ventes: ${ws.salesCount} transactions | ${ws.productsSold} articles vendus | ${ws.criticalStockItems} produits en stock critique
-- Top produits: ${ws.topProducts.map((p) => `${p.name} (${p.quantity} vendus, ${p.revenue.toFixed(0)} HTG)`).join(', ') || 'aucun'}
-- Stock bas: ${ws.lowStockProducts.map((p) => `${p.name} (${p.quantity}u, ${p.category})`).join(', ') || 'aucun'}
+- Top produits: ${ws.topProducts.map((p) => `${p.name} (${p.quantity} vendus, ${p.revenue.toFixed(0)} ${cur})`).join(', ') || 'aucun'}
+- Stock bas: ${ws.lowStockProducts.map((p) => `${p.name} (${p.quantity}u, ${p.category})`).join(', ') || 'aucun'}${skipNote}
 `.trim();
 }
 
