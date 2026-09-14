@@ -66,6 +66,59 @@ const CompanyContext = createContext<CompanyContextValue>({
 // Provider
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Le contexte gardé d’une visite à l’autre
+//
+// Ce contexte est ce que TOUT écran attend pour savoir quoi afficher : le
+// tableau de bord ne dessine rien tant que `loading` est vrai. Le demander au
+// serveur à chaque chargement de page, c’est un aller-retour complet (identité,
+// commerce, rôle, offre, droits) AVANT le premier pixel — une seconde ou deux
+// sur une connexion mobile haïtienne, passées devant une roue qui tourne.
+//
+// On repart donc du dernier contexte connu, puis on revalide en arrière-plan.
+// Trois précautions, parce qu’un contexte périmé ne doit jamais ouvrir de porte :
+//
+//   Il est rangé PAR compte. Au montage, on relit la session (lecture locale,
+//   sans réseau) : si l’identifiant ne correspond pas, le cache est jeté avant
+//   d’avoir servi à quoi que ce soit.
+//   Il est purement d’AFFICHAGE. Le serveur ne le lit pas : `assertFeature()`,
+//   `assertPermission()` et les politiques RLS jugent sur l’état réel. Une
+//   offre périmée d’une seconde ne donne donc accès à rien.
+//   Il est effacé à la déconnexion, et remplacé dès que la réponse arrive.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CACHE_KEY = 'pp_tenant_ctx';
+
+type CachedTenant = { userId: string; ctx: ClientTenantContext };
+
+function readCache(): CachedTenant | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedTenant;
+    return parsed?.userId && parsed?.ctx?.company ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(userId: string, ctx: ClientTenantContext): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ userId, ctx }));
+  } catch {
+    /* stockage plein ou refusé : on s’en passe */
+  }
+}
+
+function clearCache(): void {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {
+    /* rien à faire */
+  }
+}
+
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const [ctx,     setCtx]     = useState<ClientTenantContext | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +130,16 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     try {
       const data = await getClientTenantContext();
       setCtx(data);
+      // Le contexte frais devient celui que la prochaine visite affichera
+      // sans attendre. Rangé sous l’identifiant du compte : un autre compte
+      // sur le même navigateur ne verra jamais celui-ci.
+      if (data) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const uid = session?.user?.id;
+        if (uid) writeCache(uid, data);
+      } else {
+        clearCache();
+      }
     } catch {
       setCtx(null);
     } finally {
@@ -87,8 +150,31 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
   // Load on mount and on auth change
   useEffect(() => {
+    // ① Le dernier contexte connu, tout de suite : l’écran a de quoi se
+    //    dessiner pendant que la revalidation part.
+    const cached = readCache();
+    if (cached) {
+      setCtx(cached.ctx);
+      setLoading(false);
+      // …sauf s’il appartient à quelqu’un d’autre. La session se lit en local,
+      // sans réseau : la vérification ne coûte rien et ferme le seul trou.
+      supabase.auth.getSession().then(({ data: { session } }: any) => {
+        if (session?.user?.id && session.user.id !== cached.userId) {
+          clearCache();
+          setCtx(null);
+          setLoading(true);
+        }
+      });
+    }
+
+    // ② La vérité, dans tous les cas.
     load();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
+      if (event === 'SIGNED_OUT') {
+        clearCache();
+        setCtx(null);
+      }
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
         load();
       }

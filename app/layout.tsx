@@ -48,10 +48,44 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+/**
+ * L’origine de Supabase (sans le chemin), ou `null` si la variable manque.
+ * Sert uniquement à ouvrir la connexion d’avance — aucune donnée n’y transite
+ * depuis le HTML.
+ */
+const supabaseOrigin = (() => {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return url ? new URL(url).origin : null;
+  } catch {
+    return null;
+  }
+})();
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={inter.variable} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
+        {/*
+          La poignée de main avec Supabase, lancée AVANT d’en avoir besoin.
+
+          Tout ce que l’application affiche vient de là : session, commerce,
+          offre, chiffres. Le premier appel payait donc DNS + TCP + TLS avant
+          même d’émettre sa requête — mesuré entre 0,4 et 1,1 s depuis une
+          connexion haïtienne, en plein sur le chemin critique.
+
+          `preconnect` ouvre la connexion pendant que le JavaScript se
+          télécharge : quand la première requête part, la route est déjà
+          établie. `dns-prefetch` sert de repli aux navigateurs qui ignorent
+          `preconnect`. L’hôte vient de la variable publique, rien n’est
+          écrit en dur ici.
+        */}
+        {supabaseOrigin && (
+          <>
+            <link rel="preconnect" href={supabaseOrigin} crossOrigin="" />
+            <link rel="dns-prefetch" href={supabaseOrigin} />
+          </>
+        )}
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/png" href="/ProfitPilot-favicon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/ProfitPilot-favicon.png" />

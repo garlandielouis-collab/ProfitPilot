@@ -13,10 +13,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const redirected = useRef(false);
 
-  useEffect(() => {
-    console.log(`[PROTECTED-ROUTE] checking=${checking} user=${user === undefined ? 'undefined(loading)' : user === null ? 'null(unauthenticated)' : user.id}`);
-  });
-
   // Redirect to login only after we KNOW user is null (not just "not yet loaded")
   useEffect(() => {
     if (!checking && user === null && !redirected.current) {

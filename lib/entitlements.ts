@@ -9,7 +9,7 @@
 
 import { cache } from 'react';
 import { getSupabaseServer } from './supabaseServerClient';
-import { getBusinessContext } from './serverAuth';
+import { getBusinessContext, type SubscriptionRow } from './serverAuth';
 import { FALLBACK_PLAN_KEY, normalizePlanKey, getPlanLabel, type PlanKey } from './plans';
 import { getPreviewPlanServer } from './planPreviewServer';
 import {
@@ -45,6 +45,31 @@ export class FeatureLockedError extends Error {
 }
 
 /**
+ * L'offre vivante parmi les abonnements déjà lus par `getBusinessContext()`.
+ *
+ * Ces lignes arrivent avec le contexte, lues en parallèle du rôle : demander
+ * la table ici coûtait un aller-retour de plus, en série derrière tout le
+ * reste, sur chaque action gardée — et la garde est partout.
+ *
+ * Même critère que la requête qu'elle remplace (`status = 'active'` et
+ * `expires_at >= maintenant`, la plus lointaine en premier) : un abonnement
+ * annulé ou échu ne compte pas, même s'il est en tête de liste.
+ */
+function livePlanKey(subscriptions: SubscriptionRow[]): PlanKey | null {
+  const now = Date.now();
+  const live = subscriptions.find(
+    (row) =>
+      row.status === 'active' &&
+      // Comparées en INSTANTS, pas en texte : la base rend « …+00:00 » et
+      // JavaScript « …Z » — deux écritures du même moment qui ne se classent
+      // pas pareil caractère par caractère.
+      !!row.expires_at &&
+      +new Date(row.expires_at) >= now,
+  );
+  return normalizePlanKey(live?.plan_key ?? undefined) ?? null;
+}
+
+/**
  * Offre active de l'utilisateur courant (clé technique normalisée).
  *
  * `cache()` dédoublonne dans une même requête serveur. Sans lui, une action qui
@@ -56,12 +81,9 @@ export const getActivePlanKey = cache(async (): Promise<PlanKey | null> => {
   // L'identité vient de `getBusinessContext()`, lui aussi memoïsé sur la
   // requête : toute action payante l'appelle de toute façon. Refaire ici un
   // `auth.getUser()` doublait l'aller-retour vers l'API Auth pour rien.
-  let userId: string;
-  let supabase: Awaited<ReturnType<typeof getSupabaseServer>>;
+  let subscriptions: SubscriptionRow[];
   try {
-    const ctx = await getBusinessContext();
-    userId   = ctx.userId;
-    supabase = ctx.supabase;
+    subscriptions = (await getBusinessContext()).subscriptions;
   } catch {
     return null;   // non authentifié : aucune offre
   }
@@ -78,17 +100,7 @@ export const getActivePlanKey = cache(async (): Promise<PlanKey | null> => {
   const preview = await getPreviewPlanServer();
   if (preview) return preview;
 
-  const { data: sub } = await supabase
-    .from('subscriptions')
-    .select('plan_key')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .gte('expires_at', new Date().toISOString())
-    .order('expires_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return normalizePlanKey(sub?.plan_key as string | undefined) ?? TRIAL_FALLBACK_PLAN;
+  return livePlanKey(subscriptions) ?? TRIAL_FALLBACK_PLAN;
 });
 
 /**
@@ -97,27 +109,12 @@ export const getActivePlanKey = cache(async (): Promise<PlanKey | null> => {
  * serait grave : facturation, relances, courriels.
  */
 export const getRealPlanKey = cache(async (): Promise<PlanKey | null> => {
-  let userId: string;
-  let supabase: Awaited<ReturnType<typeof getSupabaseServer>>;
   try {
-    const ctx = await getBusinessContext();
-    userId   = ctx.userId;
-    supabase = ctx.supabase;
+    const { subscriptions } = await getBusinessContext();
+    return livePlanKey(subscriptions) ?? TRIAL_FALLBACK_PLAN;
   } catch {
     return null;
   }
-
-  const { data: sub } = await supabase
-    .from('subscriptions')
-    .select('plan_key')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .gte('expires_at', new Date().toISOString())
-    .order('expires_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return normalizePlanKey(sub?.plan_key as string | undefined) ?? TRIAL_FALLBACK_PLAN;
 });
 
 /** `true` si l'offre active donne accès à la fonctionnalité. */

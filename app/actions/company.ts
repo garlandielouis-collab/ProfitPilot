@@ -148,11 +148,21 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
     // le verrouillage le voie (`lib/trial.ts`). Sans cette ligne, tout compte
     // neuf était traité en Esansyel dès la première seconde — Boutique en
     // ligne et Vitrine comprises.
-    const realPlanKey = await resolvePlanKey(
-      supabase,
-      user.id,
-      isOwner ? company.id : null,
-    );
+    // L'offre et les droits offerts ne dépendent pas l'un de l'autre. En série,
+    // c'était un aller-retour de plus AVANT le premier pixel : ce contexte est
+    // ce que chaque écran attend pour savoir quoi afficher.
+    const [realPlanKey, { data: grantRows }] = await Promise.all([
+      resolvePlanKey(
+        supabase,
+        user.id,
+        isOwner ? company.id : null,
+      ),
+      supabase
+        .from('feature_grants')
+        .select('feature')
+        .eq('user_id', user.id)
+        .gt('expires_at', new Date().toISOString()),
+    ]);
 
     // L'aperçu des offres remplace ce que les écrans AFFICHENT, jamais ce que
     // le compte possède : `realPlanKey` part à côté, intact, et c'est lui que
@@ -160,13 +170,6 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
     // posé `PLAN_PREVIEW=1` — sinon `getPreviewPlanServer()` rend `null`.
     const preview = await getPreviewPlanServer();
 
-    // Les droits temporaires (parrainage). Une requête de plus, mais sans
-    // elle l'écran verrouillerait un mois que le marchand a réellement gagné.
-    const { data: grantRows } = await supabase
-      .from('feature_grants')
-      .select('feature')
-      .eq('user_id', user.id)
-      .gt('expires_at', new Date().toISOString());
 
     return {
       company,

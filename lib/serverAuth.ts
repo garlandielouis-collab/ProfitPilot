@@ -37,6 +37,27 @@ export type BusinessContext = {
   defaultCurrency: 'HTG' | 'USD';
   role:            Role;
   can:             (permission: Permission) => boolean;
+  /**
+   * Les cinq derniers abonnements du compte, échéance la plus lointaine d'abord.
+   *
+   * Ils sont lus ICI, en parallèle du rôle, parce que presque toute action
+   * gardée finit par demander l’offre (`getActivePlanKey`). Lue là-bas, la
+   * table `subscriptions` coûtait un aller-retour de PLUS, en série derrière
+   * l'identité, le commerce et le rôle — sur une connexion haïtienne, autant
+   * d'attente pour une requête qui pouvait partir en même temps que les autres.
+   *
+   * Brut, non normalisé : `lib/entitlements.ts` décide ce qu’est une offre
+   * vivante. Tableau vide si la table est illisible — l’appelant retombe sur
+   * son repli habituel, comme avant.
+   */
+  subscriptions:   SubscriptionRow[];
+};
+
+/** Une ligne d’abonnement, telle qu’elle est en base. */
+export type SubscriptionRow = {
+  plan_key:   string | null;
+  status:     string | null;
+  expires_at: string | null;
 };
 
 /**
@@ -155,6 +176,10 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   // returned ». Un marchand avec deux commerces ne pouvait plus ouvrir
   // l'application du tout.
 
+  type MemberRow = { id: string; role: string | null; is_active: boolean | null };
+  /** La ligne de membre déjà lue en résolvant le commerce actif, s'il y en a une. */
+  let knownMember: MemberRow | null = null;
+
   async function getActiveStoreBusiness(storeId: string) {
     const { data, error } = await supabase
       .from('businesses')
@@ -171,15 +196,20 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
     if (error) throw new Error(error.message);
     if (!data) return null;
     if (data.owner_id === userId) return data;
+    // `role` et `is_active` en plus de `id` : c’est la MÊME ligne que
+    // `resolveMembership` relisait juste après. Deux allers-retours pour une
+    // seule réponse — le second disparaît en réutilisant celle-ci.
     const { data: member } = await supabase
       .from('business_members')
-      .select('id')
+      .select('id, role, is_active')
       .eq('business_id', storeId)
       .eq('user_id', userId)
       .eq('is_active', true)
       .is('deleted_at', null)
       .maybeSingle();
-    return member ? data : null;
+    if (!member) return null;
+    knownMember = member as MemberRow;
+    return data;
   }
 
   async function getOwnedBusiness() {
@@ -223,6 +253,25 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
     return biz as { id: string; owner_id: string; exchange_rate: number | null; default_currency: string | null };
   }
 
+  /**
+   * Les abonnements du compte. Cinq lignes, échéance la plus lointaine d’abord :
+   * un abonnement annulé à échéance lointaine ne doit pas masquer l’actif —
+   * même règle que `lib/trial.ts`, qui lit la même table pour ouvrir un essai.
+   */
+  async function readSubscriptions(): Promise<SubscriptionRow[]> {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('plan_key, status, expires_at')
+      .eq('user_id', userId)
+      // NULLS LAST : en DESC, Postgres remonte les échéances vides en tête, et
+      // cinq lignes sans date pousseraient l'abonnement réel hors de la liste.
+      .order('expires_at', { ascending: false, nullsFirst: false })
+      .limit(5);
+    // Table illisible : aucune offre connue. L’appelant retombe sur son repli.
+    if (error) return [];
+    return (data ?? []) as SubscriptionRow[];
+  }
+
   let biz = null;
   if (activeStoreId) {
     biz = await getActiveStoreBusiness(activeStoreId);
@@ -250,12 +299,13 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
   async function resolveMembership(businessId: string, ownerId: string | undefined): Promise<Role> {
     const isOwner = ownerId === userId;
 
-    const { data: member } = await supabase
+    // Déjà lue en résolvant le commerce actif : on ne la redemande pas.
+    const member = knownMember ?? (await supabase
       .from('business_members')
       .select('id, role, is_active')
       .eq('business_id', businessId)
       .eq('user_id', userId)
-      .maybeSingle();
+      .maybeSingle()).data;
 
     if (!member && isOwner) {
       await supabase.from('business_members').insert({
@@ -285,13 +335,21 @@ export const getBusinessContext = cache(async (): Promise<BusinessContext> => {
 
     if (createErr || !newBiz) throw new Error(createErr?.message ?? 'Impossible de créer le business.');
     const id = (newBiz as any).id as string;
-    await resolveMembership(id, userId);   // entreprise qu'on vient de créer : propriétaire
-    return buildContext(supabase, userId, id, newBiz as any, 'owner');
+    const [, newSubs] = await Promise.all([
+      resolveMembership(id, userId),   // entreprise qu'on vient de créer : propriétaire
+      readSubscriptions(),
+    ]);
+    return buildContext(supabase, userId, id, newBiz as any, 'owner', newSubs);
   }
 
   const id = (biz as any).id as string;
-  const role = await resolveMembership(id, (biz as any).owner_id);
-  return buildContext(supabase, userId, id, biz as any, role);
+  // Le rôle et l'offre ne dépendent pas l'un de l'autre : en série, c'était un
+  // aller-retour de plus avant la moindre lecture utile.
+  const [role, subs] = await Promise.all([
+    resolveMembership(id, (biz as any).owner_id),
+    readSubscriptions(),
+  ]);
+  return buildContext(supabase, userId, id, biz as any, role, subs);
 });
 
 function buildContext(
@@ -300,6 +358,7 @@ function buildContext(
   businessId: string,
   biz:        { exchange_rate?: number; default_currency?: string },
   role:       Role,
+  subscriptions: SubscriptionRow[],
 ): BusinessContext {
   return {
     supabase,
@@ -310,6 +369,7 @@ function buildContext(
     defaultCurrency: (biz.default_currency ?? 'HTG') as 'HTG' | 'USD',
     role,
     can: (permission: Permission) => roleHasPermission(role, permission),
+    subscriptions,
   };
 }
 
@@ -347,14 +407,24 @@ export async function verifyBusinessAccess(businessId: string): Promise<Business
   if (mErr) throw new Error(mErr.message);
   if (!member) throw new Error("Vous n'êtes pas membre de cette entreprise.");
 
-  const { data: biz } = await supabase
-    .from('businesses')
-    .select('exchange_rate, default_currency')
-    .eq('id', businessId)
-    .maybeSingle();
+  // Le commerce et les abonnements ne dépendent pas l'un de l'autre : les lire
+  // en série ajoutait un aller-retour à chaque appel.
+  const [{ data: biz }, { data: subs }] = await Promise.all([
+    supabase
+      .from('businesses')
+      .select('exchange_rate, default_currency')
+      .eq('id', businessId)
+      .maybeSingle(),
+    supabase
+      .from('subscriptions')
+      .select('plan_key, status, expires_at')
+      .eq('user_id', user.id)
+      .order('expires_at', { ascending: false, nullsFirst: false })
+      .limit(5),
+  ]);
 
   const role = (member.role as Role) ?? 'viewer';
-  return buildContext(supabase, user.id, businessId, biz ?? {}, role);
+  return buildContext(supabase, user.id, businessId, biz ?? {}, role, (subs ?? []) as SubscriptionRow[]);
 }
 
 /**
