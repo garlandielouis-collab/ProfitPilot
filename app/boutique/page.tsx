@@ -362,17 +362,20 @@ export default function BoutiquePage() {
     });
   }
 
-  // L'adresse que verra le client : domaine perso ou sous-domaine. Repli sur
-  // /store/<slug> quand aucun sous-domaine ne peut répondre — domaine racine non
-  // configuré (storeRootDomain() retombe sur localhost hors de la machine de dev)
-  // ou racine *.vercel.app, que le proxy ne réécrit jamais.
+  // L'adresse que verra le client : domaine perso, sous-domaine, ou chemin
+  // `/store/<slug>` quand aucun sous-domaine ne peut répondre. Le cas d’une
+  // racine *.vercel.app est tranché par `storePublicUrl` lui-même, pour que
+  // TOUS les écrans et tous les liens partagés disent la même adresse.
+  //
+  // Reste ici le seul cas qu’une fonction serveur ne peut pas voir : la racine
+  // est restée `localhost:3000` (variable non posée) alors que le navigateur,
+  // lui, est ailleurs.
   const rootDomain = storeRootDomain();
-  const subdomainDead = typeof window !== 'undefined' && (
-    rootDomain.endsWith('.vercel.app') ||
-    (rootDomain.startsWith('localhost') && !window.location.hostname.startsWith('localhost'))
-  );
+  const rootUnreachable = typeof window !== 'undefined'
+    && rootDomain.startsWith('localhost')
+    && !window.location.hostname.startsWith('localhost');
   const storeUrl = typeof window !== 'undefined' && form.slug
-    ? (!settings?.custom_domain && subdomainDead
+    ? (!settings?.custom_domain && rootUnreachable
         ? `${window.location.origin}/store/${form.slug}`
         : storePublicUrl({ slug: form.slug, custom_domain: settings?.custom_domain ?? null }))
     : '';

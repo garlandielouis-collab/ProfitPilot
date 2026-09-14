@@ -54,7 +54,7 @@ export function Footer() {
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3">
               <img
-                src="/ProfitPilot-logo.png"
+                src="/profitpilot-logo.png"
                 alt="ProfitPilot"
                 className="h-9 w-9 rounded-xl object-contain"
                 onError={(e) => {

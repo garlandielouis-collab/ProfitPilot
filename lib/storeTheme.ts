@@ -1181,12 +1181,44 @@ export function storeRootDomain(): string {
   );
 }
 
+/**
+ * Le domaine racine accepte-t-il des sous-domaines de vitrine ?
+ *
+ * Non sur un domaine `*.vercel.app` : Vercel ne route ni ne certifie les
+ * sous-domaines du domaine par défaut d'un projet. `maboutique.mon-projet.vercel.app`
+ * résout (le joker DNS existe) mais la connexion échoue — le marchand qui tape
+ * « Voir ma boutique » depuis son téléphone tombe sur une erreur de navigateur,
+ * pas sur sa vitrine. Le lien marchait en développement, où le domaine racine
+ * est `localhost:3000` et où les sous-domaines répondent.
+ *
+ * Le jour où un vrai domaine est posé (`NEXT_PUBLIC_STORE_ROOT_DOMAIN` avec un
+ * DNS joker), les sous-domaines redeviennent la forme normale sans rien changer
+ * ici.
+ */
+export function subdomainsRoutable(root = storeRootDomain()): boolean {
+  return !root.endsWith('.vercel.app');
+}
+
 /** L'adresse publique d'une vitrine : domaine perso s'il existe, sinon slug. */
 export function storePublicUrl(store: { slug: string; custom_domain?: string | null }): string {
   if (store.custom_domain) return `https://${store.custom_domain}`;
   const root = storeRootDomain();
   const protocol = root.startsWith('localhost') ? 'http' : 'https';
+  // Pas de sous-domaine possible : le chemin, qui lui répond partout.
+  if (!subdomainsRoutable(root)) return `${protocol}://${root}/store/${store.slug}`;
   return `${protocol}://${store.slug}.${root}`;
+}
+
+/**
+ * L'adresse telle qu'on la MONTRE au marchand, découpée pour un champ de saisie :
+ * ce qui précède le slug, et ce qui le suit. Un champ qui annonce
+ * « .mon-projet.vercel.app » promet une adresse qui ne répond pas.
+ */
+export function storeAddressAffixes(root = storeRootDomain()): { prefix: string; suffix: string } {
+  if (!subdomainsRoutable(root)) {
+    return { prefix: `${root}/store/`, suffix: "" };
+  }
+  return { prefix: "", suffix: `.${root}` };
 }
 
 /**

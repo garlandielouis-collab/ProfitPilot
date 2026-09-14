@@ -41,7 +41,7 @@ import { SectionsTab } from './SectionsTab';
 import { ImageEnhancerModal } from '../../../components/store/ImageEnhancerModal';
 import { CopyStudioModal } from '../../../components/store/CopyStudioModal';
 import {
-  slugify, storeRootDomain, readableInk, contrastRatio, brandPresetFor,
+  slugify, storeRootDomain, storeAddressAffixes, readableInk, contrastRatio, brandPresetFor,
   FONT_CHOICES, type ThemeConfig, type TemplateId,
 } from '../../../lib/storeTheme';
 import { Button } from '../../../components/ds/Button';
@@ -203,6 +203,10 @@ function GeneralTab({
   const [domain, setDomain]       = useState(state.customDomain ?? '');
 
   const root = storeRootDomain();
+  // Ce que le marchand lit autour de son slug. Sur une racine *.vercel.app,
+  // l'adresse est `<racine>/store/<slug>` et non `<slug>.<racine>` : annoncer
+  // le sous-domaine donnait un lien mort à partager à ses clients.
+  const address = storeAddressAffixes(root);
 
   return (
     <div className="flex flex-col gap-8">
@@ -239,9 +243,16 @@ function GeneralTab({
           label="Adresse de la boutique"
           value={slug}
           onChange={(e) => setSlug(slugify(e.target.value))}
-          suffix={`.${root}`}
+          suffix={address.suffix || undefined}
           hint="Lettres minuscules, chiffres et tirets."
         />
+
+        {/* Le lien EXACT, celui qu’il va envoyer à ses clients. Quand
+            l’adresse est un chemin et non un sous-domaine, le champ seul ne
+            la montre pas — et c’est justement l’adresse qui répond. */}
+        <p className="mt-2 break-all text-note text-muted dark:text-dark-muted">
+          {`${address.prefix}${slug || 'votre-adresse'}${address.suffix}`}
+        </p>
 
         <div className="mt-6">
           <Field

@@ -5,11 +5,24 @@ import { usePathname }     from 'next/navigation';
 import { QueryProvider }   from './QueryProvider';
 import { ThemeProvider }   from './ThemeProvider';
 import { ToastProvider }   from './ToastProvider';
-import { CompanyProvider } from '../../contexts/CompanyContext';
+import { CompanyProvider, useCompanyContext } from '../../contexts/CompanyContext';
 import { useAutoExchangeRateRefresh } from '../../hooks/useExchangeRate';
 
+/**
+ * Le rafraîchissement automatique du taux USD/HTG.
+ *
+ * Il n'a de sens que pour un marchand connecté : l'action qui enregistre le
+ * taux écrit dans SON entreprise. Montée sans session — sur la page d’accueil,
+ * l'écran de connexion, les tarifs —, elle partait quand même et répondait 500
+ * (« Non authentifié »), une fonction serveur réveillée et une erreur dans les
+ * journaux pour chaque visiteur anonyme.
+ *
+ * `company` vient du contexte : il n'est renseigné que lorsqu'une session a
+ * résolu une entreprise. Aucun appel supplémentaire pour le savoir.
+ */
 function AutoRateRefresher() {
-  useAutoExchangeRateRefresh(true);
+  const { company } = useCompanyContext();
+  useAutoExchangeRateRefresh(Boolean(company));
   return null;
 }
 
