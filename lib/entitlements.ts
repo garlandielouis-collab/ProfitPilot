@@ -9,7 +9,7 @@
 
 import { cache } from 'react';
 import { getSupabaseServer } from './supabaseServerClient';
-import { getBusinessContext, type SubscriptionRow } from './serverAuth';
+import { getBusinessContext, isTransportFailure, type SubscriptionRow } from './serverAuth';
 import { FALLBACK_PLAN_KEY, normalizePlanKey, getPlanLabel, type PlanKey } from './plans';
 import { getPreviewPlanServer } from './planPreviewServer';
 import {
@@ -81,10 +81,30 @@ export const getActivePlanKey = cache(async (): Promise<PlanKey | null> => {
   // L'identité vient de `getBusinessContext()`, lui aussi memoïsé sur la
   // requête : toute action payante l'appelle de toute façon. Refaire ici un
   // `auth.getUser()` doublait l'aller-retour vers l'API Auth pour rien.
+  // ── « Injoignable » n'est pas « non abonné » ──────────────────────────────
+  //
+  // Ce `catch` avalait TOUT, échecs de transport compris, et rendait `null` —
+  // c'est-à-dire « aucune offre ». `assertFeature` levait alors une
+  // `FeatureLockedError` : un à-coup réseau de deux secondes se présentait au
+  // marchand comme une invitation à racheter ce qu'il paie déjà.
+  //
+  // `getBusinessContext` a été corrigé pour NOMMER cet échec (AUTH_UNREACHABLE,
+  // voir le commentaire qui décrit la chaîne complète dans lib/serverAuth.ts)
+  // — mais la correction s'arrêtait là : le maillon suivant, ici, jetait
+  // l'information aussitôt. La chaîne décrite tenait donc toujours, et l'écran
+  // « Vitrine et gabarits » en mourait : `getBuilderState` commence par
+  // `assertFeature('online_store')`, la server action levait, et Next masque le
+  // message des erreurs levées en production — le marchand lisait « An error
+  // occurred in the Server Components render » sur son téléphone.
+  //
+  // On ne conclut plus rien quand on n'a pas pu demander : l'échec remonte tel
+  // quel, et l'appelant le distingue avec `isTransportFailure` — c'est déjà ce
+  // que fait /apercu, qui propose « Réessayer » au lieu de « passez à Kwasans ».
   let subscriptions: SubscriptionRow[];
   try {
     subscriptions = (await getBusinessContext()).subscriptions;
-  } catch {
+  } catch (err) {
+    if (isTransportFailure(err)) throw err;
     return null;   // non authentifié : aucune offre
   }
 

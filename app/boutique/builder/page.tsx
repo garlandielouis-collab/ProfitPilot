@@ -48,6 +48,7 @@ import { Button } from '../../../components/ds/Button';
 import { Card } from '../../../components/ds/Surface';
 import { Field, TextField } from '../../../components/ds/Field';
 import { Switch } from '../../../components/ds/Switch';
+import { PlanLockScreen } from '../../../components/PlanLock';
 
 type Tab = 'general' | 'design' | 'content' | 'sections' | 'products';
 
@@ -63,13 +64,29 @@ export default function StoreBuilderPage() {
   const [state, setState]   = useState<BuilderState | null>(null);
   const [tab, setTab]       = useState<Tab>('general');
   const [error, setError]   = useState<string | null>(null);
+  // Pourquoi l'état manque, quand il manque. `null` tant qu'on n'a pas encore
+  // de réponse : c'est ce qui distingue « ça charge » de « ça a échoué ».
+  const [reason, setReason] = useState<'locked' | 'unreachable' | 'failed' | null>(null);
   const [saved, setSaved]   = useState(false);
   const [pending, start]    = useTransition();
 
   const reload = useCallback(async () => {
     try {
-      setState(await getBuilderState());
+      const res = await getBuilderState();
+      if (res.ok) {
+        setState(res.state);
+        setError(null);
+        setReason(null);
+        return;
+      }
+      // Un rechargement qui échoue APRÈS un enregistrement ne doit pas effacer
+      // l'écran sous les doigts du marchand : on garde ce qui est affiché et on
+      // ajoute le message.
+      setReason(res.reason);
+      setError(res.message);
     } catch (err) {
+      // L'appel lui-même n'est pas parti (hors ligne, onglet endormi).
+      setReason('unreachable');
       setError(err instanceof Error ? err.message : 'Chargement impossible.');
     }
   }, []);
@@ -111,17 +128,34 @@ export default function StoreBuilderPage() {
   // mot, sans un bouton — et en concluait que la page n'existait pas. C'est le
   // pire des écrans : celui qui ne dit ni ce qui s'est passé, ni quoi faire.
   if (!state) {
+    // Verrouillé par l'offre : ce n'est pas une panne. L'écran qui le dit
+    // existe déjà et porte le nom de l'offre qui ouvre la boutique — le même
+    // que /apercu affiche, pour que les deux destinations racontent la même
+    // chose.
+    if (reason === 'locked') {
+      return (
+        <PlanLockScreen
+          feature="online_store"
+          title="Vitrine et gabarits"
+          hint="Design, produits publiés, Studio photo"
+        />
+      );
+    }
+
     if (error) {
+      const unreachable = reason === 'unreachable';
       return (
         <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
           <AlertTriangle className="h-8 w-8 text-danger" strokeWidth={1.8} aria-hidden />
           <h1 className="text-screen font-semibold text-primary dark:text-dark-text">
-            Votre vitrine n'a pas pu être chargée
+            {unreachable
+              ? 'Votre compte est momentanément injoignable'
+              : "Votre vitrine n'a pas pu être chargée"}
           </h1>
           <p className="text-body text-text2 dark:text-dark-text2">{error}</p>
           <Button
             variant="accent"
-            onClick={() => { setError(null); void reload(); }}
+            onClick={() => { setError(null); setReason(null); void reload(); }}
           >
             Réessayer
           </Button>

@@ -20,8 +20,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { revalidatePath } from 'next/cache';
-import { assertFeature } from '../../lib/entitlements';
-import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
+import { assertFeature, FeatureLockedError } from '../../lib/entitlements';
+import { getBusinessContext, isTransportFailure, requirePermission } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidateStore } from '../../lib/storefrontData';
 import {
@@ -89,9 +89,69 @@ export type BuilderState = {
   sections:      ResolvedSection[];
 };
 
+/**
+ * Ce que l'éditeur reçoit : son état, ou la RAISON de ne pas l'avoir.
+ *
+ * ── Pourquoi un résultat et non une exception ──────────────────────────────
+ *
+ * Next.js REMPLACE le message de toute erreur levée dans une server action par
+ * un texte générique en production — « An error occurred in the Server
+ * Components render. The specific message is omitted… ». C'est une protection
+ * utile (une erreur de base ne doit pas fuir vers le navigateur) et elle ne se
+ * désactive pas.
+ *
+ * Conséquence : `throw new Error('Fonctionnalité disponible à partir de
+ * l'offre Kwasans')` n'arrive JAMAIS jusqu'au marchand. Il lit une phrase en
+ * anglais qui parle de composants serveur, sur l'écran de sa boutique, et il
+ * n'a aucun moyen de savoir s'il doit réessayer, changer d'offre, ou appeler
+ * quelqu'un. C'est ce qui est arrivé ici.
+ *
+ * Un résultat RETOURNÉ, lui, traverse la frontière intact. Les trois cas sont
+ * ceux que /apercu distingue déjà — et pour la même raison : une destination
+ * verrouillée doit se voir (§4.2), une panne réseau doit se réessayer, et on
+ * ne confond jamais les deux.
+ */
+export type BuilderLoad =
+  | { ok: true;  state: BuilderState }
+  | { ok: false; reason: 'locked' | 'unreachable' | 'failed'; message: string };
+
 // ── Lecture ─────────────────────────────────────────────────────────────────
 
-export async function getBuilderState(): Promise<BuilderState> {
+export async function getBuilderState(): Promise<BuilderLoad> {
+  try {
+    return { ok: true, state: await readBuilderState() };
+  } catch (err) {
+    // L'offre ne couvre pas la boutique : ce n'est pas une panne, et l'écran
+    // le dira avec le nom de l'offre qui l'ouvre.
+    if (err instanceof FeatureLockedError) {
+      return { ok: false, reason: 'locked', message: err.message };
+    }
+    // Compte injoignable : on ne sait rien de l'offre, donc on n'en dit rien.
+    // Annoncer un verrou ici reviendrait à réclamer de l'argent à cause d'un
+    // délai réseau.
+    if (isTransportFailure(err)) {
+      return {
+        ok: false,
+        reason: 'unreachable',
+        message:
+          "Nous n'avons pas pu joindre votre compte — c'est la connexion, pas "
+          + 'votre boutique. Réessayez dans un instant.',
+      };
+    }
+    // Le reste : journalisé côté serveur, où le message complet est lisible,
+    // et résumé côté marchand.
+    console.error('[getBuilderState] lecture impossible :', err);
+    return {
+      ok: false,
+      reason: 'failed',
+      message: err instanceof Error && err.message
+        ? err.message
+        : "Votre vitrine n'a pas pu être lue.",
+    };
+  }
+}
+
+async function readBuilderState(): Promise<BuilderState> {
   await assertFeature('online_store');
   const { businessId } = await getBusinessContext();
   const svc = getSupabaseService();
