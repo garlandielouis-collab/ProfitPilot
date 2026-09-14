@@ -99,7 +99,36 @@ export default function StoreBuilderPage() {
     });
   }, [reload]);
 
+  // ── Ce qui se passe quand le chargement ÉCHOUE ────────────────────────────
+  //
+  // `error` était rendu plus bas, à l'intérieur du retour normal — c'est-à-dire
+  // dans la branche que ce `if (!state)` empêche précisément d'atteindre. Un
+  // `getBuilderState()` en échec (base en veille, réseau mobile irrégulier,
+  // offre refusée) posait donc l'erreur dans un état que personne n'affichait,
+  // et l'écran restait sur sa roue. Indéfiniment : rien ne relance la lecture.
+  //
+  // Le marchand voyait « Vitrine et gabarits » tourner dans le vide, sans un
+  // mot, sans un bouton — et en concluait que la page n'existait pas. C'est le
+  // pire des écrans : celui qui ne dit ni ce qui s'est passé, ni quoi faire.
   if (!state) {
+    if (error) {
+      return (
+        <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
+          <AlertTriangle className="h-8 w-8 text-danger" strokeWidth={1.8} aria-hidden />
+          <h1 className="text-screen font-semibold text-primary dark:text-dark-text">
+            Votre vitrine n'a pas pu être chargée
+          </h1>
+          <p className="text-body text-text2 dark:text-dark-text2">{error}</p>
+          <Button
+            variant="accent"
+            onClick={() => { setError(null); void reload(); }}
+          >
+            Réessayer
+          </Button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <span
