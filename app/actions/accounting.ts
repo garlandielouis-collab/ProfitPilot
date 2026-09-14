@@ -116,19 +116,173 @@ export async function getPostingFailures(): Promise<PostingFailure[]> {
   }
 }
 
+// ── REPRISE DES ÉCRITURES EN ÉCHEC ───────────────────────────────────────────
+//
+// Les trois réconciliations ci-dessous repartent des DOCUMENTS (ventes, achats,
+// dépenses) : elles savent retrouver une vente sans écriture. Aucune ne sait
+// retrouver un ENCAISSEMENT ou un RÈGLEMENT en échec — ils ne sont pas des
+// documents mais des événements (`sale.payment`, `customer.payment`,
+// `purchase.payment`, `expense.payment`), et leur montant ne se relit nulle
+// part une fois l'échec passé.
+//
+// D'où le trou : un encaissement refusé faute de taux USD/HTG restait en échec
+// pour toujours, même après la saisie du taux. Le marchand voyait « 1 transaction
+// non comptabilisée » et le bouton Réconcilier n'y pouvait rien.
+//
+// `journal_posting_failures.payload` contient exactement le `PostingContext` du
+// refus : on rejoue depuis lui, sans redécouvrir quoi que ce soit. C'est aussi
+// ce qui rend la reprise universelle — elle couvre tout événement, y compris
+// ceux qui n'existent pas encore.
+
+export type RetryFailuresResult = {
+  /** Écritures enfin passées. */
+  posted:   number;
+  /** Échecs refermés parce que l'écriture existait déjà (reprise par ailleurs). */
+  resolved: number;
+  /** Toujours bloqués : montant en USD et taux de l'entreprise non renseigné. */
+  blocked:  number;
+  /** Payload absent ou inexploitable — rien à rejouer. */
+  skipped:  number;
+  /** Document supprimé ou annulé depuis : l'échec est refermé, pas rejoué. */
+  stale:    number;
+};
+
+/**
+ * Rejoue les écritures notées en échec (`journal_posting_failures`).
+ *
+ * Même garde que les réconciliations : la permission, pas l'offre. Un marchand
+ * sans l'offre Rapports doit pouvoir refermer un trou de journal.
+ */
+export async function retryPostingFailures(): Promise<RetryFailuresResult> {
+  await assertPermission('reports:export');
+  const bizCtx = await getBusinessContext();
+  const { supabase, businessId } = bizCtx;
+  const result: RetryFailuresResult = { posted: 0, resolved: 0, blocked: 0, skipped: 0, stale: 0 };
+
+  const { data: failures } = await supabase
+    .from('journal_posting_failures')
+    .select('id, reference_type, reference_id, event_type, settlement_id, payload')
+    .eq('business_id', businessId)
+    .is('resolved_at', null)
+    .order('created_at', { ascending: true })
+    .limit(200);
+
+  if (!failures?.length) return result;
+
+  // Une écriture déjà passée depuis (reprise par document, nouvelle tentative
+  // réussie ailleurs) : la rejouer se heurterait à uq_je_document_event et
+  // réécrirait un échec. On referme la ligne au lieu de la rejouer.
+  const refIds = Array.from(new Set(failures.map((f: any) => f.reference_id)));
+  const { data: posted } = await supabase
+    .from('journal_entries')
+    .select('reference_type, reference_id, event_type, settlement_id')
+    .eq('business_id', businessId)
+    .neq('status', 'void')
+    .in('reference_id', refIds);
+
+  const key = (r: { reference_type: string; reference_id: string; event_type: string; settlement_id?: string | null }) =>
+    `${r.reference_type}|${r.reference_id}|${r.event_type}|${r.settlement_id ?? ''}`;
+  const done = new Set((posted ?? []).map((r: any) => key(r)));
+
+  // Un document supprimé ou annulé entre-temps ne se comptabilise pas. Sans
+  // cette vérification, la reprise ressusciterait l'écriture d'une vente
+  // effacée : le journal se mettrait à contredire les documents, exactement ce
+  // qu'il est censé refléter.
+  const TABLE_BY_REF: Record<string, string> = {
+    sale:     'sales',
+    purchase: 'purchases',
+    expense:  'expenses',
+    customer: 'customers',
+  };
+  const liveByRef = new Map<string, Set<string>>();
+  for (const refType of Array.from(new Set(failures.map((f: any) => f.reference_type))) as string[]) {
+    const ids   = failures.filter((f: any) => f.reference_type === refType).map((f: any) => f.reference_id);
+    const table = TABLE_BY_REF[refType];
+    // Type de document inconnu (une extension à venir) : on ne le juge pas.
+    if (!table) { liveByRef.set(refType, new Set(ids)); continue; }
+    const cols = table === 'sales' ? 'id, deleted_at, payment_status' : 'id, deleted_at';
+    const { data: rows, error } = await supabase
+      .from(table).select(cols).eq('business_id', businessId).in('id', ids);
+    // Lecture impossible (colonne absente, droit refusé) : on ne bloque pas la
+    // reprise sur un doute — postEvent reste idempotent.
+    if (error) { liveByRef.set(refType, new Set(ids)); continue; }
+    liveByRef.set(refType, new Set(
+      (rows ?? [])
+        .filter((r: any) => !r.deleted_at)
+        .filter((r: any) => !['cancelled', 'refunded'].includes(String(r.payment_status ?? '')))
+        .map((r: any) => r.id),
+    ));
+  }
+
+  const closeFailure = async (id: string) => {
+    await supabase
+      .from('journal_posting_failures')
+      .update({ resolved_at: new Date().toISOString() })
+      .eq('id', id);
+  };
+
+  for (const f of failures as any[]) {
+    if (!(liveByRef.get(f.reference_type)?.has(f.reference_id) ?? true)) {
+      await closeFailure(f.id);
+      result.stale += 1;
+      continue;
+    }
+
+    if (done.has(key(f))) {
+      await closeFailure(f.id);
+      result.resolved += 1;
+      continue;
+    }
+
+    const payload = f.payload as PostingContext | null;
+    if (!payload || typeof payload !== 'object' || !Number.isFinite(Number(payload.amount)) || !payload.date) {
+      result.skipped += 1;
+      continue;
+    }
+
+    const ctx: PostingContext = {
+      ...payload,
+      amount:       Number(payload.amount),
+      settlementId: f.settlement_id ?? payload.settlementId,
+    };
+
+    if (ctx.currency === 'USD' && !isExchangeRateSet(ctx.exchangeRate)) {
+      // Même règle que `repriseRate` : le taux du document s'il a été saisi,
+      // sinon celui de l'entreprise. Aucun des deux : on ne rejoue pas — une
+      // écriture au taux 1 vaudrait moins que l'échec qu'elle remplacerait.
+      if (!bizCtx.exchangeRateSet) { result.blocked += 1; continue; }
+      ctx.exchangeRate = bizCtx.exchangeRate;
+    }
+
+    // `postEvent` referme lui-même la ligne d'échec quand l'écriture passe.
+    if (await postEvent(f.reference_type, f.event_type as JournalEventType, f.reference_id, ctx)) {
+      result.posted += 1;
+    }
+  }
+
+  if (result.posted > 0 || result.resolved > 0 || result.stale > 0) {
+    revalidatePath('/rapports/comptabilite');
+  }
+  return result;
+}
+
 // ── BACKFILL: All existing transactions ───────────────────────────────────────
 
 export type BackfillResult = {
   sales:     number;
   purchases: number;
   expenses:  number;
+  /** Écritures en échec enfin passées (encaissements, règlements, coût des ventes). */
+  retried:   number;
+  /** Encore bloquées : montant en USD sans taux saisi. */
+  blocked:   number;
   errors:    string[];
 };
 
 export async function backfillAllJournalEntries(): Promise<BackfillResult> {
   // Bouton « Rekonsilye » de l'écran : il écrit dans tout le journal.
   await assertAccountingWrite();
-  const result: BackfillResult = { sales: 0, purchases: 0, expenses: 0, errors: [] };
+  const result: BackfillResult = { sales: 0, purchases: 0, expenses: 0, retried: 0, blocked: 0, errors: [] };
 
   // Delegates to the reconcilers rather than re-deriving account codes here.
   // The old version hardcoded its own debit/credit pairs, which meant backfill
@@ -141,6 +295,14 @@ export async function backfillAllJournalEntries(): Promise<BackfillResult> {
 
   try { result.expenses = await reconcileMissingExpenseEntries(); }
   catch (e) { result.errors.push(`Dépenses: ${(e as Error).message}`); }
+
+  // Les réconciliations ci-dessus repartent des documents ; elles ne voient pas
+  // un encaissement ou un règlement en échec. La reprise des échecs, si.
+  try {
+    const retry = await retryPostingFailures();
+    result.retried = retry.posted + retry.resolved;
+    result.blocked = retry.blocked;
+  } catch (e) { result.errors.push(`Écritures en échec: ${(e as Error).message}`); }
 
   revalidatePath('/rapports/comptabilite');
   return result;

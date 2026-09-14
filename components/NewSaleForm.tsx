@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { createSaleAction, type CartItemPayload } from '../app/actions/sales';
+import { createSaleAction } from '../app/actions/sales';
 import { useCompany } from '../hooks/useCompany';
 import { getCustomers, upsertCustomer, type Customer } from '../app/actions/customers';
-import { formatCurrency } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
 import { Button } from './Button';
 import { BarcodeScanner } from './BarcodeScanner';

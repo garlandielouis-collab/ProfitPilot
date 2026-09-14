@@ -39,16 +39,24 @@ function isExchangeRateSet(rate) {
 }
 
 function toReportCurrency(amount, fromCurrency, reportCurrency, rate) {
-  if (!fromCurrency) fromCurrency = reportCurrency;
-  const from = fromCurrency.toUpperCase();
+  // Devise absente = HTG, comme partout ailleurs (makeToReport, lib/currency.ts).
+  // La lire comme la devise du rapport revenait, pour une entreprise en dollars,
+  // à compter des gourdes pour des dollars — un facteur ~130 sur la ligne.
+  const from = String(fromCurrency || 'HTG').toUpperCase();
   if (from === reportCurrency) return Number(amount || 0);
+  if (from !== 'HTG' && from !== 'USD') {
+    // Devise inconnue : le script s'arrête. La renvoyer telle quelle écrivait
+    // un montant non converti dans une colonne censée être dans la devise du
+    // rapport, sans que rien ne le signale.
+    throw new Error(`Devise inconnue « ${from} » : conversion vers ${reportCurrency} impossible.`);
+  }
   if (!isExchangeRateSet(rate)) {
     // Garde-fou : le contrôle de démarrage arrête le script avant d'arriver ici.
     throw new Error(`Taux USD/HTG non renseigné : conversion ${from} -> ${reportCurrency} impossible.`);
   }
   if (reportCurrency === 'HTG' && from === 'USD') return Number(amount || 0) * Number(rate);
   if (reportCurrency === 'USD' && from === 'HTG') return Number(amount || 0) / Number(rate);
-  return Number(amount || 0);
+  throw new Error(`Devise de rapport inconnue « ${reportCurrency} ».`);
 }
 
 (async () => {

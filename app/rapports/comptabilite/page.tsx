@@ -440,6 +440,19 @@ function ComptabiliteInner() {
                 <span className="text-emerald-700">{backfillResult.sales} {t({ fr: 'vente(s) comptabilisée(s)', ht: 'vant kontabilize' })}</span>
                 <span className="text-blue-700">{backfillResult.purchases} {t({ fr: 'achat(s) comptabilisé(s)', ht: 'acha kontabilize' })}</span>
                 <span className="text-amber-700">{backfillResult.expenses} {t({ fr: 'dépense(s) comptabilisée(s)', ht: 'depans kontabilize' })}</span>
+                {backfillResult.retried > 0 && (
+                  <span className="text-violet-700">
+                    {backfillResult.retried} {t({ fr: 'écriture(s) en échec reprise(s)', ht: 'ekriti ki te echwe ki pase' })}
+                  </span>
+                )}
+                {backfillResult.blocked > 0 && (
+                  <span className="text-amber-700">
+                    {backfillResult.blocked} {t({
+                      fr: 'en attente du taux USD/HTG (Paramètres)',
+                      ht: 'k ap tann to USD/HTG la (Paramèt)',
+                    })}
+                  </span>
+                )}
               </div>
               {backfillResult.errors.length > 0 && (
                 <div className="mt-3 rounded-xl bg-red-50 border border-red-200 p-3">

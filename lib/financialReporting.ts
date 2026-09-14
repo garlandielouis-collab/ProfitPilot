@@ -402,6 +402,93 @@ export async function generateProfitAndLoss(
 
 // ===== BALANCE SHEET =====
 
+/** Apports et réserves (solde créditeur) ; prélèvements (solde débiteur). */
+const EQUITY_CAPITAL_CODES  = ['1010', '1020', '1070', '1080'];
+const EQUITY_DRAWINGS_CODES = ['4580'];
+
+/**
+ * Capital et prélèvements du propriétaire, lus au JOURNAL — jamais inventés.
+ *
+ * Le bilan portait ici `ownerCapital: 10000`, un nombre qui n'appartenait à
+ * personne : le même capital pour un marchand qui n'a jamais rien apporté que
+ * pour celui qui a mis un million. Il gonflait les capitaux propres, donc le
+ * total passif + capitaux propres, et faussait tout rapprochement avec l'actif.
+ *
+ * La vraie valeur est au journal : les apports créditent 1010 / 1020 (capital
+ * social, apports du propriétaire), les réserves 1070 / 1080, les prélèvements
+ * débitent 4580. Aucun apport enregistré → 0, et le bilan le dit ainsi.
+ *
+ * 1300 (résultat de l'exercice) est volontairement exclu : `retainedEarnings`
+ * le couvre déjà, l'additionner compterait le bénéfice deux fois.
+ *
+ * Les montants du journal sont en base (HTG) : `inReport` les ramène à la devise
+ * du rapport, et compte ceux qu'il ne peut pas convertir.
+ */
+async function getJournalEquity(
+  supabaseServer: any,
+  businessId: string,
+  asOfDate: string,
+  inReport: (amount: unknown, from: string | null | undefined) => number,
+): Promise<{ ownerCapital: number; ownerDrawings: number }> {
+  const empty = { ownerCapital: 0, ownerDrawings: 0 };
+  try {
+    const codes = [...EQUITY_CAPITAL_CODES, ...EQUITY_DRAWINGS_CODES];
+    const { data: accounts } = await supabaseServer
+      .from('chart_of_accounts')
+      .select('id, code')
+      .eq('business_id', businessId)
+      .in('code', codes);
+
+    if (!accounts?.length) return empty;
+
+    const codeById = new Map<string, string>(accounts.map((a: any) => [a.id, String(a.code)]));
+
+    // Filtré sur les comptes de capitaux propres d'abord : ce sont quelques
+    // lignes par entreprise (un apport, un prélèvement), pas tout le journal.
+    const { data: lines } = await supabaseServer
+      .from('journal_entry_lines')
+      .select('journal_entry_id, account_id, base_debit, base_credit')
+      .eq('business_id', businessId)
+      .in('account_id', Array.from(codeById.keys()));
+
+    if (!lines?.length) return empty;
+
+    // Le bilan est arrêté à une date : une écriture postérieure, ou annulée,
+    // n'en fait pas partie.
+    const { data: entries } = await supabaseServer
+      .from('journal_entries')
+      .select('id, entry_date, status')
+      .in('id', Array.from(new Set(lines.map((l: any) => l.journal_entry_id))));
+
+    const eligible = new Set(
+      (entries ?? [])
+        .filter((e: any) => e.status !== 'void' && String(e.entry_date) <= asOfDate)
+        .map((e: any) => e.id),
+    );
+
+    let ownerCapital  = 0;
+    let ownerDrawings = 0;
+    for (const l of lines as any[]) {
+      if (!eligible.has(l.journal_entry_id)) continue;
+      // Une ligne à zéro n'a rien à convertir : la passer à `inReport` la
+      // compterait comme un montant laissé hors du total.
+      const debit  = Number(l.base_debit)  ? inReport(l.base_debit,  'HTG') : 0;
+      const credit = Number(l.base_credit) ? inReport(l.base_credit, 'HTG') : 0;
+      const code   = codeById.get(l.account_id) ?? '';
+      if (EQUITY_CAPITAL_CODES.includes(code))  ownerCapital  += credit - debit;
+      if (EQUITY_DRAWINGS_CODES.includes(code)) ownerDrawings += debit - credit;
+    }
+
+    return {
+      ownerCapital:  Math.max(0, parseFloat(ownerCapital.toFixed(2))),
+      ownerDrawings: Math.max(0, parseFloat(ownerDrawings.toFixed(2))),
+    };
+  } catch {
+    // Journal illisible : 0, jamais un capital deviné.
+    return empty;
+  }
+}
+
 /**
  * Génère un Bilan (Balance Sheet) à une date donnée
  */
@@ -504,6 +591,10 @@ export async function generateBalanceSheet(
   // Utiliser la première transaction comme start date
   const retainedEarnings = cashBalance - accountsPayable;
 
+  const { ownerCapital, ownerDrawings } = await getJournalEquity(
+    supabaseServer, businessId, asOfDate, inReport,
+  );
+
   const report: BalanceSheetReport = {
     asOfDate,
     currency,
@@ -519,8 +610,8 @@ export async function generateBalanceSheet(
       totalLiabilities: accountsPayable,
     },
     equity: {
-      ownerCapital: 10000, // Placeholder - should come from settings
-      ownerDrawings: 0,
+      ownerCapital,
+      ownerDrawings,
       retainedEarnings: Math.max(0, retainedEarnings),
       totalEquity: 0,
     },
