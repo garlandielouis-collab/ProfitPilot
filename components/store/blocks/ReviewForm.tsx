@@ -37,6 +37,7 @@ import { useState } from 'react';
 import { Star, Check, Loader2 } from 'lucide-react';
 import { submitReview } from '../../../app/actions/store-content';
 import { StoreImage } from './StoreImage';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 type Item = {
   productId:   string;
@@ -105,17 +106,17 @@ function ItemReview({ orderId, token, item }: { orderId: string; token: string; 
     setStatus('sending');
     setError(null);
     try {
-      await submitReview({
+      unwrap(await submitReview({
         orderId,
         productId: item.productId,
         token,
         rating,
         body: body.trim() || undefined,
-      });
+      }));
       setStatus('done');
     } catch (e) {
       setStatus('idle');
-      setError(e instanceof Error ? e.message : "Votre avis n'a pas pu être enregistré.");
+      setError(screenMessage(e, "Votre avis n'a pas pu être enregistré."));
     }
   }
 

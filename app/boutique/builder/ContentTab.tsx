@@ -36,6 +36,7 @@ import { Button } from '../../../components/ds/Button';
 import { Card } from '../../../components/ds/Surface';
 import { Field, TextField, SelectField } from '../../../components/ds/Field';
 import { Switch } from '../../../components/ds/Switch';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 /** Les sections dont le CONTENU se saisit. Les autres lisent le catalogue. */
 const EDITABLE: SectionKey[] = [
@@ -1566,14 +1567,14 @@ function PresentationEditor({
     setWriting(true);
     setError('');
     try {
-      const draft = await draftStorePresentation('fr');
+      const draft = unwrap(await draftStorePresentation('fr'));
       patch('presentation', {
         intro: draft.intro,
         items: draft.items.map((i) => ({ title: i.title, body: i.body })),
       });
       setCredits(draft.remaining);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'La rédaction a échoué.');
+      setError(screenMessage(err, 'La rédaction a échoué.'));
     } finally {
       setWriting(false);
     }

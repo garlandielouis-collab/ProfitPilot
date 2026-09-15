@@ -12,6 +12,7 @@
     "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build",
     "start": "next start",
     "typecheck": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register.mjs --test \"tests/*.test.ts\"",
     "check:supabase": "node scripts/check-supabase.js"
   },
   "dependencies": {

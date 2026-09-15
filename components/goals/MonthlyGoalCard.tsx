@@ -24,6 +24,7 @@ import { getGoalProgress, upsertGoal, type GoalProgress } from '../../app/action
 import { GOAL_LABELS, type GoalMetric } from '../../lib/goals';
 import { Button, Card } from '../ds';
 import { GoalReached, alreadyCelebrated } from './GoalReached';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 const fmt = (n: number, currency: string, metric: GoalMetric): string =>
   metric === 'customers' || metric === 'sales_count'
@@ -82,12 +83,12 @@ export function MonthlyGoalCard({
     }
     setSaving(true);
     try {
-      await upsertGoal({ metric, targetValue: target });
+      unwrap(await upsertGoal({ metric, targetValue: target }));
       toast.success('Objectif enregistré.');
       setEditing(false);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      toast.error(screenMessage(err, 'Enregistrement impossible.'));
     } finally {
       setSaving(false);
     }

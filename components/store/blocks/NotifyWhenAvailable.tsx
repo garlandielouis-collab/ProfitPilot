@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { notifyWhenAvailable } from '../../../app/actions/store-content';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 export function NotifyWhenAvailable({
   businessId, productId,
@@ -32,11 +33,11 @@ export function NotifyWhenAvailable({
     if (!email.trim()) return;
     setState('sending');
     try {
-      await notifyWhenAvailable(businessId, productId, email.trim());
+      unwrap(await notifyWhenAvailable(businessId, productId, email.trim()));
       setState('done');
     } catch (err) {
       setState('error');
-      setMessage(err instanceof Error ? err.message : "L'inscription n'a pas abouti.");
+      setMessage(screenMessage(err, "L'inscription n'a pas abouti."));
     }
   }
 

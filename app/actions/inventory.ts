@@ -2,6 +2,7 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,10 +82,11 @@ export async function getInventory(): Promise<InventoryProduct[]> {
 
 // ── adjustStock ───────────────────────────────────────────────────────────────
 
-export async function adjustStock(payload: StockAdjustmentPayload): Promise<void> {
-  if (!payload.product_id) throw new Error('Pwodui obligatwa.');
-  if (payload.new_quantity < 0) throw new Error('Kantite pa ka negatif.');
-  if (!payload.reason?.trim()) throw new Error('Rezon ajisteman obligatwa.');
+export async function adjustStock(payload: StockAdjustmentPayload): Promise<ActionResult> {
+  return attempt(async () => {
+  if (!payload.product_id) throw new UserFacingError('Pwodui obligatwa.');
+  if (payload.new_quantity < 0) throw new UserFacingError('Kantite pa ka negatif.');
+  if (!payload.reason?.trim()) throw new UserFacingError('Rezon ajisteman obligatwa.');
 
   const { supabase, businessId, userId } = await getBusinessContext();
 
@@ -95,7 +97,7 @@ export async function adjustStock(payload: StockAdjustmentPayload): Promise<void
     .eq('id', payload.product_id)
     .single();
 
-  if (pErr || !product) throw new Error('Pwodui pa jwenn.');
+  if (pErr || !product) throw new UserFacingError('Pwodui pa jwenn.');
 
   const qtyBefore = Number(product.stock_quantity);
   const qtyAfter  = payload.new_quantity;
@@ -143,6 +145,7 @@ export async function adjustStock(payload: StockAdjustmentPayload): Promise<void
 
   revalidatePath('/inventory');
   revalidatePath('/products');
+  });
 }
 
 // ── setReorderPoint ───────────────────────────────────────────────────────────

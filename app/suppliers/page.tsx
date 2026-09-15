@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronUp, CreditCard, Edit2, Loader2, Plus,
   Trash2, Users, X,
 } from 'lucide-react';
+import { unwrap, screenMessage } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -100,17 +101,17 @@ function EditModal({
     setSaving(true);
     setErr('');
     try {
-      await upsertSupplier({
+      unwrap(await upsertSupplier({
         id: supplier.id,
         name,
         email: email || undefined,
         phone: phone || undefined,
         discount_percent: parseFloat(discount) || 0,
-      });
+      }));
       onSaved();
       onClose();
     } catch (e: any) {
-      setErr(e.message);
+      setErr(screenMessage(e, 'Le fournisseur n’a pas pu être enregistré.'));
     }
     setSaving(false);
   }
@@ -400,12 +401,12 @@ export default function SuppliersPage() {
     setFormSaving(true);
     setFormErr('');
     try {
-      await upsertSupplier({
+      unwrap(await upsertSupplier({
         name: form.name,
         email: form.email || undefined,
         phone: form.phone || undefined,
         discount_percent: parseFloat(form.discount) || 0,
-      });
+      }));
       setForm({ name: '', email: '', phone: '', discount: '' });
       await loadAll();
     } catch (e: any) {
@@ -416,18 +417,18 @@ export default function SuppliersPage() {
 
   async function handleDelete(supplier: Supplier) {
     try {
-      await deleteSupplier(supplier.id);
+      unwrap(await deleteSupplier(supplier.id));
       setDeleteTarget(null);
       await loadAll();
     } catch (e: any) {
-      alert(e.message);
+      alert(screenMessage(e, 'Le fournisseur n’a pas pu être supprimé.'));
     }
   }
 
   async function handlePurchasePaid(purchaseId: string) {
     setBusyPurchases(s => new Set(s).add(purchaseId));
     try {
-      const res = await markPurchasePaid(purchaseId);
+      const res = unwrap(await markPurchasePaid(purchaseId));
       // Rien de réglé (déjà payé, annulé, ou reste dû changé entre l'affichage
       // et le clic) : on le dit, puis on recharge pour afficher l'état réel.
       if (!res.settled) {
@@ -441,7 +442,7 @@ export default function SuppliersPage() {
       }
       await loadAll();
     } catch (e: any) {
-      alert(e.message);
+      alert(screenMessage(e, 'Le paiement n’a pas pu être enregistré.'));
     } finally {
       setBusyPurchases(s => { const n = new Set(s); n.delete(purchaseId); return n; });
     }

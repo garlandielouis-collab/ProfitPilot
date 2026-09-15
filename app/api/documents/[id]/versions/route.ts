@@ -34,6 +34,7 @@ import { DOCUMENTS_BUCKET, DOCUMENT_MAX_BYTES } from '../../../../../lib/documen
 import {
   resolveUploadMime, buildStoragePath, filenameForMime, formatBytes,
 } from '../../../../../lib/documents/storage';
+import { screenMessage } from '../../../../../lib/actionResult';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -66,7 +67,7 @@ export async function POST(
   } catch (err) {
     const locked = err instanceof FeatureLockedError;
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Action non autorisée.' },
+      { error: screenMessage(err, 'Action non autorisée.') },
       { status: locked ? 402 : 403 },
     );
   }

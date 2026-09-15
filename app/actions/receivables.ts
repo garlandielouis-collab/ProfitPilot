@@ -14,6 +14,7 @@ import { buildReminderMessage, buildWhatsAppLink } from '../../lib/whatsappRepor
 import { logActivity } from '../../lib/activityLog';
 import { recordSalePaymentEntry } from '../../lib/accounting/posting';
 import { markCustomerCreditPaid } from './customers';
+import { attempt, unwrap, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 export type ReceivableStatus = 'open' | 'due_soon' | 'overdue' | 'critical' | 'paid';
 
@@ -65,7 +66,8 @@ function mapRow(row: any): Receivable {
 }
 
 /** Toutes les créances ouvertes de l'entreprise active, les plus urgentes d'abord. */
-export async function listReceivables(): Promise<ReceivablesSummary> {
+export async function listReceivables(): Promise<ActionResult<ReceivablesSummary>> {
+  return attempt(async () => {
   await assertFeature('receivables');
   const { supabase, businessId, defaultCurrency } = await getBusinessContext();
 
@@ -93,13 +95,15 @@ export async function listReceivables(): Promise<ReceivablesSummary> {
     overdueCount:     overdue.length,
     currency:         defaultCurrency,
   };
+  });
 }
 
 /** Fixe ou déplace l'échéance d'une créance. */
-export async function setReceivableDueDate(saleId: string, dueDate: string): Promise<void> {
+export async function setReceivableDueDate(saleId: string, dueDate: string): Promise<ActionResult> {
+  return attempt(async () => {
   await assertFeature('receivables');
   const { supabase, businessId, can } = await getBusinessContext();
-  if (!can('debts:write')) throw new Error('Action non autorisée.');
+  if (!can('debts:write')) throw new UserFacingError('Action non autorisée.');
 
   const { error } = await supabase
     .from('sales')
@@ -110,6 +114,7 @@ export async function setReceivableDueDate(saleId: string, dueDate: string): Pro
   if (error) throw new Error(error.message);
   revalidatePath('/creances');
   revalidatePath('/dettes');
+  });
 }
 
 // ── Encaissement ─────────────────────────────────────────────────────────────
@@ -234,7 +239,8 @@ async function collectOnSale(
       .eq('business_id', businessId)
       .eq('paid_amount', newPaid)
       .eq('payment_status', newStatus);
-    throw new Error(pErr?.message ?? 'Versement non enregistré.');
+    console.error('[collectOnSale] versement :', pErr);
+    throw new UserFacingError('Le versement n’a pas été enregistré. Rien n’a été encaissé.');
   }
 
   // 3. Déclencheur hérité trg_sale_payment_update (20260526_complete_schema_v2) :
@@ -324,7 +330,8 @@ export async function recordReceivablePayment(
  * customer_transactions exige un customer_id, on solde donc par le cœur
  * ci-dessus (trace sale_payments).
  */
-export async function markReceivablePaid(saleId: string): Promise<ReceivablePaymentResult> {
+export async function markReceivablePaid(saleId: string): Promise<ActionResult<ReceivablePaymentResult>> {
+  return attempt(async () => {
   await assertFeature('receivables');
   const ctx = await getBusinessContext();
   if (!ctx.can('debts:write')) return { settled: false, reason: 'forbidden' };
@@ -341,22 +348,28 @@ export async function markReceivablePaid(saleId: string): Promise<ReceivablePaym
 
   if (!sale.customer_id) return collectOnSale(ctx, saleId, 'rest', 'Cash');
 
-  const res = await markCustomerCreditPaid(saleId);
+  // `markCustomerCreditPaid` est elle aussi enveloppée : on l'ouvre ici, à
+  // l'intérieur de notre propre `attempt`. Un refus métier qu'elle lèverait
+  // remonte donc à l'écran avec son message, et un refus qu'elle RENVOIE
+  // (`settled: false`) reste ce qu'il était — les deux cas existent.
+  const res = unwrap(await markCustomerCreditPaid(saleId));
   return res.settled
     ? { settled: true, amount: res.amount, currency: res.currency, balanceDue: 0, fullyPaid: true }
     : res;
+  });
 }
 
 /**
  * Prépare une relance : message prêt à envoyer + lien WhatsApp.
  * L'envoi reste un geste du marchand — on journalise l'intention.
  */
-export async function prepareReceivableReminder(saleId: string): Promise<{
+export async function prepareReceivableReminder(saleId: string): Promise<ActionResult<{
   message: string;
   whatsappUrl: string;
   customerName: string;
   hasPhone: boolean;
-}> {
+}>> {
+  return attempt(async () => {
   await assertFeature('receivable_reminders');
   const { supabase, businessId, userId } = await getBusinessContext();
 
@@ -371,7 +384,7 @@ export async function prepareReceivableReminder(saleId: string): Promise<{
   ]);
 
   if (error) throw new Error(error.message);
-  if (!row) throw new Error('Créance introuvable.');
+  if (!row) throw new UserFacingError('Créance introuvable.');
 
   const r = mapRow(row);
   const message = buildReminderMessage({
@@ -409,4 +422,5 @@ export async function prepareReceivableReminder(saleId: string): Promise<{
     customerName: r.customerName,
     hasPhone:     Boolean(r.customerPhone),
   };
+  });
 }

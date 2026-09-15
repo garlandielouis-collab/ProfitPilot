@@ -33,6 +33,7 @@ import {
   listPendingSales, markAttempt, markWaitingForRate, removePendingSale,
   type PendingSale,
 } from '../../lib/offlineQueue';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 /** Au-delà, la vente est probablement invalide (stock, client supprimé…). */
 const MAX_ATTEMPTS = 5;
@@ -85,7 +86,7 @@ export function OfflineSalesSync() {
       const waiting = entry.waitingFor === 'exchange_rate';
       if (!waiting && !manual && entry.attempts >= MAX_ATTEMPTS) continue;
       try {
-        const res = await createSaleAction(entry.payload as any);
+        const res = unwrap(await createSaleAction(entry.payload as any));
         if (res.success) {
           await removePendingSale(entry.clientRef);
           replayed++;
@@ -97,7 +98,7 @@ export function OfflineSalesSync() {
         }
       } catch (e) {
         // Réseau encore coupé : on s'arrête, la file reste intacte.
-        await markAttempt(entry, e instanceof Error ? e.message : 'Erreur réseau');
+        await markAttempt(entry, screenMessage(e, 'Erreur réseau'));
         break;
       }
     }

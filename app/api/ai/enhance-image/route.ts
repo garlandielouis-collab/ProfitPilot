@@ -36,6 +36,7 @@ import {
   isPresetKey,
   type EnhancementType,
 } from '../../../../lib/ai/imageEnhancer';
+import { screenMessage } from '../../../../lib/actionResult';
 
 export const runtime = 'nodejs';
 // Un travail se crée, il ne se met pas en cache.
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     await assertFeature('online_store');
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Fonctionnalité non disponible.' },
+      { error: screenMessage(err, 'Fonctionnalité non disponible.') },
       { status: 402 },
     );
   }
@@ -249,7 +250,7 @@ export async function POST(request: Request) {
     //
     // Le fournisseur a refusé le travail : un travail raté ne se facture pas.
     // `failImageJob` écrit l'échec et rembourse, une seule fois.
-    const message = err instanceof Error ? err.message : 'Lancement impossible.';
+    const message = screenMessage(err, 'Lancement impossible.');
     await failImageJob({ id: job.id, business_id: ctx.businessId }, message);
 
     return NextResponse.json({ error: message, jobId: job.id }, { status: 502 });

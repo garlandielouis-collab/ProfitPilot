@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from './LanguageWrapper';
 import { PaymentPicker, type PaymentKey } from './ds';
+import { unwrap } from '../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -276,7 +277,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
     setSavingClient(true);
     try {
       // Ensure upsertClient attaches business_id server-side; reuse created client
-      const created = await upsertCustomer({ name: newClientName });
+      const created = unwrap(await upsertCustomer({ name: newClientName }));
       setClients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setSelectedClient(created);
       setShowNewClient(false);
@@ -322,7 +323,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
 
       const dbPaymentMethod = MODE_TO_DB[paymentMode];
 
-      const result = await createSaleAction({
+      const result = unwrap(await createSaleAction({
         business_id: businessId as string,
         items,
         payment_method: dbPaymentMethod,
@@ -332,7 +333,7 @@ export function NewSaleForm({ onSaleComplete }: { onSaleComplete?: () => void })
         discount_percent: discountPercent,
         customer_id: selectedClient?.id,
         customer_name: selectedClient?.name ?? undefined,
-      });
+      }));
 
       if (!result.success) {
         // Refus « taux manquant » (vente en USD, ou coût d'achat dans l'autre

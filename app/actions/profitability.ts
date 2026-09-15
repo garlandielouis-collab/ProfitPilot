@@ -15,6 +15,7 @@ import {
   type PriceScenario,
 } from '../../lib/margin';
 import { makeToReport, type CurrencyCode, type ReportFx } from '../../lib/currency';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 /**
  * Devise du prix de vente d'un produit. La fiche produit le saisit et
@@ -80,7 +81,8 @@ export async function getProductProfitability(opts?: {
   from?: string;
   to?: string;
   limit?: number;
-}): Promise<ProfitabilityReport> {
+}): Promise<ActionResult<ProfitabilityReport>> {
+  return attempt(async () => {
   await assertFeature('product_profitability');
   const { supabase, businessId, defaultCurrency, exchangeRateSet } = await getBusinessContext();
 
@@ -175,6 +177,7 @@ export async function getProductProfitability(opts?: {
     top3SharePercent: totalMargin > 0 ? Math.round((top3 / totalMargin) * 100) : 0,
     unconvertedCount: unconvertedSales.size,
   };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,7 +222,7 @@ export async function getProductMargin(productId: string): Promise<ProductMargin
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  if (!p) throw new Error('Produit introuvable.');
+  if (!p) throw new UserFacingError('Produit introuvable.');
 
   const costCurrency = (p.currency ?? 'HTG') as CurrencyCode;
   const costInput = {
@@ -313,7 +316,8 @@ export async function simulateProductPrice(
   productId: string,
   increases: number[] = [0, 5, 10, 15],
   elasticity = 0.5,
-): Promise<PriceSimulation> {
+): Promise<ActionResult<PriceSimulation>> {
+  return attempt(async () => {
   await assertFeature('price_simulator');
   const { supabase, businessId, exchangeRate, exchangeRateSet, defaultCurrency } = await getBusinessContext();
 
@@ -337,7 +341,7 @@ export async function simulateProductPrice(
   ]);
 
   if (error) throw new Error(error.message);
-  if (!p) throw new Error('Produit introuvable.');
+  if (!p) throw new UserFacingError('Produit introuvable.');
 
   const monthlyUnits = (recentItems ?? []).reduce(
     (s: number, r: any) => s + Number(r.quantity ?? 0),
@@ -398,4 +402,5 @@ export async function simulateProductPrice(
     monthlyUnits,
     scenarios,
   };
+  });
 }

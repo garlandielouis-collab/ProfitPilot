@@ -26,6 +26,7 @@ import { usePermissions } from '../../../../hooks/usePermissions';
 import { Button, Card, ScreenHeader } from '../../../../components/ds';
 import { DocumentEditor } from '../../../../components/documents/DocumentEditor';
 import type { PlainBlock } from '../../../../lib/documents/blocks';
+import { screenMessage, unwrap } from '../../../../lib/actionResult';
 
 export default function EditDocumentPage() {
   const { t } = useLanguage();
@@ -44,8 +45,9 @@ export default function EditDocumentPage() {
     if (!id) return;
     let cancelled = false;
     getDocument(id)
+      .then(unwrap)
       .then((result) => { if (!cancelled) setDoc(result); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible.'); })
+      .catch((err) => { if (!cancelled) setError(screenMessage(err, 'Chargement impossible.')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [id]);

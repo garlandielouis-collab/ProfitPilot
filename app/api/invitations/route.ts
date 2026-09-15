@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseService } from '../../../lib/supabaseServiceClient';
+import { screenMessage } from '../../../lib/actionResult';
 
 // GET /api/invitations?token=xxx  → validate token, return invitation details
 export async function GET(req: NextRequest) {
@@ -134,7 +135,7 @@ export async function POST(req: NextRequest) {
       email_confirm: true,
     });
     if (createErr || !created?.user) {
-      return NextResponse.json({ error: createErr?.message ?? 'Erreur création compte' }, { status: 500 });
+      return NextResponse.json({ error: screenMessage(createErr, 'Erreur création compte') }, { status: 500 });
     }
     userId = created.user.id;
   }

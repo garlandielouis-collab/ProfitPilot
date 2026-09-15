@@ -48,6 +48,7 @@ import {
   type DocumentSummary, type DocumentTypeOption, type EntityDocument,
 } from '../../app/actions/documents';
 import type { Bilingual, DocumentEntityType } from '../../lib/documents/types';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 /** Ce qu'on range sur cette fiche-là. Une phrase vraie vaut mieux qu'un
  *  « Aucun document » qui n'apprend rien sur ce qu'il faudrait déposer. */
@@ -104,10 +105,10 @@ export function EntityDocuments({ entityType, entityId, entityName, className }:
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setDocuments(await listDocumentsForEntity(entityType, entityId));
+      setDocuments(unwrap(await listDocumentsForEntity(entityType, entityId)));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     } finally {
       setLoading(false);
     }
@@ -124,17 +125,17 @@ export function EntityDocuments({ entityType, entityId, entityName, className }:
   // n'arrive presque jamais.
   useEffect(() => {
     if (!uploadOpen || types.length > 0) return;
-    listDocumentTypes().then(setTypes).catch(() => { /* le dépôt le signalera */ });
+    listDocumentTypes().then(unwrap).then(setTypes).catch(() => { /* le dépôt le signalera */ });
   }, [uploadOpen, types.length]);
 
   const detach = useCallback(async (linkId: string) => {
     setBusyLink(linkId);
     try {
-      await unlinkDocument(linkId);
+      unwrap(await unlinkDocument(linkId));
       setDocuments((previous) => previous.filter((d) => d.linkId !== linkId));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Détachement impossible.');
+      setError(screenMessage(err, 'Détachement impossible.'));
     } finally {
       setBusyLink(null);
     }
@@ -311,8 +312,9 @@ function DocumentPicker({
     // Une marge au-dessus de PICKER_SIZE : les déjà-attachés se retirent APRÈS
     // la requête, et sans elle une liste de huit pourrait revenir vide.
     listDocuments({ search: debounced || undefined, limit: size })
+      .then(unwrap)
       .then((r) => { if (!cancelled) { setResults(r.documents); setError(null); } })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Recherche impossible.'); })
+      .catch((err) => { if (!cancelled) setError(screenMessage(err, 'Recherche impossible.')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [open, debounced, size]);
@@ -327,7 +329,7 @@ function DocumentPicker({
     try {
       await onPick(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rattachement impossible.');
+      setError(screenMessage(err, 'Rattachement impossible.'));
     } finally {
       setBusyId(null);
     }

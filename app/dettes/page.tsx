@@ -9,6 +9,7 @@ import { recordDebtPayment } from '../actions/debts';
 import { markCustomerCreditPaid } from '../actions/customers';
 import { markExpensePaid } from '../actions/expenses';
 import { isExchangeRateSet } from '../../lib/currency';
+import { unwrap, screenMessage } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -459,20 +460,20 @@ function DettesInner() {
   async function handlePayDebt(debtId: string) {
     setPayingId(debtId);
     try {
-      const res = await recordDebtPayment({ purchase_id: debtId });
+      const res = unwrap(await recordDebtPayment({ purchase_id: debtId }));
       if (!res.settled) alert(settlementRefused(res.reason));
       await loadAll();
-    } catch { alert('Erè pandan peman an.'); }
+    } catch (e) { alert(screenMessage(e, 'Erè pandan peman an.')); }
     setPayingId(null);
   }
 
   async function handlePayCredit(creditId: string) {
     setPayingId(creditId);
     try {
-      const res = await markCustomerCreditPaid(creditId);
+      const res = unwrap(await markCustomerCreditPaid(creditId));
       if (!res.settled) alert(settlementRefused(res.reason));
       await loadAll();
-    } catch { alert('Erè pandan mak kòm peye.'); }
+    } catch (e) { alert(screenMessage(e, 'Erè pandan mak kòm peye.')); }
     setPayingId(null);
   }
 
@@ -481,7 +482,7 @@ function DettesInner() {
     try {
       await markExpensePaid(expenseId);
       await loadAll();
-    } catch { alert('Erè pandan peman depans.'); }
+    } catch (e) { alert(screenMessage(e, 'Erè pandan peman depans.')); }
     setPayingId(null);
   }
 

@@ -7,6 +7,7 @@ import { PlanLimitError, getActivePlanKey } from '../../lib/entitlements';
 import { productAllowance } from '../../lib/quotas';
 import { getPlanLabel } from '../../lib/plans';
 import { SIGNUP_PRODUCT_SLOTS } from '../../lib/referral';
+import { attempt, type ActionResult } from '../../lib/actionResult';
 
 // Frais annexes (Diagnostic 4). Ils sont exprimés dans la MÊME devise que
 // `purchase_price` — sinon le coût complet ne veut rien dire.
@@ -95,7 +96,8 @@ function costFields(payload: ProductCostFields): Record<string, number> {
 // information d'audit, plus une clé d'accès. La politique RLS `products_access`
 // accepte les deux depuis 20260606.
 
-export async function getProductsAction(): Promise<Product[]> {
+export async function getProductsAction(): Promise<ActionResult<Product[]>> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   const { data, error } = await supabase
@@ -114,9 +116,11 @@ export async function getProductsAction(): Promise<Product[]> {
 
   if (fallbackError) throw new Error(fallbackError.message);
   return (fallback ?? []).map((p: any) => ({ ...COST_DEFAULTS, ...p })) as Product[];
+  });
 }
 
-export async function createProductAction(payload: ProductPayload): Promise<string> {
+export async function createProductAction(payload: ProductPayload): Promise<ActionResult<string>> {
+  return attempt(async () => {
   // `business_id` est la clé de cadrage ; `user_id` reste écrit pour dire qui a
   // créé la fiche. Un déclencheur en base rattache d'office `business_id` si un
   // appelant l'oublie — plus aucune fiche orpheline.
@@ -151,7 +155,8 @@ export async function createProductAction(payload: ProductPayload): Promise<stri
   if (error) throw new Error(error.message);
   void logActivity({ action: 'create', entity: 'product', entityId: data.id, newValues: { name: payload.name, sale_price: payload.sale_price } });
   revalidatePath('/products');
-  return data.id;
+  return data.id as string;
+  });
 }
 
 /**
@@ -191,7 +196,8 @@ async function assertProductSlotAvailable(supabase: any, businessId: string): Pr
   );
 }
 
-export async function updateProductAction(id: string, payload: ProductPayload): Promise<void> {
+export async function updateProductAction(id: string, payload: ProductPayload): Promise<ActionResult> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   const fields: any = {
@@ -213,9 +219,11 @@ export async function updateProductAction(id: string, payload: ProductPayload): 
   if (error) throw new Error(error.message);
   void logActivity({ action: 'update', entity: 'product', entityId: id, newValues: { name: payload.name, sale_price: payload.sale_price, stock_quantity: payload.stock_quantity } });
   revalidatePath('/products');
+  });
 }
 
-export async function deleteProductAction(id: string): Promise<void> {
+export async function deleteProductAction(id: string): Promise<ActionResult> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   const { error } = await supabase
@@ -227,4 +235,5 @@ export async function deleteProductAction(id: string): Promise<void> {
   if (error) throw new Error(error.message);
   void logActivity({ action: 'delete', entity: 'product', entityId: id });
   revalidatePath('/products');
+  });
 }

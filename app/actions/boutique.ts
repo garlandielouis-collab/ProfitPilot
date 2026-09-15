@@ -8,6 +8,7 @@ import { revalidateStore } from '../../lib/storefrontData';
 import { slugify, validateSlug } from '../../lib/storeTheme';
 import { confirmStoreOrder } from './store-public';
 import type { StoreSettings, ShippingMode } from './store-public';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ─── Identifiants de passerelle ───────────────────────────────────────────────
 //
@@ -95,7 +96,8 @@ export async function upsertStoreSettings(
     slug?: string;
     payment_credentials?: PaymentCredentials;
   },
-): Promise<{ slug: string }> {
+): Promise<ActionResult<{ slug: string }>> {
+  return attempt(async () => {
   await assertFeature('online_store');
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
@@ -136,7 +138,7 @@ export async function upsertStoreSettings(
   // modes de paiement. Il ne peut de toute façon pas être « pris » — il est à elle.
   if (slug !== previous?.slug) {
     const check = validateSlug(slug);
-    if (!check.ok) throw new Error(`Adresse de la boutique : ${check.reason}`);
+    if (!check.ok) throw new UserFacingError(`Adresse de la boutique : ${check.reason}`);
 
     const { data: taken } = await svc
       .from('store_settings')
@@ -145,7 +147,7 @@ export async function upsertStoreSettings(
       .maybeSingle();
 
     if (taken && taken.business_id !== businessId) {
-      throw new Error(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
+      throw new UserFacingError(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
     }
   }
   storeFields.slug = slug;
@@ -174,6 +176,7 @@ export async function upsertStoreSettings(
   revalidatePath('/boutique');
 
   return { slug };
+  });
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
@@ -267,7 +270,8 @@ export async function updateOrderStatus(
   orderId: string,
   status: string,
   trackingNumber?: string,
-): Promise<void> {
+): Promise<ActionResult> {
+  return attempt(async () => {
   // Pas de `assertFeature` ici, volontairement.
   //
   // Le reste du module est verrouillé par l'offre — construire la vitrine,
@@ -289,7 +293,7 @@ export async function updateOrderStatus(
     .eq('business_id', businessId)
     .maybeSingle();
 
-  if (!owned) throw new Error('Commande introuvable.');
+  if (!owned) throw new UserFacingError('Commande introuvable.');
 
   if (status === 'confirmed') {
     // Lève si le stock ne suit pas — et laisse alors la commande en attente,
@@ -304,6 +308,7 @@ export async function updateOrderStatus(
   await svc.from('orders').update(update).eq('id', orderId).eq('business_id', businessId);
 
   revalidatePath('/boutique/commandes');
+  });
 }
 
 // ─── Statistics ───────────────────────────────────────────────────────────────

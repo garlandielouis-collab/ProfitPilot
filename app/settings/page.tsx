@@ -22,6 +22,7 @@ import { PhoneField } from '../../components/ds';
 import { forceRefreshAndRecalculate } from '../../app/actions/exchangeRate';
 import { cn } from '../../lib/utils';
 import type { BusinessProfileInput, UserPreferencesInput } from '../../lib/validations';
+import { unwrap, screenMessage } from '../../lib/actionResult';
 
 // ── tiny helpers ───────────────────────────────────────────────────────────────
 
@@ -333,7 +334,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
           onClick={async () => {
             setRecalcLoading(true);
             try {
-              const result = await forceRefreshAndRecalculate();
+              const result = unwrap(await forceRefreshAndRecalculate());
               toast.success(
                 t({
                   fr: `Taux mis à jour: 1 USD = ${result.newRate} HTG · ${result.expensesUpdated} dépenses + ${result.salesUpdated} ventes recalculées`,
@@ -341,7 +342,7 @@ function ProfileTab({ userId }: { userId: string | undefined }) {
                 })
               );
             } catch (e: any) {
-              toast.error(e.message ?? t({ fr: 'Erreur lors du recalcul', ht: 'Erè pandan rekalkil la' }));
+              toast.error(screenMessage(e, t({ fr: 'Erreur lors du recalcul', ht: 'Erè pandan rekalkil la' })));
             } finally {
               setRecalcLoading(false);
             }
@@ -621,7 +622,7 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
       URL.revokeObjectURL(url);
       toast.success(t({ fr: 'Export téléchargé', ht: 'Ekspòtasyon telechaje' }));
     } catch (e: any) {
-      toast.error(e.message ?? t({ fr: 'Export échoué', ht: 'Ekspòtasyon echwe' }));
+      toast.error(screenMessage(e, t({ fr: 'Export échoué', ht: 'Ekspòtasyon echwe' })));
     } finally {
       setExportBusy(false);
     }
@@ -631,11 +632,11 @@ function SecurityTab({ userId, userEmail }: { userId: string | undefined; userEm
     if (deleteConfirm !== 'SUPPRIMER') return;
     setDeleteBusy(true);
     try {
-      await deleteAccount();
+      unwrap(await deleteAccount());
       await supabase.auth.signOut();
       router.replace('/auth/login');
     } catch (e: any) {
-      toast.error(e.message ?? t({ fr: 'Suppression échouée', ht: 'Efase echwe' }));
+      toast.error(screenMessage(e, t({ fr: 'Suppression échouée', ht: 'Efase echwe' })));
     } finally {
       setDeleteBusy(false);
     }

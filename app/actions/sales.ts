@@ -7,6 +7,7 @@ import { recordSaleEntry } from '../../lib/accounting/posting';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { makeToReport } from '../../lib/currency';
+import { attempt, type ActionResult, screenMessage } from '../../lib/actionResult';
 
 // ── Types (backward compat pour le UI) ────────────────────────────────────────
 
@@ -85,6 +86,9 @@ function formatInvoiceNumber(rank: number): string {
 /** Deux ventes simultanées peuvent calculer le même rang : seule la violation
  *  d'unicité SUR LE NUMÉRO justifie de réessayer avec le suivant. */
 function isInvoiceNumberConflict(err: any): boolean {
+  // Le message BRUT de Postgres, pas celui qu'on montrerait au marchand : c'est
+  // lui qui nomme la contrainte violée, et c'est sur ce nom que la nouvelle
+  // tentative se décide. `screenMessage` masque exactement ce texte-là.
   return err?.code === '23505' && `${err.message ?? ''} ${err.details ?? ''}`.includes('invoice_number');
 }
 
@@ -96,7 +100,8 @@ const EXCHANGE_RATE_MISSING_MESSAGE =
 
 // ── Main action ───────────────────────────────────────────────────────────────
 
-export async function createSaleAction(input: CreateSaleInput): Promise<CreateSaleResult> {
+export async function createSaleAction(input: CreateSaleInput): Promise<ActionResult<CreateSaleResult>> {
+  return attempt(async () => {
   // ── 1. Zod validation (before any DB call) ───────────────────────────────
   const parsed = createSaleSchema.safeParse(input);
   if (!parsed.success) {
@@ -407,7 +412,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     }
   } catch (err: any) {
     await rollbackSale(sb, saleId);
-    return { success: false, errors: [{ field: 'sale', message: err?.message ?? 'Erreur lors de la mise à jour des stocks.' }] };
+    return { success: false, errors: [{ field: 'sale', message: screenMessage(err, 'Erreur lors de la mise à jour des stocks.') }] };
   }
 
   // ── 9. Credit sale: update client total_credit ───────────────────────────
@@ -475,6 +480,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<CreateSa
     discountAmount,
     totalAmount,
   };
+  });
 }
 
 // ── Total du jour ─────────────────────────────────────────────────────────────

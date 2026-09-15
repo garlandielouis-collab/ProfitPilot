@@ -9,6 +9,7 @@ import {
   type Product,
   type ProductPayload,
 } from '../actions/products';
+import { unwrap, screenMessage } from '../../lib/actionResult';
 import { supabase } from '../../lib/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -318,9 +319,9 @@ function ProductModal({
     setError('');
     try {
       if (isEdit) {
-        await updateProductAction(product.id, form);
+        unwrap(await updateProductAction(product.id, form));
       } else {
-        const newId = await createProductAction(form);
+        const newId = unwrap(await createProductAction(form));
         // If image was uploaded with temp path, re-upload under real ID
         if (form.image_url && form.image_url.includes('temp-')) {
           setTempId(newId);
@@ -329,7 +330,11 @@ function ProductModal({
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.message ?? 'Erè');
+      // Le plafond du catalogue passe ici : « Votre catalogue est plein :
+      // l'offre Esansyel couvre 50 fiches produits… ». C'est la phrase qui
+      // décide d'un changement d'offre — elle ne peut pas être remplacée par
+      // un message technique.
+      setError(screenMessage(err, 'Le produit n’a pas pu être enregistré.'));
     } finally {
       setSaving(false);
     }
@@ -807,10 +812,9 @@ export function ProductsClient({
     setLoading(true);
     setError('');
     try {
-      const prods = await getProductsAction();
-      setProducts(prods);
+      setProducts(unwrap(await getProductsAction()));
     } catch (e: any) {
-      setError(e?.message ?? 'Erè chajman.');
+      setError(screenMessage(e, 'Erè chajman.'));
     } finally {
       setLoading(false);
     }
@@ -888,10 +892,10 @@ export function ProductsClient({
   async function handleDelete() {
     if (!deleteTarget) return;
     try {
-      await deleteProductAction(deleteTarget.id);
+      unwrap(await deleteProductAction(deleteTarget.id));
       setDeleteTarget(null);
       load();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { setError(screenMessage(e, 'Le produit n’a pas pu être supprimé.')); }
   }
 
   return (

@@ -41,6 +41,7 @@ import {
   type DocumentCategory, type ExpirationState,
 } from '../../../lib/documents/types';
 import { csvFilename, downloadCsv, toCsv } from '../../../lib/documents/csv';
+import { screenMessage, unwrap } from '../../../lib/actionResult';
 
 const PAGE_SIZE = 30;
 
@@ -94,7 +95,7 @@ function LibraryScreen() {
   const load = useCallback(async (offset: number) => {
     setLoading(true);
     try {
-      const result = await listDocuments({ ...filters, offset });
+      const result = unwrap(await listDocuments({ ...filters, offset }));
       setTotal(result.total);
       setDocuments((previous) => (offset === 0 ? result.documents : [...previous, ...result.documents]));
       if (result.documents.length > 0) {
@@ -103,7 +104,7 @@ function LibraryScreen() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     } finally {
       setLoading(false);
     }
@@ -112,7 +113,7 @@ function LibraryScreen() {
   useEffect(() => { void load(0); }, [load]);
 
   useEffect(() => {
-    listDocumentTypes().then(setTypes).catch(() => { /* le catalogue n'est utile qu'au dépôt */ });
+    listDocumentTypes().then((r) => { if (r.ok) setTypes(r.data); }).catch(() => { /* le catalogue n'est utile qu'au dépôt */ });
   }, []);
 
   /**
@@ -124,7 +125,7 @@ function LibraryScreen() {
   const exportCsv = useCallback(async () => {
     setExporting(true);
     try {
-      const result = await listDocuments({ ...filters, limit: 1000, offset: 0 });
+      const result = unwrap(await listDocuments({ ...filters, limit: 1000, offset: 0 }));
       const csv = toCsv(result.documents, [
         { header: 'Nom',        value: (d) => d.name },
         { header: 'Type',       value: (d) => d.typeLabelFr ?? '' },
@@ -139,7 +140,7 @@ function LibraryScreen() {
       downloadCsv(csv, csvFilename('documents'));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export impossible.');
+      setError(screenMessage(err, 'Export impossible.'));
     } finally {
       setExporting(false);
     }

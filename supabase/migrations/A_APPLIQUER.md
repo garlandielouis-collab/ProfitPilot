@@ -6,6 +6,24 @@ fichier se colle à la main dans le SQL Editor de Supabase.
 
 D'où ce fichier : savoir, sans deviner, ce qui reste à coller.
 
+## État vérifié le 15/09/2026 — **tout est appliqué**
+
+Les cinq migrations en attente ont été collées. Vérifié depuis le poste, avec
+la clé de service :
+
+| Sonde | Réponse | Conclusion |
+|---|---|---|
+| `rpc/fn_to_business_currency` (10 USD → HTG à 130) | `1300` | `20260911_views_multidevise` + `20260912_creances_confirmation_taux` appliquées |
+| `orders?select=delivered_at,review_email_sent_at` | `200` | `20260917_review_requests` appliquée |
+| `v_customer_rankings?select=*` | `200` | `20260913_clients_multidevise` appliquée |
+
+Reste à vérifier **dans le SQL Editor seulement** (l'API ne le lit pas, la clé
+de service contourne la RLS) : la requête `pg_class.reloptions` ci-dessous doit
+rendre 17 lignes, toutes `{security_invoker=on}`.
+
+Le tableau ci-dessous est conservé : c'est l'état d'avant, et le mode d'emploi
+pour refaire la vérification au prochain lot.
+
 ## État vérifié le 13/09/2026
 
 Vérification faite depuis le poste, avec la clé de service, en lisant l'API

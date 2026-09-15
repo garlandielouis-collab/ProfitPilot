@@ -143,8 +143,8 @@ MORE_SECTIONS.push({
     // Une quatrième entrée, et la seule qui répond à « où en suis-je ? ». Le
     // §43 en fait la porte d'entrée du module : onze étapes tant que la boutique
     // se monte, une note et ses recommandations une fois qu'elle tourne.
-    { href: '/boutique/lancement', label: { fr: 'Lancement et santé', ht: 'Lansman ak sante' },
-      hint: { fr: 'Les 11 étapes, puis la note sur 100', ht: '11 etap yo, apre nòt sou 100' }, icon: Rocket },
+    { href: '/boutique/lancement', label: { fr: 'Lancement et statistiques', ht: 'Lansman ak estatistik' },
+      hint: { fr: 'Les 11 étapes, la note sur 100, puis les ventes', ht: '11 etap yo, nòt sou 100, apre vant yo' }, icon: Rocket },
     { href: '/boutique/merchandising', label: { fr: 'Merchandising', ht: 'Machandiz' },
       hint: { fr: 'Ce qui manque au catalogue, et les lots', ht: 'Sa ki manke nan katalòg la, ak pakè yo' }, icon: Layers },
     // Les avis ont leur entrée, et pas un onglet sous la vitrine : un avis en
@@ -168,8 +168,11 @@ MORE_SECTIONS.push({
       hint: { fr: 'Mot de passe et appareils connectés', ht: 'Modpas ak aparèy konekte' }, icon: Lock },
     { href: '/automation',    label: { fr: 'Automatisation', ht: 'Otomatizasyon' },
       hint: { fr: 'Les rappels qui partent tout seuls', ht: 'Rapèl ki pati poukont yo' }, icon: Sparkles },
+    // Le libellé dit où on va, l'indice dit ce qu'on y trouve — et on y trouve
+    // « pas encore ouvert ». Promettre « Brancher un autre outil » à une entrée
+    // qui mène à une liste d'attente, c'est faire le trajet pour rien.
     { href: '/api-access',    label: { fr: 'Accès API', ht: 'Aksè API' },
-      hint: { fr: 'Brancher un autre outil', ht: 'Konekte yon lòt zouti' }, icon: Code2 },
+      hint: { fr: 'En préparation — demander un accès', ht: 'N ap prepare — mande yon aksè' }, icon: Code2 },
     // Sans cette entrée, la page de prix n'était atteignable que depuis un écran
     // verrouillé : changer d'offre ne doit pas attendre qu'on se heurte à un refus.
     { href: '/pricing',       label: { fr: 'Mon abonnement', ht: 'Abònman mwen' },
@@ -229,9 +232,6 @@ export const ROUTE_FEATURE: Record<string, Feature> = {
   '/boutique':              'online_store',
   '/ai-assistant':          'ai_assistant',
   '/employes':              'employees',
-  // Même écran, ancienne adresse : elle n'est plus au menu mais reste
-  // atteignable, donc elle se verrouille comme l'autre.
-  '/employees':             'employees',
   '/activity':              'activity_log',
 
   // ── Elit — diriger comme un patron ──

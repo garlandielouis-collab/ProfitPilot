@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Store, Plus, ChevronDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { unwrap, screenMessage } from '../lib/actionResult';
 import { switchStore, createStore } from '../app/actions/stores';
 import { useCompany } from '../hooks/useCompany';
 import { usePermissions } from '../hooks/usePermissions';
@@ -41,12 +42,12 @@ export function StoreSwitcher() {
   function handleSwitch(id: string) {
     startTransition(async () => {
       try {
-        await switchStore(id);
+        unwrap(await switchStore(id));
         setOpen(false);
         await refresh();
         window.location.reload();
       } catch (e: any) {
-        toast.error(e.message);
+        toast.error(screenMessage(e, 'L’opération n’a pas abouti.'));
       }
     });
   }
@@ -55,7 +56,7 @@ export function StoreSwitcher() {
     if (!newName.trim()) return;
     startTransition(async () => {
       try {
-        const biz = await createStore(newName);
+        const biz = unwrap(await createStore(newName));
         toast.success(`Boutique "${biz.name}" créée`);
         setNewName('');
         setCreating(false);
@@ -63,7 +64,7 @@ export function StoreSwitcher() {
         await refresh();
         window.location.reload();
       } catch (e: any) {
-        toast.error(e.message);
+        toast.error(screenMessage(e, 'L’opération n’a pas abouti.'));
       }
     });
   }

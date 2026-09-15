@@ -12,6 +12,7 @@ import {
   type PermissionRecord,
 } from '../actions/rbac';
 import { ROLE_ORDER, ROLE_COLORS, ROLE_LABELS } from '../../lib/rbac';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -115,10 +116,10 @@ export default function RolesPage() {
     setSaving(true);
     setError('');
     try {
-      await saveRolePermissions(activeRole, Array.from(currentDraft));
+      unwrap(await saveRolePermissions(activeRole, Array.from(currentDraft)));
       setSaved(true);
     } catch (e: any) {
-      setError(e.message ?? 'Erreur sauvegarde.');
+      setError(screenMessage(e, 'Erreur sauvegarde.'));
     } finally {
       setSaving(false);
     }
@@ -128,14 +129,14 @@ export default function RolesPage() {
     if (!newLabel.trim()) return;
     startCreating(async () => {
       try {
-        const role = await createCustomRole(newName || newLabel, newLabel, newColor, []);
+        const role = unwrap(await createCustomRole(newName || newLabel, newLabel, newColor, []));
         setRoles((prev) => [...prev, role]);
         setDraft((prev) => ({ ...prev, [role.name]: new Set() }));
         setActiveRole(role.name);
         setShowNewRole(false);
         setNewName(''); setNewLabel(''); setNewColor(COLOR_PRESETS[4]);
       } catch (e: any) {
-        setError(e.message);
+        setError(screenMessage(e, 'Le rôle n’a pas pu être créé.'));
       }
     });
   }
@@ -143,12 +144,12 @@ export default function RolesPage() {
   function handleDelete(role: RbacRole) {
     startDeleting(async () => {
       try {
-        await deleteCustomRole(role.id);
+        unwrap(await deleteCustomRole(role.id));
         setRoles((prev) => prev.filter((r) => r.id !== role.id));
         if (activeRole === role.name) setActiveRole('owner');
         setConfirmDelete(null);
       } catch (e: any) {
-        setError(e.message);
+        setError(screenMessage(e, 'Le rôle n’a pas pu être supprimé.'));
       }
     });
   }

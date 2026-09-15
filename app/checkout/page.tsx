@@ -9,7 +9,6 @@ import {
   Check,
   CheckCircle2,
   Copy,
-  CreditCard,
   Loader2,
   Lock,
   ShieldCheck,
@@ -26,12 +25,24 @@ import { useLanguage } from '../../components/LanguageWrapper';
 // ─── Modes de paiement ────────────────────────────────────────────────────────
 //
 // Chaque méthode portait sa propre teinte : dégradé orange pour MonCash,
-// émeraude-teal pour NatCash, bleu-indigo pour Visa, plus un fond, une bordure,
-// un texte et un point de la même famille. Trois méthodes, quinze décisions de
-// couleur — et un écran d'encaissement où l'œil ne sait plus où se poser.
+// émeraude-teal pour NatCash, plus un fond, une bordure, un texte et un point
+// de la même famille — et un écran d'encaissement où l'œil ne sait plus où se
+// poser.
 //
 // Il ne reste que ce qui distingue vraiment les méthodes : leur nom, leur
 // numéro, ce qu'elles sont. La forme, elle, est commune (§3.4).
+//
+// ── Pourquoi la carte a disparu ─────────────────────────────────────────────
+//
+// Une troisième carte « Visa » s'affichait ici, sélectionnable, qui menait à un
+// formulaire grisé et à un bouton « Bientôt disponible » impossible à presser.
+// C'est le contrôle bloquant n°2 de l'audit : un contrôle qui ne commande rien
+// est un mensonge, quel que soit son style. Le marchand qui paie son abonnement
+// par carte la choisissait, traversait deux écrans, et ressortait sans avoir
+// payé — au moment précis où il avait décidé de nous donner de l'argent.
+//
+// Deux méthodes, les deux qui encaissent vraiment. Le jour où la carte marche,
+// elle revient ici en trois lignes.
 
 const PAYMENT_METHODS = [
   {
@@ -50,19 +61,11 @@ const PAYMENT_METHODS = [
     description: 'Paiement mobile Natcom',
     label: 'N',
   },
-  {
-    id: 'visa' as const,
-    name: 'Carte Visa',
-    displayNumber: null as null,
-    rawNumber: null as null,
-    description: 'Carte de crédit ou débit',
-    label: null,
-  },
 ] as const;
 
-type MethodId = 'moncash' | 'natcash' | 'visa';
+type MethodId = 'moncash' | 'natcash';
 type Step = 'method' | 'payment' | 'success';
-type MobileMethod = typeof PAYMENT_METHODS[0] | typeof PAYMENT_METHODS[1];
+type MobileMethod = typeof PAYMENT_METHODS[number];
 
 // ─── Le devis ─────────────────────────────────────────────────────────────────
 //
@@ -296,75 +299,6 @@ function MobilePaymentFlow({
   );
 }
 
-// ─── Visa Flow ────────────────────────────────────────────────────────────────
-
-function VisaFlow() {
-  const { t } = useLanguage();
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-4"
-    >
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 text-center">
-        <CreditCard className="mx-auto h-10 w-10 text-blue-500" />
-        <h3 className="mt-3 font-semibold text-anthracite">{t({ fr: 'Paiement par carte', ht: 'Peman pa kat' })}</h3>
-        <p className="mt-2 text-sm text-anthracite/60">
-          {t({ fr: 'Le paiement par carte Visa / Mastercard sera disponible très prochainement. Utilisez MonCash ou NatCash pour activer votre plan immédiatement.', ht: 'Peman pa kat Visa / Mastercard pral disponib byento. Itilize MonCash oswa NatCash pou aktive plan ou imedyatman.' })}
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-anthracite/40">
-          {t({ fr: 'Cartes acceptées (bientôt)', ht: 'Kat aksepte (byento)' })}
-        </p>
-        <div className="flex gap-2">
-          {['Visa', 'Mastercard', 'Amex'].map((card) => (
-            <div
-              key={card}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-anthracite/60"
-            >
-              {card}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Prepared UI — non-interactive */}
-      <div className="pointer-events-none space-y-3 opacity-40">
-        <div>
-            <label className="text-xs font-semibold text-anthracite/70">{t({ fr: 'Numéro de carte', ht: 'Nimewo kat' })}</label>
-          <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <CreditCard className="h-4 w-4 text-anthracite/30" />
-            <span className="text-sm text-anthracite/30 tracking-widest">•••• •••• •••• ••••</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-semibold text-anthracite/70">{t({ fr: 'Expiration', ht: 'Ekspirasyon' })}</label>
-            <div className="mt-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-anthracite/30">
-              MM / AA
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-anthracite/70">CVV</label>
-            <div className="mt-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-anthracite/30">
-              •••
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <button
-        disabled
-        className="w-full cursor-not-allowed rounded-3xl bg-slate-200 px-6 py-4 text-sm font-semibold text-slate-400"
-      >
-        {t({ fr: 'Bientôt disponible', ht: 'Byento disponib' })}
-      </button>
-    </motion.div>
-  );
-}
-
 // ─── Success View ─────────────────────────────────────────────────────────────
 
 function SuccessView({ reference, planKey }: { reference: string; planKey: string }) {
@@ -511,7 +445,7 @@ function CheckoutContent() {
   };
 
   const handleConfirmPayment = async () => {
-    if (!selectedMethod || selectedMethod === 'visa') return;
+    if (!selectedMethod) return;
 
     setIsLoading(true);
     try {
@@ -637,18 +571,12 @@ function CheckoutContent() {
                                   isSelected ? 'bg-primary text-white' : 'bg-surface2 text-primary'
                                 )}
                               >
-                                {method.id === 'visa' ? (
-                                  <CreditCard className="h-5 w-5" />
-                                ) : method.id === 'moncash' ? (
-                                  <Smartphone className="h-5 w-5" />
-                                ) : (
-                                  <Smartphone className="h-5 w-5" />
-                                )}
+                                <Smartphone className="h-5 w-5" />
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-anthracite">{method.id === 'moncash' ? t({ fr: 'MonCash', ht: 'MonCash' }) : method.id === 'natcash' ? t({ fr: 'NatCash', ht: 'NatCash' }) : t({ fr: 'Carte Visa', ht: 'Kat Visa' })}</p>
-                                <p className="text-sm text-anthracite/60">{method.id === 'moncash' ? t({ fr: 'Paiement mobile Digicel', ht: 'Peman mobil Digicel' }) : method.id === 'natcash' ? t({ fr: 'Paiement mobile Natcom', ht: 'Peman mobil Natcom' }) : t({ fr: 'Carte de crédit ou débit', ht: 'Kat kredi oswa debi' })}</p>
+                                <p className="font-semibold text-anthracite">{method.name}</p>
+                                <p className="text-sm text-anthracite/60">{method.id === 'moncash' ? t({ fr: 'Paiement mobile Digicel', ht: 'Peman mobil Digicel' }) : t({ fr: 'Paiement mobile Natcom', ht: 'Peman mobil Natcom' })}</p>
                               </div>
 
                               {/* Radio */}
@@ -721,22 +649,18 @@ function CheckoutContent() {
                       </button>
                       <div>
                         <h2 className="text-lg font-semibold text-anthracite">
-                          {t({ fr: 'Payer avec', ht: 'Peye ak' })} {selectedMethodData.id === 'moncash' ? t({ fr: 'MonCash', ht: 'MonCash' }) : selectedMethodData.id === 'natcash' ? t({ fr: 'NatCash', ht: 'NatCash' }) : t({ fr: 'Carte Visa', ht: 'Kat Visa' })}
+                          {t({ fr: 'Payer avec', ht: 'Peye ak' })} {selectedMethodData.name}
                         </h2>
                       </div>
                     </div>
 
-                    {selectedMethod === 'visa' ? (
-                      <VisaFlow />
-                    ) : (
-                      <MobilePaymentFlow
-                        method={selectedMethodData as MobileMethod}
-                        dueHtg={quote?.amountHtg ?? plan.priceG}
-                        reference={reference}
-                        onConfirm={handleConfirmPayment}
-                        isLoading={isLoading}
-                      />
-                    )}
+                    <MobilePaymentFlow
+                      method={selectedMethodData}
+                      dueHtg={quote?.amountHtg ?? plan.priceG}
+                      reference={reference}
+                      onConfirm={handleConfirmPayment}
+                      isLoading={isLoading}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>

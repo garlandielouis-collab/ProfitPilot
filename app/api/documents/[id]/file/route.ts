@@ -37,6 +37,7 @@ import { DOCUMENTS_BUCKET } from '../../../../../lib/documents/types';
 import {
   ALLOWED_MIME_TYPES, filenameForMime, sanitizeFilename, type AllowedMime,
 } from '../../../../../lib/documents/storage';
+import { screenMessage } from '../../../../../lib/actionResult';
 
 export const runtime = 'nodejs';
 // Une URL signée vit soixante secondes : rien de tout cela ne se met en cache.
@@ -65,7 +66,7 @@ export async function GET(
   } catch (err) {
     const locked = err instanceof FeatureLockedError;
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Action non autorisée.' },
+      { error: screenMessage(err, 'Action non autorisée.') },
       { status: locked ? 402 : 403 },
     );
   }

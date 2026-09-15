@@ -43,6 +43,7 @@ import type { GoalEditor } from '../shared/GoalProgress';
 import { upsertGoal } from '../../../app/actions/goals';
 import { GOAL_LABELS, type GoalMetric } from '../../../lib/goals';
 import type { DashboardState } from '../useDashboard';
+import { unwrap } from '../../../lib/actionResult';
 
 const GRADE_LABEL = {
   excellent: { fr: 'EXCELLENT', ht: 'EKSELAN' },
@@ -144,7 +145,7 @@ export function KwasansDashboard({ state, userName }: { state: DashboardState; u
   const goalEditor: GoalEditor = {
     defaultMetric: 'revenue',
     save: async (metric, target) => {
-      await upsertGoal({ metric: metric as GoalMetric, targetValue: target });
+      unwrap(await upsertGoal({ metric: metric as GoalMetric, targetValue: target }));
       refresh();
     },
     labels: {

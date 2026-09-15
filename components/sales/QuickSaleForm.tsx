@@ -24,6 +24,7 @@ import {
   Button, FirstRun, Money, NoResult, PaymentPicker, closestMatch, formatAmount,
   type PaymentKey,
 } from '../ds';
+import { unwrap } from '../../lib/actionResult';
 
 type PaymentMode = 'Espèces' | 'MonCash' | 'Natcash' | 'Carte' | 'Crédit';
 
@@ -111,7 +112,10 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
 
   useEffect(() => {
     getProductsAction()
-      .then(setProducts)
+      .then((r) => {
+        if (r.ok) setProducts(r.data);
+        else toast.error(r.message);
+      })
       .catch(() => toast.error('Impossible de charger les produits.'))
       .finally(() => setLoading(false));
   }, []);
@@ -215,7 +219,7 @@ export function QuickSaleForm({ onSaved }: { onSaved?: () => void }) {
     }
 
     try {
-      const result = await createSaleAction(payload);
+      const result = unwrap(await createSaleAction(payload));
 
       if (!result.success) {
         toast.error(result.errors[0]?.message ?? 'Enregistrement impossible.');

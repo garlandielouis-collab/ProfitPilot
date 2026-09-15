@@ -5,6 +5,7 @@ import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { sendInvitationEmail } from '../../lib/email';
 import { assertFeature, assertSeatAvailable } from '../../lib/entitlements';
 import { notify } from '../../lib/notify';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // Sur Vercel sans NEXT_PUBLIC_APP_URL, l'adresse de production injectée par la
 // plateforme ; localhost seulement en dernier recours — chez l'invité, il n'ouvre rien.
@@ -30,7 +31,8 @@ export async function sendHrInvitation({
   email:       string;
   firstName:   string;
   lastName:    string;
-}): Promise<InvitationResult> {
+}): Promise<ActionResult<InvitationResult>> {
+  return attempt(async () => {
   const { supabase, businessId, userId } = await getBusinessContext();
 
   // Même porte que `inviteEmployee` : ce chemin RH crée aussi un siège, et
@@ -69,7 +71,10 @@ export async function sendHrInvitation({
     .select('id, email, token, expires_at')
     .single();
 
-  if (error || !inv) throw new Error(error?.message ?? 'Erreur création invitation');
+  if (error || !inv) {
+    console.error('[sendHrInvitation]', error);
+    throw new UserFacingError("L'invitation n'a pas pu être créée. Réessayez dans un instant.");
+  }
 
   const acceptUrl = `${APP_URL}/auth/accept-invitation?token=${inv.token}`;
 
@@ -92,6 +97,7 @@ export async function sendHrInvitation({
   });
 
   return inv as InvitationResult;
+  });
 }
 
 export async function listPendingInvitations(): Promise<Array<{

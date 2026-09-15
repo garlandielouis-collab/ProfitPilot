@@ -34,6 +34,7 @@ import { DocumentList } from '../../components/documents/DocumentList';
 import { DocumentUploader } from '../../components/documents/DocumentUploader';
 import { PlanTag } from '../../components/PlanLock';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../lib/documents/types';
+import { screenMessage, unwrap } from '../../lib/actionResult';
 
 export default function DocumentsPage() {
   const { t } = useLanguage();
@@ -48,12 +49,12 @@ export default function DocumentsPage() {
     try {
       const [overview, catalogue] = await Promise.all([
         getDocumentsOverview(),
-        listDocumentTypes(),
+        listDocumentTypes().then(unwrap),
       ]);
       setData(overview);
       setTypes(catalogue);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     }
   }, []);
 

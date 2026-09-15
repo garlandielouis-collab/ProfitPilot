@@ -8,6 +8,7 @@ import {
   readGatewayCredentials,
 } from '../../../../../lib/storePaymentGateway';
 import { createStoreOrder } from '../../../../actions/store-public';
+import { unwrap, screenMessage  } from '../../../../../lib/actionResult';
 
 // ── MonCash API helpers ───────────────────────────────────────────────────────
 // L'URL de l'API et le jeton OAuth vivent dans lib/storePaymentGateway.ts,
@@ -84,7 +85,11 @@ export async function POST(req: NextRequest) {
     // `orderData.total` venait du navigateur : on demandait à la passerelle
     // d'encaisser un montant que l'acheteur pouvait choisir. Le montant qui part
     // chez MonCash vient des prix relus dans le catalogue.
-    const { orderId: orderDbId, orderNumber } = await createStoreOrder(orderData);
+    const created = await createStoreOrder(orderData);
+    // Un refus métier (panier vide, stock insuffisant, boutique fermée) est une
+    // erreur de la requête, pas une panne de la passerelle : on le rend tel quel.
+    if (!created.ok) return NextResponse.json({ error: created.message }, { status: 400 });
+    const { orderId: orderDbId, orderNumber } = created.data;
 
     // 4. Le montant en gourdes. MonCash n'encaisse que des gourdes : une
     // commande en USD part à son équivalent au taux de l'entreprise, figé ici
@@ -113,6 +118,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ redirectUrl, orderNumber, orderId: orderDbId, callbackUrl });
   } catch (err: any) {
     console.error('[moncash] initiate error:', err.message);
-    return NextResponse.json({ error: err.message ?? 'Erreur paiement MonCash' }, { status: 500 });
+    return NextResponse.json({ error: screenMessage(err, 'Erreur paiement MonCash') }, { status: 500 });
   }
 }

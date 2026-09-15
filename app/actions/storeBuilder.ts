@@ -59,6 +59,7 @@ import {
   resolveSections, isSectionKey, sectionConfigSchema,
   type ResolvedSection, type StoredSection,
 } from '../../lib/storeSections';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 export type BuilderProduct = {
   id:                    string;
@@ -326,7 +327,7 @@ export async function saveGeneral(input: {
   // en plus de la clé — le slug. Le marchand lit donc pourquoi son adresse est
   // refusée, au lieu de « duplicate key value violates unique constraint ».
   if (error?.code === '23505') {
-    throw new Error(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
+    throw new UserFacingError(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
   }
   if (error) throw new Error(`Enregistrement impossible : ${error.message}`);
 
@@ -350,7 +351,7 @@ export async function saveDesign(input: {
   await requirePermission('settings:write');
   const { businessId, supabase: db } = await getBusinessContext();
 
-  if (!isTemplateId(input.templateId)) throw new Error('Gabarit inconnu.');
+  if (!isTemplateId(input.templateId)) throw new UserFacingError('Gabarit inconnu.');
 
   // Le thème est revalidé avant écriture : ce qui entre en base est toujours un
   // objet complet et conforme, jamais le JSON brut d'un formulaire.
@@ -363,7 +364,7 @@ export async function saveDesign(input: {
     .maybeSingle();
 
   if (!store?.slug) {
-    throw new Error("Enregistrez d'abord le nom et l'adresse de la boutique.");
+    throw new UserFacingError("Enregistrez d'abord le nom et l'adresse de la boutique.");
   }
 
   // Des couleurs que le marchand n'a pas choisies ne s'écrivent pas : elles
@@ -402,12 +403,13 @@ export async function saveDesign(input: {
  * qui rend l'aperçu honnête, puisqu'il est rendu avec exactement le thème que
  * cette action laisse en place.
  */
-export async function applyTemplate(templateId: string): Promise<void> {
+export async function applyTemplate(templateId: string): Promise<ActionResult> {
+  return attempt(async () => {
   await assertFeature('online_store');
   await requirePermission('settings:write');
   const { businessId, supabase: db } = await getBusinessContext();
 
-  if (!isTemplateId(templateId)) throw new Error('Gabarit inconnu.');
+  if (!isTemplateId(templateId)) throw new UserFacingError('Gabarit inconnu.');
 
   const { data: store } = await db
     .from('store_settings')
@@ -416,7 +418,7 @@ export async function applyTemplate(templateId: string): Promise<void> {
     .maybeSingle();
 
   if (!store?.slug) {
-    throw new Error("Enregistrez d'abord le nom et l'adresse de la boutique.");
+    throw new UserFacingError("Enregistrez d'abord le nom et l'adresse de la boutique.");
   }
 
   const { error } = await db
@@ -428,6 +430,7 @@ export async function applyTemplate(templateId: string): Promise<void> {
 
   await revalidateStore(store.slug, businessId);
   revalidatePath('/boutique');
+  });
 }
 
 /**
@@ -452,7 +455,7 @@ export async function saveContent(theme: unknown): Promise<void> {
     .maybeSingle();
 
   if (!store?.slug) {
-    throw new Error("Enregistrez d'abord le nom et l'adresse de la boutique.");
+    throw new UserFacingError("Enregistrez d'abord le nom et l'adresse de la boutique.");
   }
 
   // Cet onglet n'édite ni couleurs ni typographie : il garde celles de la base
@@ -617,7 +620,7 @@ export async function setCustomDomain(domain: string | null): Promise<void> {
       .replace(/\/.*$/, '');
 
     if (!/^[a-z0-9][a-z0-9.-]{2,251}[a-z0-9]\.[a-z]{2,}$/.test(normalized)) {
-      throw new Error('Ce nom de domaine ne semble pas valide (exemple : maboutique.com).');
+      throw new UserFacingError('Ce nom de domaine ne semble pas valide (exemple : maboutique.com).');
     }
     // Même raisonnement que pour le slug dans `saveGeneral` : avec la session,
     // la RLS cache les domaines des autres boutiques, donc une lecture préalable
@@ -639,7 +642,7 @@ export async function setCustomDomain(domain: string | null): Promise<void> {
   // 23505 : l'index unique idx_store_settings_custom_domain — le domaine est
   // déjà rattaché à une autre boutique.
   if (error?.code === '23505') {
-    throw new Error('Ce domaine est déjà rattaché à une autre boutique.');
+    throw new UserFacingError('Ce domaine est déjà rattaché à une autre boutique.');
   }
   if (error) throw new Error(`Enregistrement impossible : ${error.message}`);
 

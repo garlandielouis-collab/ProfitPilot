@@ -11,6 +11,7 @@ import { logActivity } from '../../lib/activityLog';
 import { getPreviewPlanServer } from '../../lib/planPreviewServer';
 import { resolvePlanKey } from '../../lib/trial';
 import { isExchangeRateSet } from '../../lib/currency';
+import { screenMessage } from '../../lib/actionResult';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -353,7 +354,7 @@ export async function createCompany(input: CreateCompanyInput): Promise<{ id: st
     revalidatePath('/entreprises');
     return { id: data.id };
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -390,7 +391,7 @@ export async function updateCompany(input: UpdateCompanyInput): Promise<{ error?
     revalidatePath('/entreprises');
     return {};
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -421,7 +422,7 @@ async function _setArchivedAt(id: string, value: string | null): Promise<{ error
     revalidatePath('/entreprises');
     return {};
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -452,7 +453,7 @@ export async function deleteCompany(id: string): Promise<{ error?: string }> {
     revalidatePath('/entreprises');
     return {};
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -471,7 +472,7 @@ export async function duplicateCompany(id: string): Promise<{ id: string } | { e
       .eq('owner_id', user.id)
       .single();
 
-    if (fetchErr || !src) return { error: fetchErr?.message ?? 'Introuvable' };
+    if (fetchErr || !src) return { error: screenMessage(fetchErr, 'Introuvable') };
 
     // Une copie est une entreprise de plus : même quota que la création.
     const refusal = await companyQuotaRefusal(supabase, user.id);
@@ -495,11 +496,11 @@ export async function duplicateCompany(id: string): Promise<{ id: string } | { e
       .select('id')
       .single();
 
-    if (insertErr || !copy) return { error: insertErr?.message ?? 'Échec duplication' };
+    if (insertErr || !copy) return { error: screenMessage(insertErr, 'Échec duplication') };
 
     revalidatePath('/entreprises');
     return { id: copy.id };
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }

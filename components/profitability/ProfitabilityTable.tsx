@@ -22,6 +22,7 @@ import {
   type ProfitabilityReport,
 } from '../../app/actions/profitability';
 import { unconvertedNotice } from '../../lib/currency';
+import { screenMessage, unwrap } from '../../lib/actionResult';
 
 const fmt = (n: number, currency: string): string =>
   `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
@@ -74,8 +75,9 @@ export function ProfitabilityTable() {
   useEffect(() => {
     let cancelled = false;
     getProductProfitability()
+      .then(unwrap)
       .then((res) => { if (!cancelled) setReport(res); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Chajman enposib.'); })
+      .catch((e) => { if (!cancelled) setError(screenMessage(e, 'Chajman enposib.')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);

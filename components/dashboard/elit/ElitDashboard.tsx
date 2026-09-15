@@ -50,6 +50,7 @@ import { upsertGoal } from '../../../app/actions/goals';
 import { GOAL_LABELS, type GoalMetric } from '../../../lib/goals';
 import type { DashboardState } from '../useDashboard';
 import Link from 'next/link';
+import { unwrap } from '../../../lib/actionResult';
 
 const GRADE_LABEL = {
   excellent: { fr: 'EXCELLENT', ht: 'EKSELAN' },
@@ -188,7 +189,7 @@ export function ElitDashboard({ state, userName }: { state: DashboardState; user
   const goalEditor: GoalEditor = {
     defaultMetric: 'revenue',
     save: async (metric, target) => {
-      await upsertGoal({ metric: metric as GoalMetric, targetValue: target });
+      unwrap(await upsertGoal({ metric: metric as GoalMetric, targetValue: target }));
       refresh();
     },
     labels: {

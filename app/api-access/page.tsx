@@ -30,8 +30,17 @@
 // Ce qui aurait été perdu, c'est la confiance de celui qui découvre seul que la
 // clé de son tableau de bord ne mène nulle part.
 //
-// > À l'équipe : tant que l'API n'existe pas, `api_access` ne devrait pas
-// > figurer parmi les arguments de vente de l'offre Elit (`lib/plans.ts`).
+// ── La décision en attente, tranchée ───────────────────────────────────────
+//
+// Elle demandait si `api_access` devait rester un argument de vente d'Elit.
+// Vérification faite : `lib/plans.ts` ne l'a jamais annoncé — les six lignes
+// vendues sous Elit parlent de boutiques, d'employés, de journal et de
+// projection, jamais d'API. Rien à retirer.
+//
+// `api_access` reste dans les droits d'Elit (`lib/planFeatures.ts`), et c'est
+// volontaire : l'en retirer afficherait à un abonné Elit un écran « passez à
+// Elit » pour une offre qu'il a déjà. Ce qui a changé est l'indice de
+// navigation, qui promettait « Brancher un autre outil » et menait ici.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { MessageCircle, Mail } from 'lucide-react';

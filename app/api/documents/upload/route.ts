@@ -37,6 +37,7 @@ import {
 import {
   resolveUploadMime, buildStoragePath, filenameForMime, formatBytes,
 } from '../../../../lib/documents/storage';
+import { screenMessage } from '../../../../lib/actionResult';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
   } catch (err) {
     const locked = err instanceof FeatureLockedError;
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Action non autorisée.' },
+      { error: screenMessage(err, 'Action non autorisée.') },
       { status: locked ? 402 : 403 },
     );
   }
@@ -215,7 +216,7 @@ export async function POST(request: Request) {
 
   if (insertError || !created) {
     return NextResponse.json(
-      { error: insertError?.message ?? "Le document n'a pas pu être enregistré." },
+      { error: screenMessage(insertError, "Le document n'a pas pu être enregistré.") },
       { status: 400 },
     );
   }

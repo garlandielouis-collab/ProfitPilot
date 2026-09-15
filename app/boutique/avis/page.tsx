@@ -41,6 +41,7 @@ import { Button } from '../../../components/ds/Button';
 import { Card } from '../../../components/ds/Surface';
 import { Badge, type BadgeTone } from '../../../components/ds/Badge';
 import { FirstRun } from '../../../components/ds/EmptyState';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 const STATUS_TONE: Record<ModerationReview['status'], BadgeTone> = {
   pending:   'warning',
@@ -172,7 +173,7 @@ export default function AvisPage() {
     try {
       setState(await getModerationState());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Les avis n\'ont pas pu être chargés.');
+      setError(screenMessage(e, 'Les avis n\'ont pas pu être chargés.'));
     }
   }, []);
 
@@ -184,10 +185,10 @@ export default function AvisPage() {
       setError(null);
       startTransition(async () => {
         try {
-          await moderateReview(id, status);
+          unwrap(await moderateReview(id, status));
           await load();
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Le statut n'a pas pu être changé.");
+          setError(screenMessage(e, "Le statut n'a pas pu être changé."));
         } finally {
           setBusyId(null);
         }

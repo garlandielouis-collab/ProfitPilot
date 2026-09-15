@@ -42,10 +42,14 @@ const EXCHANGE_RATE_MISSING_MESSAGE =
  * production, Next masque le message d'une exception levée par une action.
  */
 export async function savePurchase(payload: SavePurchasePayload): Promise<true | { error: string }> {
-  if (!payload.supplier_id)  throw new Error('Founisè obligatwa.');
-  if (!payload.product_id)   throw new Error('Pwodui obligatwa.');
-  if (payload.quantity <= 0) throw new Error('Kantite pa valab.');
-  if (payload.purchase_price_per_unit < 0) throw new Error('Pri inite pa valab.');
+  // Ces quatre refus étaient LEVÉS, dans la fonction même dont le commentaire
+  // ci-dessus explique pourquoi elle renvoie ses refus. Le formulaire affichait
+  // donc la phrase anglaise de Next à la place de « Founisè obligatwa. » —
+  // c'est-à-dire à la place de la seule chose qui disait quoi corriger.
+  if (!payload.supplier_id)  return { error: 'Founisè obligatwa.' };
+  if (!payload.product_id)   return { error: 'Pwodui obligatwa.' };
+  if (payload.quantity <= 0) return { error: 'Kantite pa valab.' };
+  if (payload.purchase_price_per_unit < 0) return { error: 'Pri inite pa valab.' };
 
   const { supabase, businessId, userId, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
@@ -146,7 +150,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true |
 
   if (!product) {
     await rollbackPurchase(supabase, purchaseId);
-    throw new Error('Produit introuvable.');
+    return { error: 'Produit introuvable.' };
   }
 
   const originalStock = product.stock_quantity;
@@ -171,7 +175,7 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true |
 
     if (whErr) {
       await rollbackPurchase(supabase, purchaseId);
-      throw new Error('Impossible de récupérer l’entrepôt par défaut.');
+      return { error: 'Impossible de récupérer l’entrepôt par défaut.' };
     }
 
     warehouseId = warehouses?.[0]?.id ?? null;
@@ -194,7 +198,8 @@ export async function savePurchase(payload: SavePurchasePayload): Promise<true |
 
       if (createWhErr || !created) {
         await rollbackPurchase(supabase, purchaseId);
-        throw new Error(createWhErr?.message ?? 'Impossible de créer l’entrepôt par défaut.');
+        console.error('[savePurchase] entrepôt par défaut :', createWhErr);
+        return { error: 'Impossible de créer l’entrepôt par défaut.' };
       }
       warehouseId = created.id;
     }

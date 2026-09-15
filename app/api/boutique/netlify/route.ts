@@ -313,6 +313,7 @@ function generateStoreHTML(settings: any, products: any[]): string {
 // ── API route ────────────────────────────────────────────────────────────────
 
 import { cookies } from 'next/headers';
+import { screenMessage } from '../../../../lib/actionResult';
 
 export async function POST(req: NextRequest) {
   try {
@@ -502,6 +503,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     console.error('[netlify deploy]', e);
-    return NextResponse.json({ error: e.message ?? 'Erreur inconnue' }, { status: 500 });
+    return NextResponse.json({ error: screenMessage(e, 'Erreur inconnue') }, { status: 500 });
   }
 }

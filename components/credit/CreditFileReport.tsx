@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { FileText, Loader2, Printer } from 'lucide-react';
 import { getCreditFile, type CreditFile } from '../../app/actions/pilotage';
+import { screenMessage } from '../../lib/actionResult';
 
 const fmt = (n: number, currency: string): string =>
   `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
@@ -41,7 +42,7 @@ export function CreditFileReport({ months = 12 }: { months?: number }) {
     let cancelled = false;
     getCreditFile(months)
       .then((res) => { if (!cancelled) setFile(res); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Chajman enposib.'); })
+      .catch((e) => { if (!cancelled) setError(screenMessage(e, 'Chajman enposib.')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [months]);

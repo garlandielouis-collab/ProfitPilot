@@ -3,6 +3,7 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidatePath } from 'next/cache';
+import { screenMessage } from '../../lib/actionResult';
 
 export type BackupRecord = {
   id:           string;
@@ -84,7 +85,7 @@ export async function createBackup(label?: string): Promise<{ id: string } | { e
       .select('id')
       .single();
 
-    if (recErr || !rec) return { error: recErr?.message ?? 'Erreur création' };
+    if (recErr || !rec) return { error: screenMessage(recErr, 'Erreur création') };
 
     const backupId = rec.id;
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -130,7 +131,7 @@ export async function createBackup(label?: string): Promise<{ id: string } | { e
     revalidatePath('/backup');
     return { id: backupId };
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -187,7 +188,7 @@ export async function deleteBackup(id: string): Promise<{ error?: string }> {
     revalidatePath('/backup');
     return {};
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -211,10 +212,10 @@ export async function getBackupSignedUrl(id: string): Promise<{ url: string } | 
       .from(BUCKET)
       .createSignedUrl(rec.storage_path, 300); // 5 min
 
-    if (error || !data?.signedUrl) return { error: error?.message ?? 'Erreur URL' };
+    if (error || !data?.signedUrl) return { error: screenMessage(error, 'Erreur URL') };
     return { url: data.signedUrl };
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 
@@ -238,12 +239,12 @@ export async function getBackupData(id: string): Promise<{ manifest: any; data: 
       .from(BUCKET)
       .download(rec.storage_path);
 
-    if (dlErr || !fileData) return { error: dlErr?.message ?? 'Téléchargement échoué' };
+    if (dlErr || !fileData) return { error: screenMessage(dlErr, 'Téléchargement échoué') };
 
     const text    = await fileData.text();
     const parsed  = JSON.parse(text);
     return { manifest: parsed.manifest, data: parsed.data };
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }

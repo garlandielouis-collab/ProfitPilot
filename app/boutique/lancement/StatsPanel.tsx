@@ -3,6 +3,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Store Analytics — l'entonnoir et ce qu'il laisse passer (§30)
 //
+// ── Pourquoi ce n'est plus une page ─────────────────────────────────────────
+//
+// Cet écran vivait à `/boutique/stats`. Aucun lien du dépôt n'y menait : ni la
+// navigation, ni le tableau de bord, ni aucune des cinq entrées du module
+// boutique. Il était écrit, juste, complet — et strictement inatteignable.
+//
+// Il est devenu le second onglet de « Lancement et santé », qui est déjà la
+// porte du module (§43). Les deux questions s'y suivent naturellement : « où
+// en suis-je ? » tant que la boutique se monte, « qu'est-ce que ça donne ? »
+// une fois qu'elle tourne. Une entrée de navigation de moins, et un écran de
+// plus qui existe vraiment.
+//
 // Visiteurs → Fiches vues → Panier → Paiement → Achat, et les trois lectures
 // qui vont avec : ce qui se vend, d'où viennent les gens, ce qui s'est perdu.
 //
@@ -36,6 +48,7 @@ import { getStoreAnalytics, type StoreAnalytics } from '../../actions/storeInsig
 import { PeriodBars, type BarPoint } from '../../../components/ds';
 import { Card } from '../../../components/ds/Surface';
 import { FilterPill } from '../../../components/ds/Badge';
+import { screenMessage } from '../../../lib/actionResult';
 
 const WINDOWS = [7, 30, 90];
 
@@ -68,7 +81,7 @@ function count(n: number) {
   return new Intl.NumberFormat('fr-HT').format(n);
 }
 
-export default function StatsPage() {
+export function StatsPanel() {
   const [days, setDays]           = useState(30);
   const [stats, setStats]         = useState<StoreStats | null>(null);
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
@@ -83,7 +96,7 @@ export default function StatsPage() {
       setStats(s);
       setAnalytics(a);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     } finally {
       setLoading(false);
     }
@@ -104,17 +117,14 @@ export default function StatsPage() {
   const currency = analytics?.currency ?? 'HTG';
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
-      {/* ── En-tête ── */}
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-screen font-semibold text-primary dark:text-dark-text">
-            Statistiques
-          </h1>
-          <p className="mt-1 text-body text-text2 dark:text-dark-text2">
-            Ce que votre boutique a produit sur les {days} derniers jours.
-          </p>
-        </div>
+    <>
+      {/* ── La période ──
+          Le titre de l'écran est celui de l'onglet ; il ne se répète pas ici.
+          Ce qui reste est le seul réglage de la vue : sur quels jours. */}
+      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-4">
+        <p className="text-body text-text2 dark:text-dark-text2">
+          Ce que votre boutique a produit sur les {days} derniers jours.
+        </p>
 
         <div className="flex flex-wrap gap-2" role="group" aria-label="Période">
           {WINDOWS.map((d) => (
@@ -385,7 +395,7 @@ export default function StatsPage() {
           </section>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

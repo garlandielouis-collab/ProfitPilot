@@ -6,6 +6,7 @@ import {
   readGatewayCredentials,
 } from '../../../../../lib/storePaymentGateway';
 import { createStoreOrder } from '../../../../actions/store-public';
+import { unwrap, screenMessage  } from '../../../../../lib/actionResult';
 
 // ── NatCash (Natcom Haiti) API helpers ────────────────────────────────────────
 // API docs: obtained from Natcom merchant portal after registration.
@@ -93,7 +94,11 @@ export async function POST(req: NextRequest) {
     }
 
     // La commande, et son total calculé par la base — pas celui du navigateur.
-    const { orderId: orderDbId, orderNumber } = await createStoreOrder(orderData);
+    const created = await createStoreOrder(orderData);
+    // Un refus métier (panier vide, stock insuffisant, boutique fermée) est une
+    // erreur de la requête, pas une panne de la passerelle : on le rend tel quel.
+    if (!created.ok) return NextResponse.json({ error: created.message }, { status: 400 });
+    const { orderId: orderDbId, orderNumber } = created.data;
 
     // Le montant en gourdes. La demande part en `currency: 'HTG'` : envoyer le
     // total d'une commande en USD facturait 25 gourdes pour 25 dollars. Une
@@ -115,6 +120,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ redirectUrl: paymentUrl, orderNumber, orderId: orderDbId });
   } catch (err: any) {
     console.error('[natcash] initiate error:', err.message);
-    return NextResponse.json({ error: err.message ?? 'Erreur paiement NatCash' }, { status: 500 });
+    return NextResponse.json({ error: screenMessage(err, 'Erreur paiement NatCash') }, { status: 500 });
   }
 }

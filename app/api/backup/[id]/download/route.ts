@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { zipSync, strToU8 } from 'fflate';
 import { getSupabaseServer } from '../../../../../lib/supabaseServerClient';
 import { getSupabaseService } from '../../../../../lib/supabaseServiceClient';
+import { screenMessage } from '../../../../../lib/actionResult';
 
 const BUCKET = 'backups';
 
@@ -113,6 +114,6 @@ export async function GET(
       },
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? 'Erreur' }, { status: 500 });
+    return NextResponse.json({ error: screenMessage(e, 'Erreur') }, { status: 500 });
   }
 }

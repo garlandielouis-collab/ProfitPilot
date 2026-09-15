@@ -37,6 +37,7 @@ import {
   type LoginSession,
   type SecuritySettings,
 } from '../actions/security';
+import { screenMessage } from '../../lib/actionResult';
 
 const LIMIT = 15;
 
@@ -72,7 +73,7 @@ function TwoFactor({ settings, onChange }: { settings: SecuritySettings; onChang
       if (chError || !ch) throw new Error(chError?.message);
       setChallenge(ch.id);
     } catch (e: any) {
-      setError(e?.message ?? t({ fr: 'Impossible de démarrer.', ht: 'Nou pa ka kòmanse.' }));
+      setError(screenMessage(e, t({ fr: 'Impossible de démarrer.', ht: 'Nou pa ka kòmanse.' })));
     }
     setBusy(false);
   }
@@ -93,7 +94,7 @@ function TwoFactor({ settings, onChange }: { settings: SecuritySettings; onChang
       setEnroll(null); setChallenge(null); setCode('');
       onChange();
     } catch (e: any) {
-      setError(e?.message ?? t({ fr: 'Code refusé.', ht: 'Kòd la refize.' }));
+      setError(screenMessage(e, t({ fr: 'Code refusé.', ht: 'Kòd la refize.' })));
     }
     setBusy(false);
   }
@@ -107,7 +108,7 @@ function TwoFactor({ settings, onChange }: { settings: SecuritySettings; onChang
       toast.success(t({ fr: 'Double vérification retirée.', ht: 'Doub verifikasyon retire.' }));
       onChange();
     } catch (e: any) {
-      toast.error(e?.message ?? t({ fr: 'Action impossible.', ht: 'Aksyon an pa posib.' }));
+      toast.error(screenMessage(e, t({ fr: 'Action impossible.', ht: 'Aksyon an pa posib.' })));
     }
     setBusy(false);
   }

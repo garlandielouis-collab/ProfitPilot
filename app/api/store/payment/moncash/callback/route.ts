@@ -79,6 +79,9 @@ function refuseMoncashPayment(
     return { code: 'payment_unverified', reason: 'réponse sans objet `payment`' };
   }
 
+  // `payment.message` est le champ de RÉPONSE de MonCash (« successful »), pas
+  // un message d'erreur : il se lit brut, et c'est lui qui décide si la
+  // commande est encaissée.
   if (String(payment.message ?? '').toLowerCase() !== 'successful') {
     return { code: 'payment_failed', reason: `message « ${payment.message ?? '(absent)'} »` };
   }

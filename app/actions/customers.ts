@@ -6,6 +6,7 @@ import { isExchangeRateSet } from '../../lib/currency';
 import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 export type Customer = {
   id: string;
@@ -40,13 +41,14 @@ export async function upsertCustomer(payload: {
   name: string;
   phone?: string;
   email?: string;
-}): Promise<Customer> {
+}): Promise<ActionResult<Customer>> {
+  return attempt(async () => {
   const { supabase, businessId, userId } = await getBusinessContext();
 
-  if (!businessId) throw new Error('No business context');
+  if (!businessId) throw new UserFacingError('No business context');
 
   const name = (payload.name ?? '').trim();
-  if (!name) throw new Error('Le nom du client est obligatoire.');
+  if (!name) throw new UserFacingError('Le nom du client est obligatoire.');
 
   const nameParts = name.split(/\s+/);
   const first_name = nameParts[0] || '';
@@ -150,9 +152,11 @@ export async function upsertCustomer(payload: {
   });
 
   return buildCustomer(data);
+  });
 }
 
-export async function deleteCustomer(customerId: string): Promise<void> {
+export async function deleteCustomer(customerId: string): Promise<ActionResult> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   const { error } = await supabase
@@ -164,6 +168,7 @@ export async function deleteCustomer(customerId: string): Promise<void> {
   if (error) throw new Error(error.message);
   void logActivity({ action: 'delete', entity: 'customer', entityId: customerId });
   revalidatePath('/customers');
+  });
 }
 
 // Issue d'un encaissement. `settled: false` n'est pas une erreur : rien n'a été
@@ -187,11 +192,12 @@ type CreditSettlement =
  * Accepte l'id d'une vente, ou celui d'une ligne customer_transactions
  * rattachée à une vente.
  */
-export async function markCustomerCreditPaid(transactionOrSaleId: string): Promise<CreditSettlement> {
+export async function markCustomerCreditPaid(transactionOrSaleId: string): Promise<ActionResult<CreditSettlement>> {
+  return attempt(async () => {
   const { supabase, businessId, userId, can, exchangeRate, exchangeRateSet } = await getBusinessContext();
   // Même droit que /creances : encaisser fait entrer de l'argent en caisse et
   // éteint une créance. Une action serveur est appelable par tout membre.
-  if (!can('debts:write')) throw new Error('Action non autorisée.');
+  if (!can('debts:write')) throw new UserFacingError('Action non autorisée.');
 
   // Column names follow the real customer_transactions schema: customer_id /
   // description / reference_type+reference_id — not client_id / sale_id / notes.
@@ -209,7 +215,7 @@ export async function markCustomerCreditPaid(transactionOrSaleId: string): Promi
 
   // Sans vente, aucun reste dû à vérifier : on encaisserait un montant que rien
   // ne borne, rejouable à chaque clic.
-  if (!saleId) throw new Error('Transaction non rattachée à une vente : encaissez depuis la vente.');
+  if (!saleId) throw new UserFacingError('Transaction non rattachée à une vente : encaissez depuis la vente.');
 
   const { data: sale, error: saleErr } = await supabase
     .from('sales')
@@ -220,7 +226,7 @@ export async function markCustomerCreditPaid(transactionOrSaleId: string): Promi
     .maybeSingle();
 
   if (saleErr) throw new Error(saleErr.message);
-  if (!sale) throw new Error('Vente introuvable.');
+  if (!sale) throw new UserFacingError('Vente introuvable.');
 
   if (sale.payment_status === 'cancelled' || sale.payment_status === 'refunded') {
     return { settled: false, reason: 'cancelled' };
@@ -335,4 +341,5 @@ export async function markCustomerCreditPaid(transactionOrSaleId: string): Promi
   revalidatePath('/rapports/comptabilite');
 
   return { settled: true, amount, currency };
+  });
 }

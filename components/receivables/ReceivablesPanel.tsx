@@ -31,6 +31,7 @@ import {
 } from '../../app/actions/receivables';
 import { Badge, BottomSheet, Button, FilterPill, Money, formatAmount, type BadgeTone } from '../ds';
 import { cn } from '../../lib/utils';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 // Rouge = en retard, ambre = échéance qui approche, neutre = en cours.
 // Trois tons, et rien d'autre : le jour où le marchand voit du rouge, il doit
@@ -89,9 +90,9 @@ export function ReceivablesPanel() {
 
   const load = useCallback(async () => {
     try {
-      setData(await listReceivables());
+      setData(unwrap(await listReceivables()));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Chargement impossible.');
+      toast.error(screenMessage(err, 'Chargement impossible.'));
     } finally {
       setLoading(false);
     }
@@ -111,7 +112,7 @@ export function ReceivablesPanel() {
     if (settled) return;
     setSettled(r.saleId);
     try {
-      const res = await markReceivablePaid(r.saleId);
+      const res = unwrap(await markReceivablePaid(r.saleId));
       if (!res.settled) {
         // Rien n'a été encaissé : la ligne ne se barre pas, et la liste
         // rechargée montre l'état réel (déjà soldée, montant modifié…).
@@ -126,7 +127,7 @@ export function ReceivablesPanel() {
       await load();
       toast.success(`${r.customerName} — ${formatAmount(res.amount, res.currency)} encaissés, créance soldée.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Mise à jour impossible.');
+      toast.error(screenMessage(err, 'Mise à jour impossible.'));
     } finally {
       setSettled(null);
       setSheet(null);
@@ -316,7 +317,7 @@ function ActionSheet({
   async function remind() {
     setBusy('remind');
     try {
-      const { message, whatsappUrl, hasPhone } = await prepareReceivableReminder(item.saleId);
+      const { message, whatsappUrl, hasPhone } = unwrap(await prepareReceivableReminder(item.saleId));
       window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
       if (!hasPhone) {
         await navigator.clipboard?.writeText(message).catch(() => {});
@@ -325,7 +326,7 @@ function ActionSheet({
       await onChanged();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Relance impossible.');
+      toast.error(screenMessage(err, 'Relance impossible.'));
     } finally {
       setBusy(null);
     }
@@ -362,7 +363,7 @@ function ActionSheet({
       await onChanged();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      toast.error(screenMessage(err, 'Enregistrement impossible.'));
     } finally {
       setBusy(null);
     }
@@ -407,11 +408,11 @@ function ActionSheet({
             onChange={async (e) => {
               if (!e.target.value) return;
               try {
-                await setReceivableDueDate(item.saleId, e.target.value);
+                unwrap(await setReceivableDueDate(item.saleId, e.target.value));
                 await onChanged();
                 toast.success('Échéance mise à jour.');
               } catch (err) {
-                toast.error(err instanceof Error ? err.message : 'Mise à jour impossible.');
+                toast.error(screenMessage(err, 'Mise à jour impossible.'));
               }
             }}
             className="min-h-13 w-full rounded-surface border border-border bg-surface px-4 text-body text-primary outline-none focus:border-accent dark:border-dark-border dark:bg-dark-surface2 dark:text-dark-text"

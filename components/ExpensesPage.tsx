@@ -16,6 +16,7 @@ import {
 import { useLanguage } from './LanguageWrapper';
 import { csvFilename, downloadCsv, toCsv } from '../lib/documents/csv';
 import { useCompany } from '../hooks/useCompany';
+import { unwrap, screenMessage } from '../lib/actionResult';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ function ExpenseModal({
     if (!amt || amt <= 0) return setErr('Montant invalide (> 0).');
     setSaving(true); setErr('');
     try {
-      const res = await upsertExpense({
+      const res = unwrap(await upsertExpense({
         id:             record?.id,
         description:    form.description.trim(),
         category:       form.category,
@@ -168,11 +169,11 @@ function ExpenseModal({
         supplier_id:    isDebt && form.supplier_id ? form.supplier_id : undefined,
         scope:              form.scope,
         business_share_pct: form.scope === 'mixed' ? Number(form.share) || 0 : undefined,
-      });
+      }));
       // Refus renvoyé (et non levé) : son message survit en production.
       if (res?.error) throw new Error(res.error);
       onSaved(); onClose();
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(screenMessage(e, 'La dépense n’a pas pu être enregistrée.')); }
     setSaving(false);
   }
 
@@ -495,10 +496,10 @@ export function ExpensesPage() {
 
   async function handleDelete(rec: ExpenseRecord) {
     try {
-      await deleteExpense(rec.id);
+      unwrap(await deleteExpense(rec.id));
       setDeleteTarget(null);
       await loadAll();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { alert(screenMessage(e, 'La dépense n’a pas pu être supprimée.')); }
   }
 
   // ── Filtered list ────────────────────────────────────────────────────────────

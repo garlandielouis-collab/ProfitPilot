@@ -18,6 +18,7 @@ import { assertFeature } from '../../lib/entitlements';
 // à l'exécution — ReferenceError au chargement du module. Les consommateurs
 // importent le type depuis `lib/goals`, qui en est la source.
 import type { GoalMetric } from '../../lib/goals';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 export type Goal = {
   id: string;
@@ -59,11 +60,12 @@ export async function upsertGoal(input: {
   targetValue: number;
   periodStart?: string;
   note?: string;
-}): Promise<Goal> {
+}): Promise<ActionResult<Goal>> {
+  return attempt(async () => {
   await assertFeature('monthly_goals');
   const { supabase, businessId, userId, defaultCurrency, can } = await getBusinessContext();
-  if (!can('settings:write') && !can('reports:read')) throw new Error('Action non autorisée.');
-  if (!(input.targetValue > 0)) throw new Error('L’objectif doit être supérieur à zéro.');
+  if (!can('settings:write') && !can('reports:read')) throw new UserFacingError('Action non autorisée.');
+  if (!(input.targetValue > 0)) throw new UserFacingError('L’objectif doit être supérieur à zéro.');
 
   const period = input.periodStart ?? monthStart();
 
@@ -98,6 +100,7 @@ export async function upsertGoal(input: {
     currency:    data.currency,
     note:        data.note,
   };
+  });
 }
 
 export async function deleteGoal(id: string): Promise<void> {

@@ -34,10 +34,12 @@ import {
 import {
   getStoreOverview, markStorePreviewed, type LaunchStep, type StoreOverview,
 } from '../../actions/storeInsights';
+import { StatsPanel } from './StatsPanel';
 import { healthTone, type HealthCriterion } from '../../../lib/storeHealth';
 import { Button } from '../../../components/ds/Button';
 import { Card } from '../../../components/ds/Surface';
 import { Badge } from '../../../components/ds/Badge';
+import { screenMessage } from '../../../lib/actionResult';
 
 const LEVEL_LABEL: Record<StoreOverview['health']['level'], string> = {
   neuf:      'À construire',
@@ -65,16 +67,19 @@ function ScoreBar({ score, tone }: { score: number; tone: 'neutral' | 'danger' |
   );
 }
 
+type Tab = 'sante' | 'ventes';
+
 export default function LancementPage() {
   const [data, setData]     = useState<StoreOverview | null>(null);
   const [error, setError]   = useState<string | null>(null);
   const [pending, start]    = useTransition();
+  const [tab, setTab]       = useState<Tab>('sante');
 
   const reload = useCallback(async () => {
     try {
       setData(await getStoreOverview());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     }
   }, []);
 
@@ -122,12 +127,12 @@ export default function LancementPage() {
   const nextStep = remaining[0] ?? null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-8">
+    <div className={`mx-auto px-4 py-8 sm:px-8 ${tab === 'ventes' ? 'max-w-5xl' : 'max-w-3xl'}`}>
       {/* ── En-tête ── */}
-      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-screen font-semibold text-primary dark:text-dark-text">
-            Lancement
+            {tab === 'ventes' ? 'Statistiques' : 'Lancement'}
           </h1>
           <p className="mt-1 text-body text-text2 dark:text-dark-text2">
             {data.isActive
@@ -149,6 +154,36 @@ export default function LancementPage() {
         )}
       </header>
 
+      {/* ── Les deux questions ──
+          « Où en suis-je ? » tant que la boutique se monte, « qu'est-ce que ça
+          donne ? » une fois qu'elle tourne. L'onglet Ventes était une page
+          orpheline (`/boutique/stats`) que rien ne reliait au produit. */}
+      <div
+        role="tablist"
+        aria-label="Vue"
+        className="mb-8 inline-flex rounded-surface bg-surface2 p-1 dark:bg-dark-surface2"
+      >
+        {([
+          { key: 'sante'  as const, label: 'Santé' },
+          { key: 'ventes' as const, label: 'Ventes' },
+        ]).map((v) => (
+          <button
+            key={v.key}
+            role="tab"
+            type="button"
+            aria-selected={tab === v.key}
+            onClick={() => setTab(v.key)}
+            className={`pressable min-h-touch rounded-control px-5 text-body font-bold transition ${
+              tab === v.key
+                ? 'bg-white text-primary shadow-card dark:bg-dark-surface dark:text-dark-text'
+                : 'text-muted hover:text-primary dark:text-dark-muted'
+            }`}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <div className="mb-6 flex items-start gap-2 rounded-control bg-danger-sub px-3 py-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-danger" strokeWidth={1.8} aria-hidden />
@@ -156,7 +191,9 @@ export default function LancementPage() {
         </div>
       )}
 
-      <div className="space-y-8">
+      {tab === 'ventes' && <StatsPanel />}
+
+      <div className={`space-y-8 ${tab === 'ventes' ? 'hidden' : ''}`}>
         {/* ══ Les onze étapes ══ */}
         <section className="space-y-3">
           <div className="flex items-baseline justify-between gap-4">

@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
+import { screenMessage } from '../../lib/actionResult';
 
 // ── UA parsing helpers ────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ export async function revokeSession(sessionId: string): Promise<{ error?: string
     revalidatePath('/security');
     return {};
   } catch (e: any) {
-    return { error: e.message ?? 'Erreur inconnue' };
+    return { error: screenMessage(e, 'Erreur inconnue') };
   }
 }
 

@@ -28,6 +28,7 @@ import { getBusinessContext } from '../../lib/serverAuth';
 import { assertAccess } from '../../lib/entitlements';
 import { logActivity } from '../../lib/activityLog';
 import { blocksToPlainText, parseBlocks, localizeBlocks } from '../../lib/documents/blocks';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 const FEATURE = 'documents' as const;
 
@@ -108,7 +109,8 @@ export async function getVersionContent(versionId: string) {
 export async function restoreDocumentVersion(
   documentId: string,
   versionId: string,
-): Promise<{ version: number }> {
+): Promise<ActionResult<{ version: number }>> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:update');
   const { supabase, businessId, userId } = await getBusinessContext();
 
@@ -127,8 +129,8 @@ export async function restoreDocumentVersion(
 
   if (sourceError)   throw new Error(sourceError.message);
   if (documentError) throw new Error(documentError.message);
-  if (!source)   throw new Error('Cette version n’existe pas ou vous n’y avez pas accès.');
-  if (!document) throw new Error('Ce document n’existe pas ou vous n’y avez pas accès.');
+  if (!source)   throw new UserFacingError('Cette version n’existe pas ou vous n’y avez pas accès.');
+  if (!document) throw new UserFacingError('Ce document n’existe pas ou vous n’y avez pas accès.');
 
   const next = (document.current_version ?? 1) + 1;
 
@@ -178,4 +180,5 @@ export async function restoreDocumentVersion(
   revalidatePath('/documents');
 
   return { version: next };
+  });
 }

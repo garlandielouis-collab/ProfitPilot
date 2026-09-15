@@ -26,6 +26,7 @@ import { usePermissions } from '../../../hooks/usePermissions';
 import { PlanLockScreen } from '../../../components/PlanLock';
 import { Badge, Button, Card, FirstRun, ScreenHeader, type BadgeTone } from '../../../components/ds';
 import { ExpirationBadge, StatusBadge } from '../../../components/documents/DocumentBadges';
+import { screenMessage, unwrap } from '../../../lib/actionResult';
 
 /** Les quatre valeurs de la contrainte `documents.signature_status`. Lecture
  *  seule : c'est ce qu'un humain a constaté, pas une signature électronique. */
@@ -50,8 +51,9 @@ export default function ContractsPage() {
     if (!allowed) return;
     let cancelled = false;
     listContracts()
+      .then(unwrap)
       .then((rows) => { if (!cancelled) { setContracts(rows); setError(null); } })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible.'); })
+      .catch((err) => { if (!cancelled) setError(screenMessage(err, 'Chargement impossible.')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [allowed]);

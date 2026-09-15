@@ -7,6 +7,7 @@ import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { mapCategoryToAccountCode } from '../../lib/accountingEngine';
 import type { ExpenseScope } from '../../lib/expenseScope';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -87,9 +88,10 @@ const EXCHANGE_RATE_MISSING_MESSAGE =
  * `{ error }` pour un refus que le formulaire doit afficher tel quel : en
  * production, Next masque le message d'une exception levée par une action.
  */
-export async function upsertExpense(payload: ExpensePayload): Promise<{ error: string } | undefined> {
-  if (!payload.description?.trim()) throw new Error('Deskripsyon obligatwa.');
-  if (!payload.amount || payload.amount <= 0) throw new Error('Montan pa valab.');
+export async function upsertExpense(payload: ExpensePayload): Promise<ActionResult<{ error: string } | undefined>> {
+  return attempt(async () => {
+  if (!payload.description?.trim()) throw new UserFacingError('Deskripsyon obligatwa.');
+  if (!payload.amount || payload.amount <= 0) throw new UserFacingError('Montan pa valab.');
 
   const { supabase, businessId, userId, exchangeRate, exchangeRateSet } = await getBusinessContext();
 
@@ -231,11 +233,13 @@ export async function upsertExpense(payload: ExpensePayload): Promise<{ error: s
   revalidatePath('/expenses');
   revalidatePath('/rapports/comptabilite');
   return undefined;
+  });
 }
 
 // ── deleteExpense ─────────────────────────────────────────────────────────────
 
-export async function deleteExpense(expenseId: string): Promise<void> {
+export async function deleteExpense(expenseId: string): Promise<ActionResult> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   // Post counter-entries instead of zeroing the original lines in place.
@@ -256,6 +260,7 @@ export async function deleteExpense(expenseId: string): Promise<void> {
   revalidatePath('/rapports/comptabilite');
   revalidatePath('/rapports');
   revalidatePath('/dashboard');
+  });
 }
 
 // ── markExpensePaid ───────────────────────────────────────────────────────────

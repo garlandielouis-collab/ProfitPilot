@@ -31,6 +31,7 @@ import {
   type DocumentSensitivity, type DocumentStatus,
   type DocumentVisibility, type ExpirationState,
 } from '../../lib/documents/types';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 const FEATURE = 'documents' as const;
 
@@ -171,7 +172,8 @@ function safeSearchTerm(raw: string): string {
 // Le catalogue des types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function listDocumentTypes(): Promise<DocumentTypeOption[]> {
+export async function listDocumentTypes(): Promise<ActionResult<DocumentTypeOption[]>> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:read');
   const { supabase, businessId } = await getBusinessContext();
 
@@ -196,6 +198,7 @@ export async function listDocumentTypes(): Promise<DocumentTypeOption[]> {
     isDynamic:   !!r.is_dynamic,
     defaultVisibility: (r.default_visibility as DocumentVisibility) ?? 'company',
   }));
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,7 +207,8 @@ export async function listDocumentTypes(): Promise<DocumentTypeOption[]> {
 
 export async function listDocuments(
   filters: DocumentFilters = {},
-): Promise<{ documents: DocumentSummary[]; total: number }> {
+): Promise<ActionResult<{ documents: DocumentSummary[]; total: number }>> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:read');
   const { supabase, businessId } = await getBusinessContext();
 
@@ -265,6 +269,7 @@ export async function listDocuments(
     documents: (data ?? []).map((r) => toSummary(r as unknown as Row, today)),
     total:     count ?? 0,
   };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,7 +369,8 @@ export type DocumentDetail = DocumentSummary & {
   templateId:    string | null;
 };
 
-export async function getDocument(id: string): Promise<DocumentDetail | null> {
+export async function getDocument(id: string): Promise<ActionResult<DocumentDetail | null>> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:read');
   const { supabase, businessId } = await getBusinessContext();
   const today = todayISO();
@@ -412,6 +418,7 @@ export async function getDocument(id: string): Promise<DocumentDetail | null> {
       id: l.id, entityType: l.entity_type, entityId: l.entity_id, relation: l.relation,
     })),
   };
+  });
 }
 
 /**
@@ -438,7 +445,8 @@ export type EntityDocument = DocumentSummary & {
 export async function listDocumentsForEntity(
   entityType: DocumentEntityType,
   entityId: string,
-): Promise<EntityDocument[]> {
+): Promise<ActionResult<EntityDocument[]>> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:read');
   const { supabase, businessId } = await getBusinessContext();
   const today = todayISO();
@@ -468,6 +476,7 @@ export async function listDocumentsForEntity(
       };
     })
     .filter((d): d is EntityDocument => d !== null);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -487,14 +496,15 @@ export type DocumentPatch = {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function updateDocument(id: string, patch: DocumentPatch): Promise<void> {
+export async function updateDocument(id: string, patch: DocumentPatch): Promise<ActionResult> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:update');
   const { supabase, businessId } = await getBusinessContext();
 
   const update: Record<string, unknown> = {};
   if (patch.name !== undefined) {
     const name = patch.name.trim().slice(0, 200);
-    if (!name) throw new Error('Le nom du document ne peut pas être vide.');
+    if (!name) throw new UserFacingError('Le nom du document ne peut pas être vide.');
     update.name = name;
   }
   if (patch.description !== undefined) update.description = patch.description?.trim().slice(0, 2000) || null;
@@ -506,7 +516,7 @@ export async function updateDocument(id: string, patch: DocumentPatch): Promise<
   }
   if (patch.expiresOn !== undefined) {
     if (patch.expiresOn && !ISO_DATE.test(patch.expiresOn)) {
-      throw new Error('Date d’expiration invalide (format attendu : AAAA-MM-JJ).');
+      throw new UserFacingError('Date d’expiration invalide (format attendu : AAAA-MM-JJ).');
     }
     update.expires_on = patch.expiresOn || null;
   }
@@ -524,10 +534,12 @@ export async function updateDocument(id: string, patch: DocumentPatch): Promise<
 
   void logActivity({ action: 'update', entity: 'document', entityId: id, newValues: update });
   revalidatePath('/documents');
+  });
 }
 
 /** Ranger, pas supprimer. C'est le geste que le §9 attend par défaut. */
-export async function archiveDocument(id: string, archived = true): Promise<void> {
+export async function archiveDocument(id: string, archived = true): Promise<ActionResult> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:update');
   const { supabase, businessId } = await getBusinessContext();
 
@@ -541,6 +553,7 @@ export async function archiveDocument(id: string, archived = true): Promise<void
 
   void logActivity({ action: archived ? 'archive' : 'restore', entity: 'document', entityId: id });
   revalidatePath('/documents');
+  });
 }
 
 /**
@@ -550,7 +563,8 @@ export async function archiveDocument(id: string, archived = true): Promise<void
  * la politique RLS de `document_versions` n'accorde aucun DELETE physique. Une
  * purge réelle viendra plus tard, par une fonction dédiée et journalisée.
  */
-export async function deleteDocument(id: string): Promise<void> {
+export async function deleteDocument(id: string): Promise<ActionResult> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:delete');
   const { supabase, businessId } = await getBusinessContext();
 
@@ -567,6 +581,7 @@ export async function deleteDocument(id: string): Promise<void> {
 
   void logActivity({ action: 'delete', entity: 'document', entityId: id, oldValues: before ?? undefined });
   revalidatePath('/documents');
+  });
 }
 
 // ── Rattachements (§36, §37) ────────────────────────────────────────────────
@@ -594,7 +609,8 @@ export async function linkDocument(input: {
   revalidatePath('/documents');
 }
 
-export async function unlinkDocument(linkId: string): Promise<void> {
+export async function unlinkDocument(linkId: string): Promise<ActionResult> {
+  return attempt(async () => {
   await assertAccess(FEATURE, 'documents:update');
   const { supabase, businessId } = await getBusinessContext();
 
@@ -603,6 +619,7 @@ export async function unlinkDocument(linkId: string): Promise<void> {
 
   if (error) throw new Error(error.message);
   revalidatePath('/documents');
+  });
 }
 
 /** Journalise une consultation ou un téléchargement (§43). */

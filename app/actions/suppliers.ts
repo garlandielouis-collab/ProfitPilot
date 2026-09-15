@@ -3,6 +3,7 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { recordPurchasePaymentEntry } from '../../lib/accounting/posting';
 import { revalidatePath } from 'next/cache';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,8 +17,9 @@ export type SupplierUpsertPayload = {
 
 // ── upsertSupplier ────────────────────────────────────────────────────────────
 
-export async function upsertSupplier(payload: SupplierUpsertPayload): Promise<void> {
-  if (!payload.name?.trim()) throw new Error('Non founisè a obligatwa.');
+export async function upsertSupplier(payload: SupplierUpsertPayload): Promise<ActionResult> {
+  return attempt(async () => {
+  if (!payload.name?.trim()) throw new UserFacingError('Non founisè a obligatwa.');
   const { supabase, businessId, userId } = await getBusinessContext();
 
   const fields = {
@@ -42,11 +44,13 @@ export async function upsertSupplier(payload: SupplierUpsertPayload): Promise<vo
   }
 
   revalidatePath('/suppliers');
+  });
 }
 
 // ── deleteSupplier ────────────────────────────────────────────────────────────
 
-export async function deleteSupplier(supplierId: string): Promise<void> {
+export async function deleteSupplier(supplierId: string): Promise<ActionResult> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   const { error } = await supabase
@@ -59,6 +63,7 @@ export async function deleteSupplier(supplierId: string): Promise<void> {
 
   revalidatePath('/suppliers');
   revalidatePath('/dettes');
+  });
 }
 
 // ── markPurchasePaid ──────────────────────────────────────────────────────────
@@ -67,7 +72,7 @@ export async function deleteSupplier(supplierId: string): Promise<void> {
 // écrit, parce que l'achat était déjà payé (double clic, autre onglet), annulé,
 // ou modifié entre la lecture et l'écriture. Renvoyé plutôt que levé : en
 // production, Next masque le message d'une exception levée par une action.
-type PurchaseSettlement =
+export type PurchaseSettlement =
   | { settled: true;  amount: number; currency: 'HTG' | 'USD' }
   | { settled: false; reason: 'already_settled' | 'cancelled' | 'changed' };
 
@@ -77,11 +82,12 @@ type PurchaseSettlement =
  * seconde fois tout acompte déjà versé au fournisseur — en trésorerie comme au
  * journal.
  */
-export async function markPurchasePaid(purchaseId: string): Promise<PurchaseSettlement> {
+export async function markPurchasePaid(purchaseId: string): Promise<ActionResult<PurchaseSettlement>> {
+  return attempt(async () => {
   const { supabase, businessId, userId, can } = await getBusinessContext();
   // Même droit que /dettes : payer fait sortir de l'argent de la caisse. Une
   // action serveur est appelable par tout membre.
-  if (!can('debts:write')) throw new Error('Action non autorisée.');
+  if (!can('debts:write')) throw new UserFacingError('Action non autorisée.');
 
   // 1. Get purchase
   const { data: purchase, error: fetchErr } = await supabase
@@ -93,7 +99,7 @@ export async function markPurchasePaid(purchaseId: string): Promise<PurchaseSett
     .maybeSingle();
 
   if (fetchErr) throw new Error(fetchErr.message);
-  if (!purchase) throw new Error('Acha pa jwenn.');
+  if (!purchase) throw new UserFacingError('Acha pa jwenn.');
   if (purchase.payment_status === 'cancelled' || purchase.payment_status === 'refunded') {
     return { settled: false, reason: 'cancelled' };
   }
@@ -172,4 +178,5 @@ export async function markPurchasePaid(purchaseId: string): Promise<PurchaseSett
   revalidatePath('/rapports/comptabilite');
 
   return { settled: true, amount, currency };
+  });
 }

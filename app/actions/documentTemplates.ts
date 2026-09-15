@@ -35,6 +35,7 @@ import {
 } from '../../lib/documents/blocks';
 import { substituteText } from '../../lib/documents/variables';
 import { todayISO, type DocumentCategory, type DocumentEntityType } from '../../lib/documents/types';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 /**
  * Deux capacités, pas une seule.
@@ -100,7 +101,8 @@ function toSummary(row: any): TemplateSummary {
  */
 export async function listDocumentTemplates(
   category?: DocumentCategory | 'all',
-): Promise<TemplateSummary[]> {
+): Promise<ActionResult<TemplateSummary[]>> {
+  return attempt(async () => {
   await assertAccess(TEMPLATES, 'documents:read');
   const { supabase, businessId } = await getBusinessContext();
 
@@ -116,6 +118,7 @@ export async function listDocumentTemplates(
   if (error) throw new Error(error.message);
 
   return (data ?? []).map(toSummary);
+  });
 }
 
 export async function getDocumentTemplate(id: string): Promise<TemplateDetail | null> {
@@ -305,12 +308,13 @@ export type CreateFromTemplateResult = {
  */
 export async function createDocumentFromTemplate(
   input: CreateFromTemplateInput,
-): Promise<CreateFromTemplateResult> {
+): Promise<ActionResult<CreateFromTemplateResult>> {
+  return attempt(async () => {
   await assertAccess(TEMPLATES, 'documents:create');
   const { supabase, businessId, userId } = await getBusinessContext();
 
   const template = await getDocumentTemplate(input.templateId);
-  if (!template) throw new Error('Ce modèle n’existe pas ou n’est plus disponible.');
+  if (!template) throw new UserFacingError('Ce modèle n’existe pas ou n’est plus disponible.');
 
   const values = await resolveVariableValues(input.sources ?? {});
 
@@ -396,6 +400,7 @@ export async function createDocumentFromTemplate(
   revalidatePath('/documents/bibliotheque');
 
   return { id: documentId, blank };
+  });
 }
 
 /** Un document vierge : trois blocs, de quoi commencer sans page blanche. */
@@ -403,12 +408,13 @@ export async function createBlankDocument(input: {
   name: string;
   documentTypeId?: string | null;
   link?: { entityType: DocumentEntityType; entityId: string };
-}): Promise<{ id: string }> {
+}): Promise<ActionResult<{ id: string }>> {
+  return attempt(async () => {
   await assertAccess(WRITING, 'documents:create');
   const { supabase, businessId, userId } = await getBusinessContext();
 
   const name = input.name.trim().slice(0, 200);
-  if (!name) throw new Error('Le nom du document ne peut pas être vide.');
+  if (!name) throw new UserFacingError('Le nom du document ne peut pas être vide.');
 
   const blocks: PlainBlock[] = [
     { type: 'heading', level: 1, text: name },
@@ -457,6 +463,7 @@ export async function createBlankDocument(input: {
   revalidatePath('/documents');
 
   return { id: documentId };
+  });
 }
 
 /**
@@ -482,7 +489,7 @@ export async function saveDocumentContent(
     .maybeSingle();
 
   if (readError) throw new Error(readError.message);
-  if (!current) throw new Error('Ce document n’existe pas ou vous n’y avez pas accès.');
+  if (!current) throw new UserFacingError('Ce document n’existe pas ou vous n’y avez pas accès.');
 
   const clean = blocks.filter((b) => !isBlockEmpty(b));
   const unchanged = JSON.stringify(current.content_blocks ?? null) === JSON.stringify(clean);

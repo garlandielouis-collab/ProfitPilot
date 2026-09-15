@@ -16,6 +16,7 @@ import { failIfUnreadable } from '../../lib/storeRead';
 import { verifyReviewToken } from '../../lib/reviewToken';
 import type { StoredSection } from '../../lib/storeSections';
 import type { StoreReview } from '../../components/store/sections/types';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ── Sections ────────────────────────────────────────────────────────────────
 
@@ -171,12 +172,13 @@ export async function submitReview(input: {
   token?:    string;
   rating:    number;
   body?:     string;
-}): Promise<void> {
+}): Promise<ActionResult> {
+  return attempt(async () => {
   const svc = getSupabaseService();
 
   const rating = Math.round(Number(input.rating));
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-    throw new Error('La note doit être comprise entre 1 et 5.');
+    throw new UserFacingError('La note doit être comprise entre 1 et 5.');
   }
 
   const { data: order } = await svc
@@ -185,14 +187,14 @@ export async function submitReview(input: {
     .eq('id', input.orderId)
     .maybeSingle();
 
-  if (!order) throw new Error('Commande introuvable.');
+  if (!order) throw new UserFacingError('Commande introuvable.');
 
   const given     = (input.email ?? '').trim().toLowerCase();
   const byEmail   = given !== '' && given === String(order.customer_email ?? '').toLowerCase();
   const byToken   = verifyReviewToken(order.id, input.token);
 
   if (!byEmail && !byToken) {
-    throw new Error("Nous n'avons pas pu vérifier que cette commande est la vôtre.");
+    throw new UserFacingError("Nous n'avons pas pu vérifier que cette commande est la vôtre.");
   }
 
   const { data: line } = await svc
@@ -202,7 +204,7 @@ export async function submitReview(input: {
     .eq('product_id', input.productId)
     .maybeSingle();
 
-  if (!line) throw new Error("Ce produit ne figure pas dans cette commande.");
+  if (!line) throw new UserFacingError("Ce produit ne figure pas dans cette commande.");
 
   const { error } = await svc.from('reviews').insert({
     business_id: order.business_id,
@@ -216,9 +218,10 @@ export async function submitReview(input: {
 
   if (error) {
     // 23505 : un avis existe déjà pour cette ligne de commande.
-    if (error.code === '23505') throw new Error('Vous avez déjà donné votre avis sur ce produit.');
-    throw new Error("Votre avis n'a pas pu être enregistré.");
+    if (error.code === '23505') throw new UserFacingError('Vous avez déjà donné votre avis sur ce produit.');
+    throw new UserFacingError("Votre avis n'a pas pu être enregistré.");
   }
+  });
 }
 
 /**
@@ -300,9 +303,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
  * que celle qui achètera peut-être demain, et il n'a pas besoin de deux
  * carnets. Aucune commande n'est créée, aucun solde n'est touché.
  */
-export async function subscribeToStore(slug: string, email: string): Promise<void> {
+export async function subscribeToStore(slug: string, email: string): Promise<ActionResult> {
+  return attempt(async () => {
   const address = email.trim().toLowerCase();
-  if (!EMAIL_RE.test(address)) throw new Error('Cette adresse ne semble pas valide.');
+  if (!EMAIL_RE.test(address)) throw new UserFacingError('Cette adresse ne semble pas valide.');
 
   const svc = getSupabaseService();
   const { data: store } = await svc
@@ -312,7 +316,7 @@ export async function subscribeToStore(slug: string, email: string): Promise<voi
     .eq('is_active', true)
     .maybeSingle();
 
-  if (!store) throw new Error('Boutique introuvable.');
+  if (!store) throw new UserFacingError('Boutique introuvable.');
 
   const { error } = await svc.from('customers').upsert(
     {
@@ -324,7 +328,8 @@ export async function subscribeToStore(slug: string, email: string): Promise<voi
     { onConflict: 'business_id,email', ignoreDuplicates: true },
   );
 
-  if (error) throw new Error("L'inscription n'a pas abouti.");
+  if (error) throw new UserFacingError("L'inscription n'a pas abouti.");
+  });
 }
 
 /** « Prévenez-moi quand c'est disponible » (§25). */
@@ -332,9 +337,10 @@ export async function notifyWhenAvailable(
   businessId: string,
   productId: string,
   email: string,
-): Promise<void> {
+): Promise<ActionResult> {
+  return attempt(async () => {
   const address = email.trim().toLowerCase();
-  if (!EMAIL_RE.test(address)) throw new Error('Cette adresse ne semble pas valide.');
+  if (!EMAIL_RE.test(address)) throw new UserFacingError('Cette adresse ne semble pas valide.');
 
   const svc = getSupabaseService();
 
@@ -347,12 +353,13 @@ export async function notifyWhenAvailable(
     .eq('business_id', businessId)
     .maybeSingle();
 
-  if (!product) throw new Error('Produit introuvable.');
+  if (!product) throw new UserFacingError('Produit introuvable.');
 
   const { error } = await svc.from('product_stock_notifications').upsert(
     { business_id: businessId, product_id: productId, email: address },
     { onConflict: 'product_id,email', ignoreDuplicates: true },
   );
 
-  if (error) throw new Error("L'inscription n'a pas abouti.");
+  if (error) throw new UserFacingError("L'inscription n'a pas abouti.");
+  });
 }

@@ -17,6 +17,7 @@ import {
   Package, Palette, Rocket, Settings, ShoppingCart, Smartphone, Star,
   type LucideIcon,
 } from 'lucide-react';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 // La carte reste listée mais n'est pas sélectionnable : aucune passerelle carte
 // n'est branchée. Cochée, elle apparaissait chez l'acheteur et la commande
@@ -78,7 +79,7 @@ function NetlifyTab({ settings }: { settings: StoreSettings | null }) {
       setResult({ url: json.url, productCount: json.productCount });
       setStep('done');
     } catch (e: any) {
-      setError(e.message ?? 'Erreur réseau');
+      setError(screenMessage(e, 'Erreur réseau'));
     }
     setDeploying(false);
   }
@@ -350,14 +351,14 @@ export default function BoutiquePage() {
             sandbox:       creds.natcash_sandbox,
           },
         };
-        const { slug } = await upsertStoreSettings({ ...form, shipping_modes: shippingModes, payment_credentials } as any);
+        const { slug } = unwrap(await upsertStoreSettings({ ...form, shipping_modes: shippingModes, payment_credentials } as any));
         // Le serveur normalise le slug (tiret final retiré, accents) : l'écran
         // montre l'adresse réellement enregistrée, pas celle qui a été tapée.
         setForm((f) => ({ ...f, slug }));
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       } catch (e: any) {
-        setError(e.message ?? 'Erreur sauvegarde.');
+        setError(screenMessage(e, 'Erreur sauvegarde.'));
       }
     });
   }

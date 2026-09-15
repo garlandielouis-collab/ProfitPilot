@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { listOrders, updateOrderStatus, type OrderRow } from '../../actions/boutique';
 import { Package } from 'lucide-react';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 const STATUSES = [
   { value: 'all',       label: 'Toutes',       color: 'bg-slate-100 text-slate-700' },
@@ -82,7 +83,7 @@ export default function CommandesPage() {
     setUpdateError('');
     startUpdating(async () => {
       try {
-        await updateOrderStatus(selected.id, newStatus, tracking || undefined);
+        unwrap(await updateOrderStatus(selected.id, newStatus, tracking || undefined));
         setSelected(null);
         // Recharge autant de lignes qu'il y en avait : sans ça, mettre à jour une
         // commande de la page 3 renvoyait le marchand aux 50 premières.
@@ -92,7 +93,7 @@ export default function CommandesPage() {
         // (« Stock insuffisant pour « Savon karité » : 2 en stock… ») : on le
         // montre tel quel, et la commande reste dans son statut précédent.
         setUpdateError(
-          err instanceof Error ? err.message : "La mise à jour n'a pas abouti.",
+          screenMessage(err, "La mise à jour n'a pas abouti."),
         );
       }
     });

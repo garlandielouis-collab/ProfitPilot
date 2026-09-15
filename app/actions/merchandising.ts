@@ -44,6 +44,7 @@ import {
   type CatalogEntry,
   type CopyLanguage,
 } from '../../lib/ai/copywriter';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 const COMMERCE_FEATURE = 'online_store' as const;
 
@@ -193,13 +194,14 @@ export async function getMerchandisingState(): Promise<MerchandisingState> {
 
 export async function runCatalogAnalysis(
   language: CopyLanguage = 'fr',
-): Promise<CatalogReport> {
+): Promise<ActionResult<CatalogReport>> {
+  return attempt(async () => {
   await assertFeature(COMMERCE_FEATURE);
   const { businessId, userId } = await requirePermission('products:write');
 
   const { entries, names } = await loadCatalog(businessId);
   if (entries.length === 0) {
-    throw new Error("Votre catalogue est vide : ajoutez un produit avant d'analyser.");
+    throw new UserFacingError("Votre catalogue est vide : ajoutez un produit avant d'analyser.");
   }
 
   const { remaining } = await spendCredits(businessId, userId, 'merchandising');
@@ -225,19 +227,21 @@ export async function runCatalogAnalysis(
     await refundCredits(businessId, 'merchandising');
     throw err;
   }
+  });
 }
 
 // ── §18 : les lots ──────────────────────────────────────────────────────────
 
 export async function runBundleProposals(
   language: CopyLanguage = 'fr',
-): Promise<{ proposals: BundleProposal[]; remaining: number }> {
+): Promise<ActionResult<{ proposals: BundleProposal[]; remaining: number }>> {
+  return attempt(async () => {
   await assertFeature(COMMERCE_FEATURE);
   const { businessId, userId } = await requirePermission('products:write');
 
   const { entries, names, prices } = await loadCatalog(businessId);
   if (entries.length < 2) {
-    throw new Error('Il faut au moins deux produits pour composer un lot.');
+    throw new UserFacingError('Il faut au moins deux produits pour composer un lot.');
   }
 
   // Les paires réellement achetées ensemble, les plus fréquentes d'abord.
@@ -294,6 +298,7 @@ export async function runBundleProposals(
     await refundCredits(businessId, 'bundle');
     throw err;
   }
+  });
 }
 
 const acceptSchema = z.object({
@@ -321,7 +326,7 @@ export async function acceptBundle(input: AcceptBundleInput): Promise<string> {
   const { businessId } = await requirePermission('products:write');
 
   const parsed = acceptSchema.safeParse(input);
-  if (!parsed.success) throw new Error('Lot invalide.');
+  if (!parsed.success) throw new UserFacingError('Lot invalide.');
   const value = parsed.data;
 
   const svc = getSupabaseService();
@@ -335,7 +340,7 @@ export async function acceptBundle(input: AcceptBundleInput): Promise<string> {
 
   const ownedIds = new Set(((owned ?? []) as Array<{ id: string }>).map((p) => p.id));
   if (ownedIds.size !== new Set(ids).size) {
-    throw new Error("Un des produits de ce lot n'appartient pas à votre entreprise.");
+    throw new UserFacingError("Un des produits de ce lot n'appartient pas à votre entreprise.");
   }
 
   const { data: bundle, error } = await svc

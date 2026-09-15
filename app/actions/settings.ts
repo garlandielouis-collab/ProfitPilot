@@ -10,6 +10,7 @@ import {
   type BusinessProfileInput,
   type UserPreferencesInput,
 } from '../../lib/validations';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -185,13 +186,14 @@ export async function exportUserData() {
 
 // ── Delete Account ────────────────────────────────────────────────────────────
 
-export async function deleteAccount() {
+export async function deleteAccount(): Promise<ActionResult> {
+  return attempt(async () => {
   const { user, supabase } = await getAuthUser();
 
   // Exiger une ré-authentification récente (protection anti-CSRF/détournement)
   const { error: recentAuthError } = await supabase.auth.getUser();
   if (recentAuthError || !user) {
-    throw new Error('Session invalide. Veuillez vous reconnecter.');
+    throw new UserFacingError('Session invalide. Veuillez vous reconnecter.');
   }
 
   // Cascade-delete owned data in order (foreign keys)
@@ -222,6 +224,7 @@ export async function deleteAccount() {
   }
 
   await supabase.auth.signOut();
+  });
 }
 
 // ── Password Change (client-side via Supabase Auth) ────────────────────────────

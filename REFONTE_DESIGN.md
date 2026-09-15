@@ -232,6 +232,33 @@ fabriquaient encore, autrement :
   **Décision produit en attente** : tant que l'API n'existe pas, `api_access` ne
   devrait pas figurer parmi les arguments de vente de l'offre Elit
   (`lib/plans.ts`).
+  *Tranchée le 15/09/2026* : `lib/plans.ts` ne l'a jamais annoncée — rien à
+  retirer. `api_access` reste dans les droits d'Elit (l'en sortir montrerait
+  « passez à Elit » à un abonné Elit). C'est l'indice de navigation qui a
+  changé : il promettait « Brancher un autre outil » et menait à une liste
+  d'attente ; il dit « En préparation — demander un accès ».
+
+### La troisième rechute, et les deux écrans introuvables (15/09/2026)
+
+- **`/checkout`, la carte Visa.** Une troisième carte de paiement s'affichait,
+  sélectionnable, qui menait à un formulaire grisé et à un bouton « Bientôt
+  disponible » impossible à presser. Le marchand qui paie son abonnement par
+  carte la choisissait, traversait deux écrans, et ressortait sans avoir payé —
+  au moment précis où il avait décidé de donner de l'argent. Deux méthodes
+  restent : les deux qui encaissent vraiment.
+
+- **`/boutique/stats` n'était liée nulle part.** Écran complet et juste
+  (l'entonnoir du §30), zéro lien entrant dans tout le dépôt : ni la
+  navigation, ni le tableau de bord, ni aucune des cinq entrées du module
+  boutique. Devenu le second onglet de « Lancement », qui est la porte du
+  module (§43) : « où en suis-je ? » puis « qu'est-ce que ça donne ? ».
+
+- **`/employees` non plus.** Une seconde page « Équipe », sans entrée de menu,
+  qui listait les mêmes personnes sous un autre nom, dans un style d'avant la
+  refonte (couleurs littérales, `confirm()`, aucune traduction), et les
+  invitait par un **second chemin** qui consommait un siège sans page
+  d'acceptation. Fusionnée dans `/employes` : la fiche RH et l'accès à
+  l'application sont deux faits sur la même personne, jamais deux écrans.
 
 ### Deux briques ajoutées au système
 

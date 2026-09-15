@@ -46,6 +46,7 @@ import {
   type StoreFacts,
 } from '../../lib/ai/copywriter';
 import { TEMPLATES, resolveTemplateId } from '../../components/store/templates/registry';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // Même drapeau que le Studio photo : la rédaction n'existe que pour la
 // vitrine. Le jour où elle se vend séparément, c'est cette constante qui
@@ -103,7 +104,7 @@ async function loadProduct(productId: string, businessId: string) {
     .eq('business_id', businessId)
     .maybeSingle();
 
-  if (!data) throw new Error('Produit introuvable.');
+  if (!data) throw new UserFacingError('Produit introuvable.');
   return data as Record<string, any>;
 }
 
@@ -164,7 +165,8 @@ export async function draftProductCopy(
   productId: string,
   tone:      CopyTone     = 'standard',
   language:  CopyLanguage = 'fr',
-): Promise<CopyDraft> {
+): Promise<ActionResult<CopyDraft>> {
+  return attempt(async () => {
   await assertFeature(COPY_FEATURE);
   const { businessId, userId } = await requirePermission('products:write');
 
@@ -182,13 +184,15 @@ export async function draftProductCopy(
     await refundCredits(businessId, 'product_description', `product:${productId}`);
     throw err;
   }
+  });
 }
 
 /** §16 — le volet SEO, demandé et facturé à part. */
 export async function draftProductSeo(
   productId: string,
   language:  CopyLanguage = 'fr',
-): Promise<SeoDraft> {
+): Promise<ActionResult<SeoDraft>> {
+  return attempt(async () => {
   await assertFeature(COPY_FEATURE);
   const { businessId, userId } = await requirePermission('products:write');
 
@@ -208,6 +212,7 @@ export async function draftProductSeo(
     await refundCredits(businessId, 'product_seo', `product:${productId}`);
     throw err;
   }
+  });
 }
 
 // ── L'enregistrement ────────────────────────────────────────────────────────
@@ -234,12 +239,13 @@ export type ApplyCopyInput = z.input<typeof applySchema>;
 export async function applyProductCopy(
   productId: string,
   input:     ApplyCopyInput,
-): Promise<void> {
+): Promise<ActionResult> {
+  return attempt(async () => {
   await assertFeature(COPY_FEATURE);
   const { businessId } = await requirePermission('products:write');
 
   const parsed = applySchema.safeParse(input);
-  if (!parsed.success) throw new Error('Texte invalide.');
+  if (!parsed.success) throw new UserFacingError('Texte invalide.');
   const value = parsed.data;
 
   const patch: Record<string, unknown> = { ai_copy_at: new Date().toISOString() };
@@ -271,6 +277,7 @@ export async function applyProductCopy(
   await refreshStorefront(businessId);
   revalidatePath('/products');
   revalidatePath('/boutique/builder');
+  });
 }
 
 /** Le solde, pour les écrans qui l'affichent sans rien générer. */
@@ -376,7 +383,8 @@ const PAYMENT_WORDS: Record<string, string> = {
  */
 export async function draftStorePresentation(
   language: CopyLanguage = 'fr',
-): Promise<PresentationDraft> {
+): Promise<ActionResult<PresentationDraft>> {
+  return attempt(async () => {
   await assertFeature(COPY_FEATURE);
   const { businessId, userId } = await requirePermission('settings:write');
 
@@ -397,4 +405,5 @@ export async function draftStorePresentation(
     await refundCredits(businessId, 'store_presentation', `store:${businessId}`);
     throw err;
   }
+  });
 }

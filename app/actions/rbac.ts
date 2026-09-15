@@ -9,6 +9,7 @@ import {
   ALL_PERMISSIONS,
   isValidRole,
 } from '../../lib/rbac';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,7 +123,8 @@ export async function getCompanyRbacMatrix(): Promise<Record<string, string[]>> 
 export async function saveRolePermissions(
   roleName: string,
   permissions: string[],
-): Promise<void> {
+): Promise<ActionResult> {
+  return attempt(async () => {
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
 
@@ -145,6 +147,7 @@ export async function saveRolePermissions(
 
   const { error } = await svc.from('rbac_role_permissions').insert(rows);
   if (error) throw new Error(error.message);
+  });
 }
 
 // ─── Create custom role ───────────────────────────────────────────────────────
@@ -154,7 +157,8 @@ export async function createCustomRole(
   label: string,
   color: string,
   permissions: string[],
-): Promise<RbacRole> {
+): Promise<ActionResult<RbacRole>> {
+  return attempt(async () => {
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
 
@@ -167,15 +171,24 @@ export async function createCustomRole(
     .select()
     .single();
 
-  if (error || !role) throw new Error(error?.message ?? 'Erreur création rôle');
+  if (error || !role) {
+    console.error('[createCustomRole]', error);
+    throw new UserFacingError('Le rôle n’a pas pu être créé. Ce nom est peut-être déjà pris.');
+  }
 
-  await saveRolePermissions(slug, permissions);
+  // Le rôle existe, mais sans ses permissions il ne sert à rien : un échec ici
+  // doit se voir. `saveRolePermissions` renvoie son refus, on l'ouvre.
+  const saved = await saveRolePermissions(slug, permissions);
+  if (!saved.ok) throw new UserFacingError(saved.message);
+
   return role as RbacRole;
+  });
 }
 
 // ─── Delete custom role ───────────────────────────────────────────────────────
 
-export async function deleteCustomRole(roleId: string): Promise<void> {
+export async function deleteCustomRole(roleId: string): Promise<ActionResult> {
+  return attempt(async () => {
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
 
@@ -188,6 +201,7 @@ export async function deleteCustomRole(roleId: string): Promise<void> {
     .eq('is_system', false);
 
   if (error) throw new Error(error.message);
+  });
 }
 
 // ─── Assign role to user ──────────────────────────────────────────────────────

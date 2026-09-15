@@ -39,6 +39,7 @@ import { assertFeature } from '../../lib/entitlements';
 import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidateStore } from '../../lib/storefrontData';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 export type ModerationReview = {
   id:          string;
@@ -118,14 +119,15 @@ export async function getModerationState(): Promise<ModerationState> {
 export async function moderateReview(
   reviewId: string,
   status: 'published' | 'rejected' | 'pending',
-): Promise<void> {
+): Promise<ActionResult> {
+  return attempt(async () => {
   await assertFeature('online_store');
   await requirePermission('settings:write');
   const { businessId } = await getBusinessContext();
 
-  if (!/^[0-9a-f-]{36}$/i.test(reviewId)) throw new Error('Avis introuvable.');
+  if (!/^[0-9a-f-]{36}$/i.test(reviewId)) throw new UserFacingError('Avis introuvable.');
   if (!['published', 'rejected', 'pending'].includes(status)) {
-    throw new Error('Statut inconnu.');
+    throw new UserFacingError('Statut inconnu.');
   }
 
   const svc = getSupabaseService();
@@ -143,8 +145,8 @@ export async function moderateReview(
     .select('id')
     .maybeSingle();
 
-  if (error)  throw new Error("Le statut de l'avis n'a pas pu être changé.");
-  if (!data)  throw new Error('Avis introuvable.');
+  if (error)  throw new UserFacingError("Le statut de l'avis n'a pas pu être changé.");
+  if (!data)  throw new UserFacingError('Avis introuvable.');
 
   // La vitrine sert ses pages en cache par étiquettes : sans invalidation, un
   // avis publié n'apparaîtrait qu'à l'expiration du cache — le marchand
@@ -157,4 +159,5 @@ export async function moderateReview(
 
   await revalidateStore(store?.slug ?? null, businessId);
   revalidatePath('/boutique/avis');
+  });
 }

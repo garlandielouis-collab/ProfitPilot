@@ -26,6 +26,7 @@ import { useLanguage } from '../../../components/LanguageWrapper';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { PlanTag } from '../../../components/PlanLock';
 import { Button, Card, ScreenHeader } from '../../../components/ds';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 export default function CreateDocumentPage() {
   const { t } = useLanguage();
@@ -48,10 +49,10 @@ export default function CreateDocumentPage() {
     setBusy(true);
     setError(null);
     try {
-      const { id } = await createBlankDocument({ name: trimmed });
+      const { id } = unwrap(await createBlankDocument({ name: trimmed }));
       router.push(`/documents/${id}/editer`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Création impossible.');
+      setError(screenMessage(err, 'Création impossible.'));
       setBusy(false);
     }
   }, [name, router, t]);

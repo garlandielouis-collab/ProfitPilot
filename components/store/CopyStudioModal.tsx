@@ -39,6 +39,7 @@ import {
 import { Button } from '../ds/Button';
 import { Field, TextField } from '../ds/Field';
 import { Badge } from '../ds/Badge';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 type Tone     = 'standard' | 'court' | 'persuasif';
 type Language = 'fr' | 'ht';
@@ -101,7 +102,7 @@ export function CopyStudioModal({
         tags:           s.tags,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     }
   }, [productId]);
 
@@ -132,7 +133,7 @@ export function CopyStudioModal({
   async function writeCopy() {
     setBusy('copy'); setError(null); setSaved(false);
     try {
-      const result = await draftProductCopy(productId, tone, language);
+      const result = unwrap(await draftProductCopy(productId, tone, language));
       patch({
         name:       result.title,
         short:      result.short,
@@ -141,7 +142,7 @@ export function CopyStudioModal({
       });
       setCredits(result.remaining);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "La rédaction n'a pas abouti.");
+      setError(screenMessage(err, "La rédaction n'a pas abouti."));
     } finally {
       setBusy(null);
     }
@@ -150,7 +151,7 @@ export function CopyStudioModal({
   async function writeSeo() {
     setBusy('seo'); setError(null); setSaved(false);
     try {
-      const result = await draftProductSeo(productId, language);
+      const result = unwrap(await draftProductSeo(productId, language));
       patch({
         seoTitle:       result.seoTitle,
         seoDescription: result.seoDescription,
@@ -158,7 +159,7 @@ export function CopyStudioModal({
       });
       setCredits(result.remaining);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "L'optimisation n'a pas abouti.");
+      setError(screenMessage(err, "L'optimisation n'a pas abouti."));
     } finally {
       setBusy(null);
     }
@@ -168,7 +169,7 @@ export function CopyStudioModal({
     if (!draft) return;
     setBusy('save'); setError(null);
     try {
-      await applyProductCopy(productId, {
+      unwrap(await applyProductCopy(productId, {
         name:           draft.name.trim() || productName,
         short:          draft.short.trim(),
         long:           draft.long.trim(),
@@ -176,11 +177,11 @@ export function CopyStudioModal({
         seoTitle:       draft.seoTitle.trim(),
         seoDescription: draft.seoDescription.trim(),
         tags:           draft.tags.map((t) => t.trim()).filter(Boolean),
-      });
+      }));
       setSaved(true);
       onSaved?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      setError(screenMessage(err, 'Enregistrement impossible.'));
     } finally {
       setBusy(null);
     }

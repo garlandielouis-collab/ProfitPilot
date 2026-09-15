@@ -20,6 +20,7 @@ import { ChevronLeft, ChevronRight, Check, PenLine, Loader2 } from 'lucide-react
 import { applyTemplate } from '../../actions/storeBuilder';
 import { templateChoices } from '../../../components/store/templates/registry';
 import type { TemplateId } from '../../../lib/storeTheme';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 export function ApercuBar({
   templateId, name, tagline, isCurrent, productCount, accent, accentInk,
@@ -58,10 +59,10 @@ export function ApercuBar({
     setBusy(true);
     setError(null);
     try {
-      await applyTemplate(templateId);
+      unwrap(await applyTemplate(templateId));
       router.push('/boutique/builder');
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Le gabarit n'a pas pu être appliqué.");
+      setError(screenMessage(err, "Le gabarit n'a pas pu être appliqué."));
       setBusy(false);
     }
   }

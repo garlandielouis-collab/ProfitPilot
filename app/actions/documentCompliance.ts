@@ -28,6 +28,7 @@ import {
   CONTRACT_TYPE_KEYS, expirationState, daysUntilExpiration, todayISO,
   type Bilingual, type DocumentCategory, type DocumentStatus, type ExpirationState,
 } from '../../lib/documents/types';
+import { attempt, type ActionResult } from '../../lib/actionResult';
 
 /**
  * Le pays de l'entreprise, en code ISO.
@@ -264,7 +265,8 @@ export type ContractRow = {
  * `lib/documents/types.ts` pour que l'écran et l'action ne puissent pas en
  * avoir deux versions.
  */
-export async function listContracts(): Promise<ContractRow[]> {
+export async function listContracts(): Promise<ActionResult<ContractRow[]>> {
+  return attempt(async () => {
   await assertAccess('document_contracts', 'documents:read');
   const { supabase, businessId } = await getBusinessContext();
   const today = todayISO();
@@ -311,5 +313,6 @@ export async function listContracts(): Promise<ContractRow[]> {
         .filter((l: any) => l.document_id === row.id)
         .map((l: any) => ({ entityType: l.entity_type, entityId: l.entity_id })),
     };
+  });
   });
 }

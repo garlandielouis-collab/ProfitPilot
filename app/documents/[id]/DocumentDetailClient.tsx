@@ -56,6 +56,7 @@ import {
   type Bilingual, type DocumentEntityType, type DocumentRelation,
   type DocumentStatus, type DocumentVisibility,
 } from '../../../lib/documents/types';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 /** Les onze valeurs de `document_links.entity_type`, dites au marchand. */
 const ENTITY_LABELS: Record<DocumentEntityType, Bilingual> = {
@@ -130,18 +131,18 @@ export function DocumentDetailClient({ documentId }: { documentId: string }) {
 
   const reload = useCallback(async () => {
     try {
-      const found = await getDocument(documentId);
+      const found = unwrap(await getDocument(documentId));
       if (!found) { setMissing(true); return; }
       setDoc(found);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     }
   }, [documentId]);
 
   useEffect(() => { void reload(); }, [reload]);
 
   useEffect(() => {
-    listDocumentTypes().then(setTypes).catch(() => { /* la fiche se lit sans le catalogue */ });
+    listDocumentTypes().then(unwrap).then(setTypes).catch(() => { /* la fiche se lit sans le catalogue */ });
   }, []);
 
   // §43 : la consultation est un événement auditable, y compris pour un format
@@ -178,10 +179,10 @@ export function DocumentDetailClient({ documentId }: { documentId: string }) {
     setBusy(true);
     setError(null);
     try {
-      await restoreDocumentVersion(documentId, versionId);
+      unwrap(await restoreDocumentVersion(documentId, versionId));
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Restauration impossible.');
+      setError(screenMessage(err, 'Restauration impossible.'));
     } finally {
       setBusy(false);
     }
@@ -191,18 +192,18 @@ export function DocumentDetailClient({ documentId }: { documentId: string }) {
     setBusy(true);
     setError(null);
     try {
-      await updateDocument(documentId, {
+      unwrap(await updateDocument(documentId, {
         name:        form.name,
         description: form.description || null,
         documentTypeId: form.typeId || null,
         expiresOn:   form.expiresOn || null,
         status:      form.status,
         visibility:  form.visibility,
-      });
+      }));
       setEditOpen(false);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      setError(screenMessage(err, 'Enregistrement impossible.'));
     } finally {
       setBusy(false);
     }
@@ -212,10 +213,10 @@ export function DocumentDetailClient({ documentId }: { documentId: string }) {
     if (!doc) return;
     setBusy(true);
     try {
-      await archiveDocument(documentId, doc.status !== 'archived');
+      unwrap(await archiveDocument(documentId, doc.status !== 'archived'));
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action impossible.');
+      setError(screenMessage(err, 'Action impossible.'));
     } finally {
       setBusy(false);
     }
@@ -232,10 +233,10 @@ export function DocumentDetailClient({ documentId }: { documentId: string }) {
 
     setBusy(true);
     try {
-      await deleteDocument(documentId);
+      unwrap(await deleteDocument(documentId));
       router.push('/documents/bibliotheque');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Suppression impossible.');
+      setError(screenMessage(err, 'Suppression impossible.'));
       setBusy(false);
     }
   }, [doc, documentId, router, t]);

@@ -189,6 +189,53 @@ logiciel de gestion qui ment une fois sur un chiffre ne se fait plus croire.
 
 ---
 
+## 11. Une action serveur ne LÈVE jamais un message destiné au marchand
+
+En production, Next efface le message de toute erreur levée par une action
+serveur et le remplace par *« An error occurred in the Server Components
+render… »*. C'est la bonne politique par défaut — un message Postgres nomme des
+tables et des contraintes — mais 114 de nos `throw` portaient une phrase écrite
+POUR le marchand : « Votre catalogue est plein : l'offre Esansyel couvre 50
+fiches », « Seul le propriétaire peut modifier les rôles ».
+
+Ces phrases-là étaient effacées aussi. Le bouton avait pourtant fonctionné, la
+règle s'était appliquée — mais l'écran affichait une phrase technique en
+anglais à la place de la raison. C'est le §10 sous une autre forme : l'écran
+racontait autre chose que ce qui venait de se passer.
+
+**La règle.** Une action renvoie son refus, elle ne le lève pas :
+
+```ts
+export async function faireQuelqueChose(x: string): Promise<ActionResult<Id>> {
+  return attempt(async () => {
+    if (interdit) throw new UserFacingError('Seul le propriétaire peut…');
+    await db.…                     // une erreur Postgres remonte ici
+    return id;
+  });
+}
+```
+
+`attempt` (`lib/actionResult.ts`) trie : passent au marchand les
+`UserFacingError` et les gardes d'offre (`FeatureLockedError`,
+`PlanLimitError`), qui portent déjà une phrase écrite pour lui. Tout le reste
+devient une phrase générique, et l'original part dans les journaux du serveur.
+
+Côté écran, `unwrap()` rouvre le résultat : le `throw` a alors lieu dans le
+navigateur, sur un message qui a traversé comme une valeur.
+
+```ts
+try { unwrap(await faireQuelqueChose(x)); }
+catch (e) { setError(screenMessage(e, 'Repli écrit pour CET écran.')); }
+```
+
+**Le repli n'est jamais générique deux fois.** `screenMessage(e, '…')` prend en
+second argument la phrase de l'écran — « Le produit n'a pas pu être
+enregistré », pas « Une erreur est survenue ».
+
+Vérifié par `tests/actionResult.test.ts`.
+
+---
+
 ## Le tableau de contraste (§31)
 
 « AA obtenu → c'est bon ; en dessous → on ajuste la saturation ou la luminosité

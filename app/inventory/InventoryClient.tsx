@@ -34,6 +34,7 @@ import {
 import { PeriodBars, type BarPoint } from '../../components/ds';
 import { useLanguage } from '../../components/LanguageWrapper';
 import { csvFilename, downloadCsv, toCsv } from '../../lib/documents/csv';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -92,12 +93,12 @@ function AdjustModal({ product, onClose, onSaved }: AdjustModalProps) {
     setSaving(true);
     setError('');
     try {
-      await adjustStock({ product_id: product.id, new_quantity: newQty, reason: finalReason });
+      unwrap(await adjustStock({ product_id: product.id, new_quantity: newQty, reason: finalReason }));
       await setReorderPoint(product.id, reorderPt);
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.message ?? 'Erè');
+      setError(screenMessage(err, 'Erè'));
     } finally {
       setSaving(false);
     }
@@ -268,7 +269,7 @@ export function InventoryClient({
       const data = await getInventory();
       setInventory(data);
     } catch (err: any) {
-      setError(err.message ?? 'Erè chajman.');
+      setError(screenMessage(err, 'Erè chajman.'));
     } finally {
       setLoading(false);
     }

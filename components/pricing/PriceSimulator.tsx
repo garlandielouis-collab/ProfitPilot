@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { Loader2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { simulateProductPrice, type PriceSimulation } from '../../app/actions/profitability';
+import { screenMessage, unwrap } from '../../lib/actionResult';
 
 const fmt = (n: number, currency: string): string =>
   `${new Intl.NumberFormat('fr-HT', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
@@ -33,8 +34,9 @@ export function PriceSimulator({ productId }: { productId: string }) {
     setLoading(true);
 
     simulateProductPrice(productId, [0, 5, 10, 15], elasticity)
+      .then(unwrap)
       .then((res) => { if (!cancelled) setData(res); })
-      .catch((err) => toast.error(err instanceof Error ? err.message : 'Simulation impossible.'))
+      .catch((err) => toast.error(screenMessage(err, 'Simulation impossible.')))
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };

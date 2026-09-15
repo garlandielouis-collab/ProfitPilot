@@ -7,6 +7,7 @@ import { PlanLimitError, getActivePlanKey } from '../../lib/entitlements';
 import { productAllowance } from '../../lib/quotas';
 import { getPlanLabel } from '../../lib/plans';
 import { SIGNUP_PRODUCT_SLOTS } from '../../lib/referral';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // â”€â”€ quickCreateSupplier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -22,12 +23,13 @@ export async function quickCreateSupplier(payload: {
   name: string;
   phone?: string;
   email?: string;
-}): Promise<QuickSupplierResult> {
+}): Promise<ActionResult<QuickSupplierResult>> {
+  return attempt(async () => {
   // Verify auth is working
   const debug = await debugAuth('quickCreateSupplier()');
   if (!debug.success) throw new Error(debug.error);
 
-  if (!payload.name?.trim()) throw new Error('Non founisÃ¨ obligatwa.');
+  if (!payload.name?.trim()) throw new UserFacingError('Non founisè obligatwa.');
 
   // Get authenticated user + business
   const { supabase, businessId } = await getBusinessContext();
@@ -46,6 +48,7 @@ export async function quickCreateSupplier(payload: {
 
   if (error) throw new Error(error.message);
   return data as QuickSupplierResult;
+  });
 }
 
 // â”€â”€ quickCreateProduct â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -64,15 +67,16 @@ export async function quickCreateProduct(payload: {
   category: string;
   purchase_price: number;
   sale_price: number;
-}): Promise<QuickProductResult> {
+}): Promise<ActionResult<QuickProductResult>> {
+  return attempt(async () => {
   // Verify auth is working
   const debug = await debugAuth('quickCreateProduct()');
   if (!debug.success) throw new Error(debug.error);
 
-  if (!payload.name?.trim())     throw new Error('Non pwodui obligatwa.');
-  if (!payload.category?.trim()) throw new Error('Kategori obligatwa.');
-  if (payload.purchase_price < 0) throw new Error('Pri acha pa valab.');
-  if (payload.sale_price < 0)     throw new Error('Pri vant pa valab.');
+  if (!payload.name?.trim())     throw new UserFacingError('Non pwodui obligatwa.');
+  if (!payload.category?.trim()) throw new UserFacingError('Kategori obligatwa.');
+  if (payload.purchase_price < 0) throw new UserFacingError('Pri acha pa valab.');
+  if (payload.sale_price < 0)     throw new UserFacingError('Pri vant pa valab.');
 
   // Get authenticated user + business
   const { supabase, userId, businessId } = await getBusinessContext();
@@ -101,6 +105,7 @@ export async function quickCreateProduct(payload: {
 
   if (error) throw new Error(error.message);
   return data as QuickProductResult;
+  });
 }
 
 /**

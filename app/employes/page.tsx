@@ -13,12 +13,23 @@ import {
   type UpsertEmployeeInput,
 } from '../actions/hr-employees';
 import { sendHrInvitation } from '../actions/invitations';
+import {
+  listEmployees,
+  updateEmployeeRole,
+  removeEmployee,
+  type Employee as Member,
+  type EmployeeRole,
+} from '../actions/employees';
 import { Button, FirstRun, NoResult, closestMatch } from '../../components/ds';
 import { EntityDocuments } from '../../components/documents/EntityDocuments';
 // La fiche employé annonçait ses champs par des émojis (📞 ✉️ 🏢 📅 ⏳ 🔑).
 // Une icône de contour, à épaisseur constante, prend la couleur du texte —
 // un émoji, non : il reste jaune vif à côté d'un libellé gris (§3.5).
-import { Briefcase, CalendarDays, Clock, Hash, Mail, Phone } from 'lucide-react';
+import {
+  ArrowLeft, Briefcase, CalendarDays, Clock, Crown, Eye, Hash, KeyRound,
+  Mail, Phone, ShieldCheck, Trash2, Users,
+} from 'lucide-react';
+import { unwrap, screenMessage } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,9 +132,9 @@ function EmployeeModal({
     if (!form.last_name.trim())  return setErr('Le nom est obligatoire.');
     setSaving(true); setErr('');
     try {
-      await upsertHrEmployee(form);
+      unwrap(await upsertHrEmployee(form));
       onSaved(); onClose();
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(screenMessage(e, 'La fiche employé n’a pas pu être enregistrée.')); }
     setSaving(false);
   }
 
@@ -284,14 +295,14 @@ function InviteModal({ employee, onClose }: { employee: HrEmployee; onClose: () 
     if (!email.trim()) return;
     setBusy(true); setErr('');
     try {
-      await sendHrInvitation({
+      unwrap(await sendHrInvitation({
         employeeId: employee.id.startsWith('demo-') ? undefined : employee.id,
         email:      email.trim(),
         firstName:  employee.first_name,
         lastName:   employee.last_name,
-      });
+      }));
       setDone(true);
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(screenMessage(e, 'L’invitation n’a pas pu être envoyée.')); }
     setBusy(false);
   }
 
@@ -341,6 +352,226 @@ function InviteModal({ employee, onClose }: { employee: HrEmployee; onClose: () 
   );
 }
 
+// ── Accès à ProfitPilot ───────────────────────────────────────────────────────
+//
+// L'écran `/employees` vivait à part : une seconde page « Équipe », sans lien
+// dans la navigation, qui listait les mêmes personnes sous un autre nom et les
+// invitait par un second chemin. Le marchand n'avait aucun moyen de la
+// trouver, et celui qui y arrivait voyait un registre différent de celui-ci.
+//
+// Tout est ici désormais. Deux faits sur la même personne, jamais deux écrans :
+// sa fiche (poste, salaire, ancienneté) et son accès (peut-elle ouvrir
+// l'application, et avec quels droits).
+//
+// Le registre RH et les accès ne se recouvrent pas complètement, et c'est
+// normal : on tient la fiche d'un employé qui n'a pas de téléphone, et le
+// propriétaire a un accès sans avoir de fiche. Les deux listes se rejoignent
+// par l'adresse de courriel, quand elle est renseignée des deux côtés.
+
+const ROLE_LABELS: Record<EmployeeRole, string> = {
+  owner:   'Propriétaire',
+  manager: 'Gérant',
+  cashier: 'Caissier',
+  viewer:  'Lecteur',
+};
+
+const ROLE_ICONS: Record<EmployeeRole, typeof Crown> = {
+  owner:   Crown,
+  manager: ShieldCheck,
+  cashier: KeyRound,
+  viewer:  Eye,
+};
+
+// Ce que le rôle donne, en une phrase. Un menu déroulant qui n'offre que
+// « Gérant / Caissier / Lecteur » demande au marchand de deviner ce qu'il
+// accorde — et on accorde là l'accès à sa comptabilité.
+const ROLE_HINTS: Record<EmployeeRole, string> = {
+  owner:   'Tout, y compris les accès et l’abonnement.',
+  manager: 'Tout le quotidien, sauf les accès et l’abonnement.',
+  cashier: 'Enregistre les ventes, les dépenses et le stock.',
+  viewer:  'Consulte les chiffres, ne modifie rien.',
+};
+
+const ASSIGNABLE: EmployeeRole[] = ['manager', 'cashier', 'viewer'];
+
+function memberName(m: Member) {
+  return m.full_name ?? m.email ?? `Membre ${m.user_id.slice(0, 8)}`;
+}
+
+function RevokeModal({ member, onClose, onConfirm }: {
+  member: Member; onClose: () => void; onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-surface border border-[var(--color-border)] bg-white p-6 shadow-2xl">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/15">
+          <Trash2 className="h-5 w-5 text-red-500" strokeWidth={1.8} aria-hidden />
+        </div>
+        <h3 className="text-lg font-semibold text-primary">Retirer l’accès ?</h3>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          <span className="font-medium text-[var(--color-text)]">{memberName(member)}</span>
+          {' '}ne pourra plus ouvrir ProfitPilot. Sa fiche employé et tout ce qu’il a
+          enregistré restent en place.
+        </p>
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="min-h-touch flex-1 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] py-2.5 text-sm font-semibold text-[var(--color-muted)] transition hover:bg-slate-100"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={async () => { setBusy(true); await onConfirm(); setBusy(false); }}
+            disabled={busy}
+            className="min-h-touch flex-1 rounded-2xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy ? 'Retrait…' : 'Oui, retirer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccessPanel({
+  members, loading, error, onBack, onChanged,
+}: {
+  members:   Member[];
+  loading:   boolean;
+  error:     string;
+  onBack:    () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<Member | null>(null);
+
+  async function changeRole(m: Member, role: EmployeeRole) {
+    setBusyId(m.id);
+    const res = await updateEmployeeRole(m.id, role);
+    setBusyId(null);
+    if (!res.ok) { toast.error(res.message); return; }
+    toast.success(`${memberName(m)} — ${ROLE_LABELS[role].toLowerCase()}`);
+    await onChanged();
+  }
+
+  async function revoke(m: Member) {
+    setBusyId(m.id);
+    const res = await removeEmployee(m.id);
+    setBusyId(null);
+    setRevokeTarget(null);
+    if (!res.ok) { toast.error(res.message); return; }
+    toast.success(`Accès retiré à ${memberName(m)}.`);
+    await onChanged();
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-5 py-5">
+        <button
+          onClick={onBack}
+          className="min-h-touch min-w-touch inline-flex items-center gap-1.5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs font-medium text-[var(--color-muted)] transition hover:bg-slate-100"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+          Employés
+        </button>
+        <div>
+          <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">Accès</p>
+          <h1 className="mt-0.5 text-xl font-semibold text-primary">Qui peut ouvrir ProfitPilot</h1>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-6">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : error ? (
+          <p className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-8 text-center text-sm text-[var(--color-muted)]">
+            {error}
+          </p>
+        ) : members.length === 0 ? (
+          <FirstRun
+            illustration={<Users className="h-12 w-12" strokeWidth={1.2} aria-hidden />}
+            title="Vous êtes seul sur ce compte."
+            hint="Ouvrez la fiche d’un employé et invitez-le : il apparaîtra ici avec ses droits."
+            action={<Button variant="accent" onClick={onBack}>Voir les fiches</Button>}
+          />
+        ) : (
+          <ul className="mx-auto max-w-2xl space-y-3">
+            {members.map((m) => {
+              const RoleIcon = ROLE_ICONS[m.role];
+              const isOwner  = m.role === 'owner';
+              const busy     = busyId === m.id;
+              return (
+                <li
+                  key={m.id}
+                  className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${avatarColor(memberName(m))}`}>
+                      {memberName(m).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[var(--color-text)]">{memberName(m)}</p>
+                      {m.email && m.full_name && (
+                        <p className="truncate text-xs text-[var(--color-muted)]">{m.email}</p>
+                      )}
+                      {!m.is_active && <p className="text-xs text-[var(--color-muted)]">Accès suspendu</p>}
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs font-semibold text-primary">
+                      <RoleIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                      {ROLE_LABELS[m.role]}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs text-[var(--color-muted)]">{ROLE_HINTS[m.role]}</p>
+
+                  {/* Le propriétaire ne se modifie pas : c'est lui qui tient la
+                      porte, et une entreprise sans propriétaire n'a plus
+                      personne pour rouvrir. */}
+                  {!isOwner && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <label className="sr-only" htmlFor={`role-${m.id}`}>Rôle de {memberName(m)}</label>
+                      <select
+                        id={`role-${m.id}`}
+                        value={m.role}
+                        disabled={busy}
+                        onChange={(e) => changeRole(m, e.target.value as EmployeeRole)}
+                        className="min-h-touch rounded-2xl border border-[var(--color-border)] bg-white px-3 text-sm text-[var(--color-text)] outline-none transition focus:border-primary/50 disabled:opacity-50"
+                      >
+                        {ASSIGNABLE.map((r) => (
+                          <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => setRevokeTarget(m)}
+                        disabled={busy}
+                        className="min-h-touch inline-flex items-center gap-1.5 rounded-2xl border border-[var(--color-border)] bg-white px-3 text-xs font-semibold text-[var(--color-muted)] transition hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                        Retirer l’accès
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {revokeTarget && (
+        <RevokeModal
+          member={revokeTarget}
+          onClose={() => setRevokeTarget(null)}
+          onConfirm={() => revoke(revokeTarget)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function EmployeesPageInner() {
@@ -356,6 +587,12 @@ function EmployeesPageInner() {
   const [editTarget,   setEditTarget]   = useState<HrEmployee | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HrEmployee | null>(null);
   const [inviteTarget, setInviteTarget] = useState<HrEmployee | null>(null);
+
+  // Les accès, ramenés de l'ancien écran `/employees`.
+  const [showAccess,   setShowAccess]   = useState(false);
+  const [members,      setMembers]      = useState<Member[]>([]);
+  const [membersLoad,  setMembersLoad]  = useState(true);
+  const [membersError, setMembersError] = useState('');
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -373,7 +610,16 @@ function EmployeesPageInner() {
     setLoading(false);
   }, []);
 
+  const loadMembers = useCallback(async () => {
+    setMembersLoad(true);
+    const res = await listEmployees();
+    if (res.ok) { setMembers(res.data); setMembersError(''); }
+    else        { setMembers([]);       setMembersError(res.message); }
+    setMembersLoad(false);
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { void loadMembers(); }, [loadMembers]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -400,6 +646,15 @@ function EmployeesPageInner() {
 
   const selected = useMemo(() => employees.find(e => e.id === selectedId) ?? null, [employees, selectedId]);
 
+  // La fiche RH et l'accès se rejoignent par l'adresse de courriel : c'est la
+  // seule chose que les deux tables aient en commun. Sans adresse sur la fiche,
+  // on ne peut rien affirmer — et on n'affirme rien.
+  const selectedMember = useMemo(() => {
+    const mail = selected?.email?.trim().toLowerCase();
+    if (!mail) return null;
+    return members.find(m => m.email?.trim().toLowerCase() === mail) ?? null;
+  }, [selected, members]);
+
   const stats = useMemo(() => ({
     total:   employees.length,
     actif:   employees.filter(e => e.status === 'actif').length,
@@ -412,15 +667,29 @@ function EmployeesPageInner() {
 
   async function handleDelete(emp: HrEmployee) {
     try {
-      await deleteHrEmployee(emp.id);
+      unwrap(await deleteHrEmployee(emp.id));
       toast.success(`${fullName(emp)} supprimé`);
       setDeleteTarget(null);
       if (selectedId === emp.id) setSelectedId(null);
       await load();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) { toast.error(screenMessage(e, 'L’employé n’a pas pu être supprimé.')); }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  if (showAccess) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
+        <AccessPanel
+          members={members}
+          loading={membersLoad}
+          error={membersError}
+          onBack={() => setShowAccess(false)}
+          onChanged={loadMembers}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--color-bg)]">
@@ -437,13 +706,25 @@ function EmployeesPageInner() {
               <p className="text-xs uppercase tracking-[0.28em] text-[var(--color-muted)]">RH</p>
               <h1 className="mt-0.5 text-xl font-semibold text-primary">Employés</h1>
             </div>
-            <button
-              onClick={() => { setEditTarget(null); setShowModal(true); }}
-              className="flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-h active:scale-95"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              Ajouter
-            </button>
+            <div className="flex items-center gap-2">
+              {/* L'accès n'est pas une fiche : il ne se range pas dans la liste.
+                  Il se tient à côté, et le compteur dit combien de personnes
+                  peuvent ouvrir l'application en ce moment. */}
+              <button
+                onClick={() => setShowAccess(true)}
+                className="min-h-touch flex items-center gap-1.5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-xs font-semibold text-[var(--color-muted)] transition hover:bg-slate-100"
+              >
+                <KeyRound className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
+                Accès{members.length > 0 ? ` · ${members.length}` : ''}
+              </button>
+              <button
+                onClick={() => { setEditTarget(null); setShowModal(true); }}
+                className="min-h-touch flex items-center gap-1.5 rounded-2xl bg-primary px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-h active:scale-95"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                Ajouter
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -692,24 +973,55 @@ function EmployeesPageInner() {
                 </section>
               )}
 
-              {/* ── Invite CTA ── */}
+              {/* ── Accès à ProfitPilot ──────────────────────────────────────
+                  Cette section disait « Donnez un accès » même à quelqu'un qui
+                  en avait déjà un : la fiche RH ignorait `business_members`.
+                  Le marchand réinvitait un employé déjà connecté, et ne voyait
+                  nulle part avec quels droits celui-ci travaillait. */}
               {!selected.id.startsWith('demo-') && (
-                <section className="rounded-surface border border-blue-200 bg-blue-50/60 p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-primary">Accès ProfitPilot</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Donnez un accès à {selected.first_name} pour gérer la boutique depuis son téléphone.
-                      </p>
+                <section className="rounded-surface border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[var(--color-muted)]">
+                    Accès à ProfitPilot
+                  </p>
+
+                  {selectedMember ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                          {(() => {
+                            const RoleIcon = ROLE_ICONS[selectedMember.role];
+                            return <RoleIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden />;
+                          })()}
+                          {ROLE_LABELS[selectedMember.role]}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                          {ROLE_HINTS[selectedMember.role]}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowAccess(true)}
+                        className="min-h-touch inline-flex shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-white px-4 text-xs font-semibold text-primary transition hover:bg-slate-100"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
+                        Modifier les droits
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setInviteTarget(selected)}
-                      className="flex-shrink-0 ml-4 flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-primary-h"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                      Inviter
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="min-w-0 text-xs text-[var(--color-muted)]">
+                        {selected.email
+                          ? `${selected.first_name} n’a pas encore de compte. Invitez-le : il gérera la boutique depuis son téléphone.`
+                          : `Ajoutez une adresse e-mail à la fiche de ${selected.first_name} pour pouvoir l’inviter.`}
+                      </p>
+                      <button
+                        onClick={() => setInviteTarget(selected)}
+                        className="min-h-touch inline-flex shrink-0 items-center gap-2 rounded-2xl bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-h"
+                      >
+                        <Mail className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
+                        Inviter
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -772,7 +1084,7 @@ function EmployeesPageInner() {
       {inviteTarget && (
         <InviteModal
           employee={inviteTarget}
-          onClose={() => setInviteTarget(null)}
+          onClose={() => { setInviteTarget(null); void loadMembers(); }}
         />
       )}
     </div>

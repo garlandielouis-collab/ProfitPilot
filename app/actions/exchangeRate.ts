@@ -3,6 +3,7 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { computeMargin } from '../../lib/margin';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 /** Fetch live USD→HTG rate from public APIs. Returns null on failure. */
 async function fetchLiveRate(): Promise<number | null> {
@@ -73,13 +74,14 @@ export async function refreshExchangeRateAction(): Promise<number | null> {
  * Force-refresh exchange rate AND recalculate all USD transactions
  * using the new rate in journal entry lines.
  */
-export async function forceRefreshAndRecalculate(): Promise<{
+export async function forceRefreshAndRecalculate(): Promise<ActionResult<{
   newRate: number;
   expensesUpdated: number;
   salesUpdated: number;
-}> {
+}>> {
+  return attempt(async () => {
   const liveRate = await fetchLiveRate();
-  if (!liveRate) throw new Error('Impossible de récupérer le taux de change en direct.');
+  if (!liveRate) throw new UserFacingError('Impossible de récupérer le taux de change en direct.');
 
   const { supabase, businessId } = await getBusinessContext();
 
@@ -180,6 +182,7 @@ export async function forceRefreshAndRecalculate(): Promise<{
   revalidatePath('/sales');
 
   return { newRate: liveRate, expensesUpdated, salesUpdated };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -48,6 +48,7 @@ import { Card } from '../../../components/ds/Surface';
 import { Badge, type BadgeTone } from '../../../components/ds/Badge';
 import { Field } from '../../../components/ds/Field';
 import { FirstRun } from '../../../components/ds/EmptyState';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 const ANALYSIS_COST = 2;
 const BUNDLE_COST   = 2;
@@ -88,7 +89,7 @@ export default function MerchandisingPage() {
     try {
       setState(await getMerchandisingState());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     }
   }, []);
 
@@ -103,11 +104,11 @@ export default function MerchandisingPage() {
     setError(null);
     setBusy('analysis');
     try {
-      const result = await runCatalogAnalysis('fr');
+      const result = unwrap(await runCatalogAnalysis('fr'));
       setReport(result);
       setState((s) => (s ? { ...s, credits: result.remaining } : s));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "L'analyse n'a pas abouti.");
+      setError(screenMessage(err, "L'analyse n'a pas abouti."));
     } finally {
       setBusy(null);
     }
@@ -117,14 +118,14 @@ export default function MerchandisingPage() {
     setError(null);
     setBusy('bundles');
     try {
-      const result = await runBundleProposals('fr');
+      const result = unwrap(await runBundleProposals('fr'));
       setProposals(result.proposals);
       setState((s) => (s ? { ...s, credits: result.remaining } : s));
       if (result.proposals.length === 0) {
         flash("Aucun lot pertinent à proposer sur ce catalogue pour l'instant.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Les propositions n'ont pas abouti.");
+      setError(screenMessage(err, "Les propositions n'ont pas abouti."));
     } finally {
       setBusy(null);
     }
@@ -139,7 +140,7 @@ export default function MerchandisingPage() {
         await reload();
         flash(done);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "L'opération a échoué.");
+        setError(screenMessage(err, "L'opération a échoué."));
       }
     });
   }, [reload, flash]);

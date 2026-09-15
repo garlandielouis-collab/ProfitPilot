@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { subscribeToStore } from '../../../app/actions/store-content';
 import type { StoreView } from '../types';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 export function NewsletterForm({ store }: { store: StoreView }) {
   const [email, setEmail]   = useState('');
@@ -31,11 +32,11 @@ export function NewsletterForm({ store }: { store: StoreView }) {
     if (!email.trim()) return;
     setState('sending');
     try {
-      await subscribeToStore(store.slug, email.trim());
+      unwrap(await subscribeToStore(store.slug, email.trim()));
       setState('done');
     } catch (err) {
       setState('error');
-      setMessage(err instanceof Error ? err.message : "L'inscription n'a pas abouti.");
+      setMessage(screenMessage(err, "L'inscription n'a pas abouti."));
     }
   }
 

@@ -30,6 +30,7 @@ import { createPortal } from 'react-dom';
 import { X, Sparkles, Check, AlertTriangle, RotateCcw } from 'lucide-react';
 import { PRESET_LIST, type PresetKey } from '../../lib/ai/imageEnhancer';
 import { applyEnhancement, revertEnhancement } from '../../app/actions/aiStudio';
+import { unwrap, screenMessage  } from '../../lib/actionResult';
 
 type Product = {
   id:                 string;
@@ -116,7 +117,7 @@ export function ImageEnhancerModal({
     } catch (err) {
       stopTimers();
       setPhase('error');
-      setError(err instanceof Error ? err.message : 'Le lancement a échoué.');
+      setError(screenMessage(err, 'Le lancement a échoué.'));
       return;
     }
 
@@ -146,11 +147,11 @@ export function ImageEnhancerModal({
     if (!jobId) return;
     setApplying(true);
     try {
-      const { imageUrl } = await applyEnhancement(jobId);
+      const { imageUrl } = unwrap(await applyEnhancement(jobId));
       onApplied?.(imageUrl);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "L'application a échoué.");
+      setError(screenMessage(err, "L'application a échoué."));
       setPhase('error');
     } finally {
       setApplying(false);
@@ -160,11 +161,11 @@ export function ImageEnhancerModal({
   async function revert() {
     setApplying(true);
     try {
-      await revertEnhancement(product.id);
+      unwrap(await revertEnhancement(product.id));
       onApplied?.(null);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Le retour a échoué.');
+      setError(screenMessage(err, 'Le retour a échoué.'));
     } finally {
       setApplying(false);
     }

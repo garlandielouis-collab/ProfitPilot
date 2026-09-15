@@ -3,6 +3,7 @@
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidatePath } from 'next/cache';
+import { attempt, type ActionResult } from '../../lib/actionResult';
 
 export type EmployeeStatus = 'actif' | 'inactif' | 'conge';
 
@@ -50,7 +51,8 @@ export async function listHrEmployees(): Promise<HrEmployee[]> {
   return (data ?? []).map(normalise);
 }
 
-export async function upsertHrEmployee(input: UpsertEmployeeInput): Promise<HrEmployee> {
+export async function upsertHrEmployee(input: UpsertEmployeeInput): Promise<ActionResult<HrEmployee>> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
 
   const payload = {
@@ -89,9 +91,11 @@ export async function upsertHrEmployee(input: UpsertEmployeeInput): Promise<HrEm
   if (error) throw new Error(error.message);
   revalidatePath('/employes');
   return normalise(data);
+  });
 }
 
-export async function deleteHrEmployee(id: string): Promise<void> {
+export async function deleteHrEmployee(id: string): Promise<ActionResult> {
+  return attempt(async () => {
   const { supabase, businessId } = await getBusinessContext();
   const { error } = await supabase
     .from('employees')
@@ -101,6 +105,7 @@ export async function deleteHrEmployee(id: string): Promise<void> {
 
   if (error) throw new Error(error.message);
   revalidatePath('/employes');
+  });
 }
 
 export async function inviteEmployeeByEmail(email: string): Promise<void> {

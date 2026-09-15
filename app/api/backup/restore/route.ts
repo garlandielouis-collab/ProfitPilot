@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getSupabaseServer } from '../../../../lib/supabaseServerClient';
 import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
+import { screenMessage } from '../../../../lib/actionResult';
 
 // Tables restored in dependency order (parents before children)
 const RESTORE_ORDER = [
@@ -157,6 +158,6 @@ export async function POST(req: NextRequest) {
       message: `Restauration terminée. ${Object.values(restored).reduce((a, b) => a + b, 0)} enregistrements importés.`,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message ?? 'Erreur' }, { status: 500 });
+    return NextResponse.json({ error: screenMessage(e, 'Erreur') }, { status: 500 });
   }
 }

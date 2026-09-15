@@ -2,8 +2,29 @@
 
 import { getBusinessContext } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
-import { assertFeature, assertSeatAvailable, hasFeature } from '../../lib/entitlements';
-import { notify } from '../../lib/notify';
+import { assertFeature } from '../../lib/entitlements';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Les membres de l'entreprise — qui peut entrer dans ProfitPilot
+//
+// À ne pas confondre avec `hr-employees.ts`, qui tient le REGISTRE du personnel
+// (poste, salaire, date d'embauche). Ici il n'est question que d'accès : une
+// ligne de `business_members` est un compte qui ouvre l'application.
+//
+// ── `inviteEmployee` a disparu ──────────────────────────────────────────────
+//
+// Deux chemins d'invitation coexistaient, et tous deux consommaient un siège :
+// celui-ci (invitation Supabase `admin.inviteUserByEmail`, appelé par l'écran
+// `/employees`) et `sendHrInvitation` (table `employee_invitations`, courriel
+// Resend, page `/auth/accept-invitation`). Le second est le seul complet : il a
+// une page d'acceptation, un jeton qui expire, et il rattache l'invité à sa
+// fiche RH. Le premier envoyait un courriel Supabase qui atterrissait sur un
+// `/auth/callback?type=invite` sans rien rattacher.
+//
+// L'écran `/employees` ayant fusionné dans `/employes`, ce chemin-là n'a plus
+// d'appelant — et deux portes vers le même siège, c'est une porte de trop.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type EmployeeRole = 'owner' | 'manager' | 'cashier' | 'viewer';
 
@@ -17,180 +38,112 @@ export type Employee = {
   full_name:  string | null;
 };
 
-export async function listEmployees(): Promise<Employee[]> {
-  const { supabase, businessId, userId } = await getBusinessContext();
-
-  // Must be owner or manager to list
-  const { data: me } = await supabase
+/** Le rôle de l'appelant dans l'entreprise courante, ou `null` s'il n'en est pas. */
+async function myRole(
+  supabase: Awaited<ReturnType<typeof getBusinessContext>>['supabase'],
+  businessId: string,
+  userId: string,
+): Promise<EmployeeRole | null> {
+  const { data } = await supabase
     .from('business_members')
     .select('role')
     .eq('business_id', businessId)
     .eq('user_id', userId)
     .maybeSingle();
-
-  if (!me || !['owner', 'manager'].includes(me.role)) {
-    throw new Error('Accès non autorisé');
-  }
-
-  const { data, error } = await supabase
-    .from('business_members')
-    .select('id, user_id, role, is_active, created_at')
-    .eq('business_id', businessId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true });
-
-  if (error) throw new Error(error.message);
-
-  // Fetch auth user metadata for each member via service client
-  const svc = getSupabaseService();
-  const members = await Promise.all(
-    (data ?? []).map(async (m) => {
-      try {
-        const { data: u } = await svc.auth.admin.getUserById(m.user_id);
-        return {
-          ...m,
-          email:     u.user?.email ?? null,
-          full_name: u.user?.user_metadata?.full_name ?? null,
-          role:      m.role as EmployeeRole,
-        };
-      } catch {
-        return { ...m, email: null, full_name: null, role: m.role as EmployeeRole };
-      }
-    }),
-  );
-
-  return members;
+  return (data?.role as EmployeeRole | undefined) ?? null;
 }
 
-export async function inviteEmployee(email: string, role: EmployeeRole = 'cashier') {
-  const { supabase, businessId, userId } = await getBusinessContext();
+export async function listEmployees(): Promise<ActionResult<Employee[]>> {
+  return attempt(async () => {
+    const { supabase, businessId, userId } = await getBusinessContext();
 
-  // Only owner can invite
-  const { data: me } = await supabase
-    .from('business_members')
-    .select('role')
-    .eq('business_id', businessId)
-    .eq('user_id', userId)
-    .maybeSingle();
+    const role = await myRole(supabase, businessId, userId);
+    if (!role || !['owner', 'manager'].includes(role)) {
+      throw new UserFacingError(
+        "Seuls le propriétaire et les gérants voient qui a accès à l'entreprise.",
+      );
+    }
 
-  if (!me || me.role !== 'owner') throw new Error('Seul le propriétaire peut inviter des employés');
+    const { data, error } = await supabase
+      .from('business_members')
+      .select('id, user_id, role, is_active, created_at')
+      .eq('business_id', businessId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
 
-  if (!email.trim() || !email.includes('@')) throw new Error('Email invalide');
+    if (error) throw new Error(error.message);
 
-  // Trois verrous distincts, alignés sur le tableau des offres (Diagnostic 8) :
-  //
-  //   `employees`         (Kwasans) — droit d'ajouter des mains supplémentaires
-  //   PLAN_MAX_MEMBERS               — combien : 1 / 3 / 25
-  //   `multi_user_roles`  (Elit)    — droit de choisir un rôle précis
-  //
-  // Gater l'invitation sur `multi_user_roles` rendrait les 3 sièges de Kwasans
-  // inutilisables. Vérifié avant tout envoi d'email : une invitation partie ne
-  // se rattrape pas.
-  await assertFeature('employees');
-  await assertSeatAvailable(businessId);
-
-  // Sans l'offre Elit, le nouvel arrivant entre avec le rôle par défaut : c'est
-  // la différenciation fine des rôles qui est vendue, pas la délégation.
-  const grantedRole: EmployeeRole =
-    (await hasFeature('multi_user_roles')) ? role : 'cashier';
-
-  const svc = getSupabaseService();
-
-  // Get the business name for the invite email
-  const { data: biz } = await supabase
-    .from('businesses')
-    .select('name')
-    .eq('id', businessId)
-    .maybeSingle();
-
-  // Check if user already exists in auth
-  const { data: existingList } = await svc.auth.admin.listUsers();
-  const existing = existingList?.users?.find((u) => u.email === email.toLowerCase().trim());
-
-  let invitedUserId: string;
-
-  if (existing) {
-    invitedUserId = existing.id;
-  } else {
-    // Send invite email via Supabase
-    const { data: invited, error: invErr } = await svc.auth.admin.inviteUserByEmail(email.trim(), {
-      data: {
-        invited_to_business: businessId,
-        invited_role:        grantedRole,
-        business_name:       biz?.name ?? 'ProfitPilot',
-      },
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://profitpilot.app'}/auth/callback?type=invite`,
-    });
-    if (invErr) throw new Error(invErr.message);
-    invitedUserId = invited.user!.id;
-  }
-
-  // Add to business_members (upsert to avoid duplicates)
-  const { error: memberErr } = await supabase
-    .from('business_members')
-    .upsert({
-      business_id: businessId,
-      user_id:     invitedUserId,
-      role:        grantedRole,
-      is_active:   true,
-    }, { onConflict: 'business_id,user_id' });
-
-  if (memberErr) throw new Error(memberErr.message);
-
-  void notify({
-    companyId: businessId, triggeredBy: userId,
-    type: 'employee_created',
-    title: `Nouvel employé invité`,
-    body: `${email} — rôle : ${grantedRole}`,
-    entity: 'employee', entityId: invitedUserId,
-    data: { email, role: grantedRole },
+    // Le nom et l'adresse vivent dans `auth.users`, que seule la clé service
+    // lit. Un membre dont la lecture échoue reste dans la liste, sans nom :
+    // mieux vaut une ligne anonyme qu'un membre invisible à qui on a donné
+    // les clés.
+    const svc = getSupabaseService();
+    return Promise.all(
+      (data ?? []).map(async (m) => {
+        try {
+          const { data: u } = await svc.auth.admin.getUserById(m.user_id);
+          return {
+            ...m,
+            email:     u.user?.email ?? null,
+            full_name: u.user?.user_metadata?.full_name ?? null,
+            role:      m.role as EmployeeRole,
+          };
+        } catch {
+          return { ...m, email: null, full_name: null, role: m.role as EmployeeRole };
+        }
+      }),
+    );
   });
-
-  return { email, role: grantedRole };
 }
 
-export async function updateEmployeeRole(memberId: string, role: EmployeeRole) {
-  const { supabase, businessId, userId } = await getBusinessContext();
+export async function updateEmployeeRole(
+  memberId: string,
+  role: EmployeeRole,
+): Promise<ActionResult> {
+  return attempt(async () => {
+    const { supabase, businessId, userId } = await getBusinessContext();
 
-  const { data: me } = await supabase
-    .from('business_members')
-    .select('role')
-    .eq('business_id', businessId)
-    .eq('user_id', userId)
-    .maybeSingle();
+    if ((await myRole(supabase, businessId, userId)) !== 'owner') {
+      throw new UserFacingError('Seul le propriétaire peut modifier les rôles.');
+    }
 
-  if (!me || me.role !== 'owner') throw new Error('Seul le propriétaire peut modifier les rôles');
+    // `assertFeature` lève une `FeatureLockedError`, dont le message nomme
+    // l'offre requise : `attempt` le laisse passer tel quel.
+    await assertFeature('multi_user_roles');
 
-  await assertFeature('multi_user_roles');
+    const { error } = await supabase
+      .from('business_members')
+      .update({ role })
+      .eq('id', memberId)
+      .eq('business_id', businessId);
 
-  const { error } = await supabase
-    .from('business_members')
-    .update({ role })
-    .eq('id', memberId)
-    .eq('business_id', businessId);
-
-  if (error) throw new Error(error.message);
+    if (error) throw new Error(error.message);
+  });
 }
 
-export async function removeEmployee(memberId: string) {
-  const { supabase, businessId, userId } = await getBusinessContext();
+export async function removeEmployee(memberId: string): Promise<ActionResult> {
+  return attempt(async () => {
+    const { supabase, businessId, userId } = await getBusinessContext();
 
-  const { data: me } = await supabase
-    .from('business_members')
-    .select('role')
-    .eq('business_id', businessId)
-    .eq('user_id', userId)
-    .maybeSingle();
+    if ((await myRole(supabase, businessId, userId)) !== 'owner') {
+      throw new UserFacingError("Seul le propriétaire peut retirer un accès.");
+    }
 
-  if (!me || me.role !== 'owner') throw new Error('Seul le propriétaire peut retirer des membres');
+    // `neq('user_id', userId)` : on ne se retire pas soi-même. Sans ce garde,
+    // un propriétaire seul pouvait se fermer la porte de sa propre entreprise.
+    const { data, error } = await supabase
+      .from('business_members')
+      .update({ is_active: false, deleted_at: new Date().toISOString() })
+      .eq('id', memberId)
+      .eq('business_id', businessId)
+      .neq('user_id', userId)
+      .select('id');
 
-  // Soft delete
-  const { error } = await supabase
-    .from('business_members')
-    .update({ is_active: false, deleted_at: new Date().toISOString() })
-    .eq('id', memberId)
-    .eq('business_id', businessId)
-    .neq('user_id', userId); // can't remove yourself
-
-  if (error) throw new Error(error.message);
+    if (error) throw new Error(error.message);
+    if (!data?.length) {
+      throw new UserFacingError(
+        "Vous ne pouvez pas retirer votre propre accès : l'entreprise se retrouverait sans propriétaire.",
+      );
+    }
+  });
 }

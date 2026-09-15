@@ -18,6 +18,7 @@ import { assertFeature } from '../../lib/entitlements';
 import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidateStore } from '../../lib/storefrontData';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 // Le Studio est gardé par `online_store` : il n'existe que pour la vitrine, et
 // c'est la seule capacité vendable qui le couvre aujourd'hui. Le jour où le
@@ -62,7 +63,8 @@ export async function listProductJobs(productId: string): Promise<AiJob[]> {
  *
  * Écrit `enhanced_image_url`, jamais `image_url` : voir l'en-tête.
  */
-export async function applyEnhancement(jobId: string): Promise<{ imageUrl: string }> {
+export async function applyEnhancement(jobId: string): Promise<ActionResult<{ imageUrl: string }>> {
+  return attempt(async () => {
   await assertFeature(STUDIO_FEATURE);
   const { businessId } = await requirePermission('products:write');
   const svc = getSupabaseService();
@@ -74,10 +76,10 @@ export async function applyEnhancement(jobId: string): Promise<{ imageUrl: strin
     .eq('business_id', businessId)
     .maybeSingle();
 
-  if (!job)                             throw new Error('Retouche introuvable.');
-  if (job.status !== 'completed')       throw new Error("Cette retouche n'est pas terminée.");
-  if (!job.processed_image_url)         throw new Error('Cette retouche n\'a pas produit d\'image.');
-  if (!job.product_id)                  throw new Error('Cette retouche n\'est liée à aucun produit.');
+  if (!job)                             throw new UserFacingError('Retouche introuvable.');
+  if (job.status !== 'completed')       throw new UserFacingError("Cette retouche n'est pas terminée.");
+  if (!job.processed_image_url)         throw new UserFacingError('Cette retouche n\'a pas produit d\'image.');
+  if (!job.product_id)                  throw new UserFacingError('Cette retouche n\'est liée à aucun produit.');
 
   const { error } = await svc
     .from('products')
@@ -96,10 +98,12 @@ export async function applyEnhancement(jobId: string): Promise<{ imageUrl: strin
   revalidatePath('/products');
 
   return { imageUrl: job.processed_image_url };
+  });
 }
 
 /** Revient à la photo d'origine. Le travail reste en base : rien n'est perdu. */
-export async function revertEnhancement(productId: string): Promise<void> {
+export async function revertEnhancement(productId: string): Promise<ActionResult> {
+  return attempt(async () => {
   await assertFeature(STUDIO_FEATURE);
   const { businessId } = await requirePermission('products:write');
   const svc = getSupabaseService();
@@ -114,6 +118,7 @@ export async function revertEnhancement(productId: string): Promise<void> {
 
   await refreshStorefront(businessId);
   revalidatePath('/products');
+  });
 }
 
 /** Le catalogue de la vitrine a changé : on invalide son cache. */

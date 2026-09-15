@@ -30,6 +30,7 @@ import type { StoreView } from '../../../../components/store/types';
 import { designFor } from '../../../../lib/storeDesign';
 import { buildWhatsAppOrderLink, resolveOrderPhone } from '../../../../lib/storeWhatsApp';
 import { forgetPendingOrder, readPendingOrder, rememberPendingOrder } from '../confirmation/pendingOrder';
+import { unwrap, screenMessage  } from '../../../../lib/actionResult';
 
 /**
  * Les moyens de paiement que ce tunnel sait réellement encaisser.
@@ -406,14 +407,14 @@ export function CheckoutClient({
 
       // Paiement à la livraison : la commande est ferme dès sa création, le
       // panier peut partir tout de suite.
-      const { orderId } = await createStoreOrder(orderData);
+      const { orderId } = unwrap(await createStoreOrder(orderData));
       forgetPendingOrder(store.slug);
       clear();
       router.push(`${store.base}/confirmation?id=${orderId}`);
     } catch (err) {
       // Les messages du serveur sont écrits pour l'acheteur (« Stock
       // insuffisant pour « Savon karité » : il en reste 2. ») : on les montre.
-      setError(err instanceof Error ? err.message : 'La commande n\'a pas pu être enregistrée.');
+      setError(screenMessage(err, 'La commande n\'a pas pu être enregistrée.'));
       setSubmitting(false);
     }
   }

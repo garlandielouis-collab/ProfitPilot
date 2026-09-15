@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
     return htmlResponse('Confirmer le paiement', body, 'neutral');
   } catch (err: any) {
     console.error('[Admin Approve]', err);
-    return htmlResponse('❌ Erreur', `<p>${escapeHtml(err?.message ?? 'Erreur inconnue')}</p>`, 'red');
+    return htmlResponse('❌ Erreur', `<p>${escapeHtml(err instanceof Error ? err.message : 'Erreur inconnue')}</p>`, 'red');
   }
 }
 
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('[Admin Approve]', err);
-    return htmlResponse('❌ Erreur', `<p>${escapeHtml(err?.message ?? 'Erreur inconnue')}</p>`, 'red');
+    return htmlResponse('❌ Erreur', `<p>${escapeHtml(err instanceof Error ? err.message : 'Erreur inconnue')}</p>`, 'red');
   }
 }
 

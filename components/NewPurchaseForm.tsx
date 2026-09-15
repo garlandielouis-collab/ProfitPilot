@@ -10,6 +10,7 @@ import {
 import { useLanguage } from './LanguageWrapper';
 import { PaymentPicker, PAYMENT_METHODS, type PaymentKey } from './ds';
 import { Check } from 'lucide-react';
+import { unwrap } from '../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -230,7 +231,7 @@ function QuickCreateSupplierModal({ ownerId, onCreated, onClose }: QuickCreateSu
     if (!name.trim()) { setErr(t({ fr: 'Nom obligatoire.', ht: 'Non obligatwa.' })); return; }
     setSaving(true);
     try {
-      const created: QuickSupplierResult = await quickCreateSupplier({ name, phone, email });
+      const created: QuickSupplierResult = unwrap(await quickCreateSupplier({ name, phone, email }));
       onCreated({ id: created.id, name: created.name, phone: created.phone, email: created.email, discount_percent: created.discount_percent ?? 0 });
       onClose();
     } catch (e) {
@@ -300,11 +301,11 @@ function QuickCreateProductModal({ ownerId, onCreated, onClose }: QuickCreatePro
     const sp = parseFloat(sellPrice) || 0;
     setSaving(true);
     try {
-      const created: QuickProductResult = await quickCreateProduct({
+      const created: QuickProductResult = unwrap(await quickCreateProduct({
         name, category,
         purchase_price: pp,
         sale_price: sp,
-      });
+      }));
       onCreated({
         id: created.id,
         name: created.name,

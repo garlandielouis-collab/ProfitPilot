@@ -8,7 +8,7 @@ import { getSupabaseServer } from '../../lib/supabaseServerClient';
 async function getAuthContext() {
   const supabase = await getSupabaseServer();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) throw new Error('Non authentifiÃ©');
+  if (error || !user) throw new Error('Non authentifié');
   return { user, supabase };
 }
 
@@ -53,7 +53,7 @@ export async function createConversation(title = 'Nouvelle analyse'): Promise<Co
     const supabase = await getSupabaseServer();
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
 
-    if (authErr || !user) throw new Error(authErr?.message ?? 'Non authentifié');
+    if (authErr || !user) throw new Error('Non authentifié');
 
     const { data, error } = await supabase
       .from('ai_conversations')

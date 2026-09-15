@@ -3,6 +3,7 @@
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { failIfUnreadable } from '../../lib/storeRead';
 import { queueStoreOrderNotification } from '../../lib/storePaymentGateway';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 
 
@@ -573,7 +574,8 @@ export async function getStoreBundles(businessId: string, limit = 12): Promise<S
  *
  * Ce qui remonte ici est déjà cohérent, ou n'existe pas.
  */
-export async function createStoreOrder(input: CreateOrderInput): Promise<CreatedOrder> {
+export async function createStoreOrder(input: CreateOrderInput): Promise<ActionResult<CreatedOrder>> {
+  return attempt(async () => {
   const svc = getSupabaseService();
 
   // Une ligne est réduite à un identifiant et une quantité. Toute autre clé
@@ -588,7 +590,7 @@ export async function createStoreOrder(input: CreateOrderInput): Promise<Created
     })
     .filter((i) => ('bundle_id' in i ? Boolean(i.bundle_id) : Boolean(i.product_id)) && i.quantity > 0);
 
-  if (items.length === 0) throw new Error('Votre panier est vide.');
+  if (items.length === 0) throw new UserFacingError('Votre panier est vide.');
 
   const { data, error } = await svc.rpc('create_store_order', {
     p_business_id:      input.business_id,
@@ -612,7 +614,7 @@ export async function createStoreOrder(input: CreateOrderInput): Promise<Created
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.out_order_id) throw new Error('La commande n\'a pas pu être enregistrée.');
+  if (!row?.out_order_id) throw new UserFacingError('La commande n\'a pas pu être enregistrée.');
 
   // L'alerte au marchand. Ici pour le paiement à la livraison : la commande est
   // ferme dès maintenant. Pour MonCash et NatCash elle part au règlement
@@ -629,6 +631,7 @@ export async function createStoreOrder(input: CreateOrderInput): Promise<Created
     discount:      Number(row.out_discount ?? 0),
     couponApplied: row.out_coupon_applied === true,
   };
+  });
 }
 
 /**

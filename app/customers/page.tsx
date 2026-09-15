@@ -13,6 +13,7 @@ import { EntityDocuments } from '../../components/documents/EntityDocuments';
 // Une seule bibliothèque d'icônes, en contour, à épaisseur constante (§3.5) :
 // l'étoile ⭐ et le trombone 📋 étaient dessinés par le téléphone, pas par nous.
 import { CalendarDays, CheckCircle2, FileText, Hash, Mail, Phone, Star } from 'lucide-react';
+import { unwrap, screenMessage } from '../../lib/actionResult';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -160,9 +161,9 @@ function ClientModal({
     if (!name.trim()) return setErr(t({ fr: 'Le nom du client est obligatoire.', ht: 'Non kliyan an obligatwa.' }));
     setSaving(true); setErr('');
     try {
-      await upsertCustomer({ id: client?.id, name, phone: phone || undefined, email: email || undefined });
+      unwrap(await upsertCustomer({ id: client?.id, name, phone: phone || undefined, email: email || undefined }));
       onSaved(); onClose();
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(screenMessage(e, 'La fiche client n’a pas pu être enregistrée.')); }
     setSaving(false);
   }
 
@@ -528,7 +529,7 @@ function ClientsCRMInner() {
       // Plus de branche « faux crédit » : un règlement passe par la base, ou
       // il ne passe pas. Une créance soldée à l'écran mais pas en comptabilité
       // est exactement le genre de mensonge que cet audit chasse.
-      const res = await markCustomerCreditPaid(creditId);
+      const res = unwrap(await markCustomerCreditPaid(creditId));
       // Rien d'encaissé (déjà soldée, annulée, ou reste dû changé entre
       // l'affichage et le clic) : on le dit, puis on recharge pour que la ligne
       // périmée affiche l'état réel.
@@ -543,17 +544,17 @@ function ClientsCRMInner() {
       }
       if (selectedId) await loadDetail(selectedId);
       await loadClients();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { alert(screenMessage(e, 'L’encaissement n’a pas abouti.')); }
     finally { setBusyCredit(s => { const n = new Set(s); n.delete(creditId); return n; }); }
   }
 
   async function handleDeleteConfirm(client: Client) {
     try {
-      await deleteCustomer(client.id);
+      unwrap(await deleteCustomer(client.id));
       setDeleteTarget(null);
       if (selectedId === client.id) setSelectedId(null);
       await loadClients();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { alert(screenMessage(e, 'Le client n’a pas pu être supprimé.')); }
   }
 
   // ── Print report ──────────────────────────────────────────────────────────

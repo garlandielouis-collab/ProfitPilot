@@ -42,6 +42,7 @@ import {
   CATEGORY_LABELS, CATEGORY_ORDER, type DocumentCategory,
 } from '../../../lib/documents/types';
 import type { BlockLanguage } from '../../../lib/documents/blocks';
+import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 type Option = { id: string; label: string };
 
@@ -64,8 +65,9 @@ export default function TemplatesPage() {
     let cancelled = false;
     setLoading(true);
     listDocumentTemplates(category)
+      .then(unwrap)
       .then((rows) => { if (!cancelled) { setTemplates(rows); setError(null); } })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement impossible.'); })
+      .catch((err) => { if (!cancelled) setError(screenMessage(err, 'Chargement impossible.')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [allowed, category]);
@@ -241,7 +243,7 @@ function UseTemplateSheet({
     setBusy(true);
     setError(null);
     try {
-      const { id } = await createDocumentFromTemplate({
+      const { id } = unwrap(await createDocumentFromTemplate({
         templateId: template.id,
         name: name.trim() || undefined,
         language: documentLanguage,
@@ -250,10 +252,10 @@ function UseTemplateSheet({
           employeeId: source.employee || undefined,
           supplierId: source.supplier || undefined,
         },
-      });
+      }));
       onCreated(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Création impossible.');
+      setError(screenMessage(err, 'Création impossible.'));
       setBusy(false);
     }
   }, [template.id, name, documentLanguage, source, onCreated]);

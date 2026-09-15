@@ -39,6 +39,7 @@ import {
   BLOCK_LABELS, BLOCK_TYPES, emptyBlock,
   type BlockType, type PlainBlock,
 } from '../../lib/documents/blocks';
+import { screenMessage } from '../../lib/actionResult';
 
 const INPUT =
   'min-h-touch w-full rounded-control border border-border bg-white px-3 py-2 text-body '
@@ -104,7 +105,7 @@ export function DocumentEditor({ initial, onSave, onCancel }: Props) {
       await onSave(blocks);
       setDirty(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+      setError(screenMessage(err, 'Enregistrement impossible.'));
     } finally {
       setSaving(false);
     }

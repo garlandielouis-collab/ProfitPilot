@@ -49,6 +49,7 @@ import { Card } from '../../../components/ds/Surface';
 import { Field, TextField } from '../../../components/ds/Field';
 import { Switch } from '../../../components/ds/Switch';
 import { PlanLockScreen } from '../../../components/PlanLock';
+import { screenMessage } from '../../../lib/actionResult';
 
 type Tab = 'general' | 'design' | 'content' | 'sections' | 'products';
 
@@ -87,7 +88,7 @@ export default function StoreBuilderPage() {
     } catch (err) {
       // L'appel lui-même n'est pas parti (hors ligne, onglet endormi).
       setReason('unreachable');
-      setError(err instanceof Error ? err.message : 'Chargement impossible.');
+      setError(screenMessage(err, 'Chargement impossible.'));
     }
   }, []);
 
@@ -111,7 +112,7 @@ export default function StoreBuilderPage() {
         setSaved(true);
         window.setTimeout(() => setSaved(false), 2200);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Enregistrement impossible.');
+        setError(screenMessage(err, 'Enregistrement impossible.'));
       }
     });
   }, [reload]);

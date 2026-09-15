@@ -5,13 +5,14 @@ import { revalidatePath } from 'next/cache';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { assertStoreAvailable } from '../../lib/entitlements';
+import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 
 export async function listMyStores() {
   const supabase = await getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+  if (!user) throw new UserFacingError('Session expirée. Reconnectez-vous.');
 
   const { data, error } = await supabase
     .from('businesses')
@@ -28,10 +29,11 @@ export async function getActiveStoreId(): Promise<string | null> {
   return jar.get(ACTIVE_STORE_COOKIE)?.value ?? null;
 }
 
-export async function switchStore(storeId: string) {
+export async function switchStore(storeId: string): Promise<ActionResult> {
+  return attempt(async () => {
   const supabase = await getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+  if (!user) throw new UserFacingError('Session expirée. Reconnectez-vous.');
 
   // Verify ownership or membership
   const { data: biz } = await supabase
@@ -41,7 +43,7 @@ export async function switchStore(storeId: string) {
     .eq('owner_id', user.id)
     .maybeSingle();
 
-  if (!biz) throw new Error('Boutique introuvable ou accès refusé');
+  if (!biz) throw new UserFacingError('Cette entreprise n’existe pas, ou elle ne vous appartient pas.');
 
   const jar = await cookies();
   jar.set(ACTIVE_STORE_COOKIE, storeId, {
@@ -52,14 +54,16 @@ export async function switchStore(storeId: string) {
   });
 
   revalidatePath('/', 'layout');
+  });
 }
 
-export async function createStore(name: string) {
+export async function createStore(name: string): Promise<ActionResult<{ id: string; name: string }>> {
+  return attempt(async () => {
   const supabase = await getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Non authentifié');
+  if (!user) throw new UserFacingError('Session expirée. Reconnectez-vous.');
 
-  if (!name.trim()) throw new Error('Le nom de la boutique est requis');
+  if (!name.trim()) throw new UserFacingError('Donnez un nom à votre entreprise.');
 
   // Le quota passe par `lib/entitlements` : la lecture de l'offre y tient
   // compte de l'expiration et du repli d'essai. Le calcul local qui vivait ici
@@ -101,5 +105,6 @@ export async function createStore(name: string) {
   });
 
   revalidatePath('/', 'layout');
-  return data;
+  return data as { id: string; name: string };
+  });
 }

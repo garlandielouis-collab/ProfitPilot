@@ -43,6 +43,7 @@ import {
   getBackupSignedUrl,
   type BackupRecord,
 } from '../actions/backup';
+import { screenMessage } from '../../lib/actionResult';
 
 type Bilingual = { fr: string; ht: string };
 
@@ -121,7 +122,7 @@ function BackupInner() {
       URL.revokeObjectURL(url);
       setActions(null);
     } catch (e: any) {
-      toast.error(e?.message ?? t({ fr: 'Téléchargement impossible.', ht: 'Nou pa ka telechaje.' }));
+      toast.error(screenMessage(e, t({ fr: 'Téléchargement impossible.', ht: 'Nou pa ka telechaje.' })));
     }
     setBusyId(null);
   }
@@ -369,7 +370,7 @@ function RestoreSheet({
       setDone(json.restored ?? {});
       onDone();
     } catch (e: any) {
-      toast.error(e?.message ?? t({ fr: 'Restauration impossible.', ht: 'Nou pa ka restore.' }));
+      toast.error(screenMessage(e, t({ fr: 'Restauration impossible.', ht: 'Nou pa ka restore.' })));
     }
     setBusy(false);
   }
@@ -463,7 +464,7 @@ function ImportSheet({
       onDone();
       onClose();
     } catch (e: any) {
-      toast.error(e?.message ?? t({ fr: 'Import impossible.', ht: 'Nou pa ka enpòte.' }));
+      toast.error(screenMessage(e, t({ fr: 'Import impossible.', ht: 'Nou pa ka enpòte.' })));
     }
     setBusy(false);
   }

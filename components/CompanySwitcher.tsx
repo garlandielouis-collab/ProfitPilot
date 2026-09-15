@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { Building2, Check, ChevronDown, Plus, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import { unwrap, screenMessage } from '../lib/actionResult';
 import { switchStore, createStore } from '../app/actions/stores';
 import { useCompany } from '../hooks/useCompany';
 import { usePermissions } from '../hooks/usePermissions';
@@ -33,13 +34,13 @@ export function CompanySwitcher({ onNavigate }: { onNavigate?: () => void }) {
     if (id === company?.id) { setOpen(false); return; }
     startTransition(async () => {
       try {
-        await switchStore(id);
+        unwrap(await switchStore(id));
         setOpen(false);
         onNavigate?.();
         await refresh();
         window.location.reload();
       } catch (e: any) {
-        toast.error(e.message);
+        toast.error(screenMessage(e, 'L’opération n’a pas abouti.'));
       }
     });
   }
@@ -48,7 +49,7 @@ export function CompanySwitcher({ onNavigate }: { onNavigate?: () => void }) {
     if (!newName.trim()) return;
     startTransition(async () => {
       try {
-        const biz = await createStore(newName.trim());
+        const biz = unwrap(await createStore(newName.trim()));
         toast.success(`Entreprise "${biz.name}" créée`);
         setNewName('');
         setCreating(false);
@@ -56,7 +57,7 @@ export function CompanySwitcher({ onNavigate }: { onNavigate?: () => void }) {
         await refresh();
         window.location.reload();
       } catch (e: any) {
-        toast.error(e.message);
+        toast.error(screenMessage(e, 'L’opération n’a pas abouti.'));
       }
     });
   }

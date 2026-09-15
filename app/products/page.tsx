@@ -1,4 +1,4 @@
-import { getProductsAction } from '../actions/products';
+import { getProductsAction, type Product } from '../actions/products';
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { getBusinessContext } from '../../lib/serverAuth';
 import { ProductsClient } from './ProductsClient';
@@ -6,7 +6,12 @@ import { ProductsClient } from './ProductsClient';
 export default async function ProductsPage() {
   // Fetch data server-side — zero loading spinner on first render
   const [products, supabase, ctx] = await Promise.all([
-    getProductsAction().catch(() => []),
+    // Le catalogue ne bloque pas le rendu : s'il ne vient pas, l'écran s'ouvre
+    // vide et l'écran client retente. C'était déjà le cas ; seule la forme du
+    // résultat a changé.
+    getProductsAction()
+      .then((r) => (r.ok ? r.data : ([] as Product[])))
+      .catch(() => [] as Product[]),
     getSupabaseServer(),
     getBusinessContext().catch(() => null),
   ]);
