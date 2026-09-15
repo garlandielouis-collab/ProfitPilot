@@ -17,12 +17,38 @@
 // offre. « Ne jamais faire confiance uniquement au frontend » (§36 du cahier
 // des charges) vaut aussi pour les server actions, qui sont des points
 // d'entrée HTTP comme les autres.
+//
+// ── Toutes lisent et écrivent avec la SESSION du marchand ──────────────────
+//
+// `getBusinessContext().supabase`, jamais `getSupabaseService()`. L'éditeur ne
+// touche que les lignes d'UNE entreprise — la sienne — et la RLS le permet
+// déjà : `businesses`, `store_settings`, `products` et `store_sections` sont
+// lisibles et modifiables par leur propriétaire (vérifié avec un compte réel).
+//
+// La clé de service n'y avait donc rien à faire, et elle coûtait deux choses.
+//
+//   Une PANNE. `getSupabaseService()` lève « SUPABASE_SERVICE_ROLE_KEY not
+//   configured in .env.local » dès que la variable manque à l'environnement
+//   qui sert la requête. Tout le reste de l'application continuait de
+//   fonctionner, et l'éditeur de vitrine — lui seul — refusait de s'ouvrir.
+//   Un écran de réglage ne doit pas dépendre d'un secret que sa tâche ne
+//   réclame pas.
+//
+//   Un RISQUE. Le client de service contourne la RLS : la seule chose qui
+//   empêchait un marchand de lire le catalogue d'un autre était le `.eq(
+//   'business_id', …)` écrit à la main dans chaque requête. Un oubli, une
+//   résolution d'entreprise fautive, et la base ne disait plus non. Avec la
+//   session, la RLS redevient la barrière, et le filtre applicatif n'est plus
+//   qu'une commodité.
+//
+// La vitrine PUBLIQUE, elle, garde la clé de service (app/actions/store-public.ts) :
+// son visiteur n'a pas de compte, donc pas de session, et aucune politique RLS
+// ne peut le reconnaître.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { revalidatePath } from 'next/cache';
 import { assertFeature, FeatureLockedError } from '../../lib/entitlements';
 import { getBusinessContext, isTransportFailure, requirePermission } from '../../lib/serverAuth';
-import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { revalidateStore } from '../../lib/storefrontData';
 import {
   themeConfigSchema, parseThemeConfig, slugify, validateSlug,
@@ -30,9 +56,9 @@ import {
   LEGACY_DEFAULT_COLORS, type ThemeConfig,
 } from '../../lib/storeTheme';
 import {
-  resolveSections, isSectionKey, sectionConfigSchema, type ResolvedSection,
+  resolveSections, isSectionKey, sectionConfigSchema,
+  type ResolvedSection, type StoredSection,
 } from '../../lib/storeSections';
-import { getStoreSections } from './store-content';
 
 export type BuilderProduct = {
   id:                    string;
@@ -153,13 +179,12 @@ export async function getBuilderState(): Promise<BuilderLoad> {
 
 async function readBuilderState(): Promise<BuilderState> {
   await assertFeature('online_store');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   const [businessRes, storeRes, productsRes] = await Promise.all([
-    svc.from('businesses').select('name, whatsapp_number, default_currency').eq('id', businessId).maybeSingle(),
-    svc.from('store_settings').select('*').eq('business_id', businessId).maybeSingle(),
-    svc
+    db.from('businesses').select('name, whatsapp_number, default_currency').eq('id', businessId).maybeSingle(),
+    db.from('store_settings').select('*').eq('business_id', businessId).maybeSingle(),
+    db
       .from('products')
       // Cadré par entreprise, exactement comme la vitrine publique
       // (app/actions/store-public.ts). Les deux listes doivent coïncider :
@@ -194,7 +219,19 @@ async function readBuilderState(): Promise<BuilderState> {
   // Lue après le reste : elle dépend du gabarit, qui fournit l'ordre de départ.
   // La lecture est tolérante à une table absente (migration non jouée) — comme
   // la vitrine, l'éditeur retombe alors sur le préréglage.
-  const sections = resolveSections(templateId, await getStoreSections(businessId));
+  //
+  // Lue ICI avec la session, pas via `getStoreSections()` (store-content.ts) :
+  // celle-ci sert la vitrine publique et passe donc par la clé de service. C'est
+  // par elle que l'éditeur réclamait encore la clé après le passage à la session.
+  const { data: storedSections, error: sectionsError } = await db
+    .from('store_sections')
+    .select('section_key, position, is_enabled, config')
+    .eq('business_id', businessId)
+    .order('position', { ascending: true });
+  const sections = resolveSections(
+    templateId,
+    sectionsError || !storedSections ? [] : (storedSections as StoredSection[]),
+  );
 
   return {
     storeId:      store?.id ?? null,
@@ -247,32 +284,32 @@ export async function saveGeneral(input: {
 }): Promise<{ slug: string; publicUrl: string }> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   const slug = slugify(input.slug);
   const check = validateSlug(slug);
   if (!check.ok) throw new Error(check.reason);
 
-  // Un slug déjà pris par une AUTRE vitrine : le dire avant d'écrire, plutôt
-  // que de laisser remonter une violation de contrainte d'unicité.
-  const { data: taken } = await svc
-    .from('store_settings')
-    .select('business_id')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (taken && taken.business_id !== businessId) {
-    throw new Error(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
-  }
-
-  const { data: previous } = await svc
+  // Un slug déjà pris se constate à l'écriture, pas avant.
+  //
+  // Une lecture préalable cherchait la ligne d'une AUTRE vitrine portant ce
+  // slug. Elle ne le peut plus, et c'est très bien : la RLS n'expose au
+  // marchand que SES lignes, ce qui est exactement la propriété recherchée —
+  // il n'a pas à savoir quelles adresses ses concurrents occupent.
+  //
+  // Deux raisons de ne pas la regretter. La contrainte d'unicité SQL a
+  // toujours été la vraie barrière ; la lecture ne servait qu'à formuler la
+  // phrase. Et entre la lecture et l'écriture, deux marchands qui choisissent
+  // la même adresse à la même seconde passaient tous les deux le contrôle —
+  // c'est la base qui tranchait, avec un message illisible. Lire le code
+  // d'erreur supprime la course en même temps que la lecture.
+  const { data: previous } = await db
     .from('store_settings')
     .select('slug')
     .eq('business_id', businessId)
     .maybeSingle();
 
-  const { error } = await svc.from('store_settings').upsert(
+  const { error } = await db.from('store_settings').upsert(
     {
       business_id:     businessId,
       slug,
@@ -285,6 +322,12 @@ export async function saveGeneral(input: {
     },
     { onConflict: 'business_id' },
   );
+  // 23505 : violation d'unicité. Sur cette table, une seule colonne est unique
+  // en plus de la clé — le slug. Le marchand lit donc pourquoi son adresse est
+  // refusée, au lieu de « duplicate key value violates unique constraint ».
+  if (error?.code === '23505') {
+    throw new Error(`L'adresse « ${slug} » est déjà utilisée par une autre boutique.`);
+  }
   if (error) throw new Error(`Enregistrement impossible : ${error.message}`);
 
   // L'ancien slug est invalidé lui aussi : sans ça, l'ancienne adresse continue
@@ -305,8 +348,7 @@ export async function saveDesign(input: {
 }): Promise<void> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   if (!isTemplateId(input.templateId)) throw new Error('Gabarit inconnu.');
 
@@ -314,7 +356,7 @@ export async function saveDesign(input: {
   // objet complet et conforme, jamais le JSON brut d'un formulaire.
   const theme = themeConfigSchema.parse(input.theme ?? {});
 
-  const { data: store } = await svc
+  const { data: store } = await db
     .from('store_settings')
     .select('slug')
     .eq('business_id', businessId)
@@ -331,7 +373,7 @@ export async function saveDesign(input: {
   // chaque gabarit.
   const owns = input.ownsPalette === true;
 
-  const { error } = await svc
+  const { error } = await db
     .from('store_settings')
     .update({
       template_id:  input.templateId,
@@ -363,12 +405,11 @@ export async function saveDesign(input: {
 export async function applyTemplate(templateId: string): Promise<void> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   if (!isTemplateId(templateId)) throw new Error('Gabarit inconnu.');
 
-  const { data: store } = await svc
+  const { data: store } = await db
     .from('store_settings')
     .select('slug')
     .eq('business_id', businessId)
@@ -378,7 +419,7 @@ export async function applyTemplate(templateId: string): Promise<void> {
     throw new Error("Enregistrez d'abord le nom et l'adresse de la boutique.");
   }
 
-  const { error } = await svc
+  const { error } = await db
     .from('store_settings')
     .update({ template_id: templateId })
     .eq('business_id', businessId);
@@ -400,12 +441,11 @@ export async function applyTemplate(templateId: string): Promise<void> {
 export async function saveContent(theme: unknown): Promise<void> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   const parsed = themeConfigSchema.parse(theme ?? {});
 
-  const { data: store } = await svc
+  const { data: store } = await db
     .from('store_settings')
     .select('slug, theme_config')
     .eq('business_id', businessId)
@@ -422,7 +462,7 @@ export async function saveContent(theme: unknown): Promise<void> {
     ? (store.theme_config as Record<string, unknown>)
     : {};
 
-  const { error } = await svc
+  const { error } = await db
     .from('store_settings')
     .update({
       theme_config: themeForStorage(parsed, { palette: raw.palette, typography: raw.typography }),
@@ -452,8 +492,7 @@ export async function saveSections(
 ): Promise<void> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   const rows = input
     .filter((s) => isSectionKey(s.key))
@@ -467,7 +506,7 @@ export async function saveSections(
 
   if (rows.length === 0) return;
 
-  const { error } = await svc
+  const { error } = await db
     .from('store_sections')
     .upsert(rows, { onConflict: 'business_id,section_key' });
 
@@ -482,7 +521,7 @@ export async function saveSections(
     );
   }
 
-  const { data: store } = await svc
+  const { data: store } = await db
     .from('store_settings')
     .select('slug')
     .eq('business_id', businessId)
@@ -504,10 +543,9 @@ export async function toggleProductPublication(
   published: boolean,
 ): Promise<void> {
   await assertFeature('online_store');
-  const { businessId } = await requirePermission('products:write');
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await requirePermission('products:write');
 
-  const { error } = await svc
+  const { error } = await db
     .from('products')
     .update({ is_published_to_store: published })
     .eq('id', productId)
@@ -528,10 +566,9 @@ export async function toggleProductFeatured(
   featured: boolean,
 ): Promise<void> {
   await assertFeature('online_store');
-  const { businessId } = await requirePermission('products:write');
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await requirePermission('products:write');
 
-  const { error } = await svc
+  const { error } = await db
     .from('products')
     .update({ is_featured: featured })
     .eq('id', productId)
@@ -544,10 +581,9 @@ export async function toggleProductFeatured(
 /** Publie ou retire tout le catalogue d'un coup. */
 export async function setAllProductsPublication(published: boolean): Promise<number> {
   await assertFeature('online_store');
-  const { businessId } = await requirePermission('products:write');
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await requirePermission('products:write');
 
-  const { data, error } = await svc
+  const { data, error } = await db
     .from('products')
     .update({ is_published_to_store: published })
     .eq('business_id', businessId)
@@ -570,8 +606,7 @@ export async function setAllProductsPublication(published: boolean): Promise<num
 export async function setCustomDomain(domain: string | null): Promise<void> {
   await assertFeature('online_store');
   await requirePermission('settings:write');
-  const { businessId } = await getBusinessContext();
-  const svc = getSupabaseService();
+  const { businessId, supabase: db } = await getBusinessContext();
 
   let normalized: string | null = null;
   if (domain && domain.trim()) {
@@ -584,29 +619,28 @@ export async function setCustomDomain(domain: string | null): Promise<void> {
     if (!/^[a-z0-9][a-z0-9.-]{2,251}[a-z0-9]\.[a-z]{2,}$/.test(normalized)) {
       throw new Error('Ce nom de domaine ne semble pas valide (exemple : maboutique.com).');
     }
-
-    const { data: taken } = await svc
-      .from('store_settings')
-      .select('business_id')
-      .eq('custom_domain', normalized)
-      .maybeSingle();
-
-    if (taken && taken.business_id !== businessId) {
-      throw new Error('Ce domaine est déjà rattaché à une autre boutique.');
-    }
+    // Même raisonnement que pour le slug dans `saveGeneral` : avec la session,
+    // la RLS cache les domaines des autres boutiques, donc une lecture préalable
+    // ne trouverait jamais le doublon. L'index unique sur lower(custom_domain)
+    // tranche à l'écriture — on traduit son code plus bas.
   }
 
-  const { data: store } = await svc
+  const { data: store } = await db
     .from('store_settings')
     .select('slug')
     .eq('business_id', businessId)
     .maybeSingle();
 
-  const { error } = await svc
+  const { error } = await db
     .from('store_settings')
     .update({ custom_domain: normalized, domain_verified_at: null })
     .eq('business_id', businessId);
 
+  // 23505 : l'index unique idx_store_settings_custom_domain — le domaine est
+  // déjà rattaché à une autre boutique.
+  if (error?.code === '23505') {
+    throw new Error('Ce domaine est déjà rattaché à une autre boutique.');
+  }
   if (error) throw new Error(`Enregistrement impossible : ${error.message}`);
 
   await revalidateStore(store?.slug ?? null, businessId);
@@ -614,8 +648,8 @@ export async function setCustomDomain(domain: string | null): Promise<void> {
 }
 
 async function refreshStorefront(businessId: string) {
-  const svc = getSupabaseService();
-  const { data } = await svc
+  const { supabase: db } = await getBusinessContext();
+  const { data } = await db
     .from('store_settings')
     .select('slug')
     .eq('business_id', businessId)
