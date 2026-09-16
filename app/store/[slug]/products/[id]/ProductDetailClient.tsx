@@ -90,11 +90,19 @@ export function ProductDetailClient({
     ([, v]) => typeof v === 'string' && v.trim(),
   );
 
-  // Trois en bandeau, le reste replié. Trois parce que c'est ce qu'un bandeau
-  // tient sans se casser en deux lignes sur un téléphone — et parce qu'au
-  // quatrième argument, on ne lit plus, on balaie.
-  const headline = variants.slice(0, 3);
-  const rest     = variants.slice(3);
+  // ── Les points forts, enfin lus ────────────────────────────────────────
+  //
+  // Le Studio de rédaction les demande au marchand — « trois à cinq lignes
+  // courtes, lues sans faire défiler » — et la vitrine ne les affichait nulle
+  // part. Ils prennent la place que les maquettes leur donnent : un bandeau de
+  // pastilles sous la description, à hauteur d'œil, là où l'on décide.
+  //
+  // Toutes celles qu'il a écrites, et pas les trois premières : le Studio lui
+  // en fait saisir cinq, et n'en afficher que trois rejouerait le défaut qu'on
+  // corrige ici — un texte payé en crédits qui ne sort nulle part. Le bandeau
+  // tient trois pastilles par rangée et passe à la ligne au-delà ; sur
+  // téléphone il est déjà empilé, donc rien ne se casse.
+  const highlights = product.highlights;
 
   const discount = product.compare_at_price !== null && product.compare_at_price > price
     ? Math.round((1 - price / product.compare_at_price) * 100)
@@ -273,6 +281,19 @@ export function ProductDetailClient({
               >
                 {product.name}
               </h1>
+
+              {/* L'accroche. Le Studio de rédaction annonce au marchand :
+                  « Une phrase, sous le nom. Elle s'affiche en tête de la
+                  fiche. » Elle ne s'y affichait pas. Elle y est, à la place
+                  exacte que la phrase décrit — et seulement si elle apporte
+                  autre chose que la description : recopiée mot pour mot, elle
+                  ferait lire deux fois le même texte à dix lignes d'écart. */}
+              {product.short_description
+                && product.short_description !== product.description && (
+                <p className="mt-2 text-[15px] leading-relaxed text-[var(--st-ink-2)]">
+                  {product.short_description}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-shrink-0 gap-1">
@@ -378,27 +399,15 @@ export function ProductDetailClient({
             </p>
           )}
 
-          {/* ── Ce que le produit a dans le ventre ──────────────────────────
-              Les déclinaisons décrivent CETTE fiche : ProfitPilot gère un
-              produit par variante, une taille est donc un attribut de l'article
-              et non un sélecteur. Les afficher comme un choix promettrait une
-              bascule qui n'existe pas ; les afficher comme une caractéristique
-              dit la vérité et sert quand même à décider.
-
-              La composition vient de la maquette, et elle vaut mieux que la
-              grille de paires qu'elle remplace : les trois premières
-              caractéristiques passent en bandeau, à hauteur d'œil, juste sous
-              la description — c'est là qu'on décide. Les suivantes vont dans un
-              « Détails du produit » replié, qui ne mange plus la place du
-              bouton d'achat sur un téléphone.
-
-              Rien n'est inventé : ces lignes sont les attributs saisis par le
-              marchand, dans son ordre et dans ses mots. */}
-          {headline.length > 0 && (
+          {/* Les points forts, en bandeau — la rangée de pastilles des
+              maquettes, remplie par ce que le marchand a réellement écrit. */}
+          {highlights.length > 0 && (
             <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {headline.map(([key, value]) => (
+              {highlights.map((line, i) => (
                 <li
-                  key={key}
+                  // Deux points forts identiques sont une faute de frappe du
+                  // marchand, pas une raison de faire disparaître une pastille.
+                  key={`${i}-${line}`}
                   className="flex items-start gap-2 px-3 py-2.5"
                   style={{
                     border:       '1px solid var(--st-border)',
@@ -406,18 +415,24 @@ export function ProductDetailClient({
                   }}
                 >
                   <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--st-ink-3)]" strokeWidth={2} aria-hidden />
-                  <div className="min-w-0">
-                    <p className="text-[11px] uppercase leading-tight text-[var(--st-ink-3)]" style={{ letterSpacing: '0.08em' }}>
-                      {key}
-                    </p>
-                    <p className="text-[13px] font-semibold leading-snug text-[var(--st-ink)]">{value}</p>
-                  </div>
+                  <p className="min-w-0 text-[13px] font-semibold leading-snug text-[var(--st-ink)]">{line}</p>
                 </li>
               ))}
             </ul>
           )}
 
-          {rest.length > 0 && (
+          {/* ── Ce que le produit a dans le ventre ──────────────────────────
+              Les déclinaisons décrivent CETTE fiche : ProfitPilot gère un
+              produit par variante, une taille est donc un attribut de l'article
+              et non un sélecteur. Les afficher comme un choix promettrait une
+              bascule qui n'existe pas ; les afficher comme une caractéristique
+              dit la vérité et sert quand même à décider.
+
+              Elles tenaient dans une grille de paires posée en pleine fiche,
+              qui repoussait le bouton d'achat d'autant de lignes qu'il y avait
+              d'attributs. Repliées, elles restent à un geste de celui qui les
+              cherche — et ne coûtent rien à celui qui ne les cherche pas. */}
+          {variants.length > 0 && (
             // `<details>` natif : il s'ouvre sans JavaScript et se replie au
             // clavier, comme la foire aux questions de l'accueil.
             <details
@@ -433,7 +448,7 @@ export function ProductDetailClient({
                 />
               </summary>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3 pb-4">
-                {rest.map(([key, value]) => (
+                {variants.map(([key, value]) => (
                   <div key={key} className="min-w-0">
                     <dt className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">{key}</dt>
                     <dd className="truncate text-[14px] font-medium text-[var(--st-ink)]">{value}</dd>

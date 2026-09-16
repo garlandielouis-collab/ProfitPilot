@@ -24,13 +24,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await loadProduct(store.business_id, id);
   if (!product) return { title: 'Produit introuvable' };
 
+  // Ce que le marchand a écrit pour Google passe avant ce qu'on peut déduire.
+  // L'ordre dit la précision décroissante : le texte fait pour la balise, puis
+  // l'accroche — une phrase, la bonne longueur —, puis la description longue
+  // que Google coupera, puis un pis-aller qui vaut mieux qu'une balise vide.
+  const title = product.seo_title?.trim() || product.name;
+  const description =
+    product.seo_description?.trim()
+    || product.short_description?.trim()
+    || product.description?.trim()
+    || `${product.name} — ${store.store_name ?? 'Boutique'}`;
+
   return {
-    title:       product.name,
-    description: product.description ?? `${product.name} — ${store.store_name ?? 'Boutique'}`,
+    title,
+    description,
     openGraph: {
       type:  'website',
-      title: product.name,
-      description: product.description ?? undefined,
+      title,
+      description,
       images: product.image_url ? [{ url: product.image_url }] : undefined,
     },
   };

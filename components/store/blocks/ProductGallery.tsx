@@ -78,10 +78,21 @@ export function ProductGallery({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    // ── Où vont les vignettes ──────────────────────────────────────────────
+    //
+    // À gauche de la photo dès qu'il y a de la largeur, comme sur les maquettes
+    // et comme partout ailleurs en commerce en ligne : la bande horizontale
+    // posée SOUS l'image repoussait le prix et le bouton d'achat de soixante-dix
+    // pixels vers le bas, sur l'écran où ils doivent être vus en premier.
+    //
+    // `flex-row-reverse` met le rail à gauche sans toucher à l'ordre du
+    // document : la photo principale reste le premier élément lu, et sur
+    // téléphone — où un rail vertical prendrait un cinquième de la largeur de
+    // l'image — les vignettes retombent en bande sous la photo.
+    <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-start sm:gap-4">
       <div
         ref={frameRef}
-        className="group relative"
+        className="group relative min-w-0 flex-1"
         onMouseEnter={() => setZoomed(true)}
         onMouseLeave={() => setZoomed(false)}
         onMouseMove={onMove}
@@ -162,7 +173,11 @@ export function ProductGallery({
       </div>
 
       {images.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Images du produit">
+        <div
+          className="flex gap-2 overflow-x-auto pb-1 sm:max-h-[520px] sm:w-[76px] sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:pb-0"
+          role="tablist"
+          aria-label="Images du produit"
+        >
           {images.map((src, i) => (
             <button
               key={src}

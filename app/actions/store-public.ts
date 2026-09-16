@@ -56,6 +56,34 @@ export type StoreProduct = {
   id:          string;
   name:        string;
   description: string | null;
+  /**
+   * L'accroche : une phrase, sous le nom.
+   *
+   * C'est ce que le Studio de rédaction appelle « Accroche », et son aide dit
+   * au marchand : « Elle s'affiche en tête de la fiche. » Elle ne s'y affichait
+   * pas — la colonne était écrite et jamais relue. Le §10 sous sa forme la plus
+   * coûteuse : le marchand paie des crédits pour un texte qui ne sort nulle
+   * part, et il ne peut pas le savoir.
+   */
+  short_description: string | null;
+  /**
+   * Les points forts : trois à cinq lignes courtes.
+   *
+   * Même histoire que l'accroche. Le Studio les demande — « lues sans faire
+   * défiler » — et la vitrine ne les lisait pas.
+   */
+  highlights:  string[];
+  /**
+   * Le titre et les deux lignes que Google affiche.
+   *
+   * Troisième et quatrième colonnes écrites par le Studio et jamais relues : la
+   * fiche envoyait son nom brut et sa description longue aux balises `<meta>`,
+   * pendant que le Studio comptait les caractères pour tenir dans 60 et 158 et
+   * avertissait « Trop long : Google coupera la fin. » Le score de santé
+   * reprochait même au marchand de ne pas les remplir (`missingSeo`).
+   */
+  seo_title:       string | null;
+  seo_description: string | null;
   price:       number;
   sale_price:  number | null;
   /**
@@ -299,7 +327,8 @@ export async function getBoughtTogetherIds(
 const PRODUCT_COLUMNS =
   'id, name, category, category_id, sale_price, purchase_price, compare_at_price, sku, tags, ' +
   'attributes, image_url, stock_quantity, currency, created_at, is_featured, allow_backorders, ' +
-  'is_published_to_store, store_description, enhanced_image_url, gallery_urls';
+  'is_published_to_store, store_description, store_short_description, store_highlights, ' +
+  'seo_title, seo_description, enhanced_image_url, gallery_urls';
 
 function mapProduct(p: any): StoreProduct {
   const price   = Number(p.sale_price ?? p.purchase_price ?? 0);
@@ -311,6 +340,18 @@ function mapProduct(p: any): StoreProduct {
     id:          p.id,
     name:        p.name,
     description: p.store_description ?? null,
+    short_description: p.store_short_description ?? null,
+    // `store_highlights` est un TEXT[] NOT NULL DEFAULT '{}' : le tableau vide
+    // est le cas normal, celui du produit dont personne n'a encore écrit le
+    // texte. Le filtre écarte les lignes vides qu'un import pourrait laisser —
+    // une pastille vide se verrait.
+    highlights:  Array.isArray(p.store_highlights)
+      ? p.store_highlights.filter(
+          (h: unknown): h is string => typeof h === 'string' && h.trim() !== '',
+        )
+      : [],
+    seo_title:       p.seo_title ?? null,
+    seo_description: p.seo_description ?? null,
     price,
     sale_price:  null, // le prix courant EST `price` ; voir `compare_at_price`
     // La retouche IA prime sur la photo brute, quand elle existe.
