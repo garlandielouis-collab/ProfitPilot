@@ -161,6 +161,22 @@ async function resolveStoreRewrite(request: NextRequest): Promise<NextResponse |
 
   if (APP_HOSTS.has(host) || host.endsWith('.vercel.app')) return null;
 
+  // ── Le développement local, sur N'IMPORTE QUEL port ───────────────────────
+  //
+  // `APP_HOSTS` ne connaissait que le port 3000. Or `next dev` prend le port
+  // suivant quand 3000 est occupé — et `.claude/launch.json` demande
+  // explicitement `autoPort`. Sur localhost:3001, l'hôte devenait donc un
+  // hôte INCONNU, et chaque requête partait chercher un domaine personnalisé
+  // chez Supabase : un aller-retour réseau de 2 s au pire, toutes les 30 s
+  // (la durée de cache d'un échec), sur chaque page de l'application.
+  //
+  // Une boucle locale n'est jamais un domaine personnalisé de marchand. On
+  // sort avant l'appel réseau, quel que soit le port. Les sous-domaines de
+  // vitrine en développement — « maboutique.localhost:3000 » — passent par la
+  // branche `.${ROOT_DOMAIN}` plus bas et ne sont pas concernés : leur hôte ne
+  // vaut pas exactement « localhost:<port> ».
+  if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) return null;
+
   const { pathname, search } = request.nextUrl;
 
   // Déjà sur la route de vitrine : ne pas réécrire une réécriture.

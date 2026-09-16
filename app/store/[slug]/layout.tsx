@@ -82,30 +82,33 @@ export default async function StoreLayout({ params, children }: Props) {
   const templateId = resolveTemplateId(store.template_id);
   const view       = toStoreView(store, { base: ctx.base, origin: ctx.origin, templateId });
 
-  // L'index de recherche : le catalogue déjà en cache, réduit aux champs que la
-  // recherche utilise. Le `loadCatalog` ci-dessous est le même appel que celui
-  // de la page d'accueil — il ne coûte donc pas une seconde lecture.
-  const catalog = await loadCatalog(store.business_id, {
-    sort: 'name',
-    limit: 200,
-    onlyPublished: ctx.theme.catalog.mode === 'selected',
-  });
+  // ── Les trois lectures, EN PARALLÈLE ──────────────────────────────────────
+  //
+  // Elles étaient enchaînées : catalogue, puis rayons, puis sections. Aucune
+  // des trois n'a besoin du résultat des deux autres — c'était donc trois
+  // allers-retours mis bout à bout au lieu d'un seul, sur le chemin critique
+  // de CHAQUE page de vitrine. Sur une connexion haïtienne, c'est le genre
+  // d'attente qui se compte en secondes, et elle se payait même quand les
+  // trois réponses étaient déjà en cache côté Supabase.
+  //
+  //   `loadCatalog`     l'index de recherche, le même appel mis en cache que
+  //                     celui de la page d'accueil — pas une seconde lecture.
+  //   `loadCategories`  les rayons de la navigation (§13) : sans eux,
+  //                     l'en-tête n'offre qu'un lien « Produits », ce qui est
+  //                     un sommaire, pas une navigation.
+  //   `loadSections`    ce que la page d'accueil rend vraiment, pour que le
+  //                     pied de page ne propose que des ancres qui existent.
+  const onlyPublished = ctx.theme.catalog.mode === 'selected';
+
+  const [catalog, navCategories, storedSections] = await Promise.all([
+    loadCatalog(store.business_id, { sort: 'name', limit: 200, onlyPublished }),
+    loadCategories(store.business_id, onlyPublished),
+    loadSections(slug, store.business_id),
+  ]);
 
   const searchIndex = catalog.map((p) => ({ ...p, images: [] }));
 
-  // Les rayons de la navigation. Une vraie navigation e-commerce (§13) mène aux
-  // collections ; sans eux, l'en-tête n'offrait qu'un lien « Produits », ce qui
-  // est un sommaire, pas une navigation. Même lecture que la page d'accueil,
-  // donc pas de requête supplémentaire.
-  const navCategories = await loadCategories(
-    store.business_id,
-    ctx.theme.catalog.mode === 'selected',
-  );
-
-  // Les sections de la page d'accueil, pour que le pied de page ne propose
-  // que des ancres qui existent chez CE marchand. Même lecture mise en cache
-  // que la page d'accueil : aucune requête supplémentaire.
-  const homeSections = resolveSections(templateId, await loadSections(slug, store.business_id))
+  const homeSections = resolveSections(templateId, storedSections)
     .filter((sec) => sec.enabled)
     .map((sec) => sec.key);
 
