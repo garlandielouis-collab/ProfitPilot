@@ -74,13 +74,25 @@ export function StorefrontShell({
             boutique éditoriale resterait celui d'un téléphone.
 
             Les valeurs, elles, restent dans `lib/storeDesign.ts` : cette règle
-            ne fait que promouvoir la variante large au-dessus de 768 pixels. */}
+            ne fait que promouvoir la variante large au-dessus de 768 pixels.
+
+            ── Pourquoi `!important` ──────────────────────────────────────────
+            Ces trois variables sont AUSSI posées dans l'attribut `style` du
+            même élément, par `designCssVars`. Une déclaration en ligne l'emporte
+            sur toute règle de feuille de style, media query comprise : sans
+            `!important`, la promotion ci-dessous ne s'appliquait jamais.
+
+            Mesuré sur une vitrine réelle en 1280 px avant correction :
+            `--st-h1` valait 34 px au lieu de 54, `--st-h2` 20 au lieu de 27 et
+            `--st-section-y` 44 au lieu de 72. Autrement dit, exactement ce que
+            le paragraphe ci-dessus dit vouloir éviter — tous les gabarits
+            rendaient leur échelle mobile sur grand écran, depuis toujours. */}
         <style dangerouslySetInnerHTML={{ __html: `
           @media (min-width: 768px) {
             .st-root {
-              --st-h1: var(--st-h1-lg);
-              --st-h2: var(--st-h2-lg);
-              --st-section-y: var(--st-section-y-lg);
+              --st-h1: var(--st-h1-lg) !important;
+              --st-h2: var(--st-h2-lg) !important;
+              --st-section-y: var(--st-section-y-lg) !important;
             }
           }
           @media (prefers-reduced-motion: reduce) {
