@@ -33,12 +33,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Minus, Plus, MessageCircle, Star, BellRing, Heart, Share2, Check, CalendarCheck } from 'lucide-react';
+import { Minus, Plus, MessageCircle, Star, BellRing, Heart, Share2, Check, CalendarCheck, ChevronDown } from 'lucide-react';
 import { useCart } from '../../../../../components/store/CartContext';
 import { useFavorites } from '../../../../../components/store/FavoritesContext';
 import { ProductGallery } from '../../../../../components/store/blocks/ProductGallery';
 import { AddToCartButton } from '../../../../../components/store/blocks/AddToCartButton';
 import { ProductAssurance } from '../../../../../components/store/blocks/ProductAssurance';
+import { PaymentMarks } from '../../../../../components/store/blocks/PaymentMarks';
 import { storeMoney } from '../../../../../components/store/format';
 import { trackStoreEvent } from '../../../../../components/store/blocks/TrackView';
 import { NotifyWhenAvailable } from '../../../../../components/store/blocks/NotifyWhenAvailable';
@@ -88,6 +89,12 @@ export function ProductDetailClient({
   const variants = Object.entries(product.attributes ?? {}).filter(
     ([, v]) => typeof v === 'string' && v.trim(),
   );
+
+  // Trois en bandeau, le reste replié. Trois parce que c'est ce qu'un bandeau
+  // tient sans se casser en deux lignes sur un téléphone — et parce qu'au
+  // quatrième argument, on ne lit plus, on balaie.
+  const headline = variants.slice(0, 3);
+  const rest     = variants.slice(3);
 
   const discount = product.compare_at_price !== null && product.compare_at_price > price
     ? Math.round((1 - price / product.compare_at_price) * 100)
@@ -223,10 +230,34 @@ export function ProductDetailClient({
         <div className="flex flex-col">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              {product.category && (
-                <p className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">
-                  {product.category}
-                </p>
+              {/* Le rayon, et l'étiquette quand il y en a une. La maquette pose
+                  une pastille au-dessus du titre ; la nôtre ne dit que ce qui
+                  est vrai — « Nouveau » vient de la case cochée par le
+                  marchand, et la remise du prix barré, pas d'un chiffre
+                  décidé ici. Une seule des deux paraît : deux pastilles côte à
+                  côte ne se lisent ni l'une ni l'autre. */}
+              {(product.category || product.is_new || discount !== null) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {product.category && (
+                    <p className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">
+                      {product.category}
+                    </p>
+                  )}
+                  {(discount !== null || product.is_new) && (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold uppercase"
+                      style={{
+                        letterSpacing: '0.06em',
+                        borderRadius:  'var(--st-radius-btn)',
+                        background:    discount !== null ? 'var(--st-accent)'   : 'var(--st-surface-2)',
+                        color:         discount !== null ? 'var(--st-accent-ink)' : 'var(--st-ink-2)',
+                        border:        discount !== null ? 'none' : '1px solid var(--st-border)',
+                      }}
+                    >
+                      {discount !== null ? `−${discount} %` : 'Nouveau'}
+                    </span>
+                  )}
+                </div>
               )}
 
               <h1
@@ -347,20 +378,69 @@ export function ProductDetailClient({
             </p>
           )}
 
-          {/* Les déclinaisons. Elles décrivent CETTE fiche : ProfitPilot gère un
+          {/* ── Ce que le produit a dans le ventre ──────────────────────────
+              Les déclinaisons décrivent CETTE fiche : ProfitPilot gère un
               produit par variante, une taille est donc un attribut de l'article
               et non un sélecteur. Les afficher comme un choix promettrait une
               bascule qui n'existe pas ; les afficher comme une caractéristique
-              dit la vérité et sert quand même à décider. */}
-          {variants.length > 0 && (
-            <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3">
-              {variants.map(([key, value]) => (
-                <div key={key} className="min-w-0">
-                  <dt className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">{key}</dt>
-                  <dd className="truncate text-[14px] font-medium text-[var(--st-ink)]">{value}</dd>
-                </div>
+              dit la vérité et sert quand même à décider.
+
+              La composition vient de la maquette, et elle vaut mieux que la
+              grille de paires qu'elle remplace : les trois premières
+              caractéristiques passent en bandeau, à hauteur d'œil, juste sous
+              la description — c'est là qu'on décide. Les suivantes vont dans un
+              « Détails du produit » replié, qui ne mange plus la place du
+              bouton d'achat sur un téléphone.
+
+              Rien n'est inventé : ces lignes sont les attributs saisis par le
+              marchand, dans son ordre et dans ses mots. */}
+          {headline.length > 0 && (
+            <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {headline.map(([key, value]) => (
+                <li
+                  key={key}
+                  className="flex items-start gap-2 px-3 py-2.5"
+                  style={{
+                    border:       '1px solid var(--st-border)',
+                    borderRadius: 'var(--st-radius-btn)',
+                  }}
+                >
+                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--st-ink-3)]" strokeWidth={2} aria-hidden />
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase leading-tight text-[var(--st-ink-3)]" style={{ letterSpacing: '0.08em' }}>
+                      {key}
+                    </p>
+                    <p className="text-[13px] font-semibold leading-snug text-[var(--st-ink)]">{value}</p>
+                  </div>
+                </li>
               ))}
-            </dl>
+            </ul>
+          )}
+
+          {rest.length > 0 && (
+            // `<details>` natif : il s'ouvre sans JavaScript et se replie au
+            // clavier, comme la foire aux questions de l'accueil.
+            <details
+              className="group mt-4"
+              style={{ borderTop: '1px solid var(--st-border)' }}
+            >
+              <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 text-[14px] font-semibold text-[var(--st-ink)]">
+                Détails du produit
+                <ChevronDown
+                  className="h-4 w-4 flex-shrink-0 text-[var(--st-ink-3)] transition group-open:rotate-180"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              </summary>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 pb-4">
+                {rest.map(([key, value]) => (
+                  <div key={key} className="min-w-0">
+                    <dt className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">{key}</dt>
+                    <dd className="truncate text-[14px] font-medium text-[var(--st-ink)]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
           )}
 
           {!outOfStock && !booking && (
@@ -486,10 +566,15 @@ export function ProductDetailClient({
             )}
           </div>
 
+          {/* Les marques de paiement, là où l'acheteur se demande comment il
+              va payer : juste sous le bouton, avant la réassurance. Elles ne
+              montrent que ce que la caisse encaisse — la rangée est vide et
+              disparaît si le marchand n'a rien activé. */}
+          <PaymentMarks methods={paymentMethods} className="mt-5" />
+
           <ProductAssurance
             theme={store.theme}
             shippingModes={shippingModes}
-            paymentMethods={paymentMethods}
             contactPhone={store.contactPhone}
             currency={store.currency}
           />

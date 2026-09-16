@@ -51,7 +51,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ShoppingBag, Menu, X, Search, Heart, Phone, Mail, CalendarCheck } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search, Heart, Phone, Mail, CalendarCheck, MessageCircle } from 'lucide-react';
 import { useCart } from './CartContext';
 import { useFavorites } from './FavoritesContext';
 import { useStorefrontUI } from './StorefrontUI';
@@ -60,6 +60,7 @@ import { designFor } from '../../lib/storeDesign';
 import { alreadyBroken } from '../../lib/storeImage';
 import { collectionHref } from '../../lib/storeTheme';
 import { resolveOrderPhone, buildBookingLink } from '../../lib/storeWhatsApp';
+import { buildWhatsAppLink } from '../../lib/whatsappReport';
 import type { StoreProduct, StoreCategory, StoreView } from './types';
 
 export function StorefrontHeader({
@@ -150,6 +151,54 @@ export function StorefrontHeader({
         {favorites.count}
       </span>
     </Link>
+  ) : null;
+
+  /**
+   * WhatsApp, dans l'en-tête.
+   *
+   * Les maquettes le posent entre la recherche et le panier, et elles ont
+   * raison pour ici : en Haïti, la question qui précède l'achat — une taille,
+   * une couleur, « vous livrez à Delmas ? » — ne part pas par courriel. Elle
+   * part par WhatsApp, et si le bouton n'est pas là au moment où elle se pose,
+   * elle ne part pas du tout : le visiteur ferme la page.
+   *
+   * Il n'apparaît qu'à deux conditions, toutes deux vérifiables :
+   *
+   *   — le marchand a un numéro (celui du thème, de la boutique, ou son
+   *     numéro de contact) ; sinon le bouton ouvrirait une conversation avec
+   *     personne ;
+   *   — le créneau est libre, c'est-à-dire `navCta: 'none'`. Chez un
+   *     prestataire, « Prendre rendez-vous » occupe déjà cette place et vaut
+   *     mieux : c'est la conversion du métier, pas une conversation.
+   *
+   * Le vert est celui de WhatsApp, pas celui du gabarit. C'est la seule
+   * couleur de la vitrine qui n'obéit pas au thème, et c'est volontaire : ce
+   * bouton n'est reconnu que par sa couleur — repeint en bordeaux sur un
+   * gabarit Luxe, il devient une icône de plus que personne ne lit.
+   */
+  const waNumber = resolveOrderPhone(
+    store.theme.whatsapp.number,
+    store.whatsappPhone,
+    store.contactPhone,
+  );
+
+  const WhatsAppButton = design.navCta === 'none' && waNumber ? (
+    <a
+      // Le même message que l'entrée WhatsApp du socle mobile : le marchand
+      // reçoit la même phrase, quel que soit le bouton pressé.
+      href={buildWhatsAppLink(
+        waNumber,
+        store.theme.whatsapp.greeting
+          || `Bonjour ${store.name}, j'ai une question sur un produit.`,
+      )}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Écrire à la boutique sur WhatsApp"
+      className="flex h-11 w-11 items-center justify-center transition hover:brightness-95"
+      style={{ borderRadius: 'var(--st-radius-btn)', background: '#25D366', color: '#FFFFFF' }}
+    >
+      <MessageCircle className="h-5 w-5" strokeWidth={2} aria-hidden />
+    </a>
   ) : null;
 
   // ── Le bouton de l'en-tête (§34) ────────────────────────────────────────
@@ -331,6 +380,7 @@ export function StorefrontHeader({
                   </Link>
                 )}
                 {FavoritesButton}
+                {WhatsAppButton}
                 {CartButton}
                 {NavCta}
               </div>
@@ -356,6 +406,7 @@ export function StorefrontHeader({
 
               <div className="ml-auto flex items-center gap-1 lg:ml-2">
                 {FavoritesButton}
+                {WhatsAppButton}
                 {CartButton}
                 {NavCta}
                 {MenuButton}

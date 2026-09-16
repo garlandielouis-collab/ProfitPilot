@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { zipSync, strToU8 } from 'fflate';
 import { getSupabaseServer } from '../../../../lib/supabaseServerClient';
 import { getSupabaseService } from '../../../../lib/supabaseServiceClient';
+import { offeredPayments, PAYMENT_LABEL } from '../../../../lib/storePayments';
 
 // ── Generate the static store HTML ───────────────────────────────────────────
 
@@ -97,9 +98,12 @@ function generateStoreHTML(settings: any, products: any[]): string {
     </div>`;
   }).join('\n');
 
-  const paymentMethods = (settings.payment_methods ?? ['cash']).map((m: string) => {
-    const labels: Record<string, string> = { cash: '💵 Paiement à la livraison', moncash: '📱 MonCash', natcash: '📱 NatCash', card: '💳 Carte bancaire' };
-    return `<span style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:4px 12px;font-size:.8rem;color:#374151;margin:4px;">${esc(labels[m] ?? m)}</span>`;
+  // Les moyens réellement encaissés, et dans les mots de la caisse : un site
+  // exporté qui annonce « Carte bancaire » envoie l'acheteur vers un paiement
+  // qui n'existe nulle part.
+  const paymentMethods = offeredPayments(settings.payment_methods ?? ['cash']).map((m) => {
+    const icon = m === 'cash' ? '💵' : '📱';
+    return `<span style="display:inline-block;background:#f1f5f9;border-radius:8px;padding:4px 12px;font-size:.8rem;color:#374151;margin:4px;">${esc(`${icon} ${PAYMENT_LABEL[m]}`)}</span>`;
   }).join('');
 
   const shippingModes = (settings.shipping_modes ?? []).map((m: any) =>

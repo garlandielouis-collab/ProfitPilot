@@ -14,7 +14,6 @@
 // Chaque ligne d'ici vient donc d'une donnée réelle :
 //
 //   la livraison        des modes de livraison saisis (`shipping_modes`)
-//   le paiement         des moyens réellement activés (`payment_methods`)
 //   le seuil offert     du réglage `freeShipping` du thème
 //   le support          du téléphone de contact de la boutique
 //   les retours, la garantie, le reste  des badges que le marchand a écrits
@@ -24,7 +23,7 @@
 // découvrirait le jour où un client le réclame.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Truck, Shield, RefreshCw, Phone, CreditCard, Clock, Banknote } from 'lucide-react';
+import { Truck, Shield, RefreshCw, Phone, CreditCard, Clock } from 'lucide-react';
 import { storeMoney } from '../format';
 import type { ThemeConfig } from '../../../lib/storeTheme';
 import type { ShippingMode } from '../../../app/actions/store-public';
@@ -38,21 +37,13 @@ const BADGE_ICONS = {
   clock:   Clock,
 } as const;
 
-const PAYMENT_LABELS: Record<string, string> = {
-  cash:    'Paiement à la livraison',
-  moncash: 'MonCash',
-  natcash: 'NatCash',
-  card:    'Carte bancaire',
-};
-
 type Line = { Icon: typeof Truck; label: string; note?: string };
 
 export function ProductAssurance({
-  theme, shippingModes, paymentMethods, contactPhone, currency,
+  theme, shippingModes, contactPhone, currency,
 }: {
   theme:          ThemeConfig;
   shippingModes:  ShippingMode[];
-  paymentMethods: string[];
   contactPhone:   string | null;
   currency:       string;
 }) {
@@ -75,13 +66,13 @@ export function ProductAssurance({
     });
   }
 
-  if (paymentMethods.length > 0) {
-    lines.push({
-      Icon:  paymentMethods.includes('cash') ? Banknote : CreditCard,
-      label: 'Paiement',
-      note:  paymentMethods.map((m) => PAYMENT_LABELS[m] ?? m).join(' · '),
-    });
-  }
+  // Le paiement ne figure PLUS ici : `PaymentMarks`, juste au-dessus, le dit en
+  // marques reconnaissables plutôt qu'en énumération. Les deux ensemble
+  // répétaient la même phrase à dix pixels d'intervalle.
+  //
+  // La liste venait d'ailleurs d'une table locale qui contenait « Carte
+  // bancaire » — un moyen qu'aucune passerelle n'encaisse. La fiche promettait
+  // donc un paiement que la caisse refusait à l'étape suivante (§10).
 
   if (contactPhone) {
     lines.push({ Icon: Phone, label: 'Une question ?', note: contactPhone });

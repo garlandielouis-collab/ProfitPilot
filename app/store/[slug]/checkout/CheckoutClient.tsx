@@ -31,20 +31,7 @@ import { designFor } from '../../../../lib/storeDesign';
 import { buildWhatsAppOrderLink, resolveOrderPhone } from '../../../../lib/storeWhatsApp';
 import { forgetPendingOrder, readPendingOrder, rememberPendingOrder } from '../confirmation/pendingOrder';
 import { unwrap, screenMessage  } from '../../../../lib/actionResult';
-
-/**
- * Les moyens de paiement que ce tunnel sait réellement encaisser.
- *
- * Pas de carte : aucune passerelle carte n'existe. Proposée, elle faisait
- * partir la commande comme un paiement à la livraison sans jamais demander de
- * carte — l'acheteur croyait avoir payé. Une valeur `card` encore enregistrée
- * dans les réglages d'une boutique est donc ignorée ici.
- */
-const PAYMENT_LABELS: Record<string, string> = {
-  cash:    'Paiement à la livraison',
-  moncash: 'MonCash',
-  natcash: 'NatCash',
-};
+import { offeredPayments, PAYMENT_LABEL } from '../../../../lib/storePayments';
 
 /**
  * Ce que l'acheteur lit quand une passerelle le renvoie ici en échec
@@ -90,10 +77,12 @@ export function CheckoutClient({
   // Un panier qui ne contient QUE des lots n'est pas un panier vide.
   const empty = items.length === 0 && bundles.length === 0;
 
-  // Les réglages de la boutique, réduits à ce qui s'encaisse vraiment.
-  const offered = paymentMethods.filter((m) =>
-    Object.prototype.hasOwnProperty.call(PAYMENT_LABELS, m),
-  );
+  // Les réglages de la boutique, réduits à ce qui s'encaisse vraiment : pas de
+  // carte, aucune passerelle carte n'existe. Proposée, elle faisait partir la
+  // commande comme un paiement à la livraison sans jamais demander de carte —
+  // l'acheteur croyait avoir payé. La liste est celle de `lib/storePayments.ts`,
+  // que la fiche produit et la page d'accueil lisent aussi.
+  const offered = offeredPayments(paymentMethods);
 
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
@@ -527,7 +516,7 @@ export function CheckoutClient({
                 name="payment"
                 checked={form.payment === method}
                 onSelect={() => setForm({ ...form, payment: method })}
-                label={PAYMENT_LABELS[method]}
+                label={PAYMENT_LABEL[method]}
               />
             ))}
             {/* Une boutique qui n'a coché que la carte n'a, en vérité, aucun

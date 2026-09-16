@@ -38,6 +38,7 @@ import {
 import { Section, SectionHeader } from './Shell';
 import { storeMoney } from '../format';
 import { sectionTitle } from '../../../lib/storeSections';
+import { offeredPayments, PAYMENT_LABEL, PAYMENT_NOTE } from '../../../lib/storePayments';
 import type { SectionProps } from './types';
 import type { StoreView } from '../types';
 
@@ -108,20 +109,13 @@ export function ShippingSection({ store, section, design }: SectionProps) {
 /**
  * Les modes de paiement du checkout, annoncés dès la page d'accueil.
  *
- * Les libellés sont les mêmes qu'à la caisse (`CheckoutClient`) : un visiteur
- * qui a lu « Paiement à la livraison » ici doit retrouver ce mot-là au moment
- * de payer, sans se demander si c'est la même chose.
+ * Les libellés viennent de `lib/storePayments.ts`, donc de la même table que la
+ * caisse : un visiteur qui a lu « Paiement à la livraison » ici retrouve ce
+ * mot-là au moment de payer, sans se demander si c'est la même chose.
+ *
+ * La table vivait ici aussi, et elle offrait « Carte Visa », « Virement » et
+ * « Chèque » : trois tuiles pour des moyens qu'aucune passerelle n'encaisse.
  */
-const PAYMENT_LABELS: Record<string, { label: string; note: string }> = {
-  cash:     { label: 'Paiement à la livraison', note: 'Vous payez en recevant' },
-  moncash:  { label: 'MonCash',                 note: 'Paiement mobile Digicel' },
-  natcash:  { label: 'NatCash',                 note: 'Paiement mobile Natcom' },
-  visa:     { label: 'Carte Visa',              note: 'Crédit ou débit' },
-  card:     { label: 'Carte bancaire',          note: 'Crédit ou débit' },
-  transfer: { label: 'Virement',                note: 'Depuis votre banque' },
-  check:    { label: 'Chèque',                  note: '' },
-};
-
 function paymentIcon(method: string) {
   if (method === 'cash')     return Banknote;
   if (method === 'moncash' || method === 'natcash') return Smartphone;
@@ -132,10 +126,11 @@ export function PaymentsSection({ store, section, design }: SectionProps) {
   const p = store.theme.payments;
   if (!p.enabled) return null;
 
-  // Un mode inconnu du libellé — une valeur ajoutée en base plus tard — n'est
-  // pas affiché sous son identifiant technique : « bank_transfer » sur une
-  // vitrine ne veut rien dire pour un acheteur.
-  const methods = store.paymentMethods.filter((m) => PAYMENT_LABELS[m]);
+  // Un mode inconnu — une valeur ajoutée en base plus tard, ou une valeur morte
+  // laissée par un ancien réglage — n'est pas affiché : ni sous son identifiant
+  // technique, qui ne veut rien dire pour un acheteur, ni sous un joli libellé
+  // pour un paiement que la caisse refusera.
+  const methods = offeredPayments(store.paymentMethods);
   if (methods.length === 0 && !p.note.trim()) return null;
 
   const title = sectionTitle(section, store.templateId);
@@ -148,7 +143,8 @@ export function PaymentsSection({ store, section, design }: SectionProps) {
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {methods.map((method) => {
             const Icon = paymentIcon(method);
-            const { label, note } = PAYMENT_LABELS[method];
+            const label = PAYMENT_LABEL[method];
+            const note  = PAYMENT_NOTE[method];
             return (
               <li
                 key={method}

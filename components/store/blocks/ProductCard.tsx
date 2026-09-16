@@ -245,9 +245,20 @@ export function ProductCard({
           </span>
         )}
 
-        {/* Le favori du rayon mode. Toujours visible : caché au survol, il
-            n'existe pas sur un téléphone, où se fait l'essentiel du trafic. */}
-        {skin === 'fashion' && (
+        {/* Le favori. Toujours visible : caché au survol, il n'existe pas sur un
+            téléphone, où se fait l'essentiel du trafic.
+
+            Il n'était offert que sur la peau mode. Les favoris ont pourtant
+            leur page (`/favoris`) et leur compteur dans l'en-tête sur TOUTES
+            les vitrines : sur les huit autres peaux, rien ne les alimentait —
+            une page que le visiteur ne pouvait pas remplir.
+
+            Trois peaux restent sans cœur, et pour la même raison : elles ne
+            vendent pas un objet qu'on met de côté. On ne garde pas une séance
+            de coaching en favori, ni un lot de trente poulets ; et la peau
+            resserrée des gros catalogues n'a pas la place d'un bouton de plus
+            sans manger la photo. */}
+        {skin !== 'service' && skin !== 'wholesale' && skin !== 'compact' && (
           <button
             type="button"
             onClick={handleFavorite}
@@ -483,7 +494,13 @@ export function ProductCard({
               // courses chez un éleveur, on passe une commande.
               <><Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Commander</>
             ) : (
-              <><Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Ajouter</>
+              // Le cartable, pas le « plus ». C'est l'icône que porte déjà le
+              // bouton au survol des peaux éditoriales, celle du panier dans
+              // l'en-tête, et celle des maquettes : trois endroits où le même
+              // geste doit porter le même signe. Le libellé reste court —
+              // « Ajouter au panier » se casse en deux lignes dans une carte de
+              // grille à deux colonnes sur un téléphone de 360 pixels.
+              <><ShoppingBag className="h-4 w-4" strokeWidth={2} aria-hidden /> Ajouter</>
             )}
           </button>
         )}
