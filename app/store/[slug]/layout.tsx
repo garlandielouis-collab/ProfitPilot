@@ -15,7 +15,10 @@
 
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { loadStore, loadCatalog, loadCategories, buildStorefrontContext } from '../../../lib/storefrontData';
+import {
+  loadStore, loadCatalog, loadCategories, loadSections, buildStorefrontContext,
+} from '../../../lib/storefrontData';
+import { resolveSections } from '../../../lib/storeSections';
 import { storePublicUrl } from '../../../lib/storeTheme';
 import { toStoreView } from '../../../components/store/types';
 import { resolveTemplateId } from '../../../components/store/templates/registry';
@@ -99,6 +102,13 @@ export default async function StoreLayout({ params, children }: Props) {
     ctx.theme.catalog.mode === 'selected',
   );
 
+  // Les sections de la page d'accueil, pour que le pied de page ne propose
+  // que des ancres qui existent chez CE marchand. Même lecture mise en cache
+  // que la page d'accueil : aucune requête supplémentaire.
+  const homeSections = resolveSections(templateId, await loadSections(slug, store.business_id))
+    .filter((sec) => sec.enabled)
+    .map((sec) => sec.key);
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Store',
@@ -120,6 +130,7 @@ export default async function StoreLayout({ params, children }: Props) {
         businessId={store.business_id}
         searchIndex={searchIndex}
         categories={navCategories}
+        homeSections={homeSections}
       >
         {children}
       </StorefrontShell>

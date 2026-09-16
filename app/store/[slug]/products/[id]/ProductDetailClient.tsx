@@ -39,6 +39,7 @@ import { useFavorites } from '../../../../../components/store/FavoritesContext';
 import { ProductGallery } from '../../../../../components/store/blocks/ProductGallery';
 import { AddToCartButton } from '../../../../../components/store/blocks/AddToCartButton';
 import { ProductAssurance } from '../../../../../components/store/blocks/ProductAssurance';
+import { ProductPanels } from '../../../../../components/store/blocks/ProductPanels';
 import { storeMoney } from '../../../../../components/store/format';
 import { trackStoreEvent } from '../../../../../components/store/blocks/TrackView';
 import { NotifyWhenAvailable } from '../../../../../components/store/blocks/NotifyWhenAvailable';
@@ -215,9 +216,22 @@ export function ProductDetailClient({
         <span className="truncate text-[var(--st-ink-2)]">{product.name}</span>
       </nav>
 
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-        {/* ── Visuels ── */}
-        <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
+      {/* `items-start` est ce qui rend la colonne collante possible : sans lui,
+          la grille étire les deux colonnes à la même hauteur et une position
+          `sticky` n'a plus de course à faire. */}
+      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+        {/* ── Visuels ──
+            Collants sur grand écran. La colonne de droite est presque toujours
+            la plus longue — déclinaisons, réassurance, volets — et la galerie
+            laissait donc quatre cents pixels de blanc sous elle pendant qu'on
+            lisait la politique de retour. Le produit disparaissait de l'écran
+            au moment précis où le visiteur pesait sa décision.
+            `top` dégage l'en-tête collant ; sur téléphone la galerie reste en
+            flux, une image qui suit le doigt sur toute la page mangerait la
+            moitié de l'écran. */}
+        <div className="lg:sticky lg:top-[84px]">
+          <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
+        </div>
 
         {/* ── Informations ── */}
         <div className="flex flex-col">
@@ -491,6 +505,17 @@ export function ProductDetailClient({
             shippingModes={shippingModes}
             paymentMethods={paymentMethods}
             contactPhone={store.contactPhone}
+            currency={store.currency}
+          />
+
+          {/* Le détail, replié : le tarif de chaque zone, la politique de
+              retour, les conditions de paiement. La réassurance ci-dessus
+              répond en trois lignes ; ceci répond pour de bon, sans allonger
+              la page de celui qui a déjà décidé. */}
+          <ProductPanels
+            theme={store.theme}
+            shippingModes={shippingModes}
+            paymentMethods={paymentMethods}
             currency={store.currency}
           />
         </div>

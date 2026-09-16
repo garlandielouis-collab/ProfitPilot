@@ -18,6 +18,12 @@ const publicRoutes = [
   '/auth/accept-invitation',
   '/api/invitations',
   '/store',
+  // L'atelier des gabarits : un rendu de démonstration des gabarits métier,
+  // sans base de données, pour celui qui les fabrique. La PAGE elle-même
+  // répond 404 hors développement — l'ouvrir ici ne l'expose donc pas en
+  // production, cela évite seulement que `next dev` la renvoie vers l'écran
+  // de connexion.
+  ...(process.env.NODE_ENV === 'production' ? [] : ['/atelier']),
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════

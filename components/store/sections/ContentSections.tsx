@@ -63,22 +63,6 @@ import type { SectionProps } from './types';
 import type { DesignProfile } from '../../../lib/storeDesign';
 import type { StoreView } from '../types';
 
-// ── Bandeau d'annonce ───────────────────────────────────────────────────────
-
-export function AnnouncementSection({ store }: SectionProps) {
-  const { announcement } = store.theme;
-  if (!announcement.enabled || !announcement.text.trim()) return null;
-
-  return (
-    <div
-      className="px-4 py-2.5 text-center text-[12px] font-medium tracking-wide"
-      style={{ background: 'var(--st-primary)', color: 'var(--st-primary-ink)' }}
-    >
-      {announcement.text}
-    </div>
-  );
-}
-
 // ── Bannière ────────────────────────────────────────────────────────────────
 
 /** Le titre de bannière : sa taille et sa casse viennent du gabarit. */
@@ -523,6 +507,23 @@ export function BenefitsSection({ store }: SectionProps) {
  * L'image d'un rayon n'est pas téléversée par le marchand : c'est la photo d'un
  * de ses produits de ce rayon. Une vraie, donc, et une de moins à lui demander.
  */
+/**
+ * Combien de vignettes montrer, et sur combien de colonnes, pour que la
+ * dernière rangée soit pleine.
+ *
+ * Le surplus n'est pas perdu : « Tout le catalogue » est juste au-dessus, et
+ * une vignette de rayon n'est pas une information — c'est une porte. Mieux
+ * vaut six portes alignées que sept dont une flotte.
+ */
+function tileLayout<T>(all: T[]): { shown: T[]; cols: string } {
+  const n = all.length;
+  if (n >= 8) return { shown: all.slice(0, 8), cols: 'md:grid-cols-4' };
+  if (n >= 6) return { shown: all.slice(0, 6), cols: 'md:grid-cols-3' };
+  if (n >= 4) return { shown: all.slice(0, 4), cols: 'md:grid-cols-4' };
+  if (n === 3) return { shown: all, cols: 'md:grid-cols-3' };
+  return { shown: all, cols: 'md:grid-cols-2' };
+}
+
 export function CategoriesSection({ store, section, data, design }: SectionProps) {
   if (!store.theme.catalog.showCategories || data.categories.length === 0) return null;
 
@@ -648,6 +649,17 @@ export function CategoriesSection({ store, section, data, design }: SectionProps
     );
   }
 
+  // ── Des rangées COMPLÈTES ───────────────────────────────────────────────
+  //
+  // Une grille de quatre colonnes nourrie de cinq rayons laisse une vignette
+  // seule sur la deuxième rangée et un trou large de trois colonnes à côté.
+  // Ce trou est ce qui fait « page générée » : personne ne dessine ça, il
+  // arrive tout seul quand on écrit `grid-cols-4` et qu'on espère.
+  //
+  // On choisit donc le nombre de colonnes qui DIVISE ce qu'on montre, plutôt
+  // que de montrer ce qui reste d'un nombre de colonnes fixé d'avance.
+  const tiles = tileLayout(categories);
+
   return (
     <Section design={design} label={title}>
       <SectionHeader
@@ -660,12 +672,17 @@ export function CategoriesSection({ store, section, data, design }: SectionProps
 
       <nav aria-label="Rayons">
         <ul
-          className="grid grid-cols-2 md:grid-cols-4"
+          className={`grid grid-cols-2 ${tiles.cols}`}
           style={{ gap: 'var(--st-grid-gap)' }}
         >
-          {categories.slice(0, 8).map((c) => {
+          {tiles.shown.map((c, i) => {
+            // La dernière vignette d'un nombre impair occupe les deux colonnes
+            // du téléphone : sinon elle reste seule à gauche, avec un vide de
+            // la même taille à côté. Sur grand écran le problème ne se pose
+            // pas — `tiles.cols` a déjà été choisi pour diviser le compte.
+            const spanMobile = tiles.shown.length % 2 === 1 && i === tiles.shown.length - 1;
             return (
-              <li key={c.id}>
+              <li key={c.id} className={spanMobile ? 'col-span-2 md:col-span-1' : undefined}>
                 <Link
                   href={collectionHref(store.base, c)}
                   className="group block"
@@ -829,7 +846,7 @@ export function FaqSection({ store, section, design }: SectionProps) {
   if (!faq.enabled || items.length === 0) return null;
 
   return (
-    <Section design={design} label={faq.title}>
+    <Section design={design} label={faq.title} id="faq">
       <div className="mx-auto max-w-3xl">
         <SectionHeader
           design={design}

@@ -215,7 +215,14 @@ export function StorefrontHeader({
   const Brand = (
     <Link
       href={store.base || '/'}
-      className="flex min-h-[44px] min-w-0 items-center gap-2"
+      // `shrink-0` plutôt que `min-w-0` : dans une barre chargée — cinq rayons,
+      // la recherche, le panier, et le numéro de l'éleveur — c'était le NOM DE
+      // LA BOUTIQUE qui cédait le premier, et l'en-tête affichait
+      // « HaitianFa… » à côté de cinq rayons entiers. La marque est la seule
+      // chose de cette barre qu'on ne peut pas retrouver ailleurs sur la page.
+      // Le plafond de largeur garde la main sur l'autre extrême : un nom de
+      // soixante caractères ne prend pas la barre à lui seul, il se coupe.
+      className="flex min-h-[44px] max-w-[52%] shrink-0 items-center gap-2 lg:max-w-[32%]"
       aria-label={store.name}
     >
       {/* Le logo, s'il charge. Sinon le nom.
@@ -350,7 +357,11 @@ export function StorefrontHeader({
                 <SmartSearch
                   store={store}
                   products={searchIndex}
-                  className="ml-auto hidden w-full max-w-xs lg:block"
+                  // `min-w-0` : c'est elle qui absorbe le resserrement,
+                  // maintenant que la marque ne le fait plus. Un champ de
+                  // recherche rétréci reste un champ de recherche ; un nom de
+                  // boutique tronqué n'est plus un nom.
+                  className="ml-auto hidden w-full min-w-0 max-w-xs lg:block"
                 />
               )}
 

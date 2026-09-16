@@ -28,6 +28,7 @@ import { StorefrontDock } from './StorefrontDock';
 import { StorefrontUIProvider } from './StorefrontUI';
 import { CartDrawer } from './blocks/CartDrawer';
 import type { StoreView, StoreProduct, StoreCategory } from './types';
+import type { SectionKey } from '../../lib/storeSections';
 
 const inter = Inter({
   subsets:  ['latin'],
@@ -46,7 +47,7 @@ const playfair = Playfair_Display({
 });
 
 export function StorefrontShell({
-  view, businessId, searchIndex, categories, children, dockMode,
+  view, businessId, searchIndex, categories, children, dockMode, homeSections,
 }: {
   view:        StoreView;
   businessId:  string;
@@ -59,6 +60,12 @@ export function StorefrontShell({
    * l'écran. Voir `StorefrontDock`.
    */
   dockMode?:   'fixed' | 'static';
+  /**
+   * Les sections rendues par la page d'accueil de cette vitrine, pour que le
+   * pied de page ne propose que des ancres qui existent. Voir
+   * `StorefrontFooter`.
+   */
+  homeSections?: SectionKey[];
 }) {
   const design = designFor(view.templateId);
 
@@ -83,6 +90,26 @@ export function StorefrontShell({
               --st-section-y: var(--st-section-y-lg);
             }
           }
+          /* Les groupes du pied de page : accordéons au téléphone, colonnes
+             dépliées au-dessus de 768 px. Le repliement d'un élément details
+             vient de la feuille de style du navigateur, qu'une règle d'auteur
+             remplace ; content-visibility couvre les moteurs récents, qui
+             masquent le contenu par un pseudo-élément plutôt que par display.
+             Pas une ligne de JavaScript : un pied de page qui attend un
+             bundle pour montrer ses liens ne les montre pas. */
+          @media (min-width: 768px) {
+            .st-root .st-fgroup > .st-fbody { display: block !important; }
+            .st-root .st-fgroup > summary { pointer-events: none; }
+            .st-root .st-fgroup::details-content {
+              content-visibility: visible !important;
+              block-size: auto !important;
+            }
+          }
+          .st-root .st-fgroup > summary::-webkit-details-marker { display: none; }
+          /* Une ancre suivie sous un en-tête collant dépose le titre DERRIÈRE
+             la barre : le visiteur arrive au bon endroit et croit s'être
+             trompé. La marge de défilement rend la hauteur de l'en-tête. */
+          .st-root section[id] { scroll-margin-top: 84px; }
           @media (prefers-reduced-motion: reduce) {
             .st-root *, .st-root *::before, .st-root *::after {
               animation-duration: 0.01ms !important;
@@ -101,9 +128,28 @@ export function StorefrontShell({
             fontFamily: 'var(--st-font-body)',
           }}
         >
+          {/* ── Le bandeau d'annonce ──────────────────────────────────────
+              Au-dessus de l'en-tête, parce que l'en-tête est `sticky top-0`.
+              Tant que le bandeau était une section, il se posait dans
+              `<main>`, donc SOUS la barre collante, et glissait dessous dès
+              le premier défilement — la phrase que le marchand a écrite pour
+              être lue en premier était la première à disparaître.
+
+              Il défile avec la page, volontairement : une annonce est un
+              contexte d'arrivée, pas une barre d'outils. C'est l'en-tête —
+              recherche, panier — qui doit rester sous la main. */}
+          {view.theme.announcement.enabled && view.theme.announcement.text.trim() && (
+            <div
+              className="px-4 py-2.5 text-center text-[12px] font-medium tracking-wide"
+              style={{ background: 'var(--st-primary)', color: 'var(--st-primary-ink)' }}
+            >
+              {view.theme.announcement.text}
+            </div>
+          )}
+
           <StorefrontHeader store={view} searchIndex={searchIndex} categories={categories} />
           <main className="flex-1">{children}</main>
-          <StorefrontFooter store={view} categories={categories} />
+          <StorefrontFooter store={view} categories={categories} homeSections={homeSections} />
           <CartDrawer store={view} />
 
           {/* Le socle mobile (§4). Il vient APRÈS le pied de page : la cale

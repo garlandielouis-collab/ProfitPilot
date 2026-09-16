@@ -198,6 +198,7 @@ export default async function ApercuPage({ params }: Props) {
         searchIndex={catalog.map((p) => ({ ...p, images: [] }))}
         categories={categories}
         dockMode="static"
+        homeSections={home.sections.filter((sec) => sec.enabled).map((sec) => sec.key)}
       >
         <SectionRenderer store={view} data={home.data} sections={home.sections} />
         {/* La barre du bas recouvre la fin de la page : sans cette réserve, le

@@ -439,53 +439,63 @@ export function ProductCard({
             qui y mène, et un bouton posé dans un lien donne au clavier deux
             arrêts pour une seule destination. */}
         {booking && (
-          <span
-            className="mt-auto flex w-full min-h-[44px] items-center justify-center gap-2 text-[14px] font-semibold transition group-hover:brightness-95"
-            style={{
-              marginTop:    '10px',
-              borderRadius: 'var(--st-radius-btn)',
-              background:   'var(--st-accent)',
-              color:        'var(--st-accent-ink)',
-            }}
-          >
-            <CalendarCheck className="h-4 w-4" strokeWidth={2.2} aria-hidden />
-            Réserver
-          </span>
+          // `mt-auto` sur l'ENVELOPPE, jamais sur le bouton : une marge posée
+          // dans l'attribut `style` l'emporte sur la classe, et c'est
+          // exactement ce qui décalait les boutons d'une carte à l'autre.
+          <div className="mt-auto w-full pt-2.5">
+            <span
+              className="flex min-h-[44px] w-full items-center justify-center gap-2 text-[14px] font-semibold transition group-hover:brightness-95"
+              style={{
+                borderRadius: 'var(--st-radius-btn)',
+                background:   'var(--st-accent)',
+                color:        'var(--st-accent-ink)',
+              }}
+            >
+              <CalendarCheck className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+              Réserver
+            </span>
+          </div>
         )}
 
         {/* L'action permanente, pleine largeur, sous le prix. C'est le geste que
             la carte doit provoquer — sauf sur les peaux où il vit au survol, et
             sauf sur la prestation, qui se réserve au lieu de s'ajouter. */}
         {!d.hoverAction && !booking && (
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={outOfStock}
-            aria-label={`Ajouter ${product.name} au panier`}
-            className={[
-              'mt-auto flex w-full items-center justify-center gap-2 pt-0 text-[14px] font-semibold transition',
-              skin === 'compact' ? 'min-h-[40px]' : 'min-h-[44px]',
-              outOfStock ? 'cursor-not-allowed' : 'hover:brightness-95 active:brightness-90',
-            ].join(' ')}
-            style={{
-              marginTop:    '10px',
-              borderRadius: 'var(--st-radius-btn)',
-              background:   outOfStock ? 'var(--st-surface-2)' : 'var(--st-accent)',
-              color:        outOfStock ? 'var(--st-ink-3)' : 'var(--st-accent-ink)',
-            }}
-          >
-            {outOfStock ? (
-              'Indisponible'
-            ) : justAdded ? (
-              <><Check className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Ajouté</>
-            ) : skin === 'wholesale' ? (
-              // « Commander » plutôt qu'« Ajouter » : on ne fait pas ses
-              // courses chez un éleveur, on passe une commande.
-              <><Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Commander</>
-            ) : (
-              <><Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Ajouter</>
-            )}
-          </button>
+          // Même enveloppe que ci-dessus, et pour la même raison : c'est elle
+          // qui colle le bouton au bas de la carte. Sans elle, une carte dont
+          // le stock est bas — donc qui porte une ligne de plus — repousse son
+          // bouton de vingt pixels, et la rangée entière perd sa ligne de
+          // base. C'est le détail qui fait « site généré ».
+          <div className="mt-auto w-full pt-2.5">
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={outOfStock}
+              aria-label={`Ajouter ${product.name} au panier`}
+              className={[
+                'flex w-full items-center justify-center gap-2 text-[14px] font-semibold transition',
+                skin === 'compact' ? 'min-h-[40px]' : 'min-h-[44px]',
+                outOfStock ? 'cursor-not-allowed' : 'hover:brightness-95 active:brightness-90',
+              ].join(' ')}
+              style={{
+                borderRadius: 'var(--st-radius-btn)',
+                background:   outOfStock ? 'var(--st-surface-2)' : 'var(--st-accent)',
+                color:        outOfStock ? 'var(--st-ink-3)' : 'var(--st-accent-ink)',
+              }}
+            >
+              {outOfStock ? (
+                'Indisponible'
+              ) : justAdded ? (
+                <><Check className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Ajouté</>
+              ) : skin === 'wholesale' ? (
+                // « Commander » plutôt qu'« Ajouter » : on ne fait pas ses
+                // courses chez un éleveur, on passe une commande.
+                <><Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Commander</>
+              ) : (
+                <><Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Ajouter</>
+              )}
+            </button>
+          </div>
         )}
       </div>
     </Link>

@@ -37,8 +37,24 @@ import { Card } from '../../../components/ds/Surface';
 import { Field, TextField, SelectField } from '../../../components/ds/Field';
 import { Switch } from '../../../components/ds/Switch';
 
+/**
+ * Le bandeau d'annonce n'est plus une SECTION : il est rendu par l'enveloppe,
+ * au-dessus de l'en-tête collant, et n'a donc ni place ni ordre dans la page.
+ * Son contenu se saisit quand même ici — c'est du texte de vitrine comme le
+ * reste — d'où cette clé à part, avec son libellé, puisque `SECTIONS` ne le
+ * porte plus.
+ */
+const CHROME = {
+  announcement: {
+    label: 'Bandeau d\'annonce',
+    hint:  'Une phrase tout en haut de la page, au-dessus de votre en-tête : livraison, horaires, promotion en cours.',
+  },
+} as const;
+
+type EditableKey = SectionKey | keyof typeof CHROME;
+
 /** Les sections dont le CONTENU se saisit. Les autres lisent le catalogue. */
-const EDITABLE: SectionKey[] = [
+const EDITABLE: EditableKey[] = [
   'announcement', 'hero', 'benefits', 'stats', 'process', 'gallery',
   'order_form', 'cta_band', 'promotion', 'brand_story', 'testimonials',
   'faq', 'newsletter', 'social',
@@ -113,10 +129,19 @@ export function ContentTab({
   const { shown, hidden } = useMemo(() => {
     const inPage = state.sections
       .map((s) => s.key)
-      .filter((k) => EDITABLE.includes(k));
+      .filter((k) => (EDITABLE as string[]).includes(k)) as EditableKey[];
+
+    // Le bandeau d'annonce vient EN PREMIER et toujours : il n'est pas une
+    // section, donc il n'apparaît dans aucune liste de sections — et le
+    // ranger avec « ce que votre gabarit n'affiche pas » ferait croire au
+    // marchand qu'il ne sortira pas, alors qu'il sort sur tous les gabarits.
+    const chrome = Object.keys(CHROME) as Array<keyof typeof CHROME>;
+
     return {
-      shown:  inPage,
-      hidden: EDITABLE.filter((k) => !inPage.includes(k)),
+      shown:  [...chrome, ...inPage] as EditableKey[],
+      hidden: EDITABLE.filter(
+        (k) => !(chrome as string[]).includes(k) && !inPage.includes(k),
+      ),
     };
   }, [state.sections]);
 
@@ -169,9 +194,10 @@ export function ContentTab({
 
 type Patch = <K extends keyof ThemeConfig>(key: K, value: Partial<ThemeConfig[K]>) => void;
 
-function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactNode {
-  const label = SECTIONS[key].label;
-  const hint  = SECTIONS[key].hint;
+function renderEditor(key: EditableKey, theme: ThemeConfig, patch: Patch): ReactNode {
+  const meta  = key in CHROME ? CHROME[key as keyof typeof CHROME] : SECTIONS[key as SectionKey];
+  const label = meta.label;
+  const hint  = meta.hint;
 
   switch (key) {
     case 'announcement':

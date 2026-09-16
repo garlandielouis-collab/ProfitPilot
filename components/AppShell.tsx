@@ -101,8 +101,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // public pour autant — le middleware exige une session sur `/apercu`, et la
   // page relit l'entreprise du sélecteur.
   const isPreview        = path?.startsWith('/apercu') ?? false;
+  // L'atelier des gabarits rend lui aussi une VITRINE — sans base de données,
+  // et seulement en développement (la page répond 404 ailleurs). Même raison
+  // que l'aperçu : l'entourer du tableau de bord fausserait ce qu'on regarde.
+  const isAtelier        = path?.startsWith('/atelier') ?? false;
   const isPublicPage     = pathname == null
-    || isLandingPage || isOnboardingPage || isAuthPage || isStorefront || isPreview;
+    || isLandingPage || isOnboardingPage || isAuthPage || isStorefront
+    || isPreview || isAtelier;
 
   useEffect(() => { resetTrialTimer(); }, []);
 

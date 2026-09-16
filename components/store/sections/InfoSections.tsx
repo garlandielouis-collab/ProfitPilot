@@ -61,7 +61,7 @@ export function ShippingSection({ store, section, design }: SectionProps) {
   const title = sectionTitle(section, store.templateId);
 
   return (
-    <Section design={design} tone="surface-2" label={title}>
+    <Section design={design} tone="surface-2" label={title} id="livraison">
       <SectionHeader design={design} title={title} eyebrow="Avant de commander" description={s.note.trim() || undefined} />
 
       {modes.length > 0 && (
@@ -141,7 +141,7 @@ export function PaymentsSection({ store, section, design }: SectionProps) {
   const title = sectionTitle(section, store.templateId);
 
   return (
-    <Section design={design} label={title}>
+    <Section design={design} label={title} id="paiement">
       <SectionHeader design={design} title={title} eyebrow="Paiement" description={p.note.trim() || undefined} />
 
       {methods.length > 0 && (
@@ -229,9 +229,14 @@ export function ContactSection({ store, section, design }: SectionProps) {
     <Section design={design} tone="surface-2" label={title}>
       <SectionHeader design={design} title={title} eyebrow="Contact" description={c.body.trim() || undefined} />
 
-      <div className="grid gap-8 md:grid-cols-2">
+      {/* `grid-cols-1` et non « pas de colonnes » : une grille sans
+          `grid-template-columns` dimensionne sa colonne sur le CONTENU MINIMAL
+          le plus large de ses enfants — ici une adresse insécable — et déborde
+          la page à 320 pixels. La classe de Tailwind pose `minmax(0, 1fr)`,
+          qui autorise la colonne à rétrécir. */}
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         {hours.length > 0 && (
-          <div>
+          <div className="min-w-0">
             <p className="mb-3 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--st-ink-3)]">
               <Clock className="h-4 w-4" strokeWidth={1.6} aria-hidden />
               Horaires
@@ -240,11 +245,16 @@ export function ContactSection({ store, section, design }: SectionProps) {
               {hours.map((h, i) => (
                 <li
                   key={`${h.days}-${i}`}
-                  className="flex items-baseline justify-between gap-4 border-b py-2 last:border-0"
+                  // `flex-wrap` + `min-w-0` : un jour écrit « Lundi —
+                  // Vendredi » et une plage « 8 h 00 — 17 h 00 » font ensemble
+                  // 308 pixels, et un élément flex ne descend pas sous son
+                  // contenu par défaut. Sur un écran de 320, la ligne
+                  // débordait donc la page entière — pas seulement le bloc.
+                  className="flex flex-wrap items-baseline justify-between gap-x-4 border-b py-2 last:border-0"
                   style={{ borderColor: 'var(--st-border)' }}
                 >
-                  <span className="text-[14px] text-[var(--st-ink-2)]">{h.days}</span>
-                  <span className="text-[14px] font-semibold text-[var(--st-ink)]">
+                  <span className="min-w-0 text-[14px] text-[var(--st-ink-2)]">{h.days}</span>
+                  <span className="min-w-0 text-[14px] font-semibold text-[var(--st-ink)]">
                     {h.hours.trim() || 'Fermé'}
                   </span>
                 </li>
@@ -298,7 +308,7 @@ export function SizeGuideSection({ store, section, design }: SectionProps) {
   const width = Math.max(head.length, ...rows.map((r) => r.length));
 
   return (
-    <Section design={design} label={title}>
+    <Section design={design} label={title} id="tailles">
       <SectionHeader design={design} title={title} eyebrow="Trouver sa taille" description={g.note.trim() || undefined} />
 
       {/* Un tableau de mesures dépasse la largeur d'un téléphone. Il défile

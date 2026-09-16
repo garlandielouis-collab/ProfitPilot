@@ -25,7 +25,7 @@ import { designFor } from '../../../lib/storeDesign';
 import type { SectionProps } from './types';
 
 import {
-  AnnouncementSection, HeroSection, BenefitsSection, CategoriesSection,
+  HeroSection, BenefitsSection, CategoriesSection,
   PromotionSection, BrandStorySection, FaqSection, NewsletterSection,
   LocationSection, SocialSection,
 } from './ContentSections';
@@ -52,7 +52,6 @@ import {
 } from './MetierSections';
 
 const REGISTRY: Record<SectionKey, ComponentType<SectionProps>> = {
-  announcement:     AnnouncementSection,
   hero:             HeroSection,
   benefits:         BenefitsSection,
   categories:       CategoriesSection,
