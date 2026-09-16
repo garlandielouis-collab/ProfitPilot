@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
+import { splitCustomerName, placeholderEmail } from '../../lib/customerIdentity';
 
 export type Customer = {
   id: string;
@@ -50,9 +51,7 @@ export async function upsertCustomer(payload: {
   const name = (payload.name ?? '').trim();
   if (!name) throw new UserFacingError('Le nom du client est obligatoire.');
 
-  const nameParts = name.split(/\s+/);
-  const first_name = nameParts[0] || '';
-  const last_name = nameParts.slice(1).join(' ') || '';
+  const { first: first_name, last: last_name } = splitCustomerName(name);
   const normalizedPhone = payload.phone?.trim() || null;
   const normalizedEmail = payload.email?.trim() || '';
   const hasEmail = normalizedEmail.length > 0;
@@ -65,10 +64,9 @@ export async function upsertCustomer(payload: {
     outstanding_balance: 0,
   });
 
-  const buildPlaceholderEmail = () => {
-    const baseName = `${first_name}${last_name}`.replace(/[^a-z0-9]+/gi, '').toLowerCase() || 'customer';
-    return `no-email-${businessId.replace(/-/g, '')}-${baseName}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@profitpilot.local`;
-  };
+  // Même convention que la vente à crédit, qui crée aussi des clients :
+  // voir `lib/customerIdentity.ts`.
+  const buildPlaceholderEmail = () => placeholderEmail(businessId, first_name, last_name);
 
   const findExistingCustomer = async (emailToMatch?: string | null, phoneToMatch?: string | null) => {
     let query = supabase

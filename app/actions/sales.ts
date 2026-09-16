@@ -8,6 +8,7 @@ import { logActivity } from '../../lib/activityLog';
 import { notify } from '../../lib/notify';
 import { makeToReport } from '../../lib/currency';
 import { attempt, type ActionResult, screenMessage } from '../../lib/actionResult';
+import { splitCustomerName, placeholderEmail } from '../../lib/customerIdentity';
 
 // ── Types (backward compat pour le UI) ────────────────────────────────────────
 
@@ -28,6 +29,55 @@ export type CreateSaleResult =
 
 function fmt2(n: number): number {
   return parseFloat(n.toFixed(2));
+}
+
+/**
+ * Le client d'une vente à crédit, retrouvé ou créé.
+ *
+ * La vente rapide ne connaît que le nom. Or une créance sans ligne
+ * `customers` est une créance à moitié enregistrée : le déclencheur
+ * `trg_sale_customer_tx` sort immédiatement quand `customer_id IS NULL`, donc
+ * le grand livre client ne reçoit rien, `total_credit` ne bouge pas, et
+ * `/creances` afficherait une dette à côté d'un solde client resté à zéro.
+ *
+ * Retrouvé d'abord, insensible à la casse : « joseph » et « Joseph » sont le
+ * même client, et en créer un second couperait son historique de crédit en
+ * deux. L'entreprise vient de la vente elle-même, jamais du cookie d'entreprise
+ * active — un marchand qui possède deux commerces ne doit pas voir le client de
+ * l'un rattaché à la vente de l'autre.
+ */
+async function resolveCreditCustomer(
+  sb:         any,
+  businessId: string,
+  rawName:    string,
+): Promise<string> {
+  const { first, last } = splitCustomerName(rawName);
+
+  let query = sb
+    .from('customers')
+    .select('id')
+    .eq('business_id', businessId)
+    .ilike('first_name', first);
+  if (last) query = query.ilike('last_name', last);
+
+  const { data: found } = await query.limit(1).maybeSingle();
+  if (found?.id) return found.id as string;
+
+  const { data: created, error } = await sb
+    .from('customers')
+    .insert({
+      business_id: businessId,
+      first_name:  first,
+      // Un nom d'un seul mot laisse la chaîne vide, comme `upsertCustomer` :
+      // c'est la forme que portent déjà les clients de comptoir en base.
+      last_name:   last,
+      email:       placeholderEmail(businessId, first, last),
+    })
+    .select('id')
+    .single();
+
+  if (error) throw new Error(error.message);
+  return created.id as string;
 }
 
 async function rollbackSale(supabase: any, saleId: string) {
@@ -115,7 +165,22 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
   }
   const data = parsed.data;
 
-  if (data.payment_status === 'credit' && !data.customer_id) {
+  // ── À qui vend-on à crédit ? ─────────────────────────────────────────────
+  //
+  // Une vente à crédit doit savoir QUI doit. Un identifiant de client le dit ;
+  // un nom aussi, et c'est tout ce que la vente rapide demande — « Client
+  // (obligatoire) », un champ texte, parce que le client est devant le marchand
+  // et qu'aucun formulaire de fiche ne tient dans ce moment-là.
+  //
+  // Cette garde exigeait un `customer_id`. La vente rapide n'en envoie pas :
+  // le marchand tapait le nom qu'on lui réclamait et recevait en retour
+  // « Client requis pour les ventes à crédit. » Aucune vente à crédit ne
+  // pouvait sortir de cet écran. Le schéma Zod acceptait pourtant déjà le nom
+  // seul (`customer_id` OU `customer_name`) : la garde contredisait à la fois
+  // le formulaire et la validation.
+  //
+  // Le nom est résolu en client réel plus bas, une fois l'entreprise connue.
+  if (data.payment_status === 'credit' && !data.customer_id && !data.customer_name?.trim()) {
     return {
       success: false,
       errors: [{ field: 'customer_id', message: 'Client requis pour les ventes à crédit.' }],
@@ -145,6 +210,24 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
         subtotal:       Number(existing.subtotal_amount ?? 0),
         discountAmount: Number(existing.discount_amount ?? 0),
         totalAmount:    Number(existing.total_amount ?? 0),
+      };
+    }
+  }
+
+  // ── 2c. Le client de la vente à crédit ───────────────────────────────────
+  // Après l'idempotence : un rejeu de la file hors-ligne rend la vente déjà
+  // enregistrée sans repasser ici, et ne crée donc pas un second client.
+  let customerId = data.customer_id ?? null;
+  if (data.payment_status === 'credit' && !customerId && data.customer_name?.trim()) {
+    try {
+      customerId = await resolveCreditCustomer(sb, businessId, data.customer_name);
+    } catch (err) {
+      return {
+        success: false,
+        errors: [{
+          field:   'customer_id',
+          message: screenMessage(err, "Ce client n'a pas pu être enregistré. Réessayez."),
+        }],
       };
     }
   }
@@ -287,7 +370,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
         business_id:      businessId,
         warehouse_id:     data.warehouse_id ?? null,
         invoice_number:   invoiceNumber,
-        customer_id:      data.customer_id ?? null,
+        customer_id:      customerId,
         customer_name:    data.customer_name ?? null,
         sale_date:        today,
         currency:         data.currency,
@@ -417,7 +500,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
 
   // ── 9. Credit sale: update client total_credit ───────────────────────────
   const isCredit = data.payment_status === 'credit';
-  const clientId = data.customer_id ?? null;
+  const clientId = customerId;
   if (isCredit && clientId) {
     // Some deployments may not have migrated the legacy `total_credit` column
     // into `customers`. Be defensive: if the column is missing, skip the
