@@ -700,6 +700,19 @@ export type PublicOrder = {
   customer_email:  string;
   subtotal:        number;
   shipping_amount: number;
+  /**
+   * La remise réellement retenue : remise de lot et code promo confondus.
+   *
+   * `create_store_order` calcule `total = sous-total − remise + livraison` et
+   * enregistre les quatre nombres. Trois seulement étaient relus : la page de
+   * confirmation affichait donc un sous-total et une livraison dont la somme
+   * ne faisait pas le total, sur le seul écran où l'acheteur vérifie ce qu'on
+   * vient de lui prendre. Il voyait pourtant la remise à la caisse, une page
+   * plus tôt.
+   */
+  discount:        number;
+  /** Le code retenu, pour nommer la ligne de remise. Nul si aucun n'a pris. */
+  coupon_code:     string | null;
   total:           number;
   currency:        string;
   shipping_address: { line1?: string; line2?: string; city?: string; country?: string } | null;
@@ -711,6 +724,15 @@ export type PublicOrder = {
     product_image: string | null;
     quantity:      number;
     total_price:   number;
+    /**
+     * Le lot d'où vient la ligne, figé au moment de la commande.
+     *
+     * `create_store_order` éclate un lot en ses articles et le recopie ici en
+     * clair, pour que trois lignes sans lien apparent et une remise
+     * inexpliquée redeviennent « Lot Coffret découverte ». Personne ne le
+     * relisait.
+     */
+    bundle_name:   string | null;
   }>;
 };
 
@@ -736,8 +758,10 @@ export async function getStoreOrder(orderId: string): Promise<PublicOrder | null
     .from('orders')
     .select(
       'id, order_number, status, payment_status, customer_name, customer_email, ' +
-      'subtotal, shipping_amount, total, currency, shipping_address, ' +
-      'order_items(id, product_id, product_name, product_image, quantity, total_price)',
+      'subtotal, shipping_amount, discount_amount, total, currency, ' +
+      'coupon_code, shipping_address, ' +
+      'order_items(id, product_id, product_name, product_image, quantity, ' +
+      'total_price, bundle_name)',
     )
     .eq('id', orderId)
     .maybeSingle();
@@ -754,6 +778,8 @@ export async function getStoreOrder(orderId: string): Promise<PublicOrder | null
     customer_email:  row.customer_email,
     subtotal:        Number(row.subtotal ?? 0),
     shipping_amount: Number(row.shipping_amount ?? 0),
+    discount:        Number(row.discount_amount ?? 0),
+    coupon_code:     row.coupon_code ?? null,
     total:           Number(row.total ?? 0),
     currency:        row.currency ?? 'HTG',
     shipping_address: row.shipping_address ?? null,
@@ -764,6 +790,7 @@ export async function getStoreOrder(orderId: string): Promise<PublicOrder | null
       product_image: i.product_image ?? null,
       quantity:      Number(i.quantity ?? 0),
       total_price:   Number(i.total_price ?? 0),
+      bundle_name:   i.bundle_name ?? null,
     })),
   };
 }

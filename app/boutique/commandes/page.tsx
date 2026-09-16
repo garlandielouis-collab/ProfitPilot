@@ -234,10 +234,48 @@ export default function CommandesPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Articles</p>
                 {(selected.order_items ?? []).map((item) => (
                   <div key={item.id} className="flex items-center justify-between py-2 text-sm border-b border-slate-100 last:border-0">
-                    <span className="text-slate-700">{item.product_name} ×{item.quantity}</span>
+                    <span className="text-slate-700">
+                      {item.product_name} ×{item.quantity}
+                      {/* Le lot d'où vient la ligne : c'est lui qui explique le
+                          groupe et la remise. La base le garde en clair pour
+                          cette raison exacte ; l'écran l'ignorait. */}
+                      {item.bundle_name && (
+                        <span className="ml-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">
+                          Lot {item.bundle_name}
+                        </span>
+                      )}
+                    </span>
                     <span className="font-bold text-slate-800">{fmt(item.total_price, selected.currency)}</span>
                   </div>
                 ))}
+
+                {/* Le décompte, seulement quand il y a quelque chose à
+                    expliquer. Sans lui, une commande remisée montrait des
+                    lignes d'articles et un total plus bas que leur somme :
+                    le marchand ne pouvait pas savoir d'où venait l'écart. */}
+                {(selected.discount_amount > 0 || selected.shipping_amount > 0) && (
+                  <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm text-slate-500">
+                    <div className="flex justify-between">
+                      <span>Sous-total</span>
+                      <span>{fmt(selected.subtotal, selected.currency)}</span>
+                    </div>
+                    {selected.discount_amount > 0 && (
+                      <div className="flex justify-between">
+                        <span>
+                          {selected.coupon_code ? `Code ${selected.coupon_code}` : 'Remise'}
+                        </span>
+                        <span>−{fmt(selected.discount_amount, selected.currency)}</span>
+                      </div>
+                    )}
+                    {selected.shipping_amount > 0 && (
+                      <div className="flex justify-between">
+                        <span>Livraison</span>
+                        <span>{fmt(selected.shipping_amount, selected.currency)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="mt-3 flex justify-between text-sm font-bold text-slate-800 border-t border-slate-200 pt-3">
                   <span>Total</span>
                   <span>{fmt(selected.total, selected.currency)}</span>

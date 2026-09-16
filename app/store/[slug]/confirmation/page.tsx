@@ -124,6 +124,12 @@ export default async function ConfirmationPage({ params, searchParams }: Props) 
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-[14px] text-[var(--st-ink)]">{item.product_name}</p>
+                  {/* Le lot qui explique le groupe et la remise. Sans lui, un
+                      coffret acheté d'un geste se relit comme trois articles
+                      sans rapport et un rabais tombé du ciel. */}
+                  {item.bundle_name && (
+                    <p className="text-[12px] text-[var(--st-ink-3)]">Lot {item.bundle_name}</p>
+                  )}
                   <p className="text-[12px] text-[var(--st-ink-3)]">Quantité : {item.quantity}</p>
                 </div>
                 <p className="text-[14px] font-semibold tabular-nums text-[var(--st-ink)]">
@@ -141,6 +147,26 @@ export default async function ConfirmationPage({ params, searchParams }: Props) 
               <span>Sous-total</span>
               <span className="tabular-nums">{storeMoney(order.subtotal, order.currency)}</span>
             </div>
+            {/* La remise, nommée par son code quand il y en a un — le même
+                libellé qu'à la caisse. Sans cette ligne, sous-total plus
+                livraison ne faisait pas le total, et c'est l'écran où
+                l'acheteur vérifie.
+
+                Un code retenu sans remise chiffrée n'a pu donner qu'une chose,
+                la livraison offerte : `create_store_order` n'enregistre le
+                code que s'il a pris, et il prend soit en montant, soit en
+                livraison. Le dire le nomme au lieu de laisser l'acheteur
+                deviner pourquoi son code a disparu. */}
+            {(order.discount > 0 || order.coupon_code) && (
+              <div className="flex justify-between text-[var(--st-ink-2)]">
+                <span>{order.coupon_code ? `Code ${order.coupon_code}` : 'Remise'}</span>
+                <span className="tabular-nums">
+                  {order.discount > 0
+                    ? `− ${storeMoney(order.discount, order.currency)}`
+                    : 'Livraison offerte'}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-[var(--st-ink-2)]">
               <span>Livraison</span>
               <span className="tabular-nums">

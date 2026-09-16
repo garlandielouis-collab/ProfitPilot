@@ -218,6 +218,20 @@ export default function StoreBuilderPage() {
       <div
         role="tablist"
         aria-label="Sections de l'éditeur"
+        // Cinq onglets annoncés comme une barre d'onglets : les flèches doivent
+        // y circuler, sinon la promesse faite au lecteur d'écran ne tient pas.
+        // Le focus suit l'onglet choisi — le laisser sur l'ancien bouton, qui
+        // vient de perdre son arrêt de tabulation, laisse l'utilisateur nulle
+        // part.
+        onKeyDown={(e) => {
+          const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+          if (delta === 0) return;
+          e.preventDefault();
+          const from = TABS.findIndex((t) => t.id === tab);
+          const to   = (from + delta + TABS.length) % TABS.length;
+          setTab(TABS[to].id);
+          e.currentTarget.querySelectorAll('button')[to]?.focus();
+        }}
         className="mb-8 -mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0 dark:border-dark-border"
       >
         {TABS.map(({ id, label, Icon }) => (
@@ -225,6 +239,10 @@ export default function StoreBuilderPage() {
             key={id}
             role="tab"
             aria-selected={tab === id}
+            // Un seul arrêt de tabulation pour la barre entière : on y entre
+            // une fois, on circule aux flèches, et Tab mène au contenu de
+            // l'onglet plutôt qu'au cinquième titre.
+            tabIndex={tab === id ? 0 : -1}
             onClick={() => setTab(id)}
             className={[
               'flex min-h-action items-center gap-2 border-b-2 px-4 text-body font-semibold transition',

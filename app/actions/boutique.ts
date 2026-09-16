@@ -199,6 +199,8 @@ export type OrderRow = {
   shipping_mode:   string | null;
   notes:           string | null;
   tracking_number: string | null;
+  /** Le code promo retenu, pour nommer la remise dans le détail. */
+  coupon_code:     string | null;
   sale_id:         string | null;
   created_at:      string;
   updated_at:      string;
@@ -213,6 +215,8 @@ export type OrderItem = {
   quantity:      number;
   unit_price:    number;
   total_price:   number;
+  /** Le lot d'où vient la ligne, recopié en clair par create_store_order. */
+  bundle_name:   string | null;
 };
 
 export async function listOrders(opts?: {

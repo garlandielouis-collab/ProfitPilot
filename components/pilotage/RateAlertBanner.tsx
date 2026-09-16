@@ -29,11 +29,35 @@ import { refreshRateWithAlert, type RateAlert } from '../../app/actions/exchange
 import { Card } from '../ds';
 
 const STORAGE_KEY = 'pp_rate_alert_check';
+// Le taux dont l'alerte a été fermée. Le §7 promet une bannière qui « reste
+// consultable, ne revient pas à chaque écran » : fermer ne tenait que dans
+// l'état du composant, et la bannière se rouvrait à la navigation suivante,
+// puis à la suivante, tant que le cache du jour la resservait.
+const DISMISS_KEY = 'pp_rate_alert_dismissed';
 const ONE_DAY_MS  = 24 * 3600 * 1000;
 
 export function RateAlertBanner({ initial }: { initial?: RateAlert | null }) {
   const [alert, setAlert]     = useState<RateAlert | null>(initial ?? null);
   const [dismissed, setDismiss] = useState(false);
+  // Lu après le montage : `localStorage` n'existe pas au rendu serveur, et le
+  // lire pendant le rendu ferait diverger les deux.
+  const [dismissedRate, setDismissedRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DISMISS_KEY);
+      if (raw !== null && raw !== '') setDismissedRate(Number(raw));
+    } catch { /* localStorage indisponible */ }
+  }, []);
+
+  // Fermer vaut pour CE taux, pas pour toujours : au prochain mouvement, la
+  // marge rebouge et la bannière a de nouveau quelque chose à dire.
+  function close() {
+    setDismiss(true);
+    try {
+      if (alert) localStorage.setItem(DISMISS_KEY, String(alert.rate));
+    } catch { /* quota */ }
+  }
 
   useEffect(() => {
     // Déjà servi par le lot de la bande de pilotage : rien à aller chercher.
@@ -68,6 +92,7 @@ export function RateAlertBanner({ initial }: { initial?: RateAlert | null }) {
   }, [initial]);
 
   if (!alert || dismissed) return null;
+  if (dismissedRate !== null && alert.rate === dismissedRate) return null;
 
   const atLoss = alert.productsAtLoss ?? [];
   if (!alert.shouldAlert && atLoss.length === 0) return null;
@@ -82,7 +107,7 @@ export function RateAlertBanner({ initial }: { initial?: RateAlert | null }) {
     <Card className="pp-drop relative p-4">
       <button
         type="button"
-        onClick={() => setDismiss(true)}
+        onClick={close}
         aria-label="Fermer l'alerte"
         className="pressable absolute right-2 top-2 flex h-touch w-touch items-center justify-center rounded-control text-muted"
       >

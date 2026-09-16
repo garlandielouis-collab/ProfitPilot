@@ -46,6 +46,7 @@ export function ProductGallery({
   const [origin, setOrigin]     = useState('50% 50%');
   const [fullscreen, setFullscreen] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
+  const railRef  = useRef<HTMLDivElement>(null);
 
   const active = images[index] ?? null;
 
@@ -75,6 +76,30 @@ export function ProductGallery({
 
   function step(delta: number) {
     setIndex((i) => (i + delta + images.length) % images.length);
+  }
+
+  /**
+   * Les flèches du clavier sur le rail de vignettes.
+   *
+   * L'en-tête de ce fichier les annonçait ; elles n'existaient pas. Ce n'est
+   * pas qu'un confort : `role="tablist"` promet aux lecteurs d'écran qu'on
+   * change d'onglet aux flèches, et une promesse ARIA non tenue laisse
+   * l'utilisateur appuyer sans rien obtenir.
+   *
+   * Les deux paires de flèches agissent, parce que le rail est vertical sur
+   * grand écran et horizontal sur téléphone : celle qui tombe sous la main
+   * dépend de ce qu'on voit. Le focus suit la sélection, sinon la flèche
+   * suivante repartirait de l'ancienne vignette.
+   */
+  function onRailKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    const delta = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1
+      : 0;
+    if (delta === 0) return;
+    e.preventDefault();
+    const to = (index + delta + images.length) % images.length;
+    setIndex(to);
+    railRef.current?.querySelectorAll('button')[to]?.focus();
   }
 
   return (
@@ -174,6 +199,8 @@ export function ProductGallery({
 
       {images.length > 1 && (
         <div
+          ref={railRef}
+          onKeyDown={onRailKey}
           className="flex gap-2 overflow-x-auto pb-1 sm:max-h-[520px] sm:w-[76px] sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:pb-0"
           role="tablist"
           aria-label="Images du produit"
@@ -184,6 +211,11 @@ export function ProductGallery({
               type="button"
               role="tab"
               onClick={() => setIndex(i)}
+              // Un seul arrêt de tabulation pour tout le rail : on y entre au
+              // clavier, puis on circule aux flèches. Dix vignettes ne doivent
+              // pas coûter dix pressions de Tab pour atteindre le bouton
+              // d'achat.
+              tabIndex={i === index ? 0 : -1}
               aria-label={`Image ${i + 1} sur ${images.length}`}
               aria-selected={i === index}
               aria-current={i === index ? 'true' : undefined}

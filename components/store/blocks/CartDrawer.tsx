@@ -23,7 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Minus, Plus, Trash2, ShoppingBag, MessageCircle, ChevronRight, Layers } from 'lucide-react';
 import { useCart } from '../CartContext';
 import { storeMoney } from '../format';
@@ -43,6 +43,19 @@ export function CartDrawer({ store }: { store: StoreView }) {
   // affichait « votre panier est vide » sous un lot déjà ajouté.
   const empty = items.length === 0 && bundles.length === 0;
   const [showDetails, setShowDetails] = useState(false);
+
+  // `aria-modal="true"` annonce une boîte modale, et on sort d'une modale par
+  // Échap. Le tiroir ne se fermait qu'au clic sur le voile ou sur la croix :
+  // au clavier, il fallait traverser tout le panier — chaque quantité, chaque
+  // corbeille — pour retrouver de quoi le refermer.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeDrawer();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen, closeDrawer]);
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
 
   const whatsappLink =
