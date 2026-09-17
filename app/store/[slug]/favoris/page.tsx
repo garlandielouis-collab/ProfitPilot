@@ -12,7 +12,7 @@
 
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { loadStore, loadCatalog, loadRatings, buildStorefrontContext } from '../../../../lib/storefrontData';
+import { loadStore, loadStorefrontCatalog, loadRatings, buildStorefrontContext } from '../../../../lib/storefrontData';
 import { toStoreView } from '../../../../components/store/types';
 import { resolveTemplateId } from '../../../../components/store/templates/registry';
 import { FavoritesClient } from './FavoritesClient';
@@ -36,7 +36,7 @@ export default async function FavoritesPage({ params }: Props) {
   const onlyPublished = ctx.theme.catalog.mode === 'selected';
 
   const [products, ratings] = await Promise.all([
-    loadCatalog(store.business_id, { sort: 'newest', limit: 200, onlyPublished }),
+    loadStorefrontCatalog(store.business_id, onlyPublished),
     loadRatings(store.business_id),
   ]);
 

@@ -16,7 +16,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import {
-  loadStore, loadCatalog, loadCategories, loadSections, buildStorefrontContext,
+  loadStore, loadStorefrontCatalog, loadCategories, loadSections,
+  buildStorefrontContext,
 } from '../../../lib/storefrontData';
 import { resolveSections } from '../../../lib/storeSections';
 import { storePublicUrl } from '../../../lib/storeTheme';
@@ -101,12 +102,18 @@ export default async function StoreLayout({ params, children }: Props) {
   const onlyPublished = ctx.theme.catalog.mode === 'selected';
 
   const [catalog, navCategories, storedSections] = await Promise.all([
-    loadCatalog(store.business_id, { sort: 'name', limit: 200, onlyPublished }),
+    loadStorefrontCatalog(store.business_id, onlyPublished),
     loadCategories(store.business_id, onlyPublished),
     loadSections(slug, store.business_id),
   ]);
 
-  const searchIndex = catalog.map((p) => ({ ...p, images: [] }));
+  // Trié par nom ICI plutôt que par la base : c'est ce qui permet au layout de
+  // partager la lecture canonique avec la page d'accueil. Deux cents lignes
+  // déjà en mémoire se trient en une fraction de milliseconde ; les relire
+  // avec un autre `ORDER BY` coûtait un aller-retour complet.
+  const searchIndex = [...catalog]
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    .map((p) => ({ ...p, images: [] }));
 
   const homeSections = resolveSections(templateId, storedSections)
     .filter((sec) => sec.enabled)

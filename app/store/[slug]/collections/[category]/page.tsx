@@ -19,7 +19,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import {
-  loadStore, loadCatalog, loadCategories, loadFacets, loadRatings,
+  loadStore, loadStorefrontCatalog, loadCategories, loadFacets, loadRatings,
   buildStorefrontContext,
 } from '../../../../../lib/storefrontData';
 import { slugify, storePublicUrl } from '../../../../../lib/storeTheme';
@@ -90,7 +90,7 @@ export default async function CollectionPage({ params }: Props) {
   const onlyPublished = ctx.theme.catalog.mode === 'selected';
 
   const [products, categories, facets, ratings] = await Promise.all([
-    loadCatalog(store.business_id, { sort: 'newest', limit: 200, onlyPublished }),
+    loadStorefrontCatalog(store.business_id, onlyPublished),
     loadCategories(store.business_id, onlyPublished),
     loadFacets(store.business_id, onlyPublished),
     loadRatings(store.business_id),

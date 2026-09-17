@@ -15,7 +15,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import {
-  loadStore, loadCatalog, loadBestsellerIds, loadRatings, buildStorefrontContext,
+  loadStore, loadStorefrontCatalog, loadBestsellerIds, loadRatings, buildStorefrontContext,
 } from '../../../../lib/storefrontData';
 import { toStoreView } from '../../../../components/store/types';
 import { resolveTemplateId } from '../../../../components/store/templates/registry';
@@ -41,7 +41,7 @@ export default async function CartPage({ params }: Props) {
   // d'ajouter est le plus sûr moyen de faire douter de la page.
   const onlyPublished = ctx.theme.catalog.mode === 'selected';
   const [catalog, bestsellerIds, ratings] = await Promise.all([
-    loadCatalog(store.business_id, { sort: 'newest', limit: 60, onlyPublished }),
+    loadStorefrontCatalog(store.business_id, onlyPublished),
     loadBestsellerIds(store.business_id),
     loadRatings(store.business_id),
   ]);

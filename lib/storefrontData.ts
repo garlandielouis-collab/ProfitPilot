@@ -59,6 +59,40 @@ export const loadCatalog = (
     { tags: [catalogTag(businessId)], revalidate: TTL },
   )();
 
+/**
+ * La lecture CANONIQUE du catalogue d'une vitrine.
+ *
+ * ── Pourquoi elle existe ───────────────────────────────────────────────────
+ *
+ * La clé de cache de `loadCatalog` contient `JSON.stringify(opts)` : deux
+ * appels qui ne diffèrent que par leur tri ou leur limite sont deux entrées
+ * différentes, donc DEUX lectures de la même table.
+ *
+ * C'est ce qui se passait à chaque affichage de vitrine. Le layout lisait
+ * `{ sort: 'name', limit: 200 }` pour l'index de recherche, et la page
+ * d'accueil `{ sort: 'newest', limit: 60 }` pour ses rangées : deux
+ * allers-retours Supabase pour le même catalogue, sur chaque page, et sur une
+ * connexion mobile haïtienne c'est le second qui décide si le visiteur reste.
+ * Les pages Collections et Favoris demandaient encore une troisième variante.
+ *
+ * Une seule forme, donc une seule entrée de cache, donc une seule lecture —
+ * que le layout, l'accueil, les collections, les favoris et le panier se
+ * partagent. Le tri d'affichage se fait en mémoire là où il compte : trier
+ * deux cents lignes déjà chargées ne coûte rien, les relire coûte un aller.
+ *
+ * `limit` est la borne HAUTE dont la page la plus gourmande a besoin (l'index
+ * de recherche). Les rangées, elles, tronquent déjà à leur propre limite
+ * configurée — en charger davantage ne change donc rien à l'affichage.
+ */
+export const STOREFRONT_CATALOG_LIMIT = 200;
+
+export const loadStorefrontCatalog = (businessId: string, onlyPublished: boolean) =>
+  loadCatalog(businessId, {
+    sort:  'newest',
+    limit: STOREFRONT_CATALOG_LIMIT,
+    onlyPublished,
+  });
+
 export const loadCategories = (businessId: string, onlyPublished = false) =>
   unstable_cache(
     async () => getStoreCategories(businessId, onlyPublished),

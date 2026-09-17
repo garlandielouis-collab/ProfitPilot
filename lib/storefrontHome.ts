@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  loadCatalog, loadCategories, loadSections, loadBestsellerIds,
+  loadStorefrontCatalog, loadCategories, loadSections, loadBestsellerIds,
   loadReviews, loadBundles, loadRatings,
 } from './storefrontData';
 import {
@@ -68,7 +68,10 @@ export async function loadHome(
 
   const [catalog, categories, storedSections, bestsellerIds, reviews, bundles, ratings] =
     await Promise.all([
-      loadCatalog(store.business_id, { sort: 'newest', limit: 60, onlyPublished }),
+      // La MÊME lecture que le layout : une seule entrée de cache, donc un
+      // seul aller-retour pour les deux. Les rangées tronquent ensuite à leur
+      // propre limite, l'affichage est inchangé.
+      loadStorefrontCatalog(store.business_id, onlyPublished),
       loadCategories(store.business_id, onlyPublished),
       loadSections(opts.slug, store.business_id),
       loadBestsellerIds(store.business_id),
