@@ -22,6 +22,7 @@ import {
 import {
   resolveSections, pdpSectionsFor, type ResolvedSection,
 } from './storeSections';
+import { infoPageSections, type InfoPage } from './storefrontPages';
 import type { ThemeConfig, TemplateId } from './storeTheme';
 import type { StoreSettings } from '../app/actions/store-public';
 import type { SectionData } from '../components/store/sections/types';
@@ -152,6 +153,59 @@ export async function loadProductPageSections(
     bestsellers: [],
     newArrivals: [],
     reviews:     [],
+    bundles:     [],
+    ratings:     {},
+  };
+
+  return { data, sections };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ce qu'une PAGE INTERNE reprend de la boutique
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Les sections d'une page interne — « À propos », « Contact », « FAQ »,
+ * « Livraison & retours », « Témoignages ».
+ *
+ * Même mécanique que la fiche produit : un sous-ensemble de sections, rangé
+ * dans l'ordre de CETTE page et non dans celui de l'accueil. Aucun rendu
+ * nouveau, donc aucune divergence possible entre ce que l'accueil montre et ce
+ * que la page dédiée montre.
+ *
+ * ── Pourquoi l'état « désactivée » ne s'applique pas ici ───────────────────
+ *
+ * Sur l'accueil, le marchand coupe une section pour RACCOURCIR sa page — c'est
+ * même le geste que ces pages rendent enfin possible : sortir les conditions de
+ * retour de l'accueil sans les faire disparaître de la vitrine. Reprendre ce
+ * drapeau ici rendrait donc une page blanche à l'adresse même que le pied de
+ * page annonce. Le titre et les réglages que le marchand a choisis, eux, sont
+ * conservés : ce sont ses mots.
+ *
+ * Seules les sections de témoignages coûtent une lecture de plus — les avis
+ * viennent de la base. Les autres lisent le thème, déjà en mémoire.
+ */
+export async function loadInfoPage(
+  store: StoreSettings,
+  opts: { slug: string; templateId: TemplateId; page: InfoPage },
+): Promise<{ data: SectionData; sections: ResolvedSection[] }> {
+  const wanted       = opts.page.sections;
+  const needsReviews = wanted.includes('testimonials');
+
+  const [storedSections, reviews] = await Promise.all([
+    loadSections(opts.slug, store.business_id),
+    needsReviews ? loadReviews(store.business_id) : Promise.resolve([]),
+  ]);
+
+  const sections = infoPageSections(opts.templateId, storedSections, opts.page);
+
+  const data: SectionData = {
+    products:    [],
+    categories:  [],
+    featured:    [],
+    bestsellers: [],
+    newArrivals: [],
+    reviews,
     bundles:     [],
     ratings:     {},
   };

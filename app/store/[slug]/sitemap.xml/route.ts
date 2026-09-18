@@ -16,8 +16,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { headers } from 'next/headers';
-import { loadStore, loadCatalog, loadCategories } from '../../../../lib/storefrontData';
+import { loadStore, loadCatalog, loadCategories, loadReviews } from '../../../../lib/storefrontData';
 import { collectionHref, parseThemeConfig, storePublicUrl } from '../../../../lib/storeTheme';
+import { infoPagesFor } from '../../../../lib/storefrontPages';
+import { toStoreView } from '../../../../components/store/types';
+import { resolveTemplateId } from '../../../../components/store/templates/registry';
 
 export const runtime = 'nodejs';
 export const revalidate = 3600;
@@ -59,10 +62,25 @@ export async function GET(
 
   const onlyPublished = theme.catalog.mode === 'selected';
 
-  const [products, categories] = await Promise.all([
+  const [products, categories, reviews] = await Promise.all([
     loadCatalog(store.business_id, { sort: 'newest', limit: 1000, onlyPublished }),
     loadCategories(store.business_id, onlyPublished),
+    loadReviews(store.business_id),
   ]);
+
+  // Les pages internes que cette vitrine porte réellement. La vue est montée
+  // ici plutôt que les champs recopiés un à un : `toStoreView` sait déjà
+  // normaliser les modes de livraison et les moyens de paiement, et deux
+  // lectures du même thème qui divergent finiraient par annoncer au robot une
+  // page que le site refuse.
+  const infoPages = infoPagesFor({
+    ...toStoreView(store, {
+      base,
+      origin,
+      templateId: resolveTemplateId(store.template_id),
+    }),
+    hasReviews: reviews.length > 0,
+  });
 
   type Entry = { loc: string; priority: string; changefreq: string; lastmod?: string };
 
@@ -77,6 +95,15 @@ export async function GET(
       loc:        `${origin}${collectionHref(base, c)}`,
       priority:   '0.8',
       changefreq: 'daily',
+    })),
+    // « À propos », « Livraison & retours », « FAQ » : ce sont les pages que
+    // l'on cherche par le nom de la boutique plutôt que par un produit, et
+    // celles qui disent à un moteur de recherche qu'il a devant lui un vrai
+    // commerce. Elles passent avant les fiches pour cette raison.
+    ...infoPages.map((page) => ({
+      loc:        `${origin}${base}/${page.slug}`,
+      priority:   '0.75',
+      changefreq: 'monthly',
     })),
     ...products.map((p) => ({
       loc:        `${origin}${base}/products/${p.id}`,

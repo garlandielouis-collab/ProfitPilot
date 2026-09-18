@@ -61,18 +61,30 @@ import { alreadyBroken } from '../../lib/storeImage';
 import { collectionHref } from '../../lib/storeTheme';
 import { resolveOrderPhone, buildBookingLink } from '../../lib/storeWhatsApp';
 import { buildWhatsAppLink } from '../../lib/whatsappReport';
-import type { StoreProduct, StoreCategory, StoreView } from './types';
+import type { InfoPage } from '../../lib/storefrontPages';
+import type { StoreCategory, StoreProduct, StoreView } from './types';
 
 export function StorefrontHeader({
   store,
   searchIndex = [],
   categories = [],
+  infoPages = [],
 }: {
   store: StoreView;
   /** Le catalogue déjà chargé, pour la recherche instantanée. */
   searchIndex?: StoreProduct[];
   /** Les rayons, pour la navigation. */
   categories?: StoreCategory[];
+  /**
+   * Les pages internes de cette vitrine, déjà filtrées par le layout.
+   *
+   * Elles vont dans le menu du téléphone et non dans la barre du bureau : la
+   * barre porte les RAYONS, c'est-à-dire ce qu'on achète. « À propos » et
+   * « Livraison » sont ce qu'on lit avant d'acheter, et leur place est le menu
+   * et le pied de page — les mettre à côté des rayons ferait concurrence à la
+   * seule navigation qui vend.
+   */
+  infoPages?: InfoPage[];
 }) {
   const { count, hydrated, openDrawer } = useCart();
   const favorites = useFavorites();
@@ -514,6 +526,28 @@ export function StorefrontHeader({
                   ))}
                 </ul>
               </nav>
+
+              {infoPages.length > 0 && (
+                <nav aria-label="Informations" className="mt-6">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--st-ink-3)]">
+                    Informations
+                  </p>
+                  <ul className="flex flex-col">
+                    {infoPages.map((page) => (
+                      <li key={page.key}>
+                        <Link
+                          href={`${store.base}/${page.slug}`}
+                          onClick={() => closeMenu()}
+                          className="flex min-h-[52px] items-center border-b text-[16px] font-medium text-[var(--st-ink)]"
+                          style={{ borderColor: 'var(--st-border)' }}
+                        >
+                          {page.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              )}
 
               {favorites.hydrated && favorites.count > 0 && (
                 <Link

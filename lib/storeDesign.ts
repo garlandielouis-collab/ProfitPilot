@@ -106,6 +106,18 @@ export type DockItem =
  */
 export type CheckoutSchedule = 'none' | 'delivery' | 'appointment';
 
+/**
+ * La forme de la preuve sociale (§12).
+ *
+ *   'cards'      trois cartes bordées — le rendu neutre, celui du commerce
+ *   'editorial'  une citation en grand, les suivantes en colonne dessous ;
+ *                la typographie de titre, aucun cadre, beaucoup d'air
+ *   'band'       une bande qui défile au doigt, vignettes courtes et nombreuses
+ *   'ledger'     des lignes, pas des cartes : nom, ce qui a été commandé, note.
+ *                Ce qu'un acheteur professionnel lit — une liste de références
+ */
+export type ProofStyle = 'cards' | 'editorial' | 'band' | 'ledger';
+
 /** Comment une photo est posée dans son cadre. */
 export type MediaFit = 'cover' | 'contain';
 
@@ -176,6 +188,19 @@ export type DesignProfile = {
    * c'est la présence d'avis réels qui décide de l'affichage.
    */
   showRating: boolean;
+
+  /**
+   * La forme que prend la preuve sociale.
+   *
+   * Elle manquait, et c'était le dernier endroit où les vingt-deux gabarits se
+   * ressemblaient vraiment : une même grille de trois cartes bordées, du
+   * prestataire au vendeur social. Or un avis ne se montre pas de la même façon
+   * selon ce qu'il cautionne. Chez un artisan, c'est une phrase qu'on lit — elle
+   * mérite d'être grande et seule. Chez un vendeur social, c'est un volume — dix
+   * vignettes qui défilent disent « beaucoup de monde » mieux que trois pavés.
+   * Chez un éleveur, c'est une référence — le nom, la ville, la commande.
+   */
+  proof: ProofStyle;
 
   /** Vrai quand la carte montre sa seconde photo au survol (§27). */
   hoverSwap: boolean;
@@ -286,6 +311,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(20,27,34,0.06)',
     shadowHover: '0 10px 24px -10px rgba(20,27,34,0.20)',
     showRating: true,
+    proof: 'cards',
     hoverSwap: true, hoverAction: false, reveal: false,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: true },
@@ -313,8 +339,9 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 3px 0 rgba(22,11,36,0.08)',
     shadowHover: '0 14px 30px -12px rgba(22,11,36,0.28)',
     showRating: true,
+    proof: 'band',
     hoverSwap: true, hoverAction: false, reveal: false,
-    mobile: { dock: ['home', 'catalog', 'cart', 'whatsapp'], cta: 'Acheter maintenant', catalogLabel: 'Boutique' },
+    mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Acheter maintenant', catalogLabel: 'Tendances' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: true, quote: false, buyNow: true },
   },
 
@@ -339,8 +366,9 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(58,42,27,0.06)',
     shadowHover: '0 12px 28px -14px rgba(58,42,27,0.24)',
     showRating: true,
+    proof: 'editorial',
     hoverSwap: true, hoverAction: false, reveal: true,
-    mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter à ma collection', catalogLabel: 'Collection' },
+    mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Commander cette pièce', catalogLabel: 'Collection' },
     checkout: { schedule: 'none', customisation: true, whatsappFirst: false, quote: false, buyNow: false },
   },
 
@@ -365,6 +393,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(15,42,74,0.06)',
     shadowHover: '0 12px 26px -12px rgba(15,42,74,0.22)',
     showRating: true,
+    proof: 'editorial',
     hoverSwap: false, hoverAction: false, reveal: true,
     mobile: { dock: ['home', 'catalog', 'book'], cta: 'Réserver', catalogLabel: 'Services' },
     checkout: { schedule: 'appointment', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -391,6 +420,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(20,61,40,0.07)',
     shadowHover: '0 10px 22px -10px rgba(20,61,40,0.22)',
     showRating: true,
+    proof: 'ledger',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['catalog', 'availability', 'whatsapp'], cta: 'Demander ce lot', catalogLabel: 'Produits' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: true, buyNow: false },
@@ -417,8 +447,9 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 2px 6px -2px rgba(64,32,15,0.10)',
     shadowHover: '0 14px 30px -12px rgba(64,32,15,0.24)',
     showRating: true,
+    proof: 'band',
     hoverSwap: false, hoverAction: false, reveal: false,
-    mobile: { dock: ['catalog', 'search', 'cart', 'checkout'], cta: 'Commander', catalogLabel: 'Menu' },
+    mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Commander maintenant', catalogLabel: 'Menu' },
     checkout: { schedule: 'delivery', customisation: true, whatsappFirst: false, quote: false, buyNow: true },
   },
 
@@ -443,6 +474,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow: 'none',
     shadowHover: 'none',
     showRating: false,
+    proof: 'editorial',
     hoverSwap: true, hoverAction: true, reveal: true,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Collection' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -468,6 +500,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 2px 8px -2px rgba(0,31,63,0.06)',
     shadowHover: '0 12px 28px -10px rgba(0,31,63,0.16)',
     showRating: true,
+    proof: 'cards',
     hoverSwap: true, hoverAction: false, reveal: true,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -492,6 +525,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(0,31,63,0.05)',
     shadowHover: '0 8px 20px -8px rgba(0,31,63,0.18)',
     showRating: false,
+    proof: 'ledger',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Produits' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -518,6 +552,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 2px 6px -2px rgba(0,31,63,0.08)',
     shadowHover: '0 14px 30px -12px rgba(0,31,63,0.20)',
     showRating: false,
+    proof: 'band',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['catalog', 'search', 'cart', 'checkout'], cta: 'Commander', catalogLabel: 'Carte' },
     checkout: { schedule: 'delivery', customisation: false, whatsappFirst: false, quote: false, buyNow: true },
@@ -542,6 +577,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(0,31,63,0.05)',
     shadowHover: '0 10px 24px -10px rgba(0,31,63,0.18)',
     showRating: false,
+    proof: 'cards',
     hoverSwap: true, hoverAction: false, reveal: false,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -589,6 +625,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(36,64,44,0.06)',
     shadowHover: '0 12px 26px -12px rgba(36,64,44,0.22)',
     showRating: true,
+    proof: 'cards',
     hoverSwap: false, hoverAction: false, reveal: true,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Produits' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -614,6 +651,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(44,66,48,0.05)',
     shadowHover: '0 12px 28px -14px rgba(44,66,48,0.20)',
     showRating: true,
+    proof: 'editorial',
     hoverSwap: true, hoverAction: false, reveal: true,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Soins' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -642,6 +680,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(61,82,48,0.07)',
     shadowHover: '0 10px 24px -10px rgba(61,82,48,0.22)',
     showRating: true,
+    proof: 'cards',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -668,6 +707,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow: 'none',
     shadowHover: 'none',
     showRating: true,
+    proof: 'editorial',
     hoverSwap: true, hoverAction: true, reveal: true,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Collection' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -696,6 +736,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(0,0,0,0.55)',
     shadowHover: '0 16px 34px -14px rgba(0,0,0,0.85)',
     showRating: true,
+    proof: 'band',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Acheter maintenant', catalogLabel: 'Programmes' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -721,6 +762,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(74,53,39,0.06)',
     shadowHover: '0 12px 28px -14px rgba(74,53,39,0.22)',
     showRating: true,
+    proof: 'editorial',
     hoverSwap: false, hoverAction: false, reveal: true,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter à ma collection', catalogLabel: 'Pièces' },
     checkout: { schedule: 'none', customisation: true, whatsappFirst: false, quote: false, buyNow: false },
@@ -747,6 +789,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(30,74,63,0.06)',
     shadowHover: '0 12px 26px -12px rgba(30,74,63,0.20)',
     showRating: true,
+    proof: 'cards',
     hoverSwap: false, hoverAction: false, reveal: true,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Produits' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -775,6 +818,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(19,33,46,0.06)',
     shadowHover: '0 10px 24px -10px rgba(19,33,46,0.20)',
     showRating: true,
+    proof: 'editorial',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['home', 'catalog', 'cart'], cta: 'Commander maintenant', catalogLabel: 'Le produit' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: true },
@@ -800,6 +844,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
               upper: false, tracking: 0.02, eyebrow: true },
     shadow: 'none', shadowHover: 'none',
     showRating: false,
+    proof: 'editorial',
     hoverSwap: true, hoverAction: true, reveal: true,
     mobile: { dock: ['home', 'catalog', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: false },
@@ -839,6 +884,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(0,31,63,0.05)',
     shadowHover: '0 10px 24px -10px rgba(0,31,63,0.18)',
     showRating: true,
+    proof: 'cards',
     hoverSwap: true, hoverAction: true, reveal: false,
     mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: true },
@@ -859,6 +905,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     shadow:      '0 1px 2px 0 rgba(0,31,63,0.05)',
     shadowHover: '0 6px 16px -8px rgba(0,31,63,0.18)',
     showRating: false,
+    proof: 'band',
     hoverSwap: false, hoverAction: false, reveal: false,
     mobile: { dock: ['catalog', 'search', 'cart', 'whatsapp'], cta: 'Ajouter au panier', catalogLabel: 'Catalogue' },
     checkout: { schedule: 'none', customisation: false, whatsappFirst: true, quote: false, buyNow: true },

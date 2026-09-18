@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Les avis clients
+// La preuve sociale — une source, quatre formes
 //
 // « Ne jamais inventer de reviews. Les avis doivent provenir de vrais
 // clients. » (§27)
@@ -15,7 +15,37 @@
 // n'y a encore aucun avis réel, et l'éditeur les nomme désormais pour ce qu'ils
 // sont : des citations sous la responsabilité du marchand. Le jour où un vrai
 // client dépose un avis, les vrais prennent toute la place — et le marchand n'a
-// rien à faire pour ça.
+// rien à faire pour ça. La mention « Achat vérifié » suit cette frontière : elle
+// ne se pose que sur ce qui est adossé à une commande.
+//
+// ── Pourquoi quatre formes, et pas une grille pour tout le monde (§12) ─────
+//
+// C'était le dernier endroit où les vingt-deux gabarits se ressemblaient
+// vraiment. Le reste de la vitrine avait sa bannière, sa carte et ses rayons ;
+// la preuve, elle, sortait en trois cartes bordées du prestataire au vendeur
+// social. Or un avis ne fait pas le même travail selon ce qu'il cautionne :
+//
+//   editorial  une phrase qu'on LIT. Chez un artisan ou une marque de mode,
+//              c'est un texte, il mérite la typographie de titre et de l'air
+//              autour. Le premier avis passe en grand, les suivants dessous.
+//   band       un VOLUME. Chez un vendeur social ou un traiteur, ce qui
+//              convainc n'est pas la phrase mais le nombre : dix vignettes qui
+//              défilent au doigt disent « beaucoup de monde » là où trois pavés
+//              disent « trois personnes ».
+//   ledger     une RÉFÉRENCE. L'acheteur d'un lot de bétail ou d'un téléphone
+//              ne lit pas un récit, il vérifie une liste : qui, quoi, quand,
+//              combien d'étoiles. Des lignes, donc, pas des cartes.
+//   cards      le rendu neutre du commerce, celui qui ne prend pas parti.
+//
+// ── Le téléphone, qui n'est pas un grand écran réduit (§5) ────────────────
+//
+// Trois cartes côte à côte sur un écran de 375 pixels deviennent trois cartes
+// empilées, soit deux écrans et demi de citations que personne ne fait défiler
+// jusqu'au bout. `cards` et `band` passent donc en bande à défilement au doigt
+// sous 640 pixels, avec accrochage : une carte à l'écran, la suivante qui
+// dépasse pour dire qu'il y en a une suivante. `editorial` et `ledger` n'ont
+// pas ce problème — l'un n'a qu'une citation en vue, l'autre est une liste
+// verticale, qui est déjà la bonne forme sur un téléphone.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Star, BadgeCheck } from 'lucide-react';
@@ -24,14 +54,36 @@ import { Section, SectionHeader } from './Shell';
 import { sectionTitle } from '../../../lib/storeSections';
 import type { SectionProps } from './types';
 
-function Stars({ rating }: { rating: number }) {
+/**
+ * Un avis, quelle que soit sa provenance.
+ *
+ * Les quatre formes lisent CE type et jamais la source : c'est ce qui garantit
+ * qu'un avis réel et une citation de marchand ne se dessinent pas différemment
+ * par accident — seule la mention « Achat vérifié » les sépare, et c'est la
+ * seule différence qui doit se voir.
+ */
+type Proof = {
+  key:      string;
+  rating:   number;
+  text:     string;
+  author:   string;
+  /** Vrai seulement pour un avis adossé à une commande enregistrée. */
+  verified: boolean;
+  /** Le produit noté, quand l'avis en cite un. */
+  subject:  string | null;
+  /** ISO, pour les formes qui datent la référence. */
+  date:     string | null;
+};
+
+function Stars({ rating, size = 4 }: { rating: number; size?: 3.5 | 4 }) {
   if (rating <= 0) return null;
+  const px = size === 4 ? 'h-4 w-4' : 'h-3.5 w-3.5';
   return (
-    <div className="flex gap-0.5" aria-label={`${rating} sur 5`}>
+    <div className="flex flex-shrink-0 gap-0.5" aria-label={`${rating} sur 5`}>
       {Array.from({ length: 5 }, (_, i) => (
         <Star
           key={i}
-          className="h-4 w-4"
+          className={px}
           strokeWidth={1.5}
           style={{
             fill:  i < Math.round(rating) ? 'var(--st-accent)' : 'transparent',
@@ -44,71 +96,298 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-export function TestimonialsSection({ store, section, data, design }: SectionProps) {
-  const real = data.reviews.slice(0, section.config.limit);
+/** « Achat vérifié » — vérifiable, pas décoratif : l'avis vient d'une commande. */
+function Verified() {
+  return (
+    <span className="flex items-center gap-1 whitespace-nowrap text-[var(--st-ink-3)]">
+      <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} aria-hidden />
+      Achat vérifié
+    </span>
+  );
+}
 
-  // Les citations du marchand ne servent que tant qu'aucun vrai avis n'existe.
-  const fallback = real.length === 0 && store.theme.socialProof.enabled
-    ? store.theme.socialProof.items
-    : [];
+/**
+ * Le mois et l'année d'un avis, jamais le jour.
+ *
+ * « 12 mars 2026 » sur une liste de références donne l'impression d'un registre
+ * d'huissier, et surtout laisse voir qu'il n'y a eu qu'une commande cette
+ * semaine-là. Le mois situe sans exposer.
+ */
+function monthOf(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('fr-HT', { month: 'long', year: 'numeric' }).format(d);
+}
 
-  if (real.length === 0 && fallback.length === 0) return null;
+// ── Les quatre formes ───────────────────────────────────────────────────────
 
-  const title = sectionTitle(section, store.templateId) || store.theme.socialProof.title;
+/**
+ * Bande à défilement, sous 640 pixels seulement.
+ *
+ * `-mx-4 px-4` fait dépasser la bande des marges de la section : la première
+ * carte s'aligne sur le texte, la dernière peut sortir de l'écran. Une bande
+ * qui s'arrête pile au bord ressemble à une grille mal cadrée.
+ */
+const MOBILE_BAND =
+  '-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-1 '
+  + 'sm:mx-0 sm:grid sm:snap-none sm:overflow-visible sm:px-0 sm:pb-0';
 
-  const body = (
-    <Section design={design} label={title}>
-      <SectionHeader design={design} title={title} eyebrow="La preuve" align="center" />
+const MOBILE_BAND_ITEM = 'w-[82%] flex-shrink-0 snap-start sm:w-auto';
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ gap: 'var(--st-grid-gap)' }}>
-        {real.map((review) => (
-          <figure
-            key={review.id}
-            className="flex flex-col gap-3 border p-5"
-            style={{ borderColor: 'var(--st-border)', background: 'var(--st-surface)', borderRadius: 'var(--st-radius-card)' }}
-          >
-            <Stars rating={review.rating} />
+const CARD: React.CSSProperties = {
+  borderColor:  'var(--st-border)',
+  background:   'var(--st-surface)',
+  borderRadius: 'var(--st-radius-card)',
+};
 
-            {review.body && (
+function ProofCards({ items }: { items: Proof[] }) {
+  return (
+    <ul
+      className={`${MOBILE_BAND} sm:grid-cols-2 lg:grid-cols-3`}
+      style={{ gap: 'var(--st-grid-gap)' }}
+    >
+      {items.map((p) => (
+        <li key={p.key} className={MOBILE_BAND_ITEM}>
+          <figure className="flex h-full flex-col gap-3 border p-5" style={CARD}>
+            <Stars rating={p.rating} />
+
+            {p.text && (
               <blockquote className="text-[14px] leading-relaxed text-[var(--st-ink-2)]">
-                « {review.body} »
+                « {p.text} »
               </blockquote>
             )}
 
-            <figcaption className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-              <span className="font-semibold text-[var(--st-ink)]">{review.author_name}</span>
-              {/* La mention qui donne sa valeur à l'avis : elle n'est pas
-                  décorative, elle est vérifiable — cet avis vient d'une
-                  commande enregistrée. */}
-              <span className="flex items-center gap-1 text-[var(--st-ink-3)]">
-                <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-                Achat vérifié
-              </span>
-              {review.product_name && (
-                <span className="w-full text-[12px] text-[var(--st-ink-3)]">
-                  {review.product_name}
-                </span>
+            <figcaption className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[13px]">
+              <span className="font-semibold text-[var(--st-ink)]">{p.author}</span>
+              {p.verified && <Verified />}
+              {p.subject && (
+                <span className="w-full text-[12px] text-[var(--st-ink-3)]">{p.subject}</span>
               )}
             </figcaption>
           </figure>
-        ))}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-        {fallback.map((quote, i) => (
-          <figure
-            key={`quote-${i}`}
-            className="flex flex-col gap-3 border p-5"
-            style={{ borderColor: 'var(--st-border)', background: 'var(--st-surface)', borderRadius: 'var(--st-radius-card)' }}
+/**
+ * La première citation en grand, les suivantes en colonnes dessous.
+ *
+ * Aucun cadre, aucune ombre : sur un gabarit éditorial, une citation encadrée
+ * se lit comme un encart publicitaire. Ce qui la tient est le filet au-dessus
+ * du nom et l'air autour — la même grammaire que `PresentationSection`.
+ */
+function ProofEditorial({ items }: { items: Proof[] }) {
+  const [lead, ...rest] = items;
+  if (!lead) return null;
+
+  return (
+    <div>
+      <figure className="mx-auto max-w-3xl text-center">
+        <div className="flex justify-center">
+          <Stars rating={lead.rating} />
+        </div>
+
+        {lead.text && (
+          <blockquote
+            className="mt-5 text-[var(--st-ink)]"
+            style={{
+              fontFamily:    'var(--st-font-heading)',
+              // Entre le titre de section et le corps de texte : la citation
+              // doit peser plus qu'un paragraphe sans concurrencer le titre.
+              fontSize:      'clamp(19px, 2.4vw, 26px)',
+              fontWeight:    500,
+              lineHeight:    1.45,
+              letterSpacing: 'var(--st-tracking)',
+            }}
           >
-            <Stars rating={quote.rating} />
-            <blockquote className="text-[14px] leading-relaxed text-[var(--st-ink-2)]">
-              « {quote.text} »
-            </blockquote>
-            <figcaption className="mt-auto text-[13px] font-semibold text-[var(--st-ink)]">
-              {quote.author}
+            « {lead.text} »
+          </blockquote>
+        )}
+
+        <figcaption className="mt-7 flex flex-col items-center gap-2 text-[13px]">
+          <span className="h-px w-10" style={{ background: 'var(--st-border)' }} aria-hidden />
+          <span className="font-semibold text-[var(--st-ink)]">{lead.author}</span>
+          <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[var(--st-ink-3)]">
+            {lead.verified && <Verified />}
+            {lead.subject && <span className="text-[12px]">{lead.subject}</span>}
+          </span>
+        </figcaption>
+      </figure>
+
+      {rest.length > 0 && (
+        <ul
+          className="mx-auto mt-14 grid max-w-5xl gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {rest.map((p) => (
+            <li key={p.key}>
+              <Stars rating={p.rating} size={3.5} />
+              {p.text && (
+                <blockquote className="mt-3 text-[14px] leading-relaxed text-[var(--st-ink-2)]">
+                  « {p.text} »
+                </blockquote>
+              )}
+              <p className="mt-3 text-[13px] font-semibold text-[var(--st-ink)]">{p.author}</p>
+              {p.verified && (
+                <p className="mt-1 flex text-[12px]"><Verified /></p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * La bande, à tous les paliers.
+ *
+ * Elle ne passe PAS en grille sur grand écran, contrairement à `cards` : sur
+ * les gabarits qui la portent, c'est le défilement lui-même qui dit le volume.
+ * Une grille de dix avis sur trois rangées se lit comme une page d'archive.
+ */
+function ProofBand({ items }: { items: Proof[] }) {
+  return (
+    <ul
+      className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
+      style={{ gap: 'var(--st-grid-gap)' }}
+    >
+      {items.map((p) => (
+        <li
+          key={p.key}
+          className="w-[78%] flex-shrink-0 snap-start sm:w-[46%] lg:w-[31%]"
+        >
+          <figure className="flex h-full flex-col gap-3 border p-5" style={CARD}>
+            <Stars rating={p.rating} />
+            {p.text && (
+              <blockquote className="text-[14px] leading-relaxed text-[var(--st-ink-2)]">
+                « {p.text} »
+              </blockquote>
+            )}
+            <figcaption className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[13px]">
+              <span className="font-semibold text-[var(--st-ink)]">{p.author}</span>
+              {p.verified && <Verified />}
             </figcaption>
           </figure>
-        ))}
-      </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Des lignes, pas des cartes.
+ *
+ * L'acheteur professionnel — un lot de bétail, un téléphone qu'il compare —
+ * vérifie une liste de références avant de lire un récit. Le nom et ce qui a
+ * été commandé tiennent à gauche, la note et le mois à droite : c'est la forme
+ * d'un relevé, et elle se parcourt en diagonale.
+ */
+function ProofLedger({ items }: { items: Proof[] }) {
+  return (
+    <ul
+      className="mx-auto max-w-3xl border-y"
+      style={{ borderColor: 'var(--st-border)' }}
+    >
+      {items.map((p, i) => {
+        const month = monthOf(p.date);
+        return (
+          <li
+            key={p.key}
+            className={i > 0 ? 'border-t' : undefined}
+            style={i > 0 ? { borderColor: 'var(--st-border)' } : undefined}
+          >
+            <figure className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 py-5">
+              <div className="min-w-0 flex-1 basis-[60%]">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px]">
+                  <span className="font-semibold text-[var(--st-ink)]">{p.author}</span>
+                  {p.verified && <span className="text-[12px]"><Verified /></span>}
+                </p>
+                {p.subject && (
+                  <p className="mt-1 text-[13px] text-[var(--st-ink-3)]">{p.subject}</p>
+                )}
+                {p.text && (
+                  <blockquote className="mt-2 text-[14px] leading-relaxed text-[var(--st-ink-2)]">
+                    {p.text}
+                  </blockquote>
+                )}
+              </div>
+
+              <figcaption className="flex flex-shrink-0 flex-col items-start gap-1 sm:items-end">
+                <Stars rating={p.rating} size={3.5} />
+                {month && (
+                  <span className="text-[12px] text-[var(--st-ink-3)]">{month}</span>
+                )}
+              </figcaption>
+            </figure>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ── La section ──────────────────────────────────────────────────────────────
+
+export function TestimonialsSection({ store, section, data, design }: SectionProps) {
+  // La bande vit du nombre : trois avis y feraient une bande qui ne défile pas.
+  // Elle prend donc plus large que la limite réglée par le marchand, sans jamais
+  // dépasser ce que la page a réellement.
+  const limit = design.proof === 'band'
+    ? Math.max(section.config.limit, 9)
+    : section.config.limit;
+
+  const real: Proof[] = data.reviews.slice(0, limit).map((review) => ({
+    key:      review.id,
+    rating:   review.rating,
+    text:     review.body?.trim() ?? '',
+    author:   review.author_name,
+    verified: true,
+    subject:  review.product_name,
+    date:     review.created_at,
+  }));
+
+  // Les citations du marchand ne servent que tant qu'aucun vrai avis n'existe.
+  const fallback: Proof[] = real.length === 0 && store.theme.socialProof.enabled
+    ? store.theme.socialProof.items.map((quote, i) => ({
+        key:      `quote-${i}`,
+        rating:   quote.rating,
+        text:     quote.text.trim(),
+        author:   quote.author,
+        verified: false,
+        subject:  null,
+        date:     null,
+      }))
+    : [];
+
+  const items = real.length > 0 ? real : fallback;
+  if (items.length === 0) return null;
+
+  const title = sectionTitle(section, store.templateId) || store.theme.socialProof.title;
+
+  // Une seule citation ne fait ni une bande ni un relevé : les deux formes
+  // supposent une liste à parcourir, et une liste d'un élément se lit comme une
+  // page à moitié chargée. Elle passe en éditorial, qui est la forme d'UNE
+  // citation.
+  const style = items.length === 1 && (design.proof === 'band' || design.proof === 'ledger')
+    ? 'editorial'
+    : design.proof;
+
+  const body = (
+    <Section design={design} label={title}>
+      <SectionHeader
+        design={design}
+        title={title}
+        eyebrow="La preuve"
+        align={style === 'editorial' || style === 'ledger' ? 'center' : 'left'}
+      />
+
+      {style === 'editorial' ? <ProofEditorial items={items} />
+        : style === 'band'   ? <ProofBand items={items} />
+        : style === 'ledger' ? <ProofLedger items={items} />
+        : <ProofCards items={items} />}
     </Section>
   );
 

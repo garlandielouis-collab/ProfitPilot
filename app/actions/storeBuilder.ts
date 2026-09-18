@@ -215,7 +215,7 @@ async function readBuilderState(): Promise<BuilderState> {
 
   const slug = store?.slug ?? slugify(business?.name ?? 'ma-boutique');
 
-  const templateId = isTemplateId(store?.template_id) ? store.template_id : 'modern';
+  const templateId = isTemplateId(store?.template_id) ? store.template_id : 'proximite';
 
   // Lue après le reste : elle dépend du gabarit, qui fournit l'ordre de départ.
   // La lecture est tolérante à une table absente (migration non jouée) — comme

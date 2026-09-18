@@ -475,7 +475,7 @@ const V_ARTISAN: ContentPreset = {
     enabled:  true,
     title:    'Une création rien que pour vous',
     body:     "Une dimension particulière, une couleur, une gravure, une pièce à offrir pour une date précise : décrivez ce que vous avez en tête, on vous répond avec un prix et un délai.",
-    ctaLabel: 'Demander une création',
+    ctaLabel: 'Commander cette création',
     askDate:  true,
   },
   socialProof: {
@@ -571,7 +571,7 @@ const V_SERVICES: ContentPreset = {
     enabled:  true,
     title:    'Prendre rendez-vous',
     body:     "Dites-nous en deux lignes où vous en êtes et quand vous êtes disponible. On vous propose un créneau.",
-    ctaLabel: 'Demander un créneau',
+    ctaLabel: 'Réserver une séance',
     askDate:  true,
   },
 };
@@ -660,7 +660,7 @@ const V_AGRI: ContentPreset = {
     enabled:  true,
     title:    'Demander un lot',
     body:     "Indiquez l'espèce, la quantité et la date souhaitée. Nous confirmons la disponibilité et le prix par retour.",
-    ctaLabel: 'Envoyer ma demande',
+    ctaLabel: 'Demander ce lot',
     askDate:  true,
   },
   ctaBand: {
@@ -722,7 +722,7 @@ const V_TRAITEUR: ContentPreset = {
     enabled:  true,
     title:    'Votre gâteau, votre histoire',
     body:     "Nombre de parts, parfum, décoration, message à écrire, date et heure de livraison : donnez-nous les détails, on vous répond avec un prix ferme.",
-    ctaLabel: 'Personnaliser ma commande',
+    ctaLabel: 'Commander maintenant',
     askDate:  true,
   },
   ingredients: {

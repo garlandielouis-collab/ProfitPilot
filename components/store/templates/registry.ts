@@ -547,7 +547,7 @@ export function templateGroups(current: unknown): Array<{
 }
 
 export function resolveTemplateId(raw: unknown): TemplateId {
-  return isTemplateId(raw) ? raw : 'modern';
+  return isTemplateId(raw) ? raw : 'proximite';
 }
 
 export function resolveTemplate(raw: unknown): TemplateDefinition {

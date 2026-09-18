@@ -15,7 +15,10 @@
 
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { loadStore, loadCatalog, loadCategories, buildStorefrontContext } from '../../../lib/storefrontData';
+import {
+  loadStore, loadCatalog, loadCategories, loadReviews, buildStorefrontContext,
+} from '../../../lib/storefrontData';
+import { infoPagesFor } from '../../../lib/storefrontPages';
 import { storePublicUrl } from '../../../lib/storeTheme';
 import { toStoreView } from '../../../components/store/types';
 import { resolveTemplateId } from '../../../components/store/templates/registry';
@@ -99,6 +102,17 @@ export default async function StoreLayout({ params, children }: Props) {
     ctx.theme.catalog.mode === 'selected',
   );
 
+  // Les pages internes que CETTE vitrine porte — « À propos », « Contact »,
+  // « FAQ », « Livraison & retours », « Témoignages ». Une seule résolution,
+  // partagée par l'en-tête, le pied de page et le plan du site : un lien
+  // proposé quelque part mène forcément à une page qui existe.
+  //
+  // Les avis sont lus ici parce que la page « Témoignages » n'ouvre qu'à partir
+  // du premier avis publié. C'est la même lecture en cache que la page
+  // d'accueil, donc pas une requête de plus.
+  const reviews   = await loadReviews(store.business_id);
+  const infoPages = infoPagesFor({ ...view, hasReviews: reviews.length > 0 });
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Store',
@@ -120,6 +134,7 @@ export default async function StoreLayout({ params, children }: Props) {
         businessId={store.business_id}
         searchIndex={searchIndex}
         categories={navCategories}
+        infoPages={infoPages}
       >
         {children}
       </StorefrontShell>

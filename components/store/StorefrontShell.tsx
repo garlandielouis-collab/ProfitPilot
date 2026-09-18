@@ -27,6 +27,7 @@ import { StorefrontFooter } from './StorefrontFooter';
 import { StorefrontDock } from './StorefrontDock';
 import { StorefrontUIProvider } from './StorefrontUI';
 import { CartDrawer } from './blocks/CartDrawer';
+import type { InfoPage } from '../../lib/storefrontPages';
 import type { StoreView, StoreProduct, StoreCategory } from './types';
 
 const inter = Inter({
@@ -46,13 +47,22 @@ const playfair = Playfair_Display({
 });
 
 export function StorefrontShell({
-  view, businessId, searchIndex, categories, children, dockMode,
+  view, businessId, searchIndex, categories, infoPages = [], children, dockMode,
 }: {
   view:        StoreView;
   businessId:  string;
   /** Le catalogue réduit aux champs de la recherche instantanée. */
   searchIndex: StoreProduct[];
   categories:  StoreCategory[];
+  /**
+   * Les pages internes que cette vitrine porte réellement.
+   *
+   * Résolues une fois par le layout et descendues telles quelles : l'en-tête et
+   * le pied de page ne proposent donc jamais un lien que l'adresse refuserait.
+   * Vide par défaut — l'aperçu de gabarit n'a pas à les calculer pour montrer
+   * une composition.
+   */
+  infoPages?:  InfoPage[];
   children:    React.ReactNode;
   /**
    * `static` pour l'aperçu de gabarit, dont la barre occupe déjà le bas de
@@ -113,9 +123,14 @@ export function StorefrontShell({
             fontFamily: 'var(--st-font-body)',
           }}
         >
-          <StorefrontHeader store={view} searchIndex={searchIndex} categories={categories} />
+          <StorefrontHeader
+            store={view}
+            searchIndex={searchIndex}
+            categories={categories}
+            infoPages={infoPages}
+          />
           <main className="flex-1">{children}</main>
-          <StorefrontFooter store={view} categories={categories} />
+          <StorefrontFooter store={view} categories={categories} infoPages={infoPages} />
           <CartDrawer store={view} />
 
           {/* Le socle mobile (§4). Il vient APRÈS le pied de page : la cale
