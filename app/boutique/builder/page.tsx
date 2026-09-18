@@ -38,6 +38,7 @@ import {
 import { TEMPLATES, templateGroups, templateSections } from '../../../components/store/templates/registry';
 import { ContentTab } from './ContentTab';
 import { SectionsTab } from './SectionsTab';
+import { ImageField } from './ImageField';
 import { ImageEnhancerModal } from '../../../components/store/ImageEnhancerModal';
 import { CopyStudioModal } from '../../../components/store/CopyStudioModal';
 import {
@@ -283,6 +284,7 @@ function GeneralTab({
   const [whatsapp, setWhatsapp]   = useState(state.whatsappNumber);
   const [isActive, setIsActive]   = useState(state.isActive);
   const [domain, setDomain]       = useState(state.customDomain ?? '');
+  const [logoUrl, setLogoUrl]     = useState<string | null>(state.logoUrl);
 
   const root = storeRootDomain();
   // Ce que le marchand lit autour de son slug. Sur une racine *.vercel.app,
@@ -309,6 +311,19 @@ function GeneralTab({
             rows={2}
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
+          />
+          {/* Le logo n'avait AUCUN champ : l'éditeur renvoyait à
+              l'enregistrement la valeur qu'il avait lue, si bien qu'une
+              boutique sans logo n'avait aucun moyen d'en poser un. Il s'affiche
+              dans l'en-tête de la vitrine et sert d'icône d'onglet. */}
+          <ImageField
+            label="Le logo"
+            hint="Facultatif. Sans logo, le nom de la boutique s'écrit en toutes lettres."
+            value={logoUrl}
+            onChange={setLogoUrl}
+            businessId={state.businessId}
+            slot="logo"
+            ratio="3 / 1"
           />
         </div>
       </Card>
@@ -402,7 +417,7 @@ function GeneralTab({
           run(() =>
             saveGeneral({
               storeName, tagline, slug,
-              logoUrl: state.logoUrl,
+              logoUrl,
               whatsappNumber: whatsapp,
               isActive,
             }),

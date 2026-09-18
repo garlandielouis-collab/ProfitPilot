@@ -7,6 +7,7 @@ import { ThemeProvider }   from './ThemeProvider';
 import { ToastProvider }   from './ToastProvider';
 import { CompanyProvider, useCompanyContext } from '../../contexts/CompanyContext';
 import { useAutoExchangeRateRefresh } from '../../hooks/useExchangeRate';
+import { isPublicAppPath } from '../../lib/publicRoutes';
 
 /**
  * Le rafraîchissement automatique du taux USD/HTG.
@@ -43,8 +44,9 @@ function AutoRateRefresher() {
 export function Providers({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isStorefront = pathname?.startsWith('/store/') ?? false;
+  const isPublicRoute = isPublicAppPath(pathname);
 
-  if (isStorefront) {
+  if (isStorefront || isPublicRoute) {
     return (
       <QueryProvider>
         <ThemeProvider>

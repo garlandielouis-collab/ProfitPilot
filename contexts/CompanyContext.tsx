@@ -124,8 +124,17 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(false);
 
-  const load = useCallback(async () => {
-    if (loadingRef.current) return;
+  // `force` : une relance DEMANDÉE par le marchand passe outre le garde-fou.
+  //
+  // Celui-ci n'est là que pour éviter deux lectures automatiques simultanées
+  // (le montage et un `onAuthStateChange` qui tombe en même temps). Mais une
+  // lecture qui ne revient jamais laisse `loadingRef` armé pour toujours : le
+  // bouton « Réessayer » du verrou d'écran ressortait alors sans rien faire,
+  // c'est-à-dire qu'il mentait. Un bouton qui ne fait rien est pire que pas de
+  // bouton — le marchand appuie, rien ne change, et il conclut que l'écran est
+  // mort.
+  const load = useCallback(async (force = false) => {
+    if (loadingRef.current && !force) return;
     loadingRef.current = true;
     try {
       const data = await getClientTenantContext();
@@ -163,6 +172,20 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           clearCache();
           setCtx(null);
           setLoading(true);
+          // …et on RELANCE la lecture. Sans cette ligne, `loading` restait vrai
+          // pour toujours quand cette vérification se terminait APRÈS le
+          // `load()` d'en dessous : celui-ci avait déjà posé `false`, plus rien
+          // ne le reposait, et aucun autre événement ne relance la lecture.
+          //
+          // Le dégât se voyait sur les écrans jugés par l'offre — la vitrine,
+          // les rapports, les documents : `RouteFeatureGate` n'affiche ni la
+          // page ni le verrou tant que l'offre est inconnue, donc une roue qui
+          // tourne indéfiniment. Les autres écrans, eux, s'ouvraient : d'où un
+          // « certaines pages ne s'ouvrent pas » incompréhensible.
+          //
+          // `load()` se garde lui-même d'un double appel (`loadingRef`) : si une
+          // lecture est déjà en vol, elle finira et posera le contexte frais.
+          void load();
         }
       });
     }
@@ -226,7 +249,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     loading,
     can,
     canUse,
-    refresh:      load,
+    refresh:      () => load(true),
   };
 
   return (

@@ -18,6 +18,7 @@ import {
   requiredPlanFor,
 } from '../lib/planFeatures';
 import { PLANS, getPlanByKey, getPlanLabel, normalizePlanKey } from '../lib/plans';
+import { previewFeatureOverrideEnabled } from '../lib/storePreview';
 
 // Les trois clés telles qu'elles sont stockées en base, et leur nom commercial.
 const ESANSYEL = 'Ti Machann';
@@ -94,6 +95,10 @@ describe('les plafonds d’offre', () => {
 });
 
 describe('les fonctionnalités par offre', () => {
+  test('les aperçus de boutique restent autorisés en local et en test', () => {
+    assert.equal(previewFeatureOverrideEnabled(), true);
+  });
+
   test('chaque offre contient tout ce que contient la précédente', () => {
     const esansyel = new Set(featuresForPlan(ESANSYEL));
     const kwasans  = new Set(featuresForPlan(KWASANS));

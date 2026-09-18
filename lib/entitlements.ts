@@ -20,6 +20,7 @@ import {
   type Feature,
 } from './planFeatures';
 import { roleHasPermission, type Permission } from './rbac';
+import { previewFeatureOverrideEnabled } from './storePreview';
 
 /**
  * Offre appliquée quand aucun abonnement actif n'est trouvé — la même que côté
@@ -171,6 +172,7 @@ export const getActiveGrants = cache(async (): Promise<Feature[]> => {
 
 /** `true` si l'offre active OU un droit temporaire couvre la fonctionnalité. */
 export async function hasFeature(feature: Feature): Promise<boolean> {
+  if (feature === 'online_store' && previewFeatureOverrideEnabled()) return true;
   if (planHasFeature(await getActivePlanKey(), feature)) return true;
   return (await getActiveGrants()).includes(feature);
 }

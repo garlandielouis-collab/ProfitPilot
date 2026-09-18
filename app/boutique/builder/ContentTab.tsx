@@ -36,6 +36,7 @@ import { Button } from '../../../components/ds/Button';
 import { Card } from '../../../components/ds/Surface';
 import { Field, TextField, SelectField } from '../../../components/ds/Field';
 import { Switch } from '../../../components/ds/Switch';
+import { ImageField, ImageListField } from './ImageField';
 import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 /** Les sections dont le CONTENU se saisit. Les autres lisent le catalogue. */
@@ -129,7 +130,7 @@ export function ContentTab({
       </p>
 
       {shown.map((key) => (
-        <div key={key}>{renderEditor(key, theme, patch)}</div>
+        <div key={key}>{renderEditor(key, theme, patch, state.businessId)}</div>
       ))}
 
       {hidden.length > 0 && (
@@ -144,7 +145,7 @@ export function ContentTab({
           </p>
           <div className="mt-4 flex flex-col gap-6">
             {hidden.map((key) => (
-              <div key={key}>{renderEditor(key, theme, patch)}</div>
+              <div key={key}>{renderEditor(key, theme, patch, state.businessId)}</div>
             ))}
           </div>
         </details>
@@ -170,7 +171,13 @@ export function ContentTab({
 
 type Patch = <K extends keyof ThemeConfig>(key: K, value: Partial<ThemeConfig[K]>) => void;
 
-function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactNode {
+function renderEditor(
+  key: SectionKey,
+  theme: ThemeConfig,
+  patch: Patch,
+  /** L'entreprise : le premier segment du chemin de stockage des photos. */
+  businessId: string,
+): ReactNode {
   const label = SECTIONS[key].label;
   const hint  = SECTIONS[key].hint;
 
@@ -217,7 +224,7 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
             value={theme.hero.ctaLabel}
             onChange={(e) => patch('hero', { ctaLabel: e.target.value })}
           />
-          <UrlField
+          <ImageField
             label="La photo de bannière"
             hint={
               "Sans photo, votre boutique affiche l'image de départ de votre gabarit — "
@@ -226,6 +233,9 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
             }
             value={theme.hero.imageUrl}
             onChange={(imageUrl) => patch('hero', { imageUrl })}
+            businessId={businessId}
+            slot="banniere"
+            ratio="16 / 9"
           />
           <div>
             <p className="text-body font-semibold text-primary dark:text-dark-text">
@@ -404,9 +414,11 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
             value={theme.gallery.caption}
             onChange={(e) => patch('gallery', { caption: e.target.value })}
           />
-          <UrlListField
+          <ImageListField
             images={theme.gallery.images}
             onChange={(images) => patch('gallery', { images })}
+            businessId={businessId}
+            slot="galerie"
           />
         </Group>
       );
@@ -523,10 +535,13 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
             value={theme.promotion.ctaHref}
             onChange={(e) => patch('promotion', { ctaHref: e.target.value })}
           />
-          <UrlField
+          <ImageField
             label="La photo de l'encart"
             value={theme.promotion.imageUrl}
             onChange={(imageUrl) => patch('promotion', { imageUrl })}
+            businessId={businessId}
+            slot="encart"
+            ratio="16 / 9"
           />
         </Group>
       );
@@ -552,11 +567,14 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
             value={theme.brandStory.body}
             onChange={(e) => patch('brandStory', { body: e.target.value })}
           />
-          <UrlField
+          <ImageField
             label="Une photo"
             hint="Votre atelier, votre boutique, vous au travail."
             value={theme.brandStory.imageUrl}
             onChange={(imageUrl) => patch('brandStory', { imageUrl })}
+            businessId={businessId}
+            slot="histoire"
+            ratio="4 / 3"
           />
         </Group>
       );
@@ -942,11 +960,14 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
                   value={item.name}
                   onChange={(e) => set({ ...item, name: e.target.value })}
                 />
-                <UrlField
+                <ImageField
                   label="Le logo"
                   hint="Facultatif."
                   value={item.logoUrl}
                   onChange={(logoUrl) => set({ ...item, logoUrl })}
+                  businessId={businessId}
+                  slot="partenaire"
+                  ratio="3 / 2"
                 />
               </>
             )}
@@ -1085,11 +1106,14 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
                   value={member.role}
                   onChange={(e) => set({ ...member, role: e.target.value })}
                 />
-                <UrlField
+                <ImageField
                   label="La photo"
                   hint="Facultatif. Sans photo, une silhouette neutre s'affiche."
                   value={member.photoUrl}
                   onChange={(photoUrl) => set({ ...member, photoUrl })}
+                  businessId={businessId}
+                  slot="equipe"
+                  ratio="1 / 1"
                 />
               </>
             )}
@@ -1364,11 +1388,14 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
                   value={item.quote}
                   onChange={(e) => set({ ...item, quote: e.target.value })}
                 />
-                <UrlField
+                <ImageField
                   label="Une photo"
                   hint="Facultatif."
                   value={item.imageUrl}
                   onChange={(imageUrl) => set({ ...item, imageUrl })}
+                  businessId={businessId}
+                  slot="etude"
+                  ratio="4 / 3"
                 />
               </>
             )}
@@ -1437,11 +1464,14 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
                   value={item.date}
                   onChange={(e) => set({ ...item, date: e.target.value })}
                 />
-                <UrlField
+                <ImageField
                   label="L'image"
                   hint="Facultatif."
                   value={item.imageUrl}
                   onChange={(imageUrl) => set({ ...item, imageUrl })}
+                  businessId={businessId}
+                  slot="journal"
+                  ratio="16 / 9"
                 />
               </>
             )}
@@ -1506,7 +1536,7 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
                   value={item.label}
                   onChange={(e) => set({ ...item, label: e.target.value })}
                 />
-                <UrlField
+                <ImageField
                   label="La vignette"
                   hint={
                     "Facultatif. Sans elle, la photo de l'article relié est "
@@ -1514,6 +1544,9 @@ function renderEditor(key: SectionKey, theme: ThemeConfig, patch: Patch): ReactN
                   }
                   value={item.posterUrl}
                   onChange={(posterUrl) => set({ ...item, posterUrl })}
+                  businessId={businessId}
+                  slot="video"
+                  ratio="9 / 16"
                 />
               </>
             )}

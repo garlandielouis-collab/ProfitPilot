@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Lock } from 'lucide-react';
 
 import { useLanguage } from './LanguageWrapper';
@@ -258,6 +258,25 @@ export function RouteFeatureGate({
 }) {
   const { t }               = useLanguage();
   const { canUse, loading } = usePermissions();
+  const { refresh }         = useCompanyContext();
+
+  // ── L'attente a une fin ────────────────────────────────────────────────────
+  //
+  // Passé ce délai, la roue n'est plus une attente : c'est une impasse. Le
+  // contexte d'entreprise peut rester en chargement pour de bon — une lecture
+  // qui ne revient pas, un onglet réveillé, une base en veille — et cet écran
+  // était le seul du produit sans porte de sortie : ni message, ni bouton, ni
+  // rien qui relance. Le marchand en concluait que la page n'existe pas.
+  //
+  // Douze secondes, pas trois : sur une connexion mobile irrégulière, une
+  // lecture lente est normale, et crier à la panne trop tôt apprend à ignorer
+  // le message. Passé ce délai, l'attente cesse d'être plausible.
+  const [tooLong, setTooLong] = useState(false);
+  useEffect(() => {
+    if (!loading) { setTooLong(false); return; }
+    const id = window.setTimeout(() => setTooLong(true), 12000);
+    return () => window.clearTimeout(id);
+  }, [loading]);
 
   const feature = featureForPath(pathname);
   if (!feature) return <>{children}</>;
@@ -267,11 +286,28 @@ export function RouteFeatureGate({
   // d'attendre — et annoncer un verrou qui n'existe pas, pire encore.
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
         <span
           className="h-8 w-8 animate-spin rounded-pill border-2 border-border border-t-primary"
           aria-label={t({ fr: 'Chargement', ht: 'Ap chaje' })}
         />
+        {/* La roue reste : la lecture court toujours, et le dire autrement
+            serait mentir. Ce qui s'ajoute, c'est de quoi ne pas rester là. */}
+        {tooLong && (
+          <>
+            <p className="text-body text-text2 dark:text-dark-text2">
+              {t({
+                fr: 'Votre offre met plus de temps que prévu à se charger. '
+                  + "C'est la connexion, pas votre compte.",
+                ht: 'Òf ou a ap pran plis tan pase sa nou te panse. '
+                  + 'Se koneksyon an, se pa kont ou.',
+              })}
+            </p>
+            <Button variant="accent" onClick={() => { void refresh(); }}>
+              {t({ fr: 'Réessayer', ht: 'Eseye ankò' })}
+            </Button>
+          </>
+        )}
       </div>
     );
   }
