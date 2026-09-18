@@ -35,7 +35,9 @@ import { BottomSheet, Button } from './ds';
 import { cn } from '../lib/utils';
 
 // Non critique : chargé après que le contenu principal soit interactif.
-const PilotAIGuide     = dynamic(() => import('./PilotAIGuide').then((m) => ({ default: m.PilotAIGuide })), { ssr: false });
+// La bulle de Pilot AI, et le panneau qu'elle ouvre. Chargée après le contenu :
+// c'est une aide, elle ne doit pas retarder l'écran qu'elle aide à lire.
+const PilotLauncher    = dynamic(() => import('./pilot/PilotLauncher').then((m) => ({ default: m.PilotLauncher })), { ssr: false });
 const WelcomeAnimation = dynamic(() => import('./WelcomeAnimation').then((m) => ({ default: m.WelcomeAnimation })), { ssr: false });
 // La feuille de vente n'est téléchargée qu'au premier appui sur « + Vente » :
 // sur une connexion irrégulière, on ne fait pas payer au marchand le poids
@@ -317,7 +319,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <PilotAIGuide />
+      <PilotLauncher />
       <WelcomeAnimation />
 
       <BottomBar onNewSale={() => setSaleOpen(true)} />

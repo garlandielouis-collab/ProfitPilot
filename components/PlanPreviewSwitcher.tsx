@@ -95,8 +95,12 @@ export function PlanPreviewSwitcher() {
         onClick={() => setOpen(true)}
         aria-label="Aperçu des offres"
         className={cn(
-          'pressable fixed right-4 z-40 flex min-h-touch items-center gap-2 rounded-pill px-4 shadow-pop',
-          'bottom-[calc(theme(spacing.nav)+1rem)] lg:bottom-4',
+          'pressable fixed z-40 flex min-h-touch items-center gap-2 rounded-pill px-4 shadow-pop',
+          // Le côté GAUCHE, et non plus le droit : la bulle de Pilot AI occupe
+          // désormais ce coin, et empiler les deux posait ce bouton sur la
+          // capsule (vu à la capture). Sa position vit dans le bloc « PILOT AI »
+          // de `globals.css`, avec celles qu'elle doit éviter.
+          'pp-plan-preview',
           preview
             ? 'bg-warning text-white'
             : 'bg-primary text-white dark:bg-dark-surface2 dark:text-dark-text',

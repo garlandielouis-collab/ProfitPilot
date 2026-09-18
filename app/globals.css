@@ -459,3 +459,48 @@ body[data-sheet='open'] #pp-app {
 @media (min-width: 1024px) {
   .pb-mobile-nav { padding-bottom: 12px; }
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   PILOT AI — la bulle, sa capsule, son panneau
+
+   La geometrie vit ici et non dans le composant, pour la meme raison que le
+   degagement ci-dessus : ces distances dependent de la barre mobile et de
+   l'encoche, deux valeurs qui n'appartiennent pas a un composant d'IA. Le jour
+   ou la barre change de hauteur, un seul bloc change.
+
+   MESURE, pas token : la barre fait 81 px de haut sur un telephone de 390 px,
+   la ou son token en annonce 72 (son contenu la pousse). Degager 16 au-dessus
+   du token n'en laissait que 7 au-dessus de la barre reelle, assez pour que la
+   bulle semble collee dessus. Le degagement est donc de 24 : il reste 15, soit
+   le cran de 16 a un pixel pres.
+
+   Le panneau, lui, porte sa geometrie de grand ecran dans ses classes :
+   `inset-auto` est une propriete raccourcie et ecrase n'importe quelle regle
+   posee ici, quel que soit l'ordre du fichier.
+   ═════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* La bulle fait 56 sur telephone. */
+  .pp-pilot-launcher { right: 16px; bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 24px); }
+  .pp-pilot-capsule  { right: 16px; bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 24px + 56px + 8px); }
+  /* Le commutateur d'apercu d'offre quitte ce coin : empile au-dessus de la
+     bulle, il se posait exactement sur la capsule. Il passe a gauche, ou rien
+     ne flotte. Il ne s'affiche qu'en apercu d'offre. */
+  .pp-plan-preview   { left: 16px; right: auto; bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 24px); }
+}
+
+@media (min-width: 1024px) {
+  /* Et 64 sur grand ecran, ou le pointeur vise mieux que le pouce. */
+  .pp-pilot-launcher { right: 24px; bottom: 24px; }
+  .pp-pilot-capsule  { right: 24px; bottom: calc(24px + 64px + 8px); }
+  .pp-plan-preview   { left: 24px; right: auto; bottom: 24px; }
+}
+
+/* La reponse de Pilot AI arrive en Markdown. Sans ces quatre regles, les
+   paragraphes se collent et les listes prennent le retrait par defaut du
+   navigateur — 40 px, hors grille. Rien de plus n'est style : les titres et le
+   gras du Markdown heritent deja de la typographie du produit. */
+.pp-markdown > * + * { margin-top: 8px; }
+.pp-markdown ul,
+.pp-markdown ol      { padding-left: 16px; list-style: disc; }
+.pp-markdown ol      { list-style: decimal; }
+.pp-markdown li + li { margin-top: 4px; }
