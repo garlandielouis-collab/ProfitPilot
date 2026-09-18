@@ -27,9 +27,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Plus, Trash2, EyeOff, Sparkles } from 'lucide-react';
+import { Plus, Trash2, EyeOff } from 'lucide-react';
 import { saveContent, type BuilderState } from '../../actions/storeBuilder';
-import { draftStorePresentation } from '../../actions/aiCopy';
 import { SECTIONS, type SectionKey } from '../../../lib/storeSections';
 import type { ThemeConfig } from '../../../lib/storeTheme';
 import { Button } from '../../../components/ds/Button';
@@ -37,7 +36,6 @@ import { Card } from '../../../components/ds/Surface';
 import { Field, TextField, SelectField } from '../../../components/ds/Field';
 import { Switch } from '../../../components/ds/Switch';
 import { ImageField, ImageListField } from './ImageField';
-import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 /** Les sections dont le CONTENU se saisit. Les autres lisent le catalogue. */
 const EDITABLE: SectionKey[] = [
@@ -47,7 +45,7 @@ const EDITABLE: SectionKey[] = [
   // Les neuf sections qui répondent (§36). Deux d'entre elles se remplissent
   // presque seules : « Livraison » et « Comment payer » affichent les modes
   // réels de la boutique, et n'attendent ici qu'une précision facultative.
-  'presentation', 'shipping', 'payments', 'contact', 'countdown', 'video', 'partners',
+  'shipping', 'payments', 'contact', 'countdown', 'video', 'partners',
   'size_guide', 'ingredients', 'team',
   // Les six sections des gabarits métier (§34). « Disponibles actuellement »
   // n'a presque rien à saisir : les quantités viennent du stock réel, et c'est
@@ -574,7 +572,26 @@ function renderEditor(
             onChange={(imageUrl) => patch('brandStory', { imageUrl })}
             businessId={businessId}
             slot="histoire"
-            ratio="4 / 3"
+            ratio="15 / 14"
+          />
+          {/* Les points viennent de l'ancienne section « Présentation », que
+              ce bloc a absorbée : ils restent rangés dans `presentation.items`
+              pour que ceux déjà saisis ne se perdent pas. */}
+          <Rows
+            items={theme.presentation.items.slice(0, 3)}
+            max={3}
+            blank={{ title: '', body: '' }}
+            addLabel="Ajouter un engagement"
+            onChange={(items) => patch('presentation', { items, enabled: true })}
+            render={(item, set) => (
+              <Field
+                label="Un engagement, en quelques mots"
+                hint="« Sélection soignée », « Prix affichés clairement », « Service humain sur WhatsApp »."
+                maxLength={70}
+                value={item.title}
+                onChange={(e) => set({ ...item, title: e.target.value })}
+              />
+            )}
           />
         </Group>
       );
@@ -740,9 +757,6 @@ function renderEditor(
       );
 
     // ── Les dix sections qui répondent (§36) ─────────────────────────────
-
-    case 'presentation':
-      return <PresentationEditor label={label} hint={hint} theme={theme} patch={patch} />;
 
 
     case 'shipping':
@@ -1557,153 +1571,6 @@ function renderEditor(
     default:
       return null;
   }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// La présentation, et son rédacteur
-// ═════════════════════════════════════════════════════════════════════════════
-
-/**
- * Le seul bloc de cet onglet qui a un état à lui.
- *
- * Parce qu'il est le seul à appeler quelque chose : les autres écrivent dans le
- * thème et attendent « Enregistrer ». Celui-ci demande à l'IA un premier jet,
- * l'affiche DANS les champs — pas dans un aperçu à accepter en bloc — et laisse
- * le marchand le corriger avant d'enregistrer. C'est la règle du Studio Copy,
- * et elle vaut d'autant plus ici : ce texte-là est le premier que ses clients
- * liront.
- *
- * Le premier jet ne remplace jamais un texte déjà saisi sans le dire : quand un
- * texte existe, le bouton demande confirmation. Perdre trois paragraphes écrits
- * la veille en cliquant sur un bouton qui promettait de l'aide, c'est la
- * dernière fois qu'on clique dessus.
- */
-function PresentationEditor({
-  label, hint, theme, patch,
-}: {
-  label: string;
-  hint:  string;
-  theme: ThemeConfig;
-  patch: Patch;
-}) {
-  const [writing, setWriting] = useState(false);
-  const [error,   setError]   = useState('');
-  const [credits, setCredits] = useState<number | null>(null);
-
-  const filled = theme.presentation.intro.trim() || theme.presentation.items.length > 0;
-
-  async function write() {
-    if (filled && !window.confirm(
-      'La rédaction va remplacer le texte de cette section. Continuer ?',
-    )) return;
-
-    setWriting(true);
-    setError('');
-    try {
-      const draft = unwrap(await draftStorePresentation('fr'));
-      patch('presentation', {
-        intro: draft.intro,
-        items: draft.items.map((i) => ({ title: i.title, body: i.body })),
-      });
-      setCredits(draft.remaining);
-    } catch (err) {
-      setError(screenMessage(err, 'La rédaction a échoué.'));
-    } finally {
-      setWriting(false);
-    }
-  }
-
-  return (
-    <Group
-      title={label} hint={hint}
-      checked={theme.presentation.enabled}
-      onChange={(enabled) => patch('presentation', { enabled })}
-    >
-      <div className="rounded-control border border-border p-3 dark:border-dark-border">
-        <p className="text-body font-semibold text-primary dark:text-dark-text">
-          Faire rédiger cette section
-        </p>
-        <p className="mt-0.5 text-note text-muted dark:text-dark-muted">
-          À partir de vos vraies données : le nom de votre boutique, vos rayons,
-          vos modes de livraison et de paiement. Aucune ancienneté, aucun nombre
-          de clients ni certification ne seront inventés. Rien n'est publié
-          avant que vous enregistriez.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          loading={writing}
-          loadingLabel="Rédaction…"
-          onClick={write}
-          icon={<Sparkles className="h-4 w-4" strokeWidth={2} aria-hidden />}
-        >
-          Rédiger avec l'IA
-        </Button>
-        {credits !== null && (
-          <p className="mt-2 text-note text-muted dark:text-dark-muted">
-            Crédits IA restants : {credits}.
-          </p>
-        )}
-        {error && <p className="mt-2 text-note text-danger">{error}</p>}
-      </div>
-
-      <Field
-        label="Le titre de la section"
-        hint="Vide : le titre par défaut de votre gabarit."
-        maxLength={80}
-        value={theme.presentation.title}
-        onChange={(e) => patch('presentation', { title: e.target.value })}
-      />
-      <TextField
-        label="Votre promesse"
-        hint="Deux ou trois phrases : ce que vous vendez, à qui, et ce que le client y gagne."
-        rows={4}
-        maxLength={600}
-        value={theme.presentation.intro}
-        onChange={(e) => patch('presentation', { intro: e.target.value })}
-      />
-      <Rows
-        items={theme.presentation.items}
-        max={4}
-        blank={{ title: '', body: '' }}
-        addLabel="Ajouter un point"
-        onChange={(items) => patch('presentation', { items })}
-        render={(item, set) => (
-          <>
-            <Field
-              label="Le point"
-              hint="« Livraison le jour même », « Commande sur mesure », « Conseil avant achat »."
-              maxLength={70}
-              value={item.title}
-              onChange={(e) => set({ ...item, title: e.target.value })}
-            />
-            <TextField
-              label="Ce qu'il veut dire pour le client"
-              rows={2}
-              maxLength={320}
-              value={item.body}
-              onChange={(e) => set({ ...item, body: e.target.value })}
-            />
-          </>
-        )}
-      />
-      <Field
-        label="Le bouton"
-        hint="Facultatif. « Voir nos services », « Nous écrire »."
-        maxLength={40}
-        value={theme.presentation.ctaLabel}
-        onChange={(e) => patch('presentation', { ctaLabel: e.target.value })}
-      />
-      <Field
-        label="Le lien du bouton"
-        hint="Vide : il ouvre votre catalogue."
-        maxLength={200}
-        value={theme.presentation.ctaHref}
-        onChange={(e) => patch('presentation', { ctaHref: e.target.value })}
-      />
-    </Group>
-  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

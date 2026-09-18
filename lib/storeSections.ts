@@ -339,7 +339,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // commerce de quartier — on montre la boutique vivante sur Instagram, puis on
   // garde le contact pour la prochaine arrivée de marchandise.
   proximite: [
-    'announcement', 'hero', 'benefits', 'presentation', 'bestsellers',
+    'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
     'categories', 'new_arrivals', 'promotion', 'testimonials', 'catalog',
     'gallery', 'newsletter', 'size_guide', 'shipping', 'payments', 'faq',
     'contact', 'social',
@@ -353,8 +353,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // à rien à celui qui n'a pas encore vu de produit du tout. La bande d'appel
   // ferme la page sur le seul geste que ce trafic fait vraiment — écrire.
   social: [
-    'announcement', 'hero', 'presentation', 'categories', 'new_arrivals',
-    'featured', 'video_wall', 'bestsellers', 'gallery', 'testimonials',
+    'announcement', 'hero', 'categories', 'new_arrivals', 'featured',
+    'video_wall', 'bestsellers', 'brand_story', 'gallery', 'testimonials',
     'bundles', 'catalog', 'countdown', 'promotion', 'cta_band', 'shipping',
     'payments', 'social',
   ],
@@ -368,7 +368,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // ensuite — c'est le panier moyen le plus élevé d'un artisan — et le journal
   // en dernier, pour celui qui n'a pas encore décidé.
   artisan: [
-    'announcement', 'hero', 'benefits', 'presentation', 'featured',
+    'announcement', 'hero', 'benefits', 'featured',
     'categories', 'brand_story', 'process', 'ingredients', 'gallery',
     'testimonials', 'catalog', 'order_form', 'journal', 'team', 'shipping',
     'payments', 'faq', 'newsletter',
@@ -381,9 +381,12 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // on travaille, la question suivante est « et ça donne quoi ». Les forfaits
   // arrivent après les témoignages, une fois la confiance faite — un tableau de
   // prix montré trop tôt fait comparer avant d'avoir donné envie.
+  //
+  // Ni meilleures ventes ni rayons ici : « Notre histoire » suit donc le
+  // catalogue des prestations, qui en tient lieu.
   services: [
-    'announcement', 'hero', 'presentation', 'stats', 'catalog', 'process',
-    'case_studies', 'video', 'brand_story', 'team', 'testimonials',
+    'announcement', 'hero', 'stats', 'catalog', 'brand_story', 'process',
+    'case_studies', 'video', 'team', 'testimonials',
     'packages', 'partners', 'faq', 'payments', 'contact', 'cta_band', 'social',
   ],
 
@@ -395,7 +398,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // grille de gros suit le catalogue, parce qu'elle ne parle qu'à celui qui a
   // déjà vu ce qu'il achète.
   agri: [
-    'announcement', 'hero', 'benefits', 'availability', 'presentation',
+    'announcement', 'hero', 'benefits', 'availability',
     'categories', 'catalog', 'bestsellers', 'brand_story', 'wholesale',
     'journal', 'faq', 'shipping', 'payments', 'order_form', 'contact',
     'location', 'social',
@@ -409,8 +412,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // sens qu'entouré du reste. Les étapes de commande viennent après le
   // formulaire sur mesure : elles répondent à « et ensuite ? », pas à « quoi ? ».
   traiteur: [
-    'announcement', 'hero', 'benefits', 'presentation', 'categories',
-    'bestsellers', 'featured', 'catalog', 'order_form', 'process',
+    'announcement', 'hero', 'benefits', 'categories',
+    'bestsellers', 'brand_story', 'featured', 'catalog', 'order_form', 'process',
     'promotion', 'gallery', 'ingredients', 'testimonials', 'faq', 'shipping',
     'payments', 'cta_band', 'contact', 'location',
   ],
@@ -422,19 +425,19 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // qu'en disent les clientes, l'inscription. Le catalogue complet arrive tard
   // — sur ce rayon, on ne cherche pas un article, on parcourt une saison.
   fashion: [
-    'announcement', 'hero', 'featured', 'presentation', 'new_arrivals',
-    'promotion', 'bestsellers', 'categories', 'brand_story', 'testimonials',
+    'announcement', 'hero', 'featured', 'new_arrivals',
+    'promotion', 'bestsellers', 'brand_story', 'categories', 'testimonials',
     'catalog', 'size_guide', 'shipping', 'payments', 'newsletter',
   ],
 
   // ── Beauty Studio (§8) ──────────────────────────────────────────────────
   //
-  // L'ordre exact du cahier : bannière, meilleures ventes, rayons, bénéfices,
-  // sélection, avis, la maison, questions d'usage, inscription. La cosmétique
+  // L'ordre du cahier : bannière, meilleures ventes, la maison, rayons,
+  // bénéfices, sélection, avis, questions d'usage, inscription. La cosmétique
   // se vend par la preuve — ce que d'autres ont acheté, et pourquoi.
   beauty: [
-    'announcement', 'hero', 'bestsellers', 'categories', 'benefits',
-    'presentation', 'featured', 'testimonials', 'brand_story',
+    'announcement', 'hero', 'bestsellers', 'brand_story', 'categories',
+    'benefits', 'featured', 'testimonials',
     'ingredients', 'faq', 'catalog', 'shipping', 'payments', 'newsletter',
   ],
 
@@ -445,19 +448,19 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // questions qui bloquent — garantie, livraison, compatibilité.
   tech: [
     'announcement', 'hero', 'featured_product', 'categories', 'bestsellers',
-    'benefits', 'presentation', 'testimonials', 'catalog', 'bundles',
+    'brand_story', 'benefits', 'testimonials', 'catalog', 'bundles',
     'partners', 'faq', 'shipping', 'payments', 'newsletter',
   ],
 
   // ── Food Market (§10) ───────────────────────────────────────────────────
   //
-  // On commande ce qui se voit : les plus demandés d'abord, les rayons ensuite,
-  // l'offre du jour, la carte complète, la maison, les avis, l'adresse. La
+  // On commande ce qui se voit : les plus demandés d'abord, la maison, les
+  // rayons, l'offre du jour, la carte complète, les avis, l'adresse. La
   // section « nous trouver » ferme la page — c'est la dernière question du
   // client qui vient chercher.
   food: [
-    'announcement', 'hero', 'bestsellers', 'presentation', 'categories',
-    'promotion', 'catalog', 'bundles', 'ingredients', 'brand_story',
+    'announcement', 'hero', 'bestsellers', 'brand_story', 'categories',
+    'promotion', 'catalog', 'bundles', 'ingredients',
     'testimonials', 'shipping', 'payments', 'contact', 'location',
   ],
 
@@ -466,8 +469,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // Le polyvalent, et le catalogue est le centre : bannière courte,
   // réassurance, rayons, sélection, meilleures ventes, lots, avis, catalogue.
   retail: [
-    'announcement', 'hero', 'benefits', 'presentation', 'categories',
-    'featured', 'bestsellers', 'bundles', 'testimonials', 'catalog', 'faq',
+    'announcement', 'hero', 'benefits', 'categories',
+    'featured', 'bestsellers', 'brand_story', 'bundles', 'testimonials', 'catalog', 'faq',
     'shipping', 'payments', 'contact', 'newsletter',
   ],
 
@@ -483,17 +486,17 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // ventes : on la lit pour se rassurer d'un achat qu'on envisage déjà, pas
   // pour se décider à l'envisager.
   wellness: [
-    'announcement', 'hero', 'benefits', 'presentation', 'bestsellers',
-    'featured', 'brand_story', 'ingredients', 'testimonials', 'partners',
+    'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
+    'featured', 'ingredients', 'testimonials', 'partners',
     'catalog', 'faq', 'shipping', 'payments', 'newsletter',
   ],
 
   // Soin : même colonne vertébrale, avec les besoins (peau sèche, taches,
-  // anti-âge) en rayons entre la preuve et le récit. En cosmétique, on
-  // n'achète pas une catégorie de produit, on achète une réponse à un besoin.
+  // anti-âge) en rayons juste après le récit. En cosmétique, on n'achète pas
+  // une catégorie de produit, on achète une réponse à un besoin.
   skincare: [
-    'announcement', 'hero', 'benefits', 'presentation', 'bestsellers',
-    'categories', 'brand_story', 'ingredients', 'testimonials', 'catalog',
+    'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
+    'categories', 'ingredients', 'testimonials', 'catalog',
     'faq', 'shipping', 'payments', 'newsletter',
   ],
 
@@ -502,8 +505,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // dire que le produit lui a fait du mal ; « recommandé par les vétérinaires »
   // n'est pas un argument de bas de page, c'est la condition de l'achat.
   animalerie: [
-    'announcement', 'benefits', 'hero', 'presentation', 'categories',
-    'bestsellers', 'promotion', 'featured', 'testimonials', 'catalog',
+    'announcement', 'benefits', 'hero', 'categories',
+    'bestsellers', 'brand_story', 'promotion', 'featured', 'testimonials', 'catalog',
     'faq', 'shipping', 'payments', 'contact', 'newsletter',
   ],
 
@@ -511,7 +514,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // sépare de Fashion Atelier, qui fait attendre ses rayons jusqu'au septième
   // écran — puis les tendances, la sélection, la maison.
   magazine: [
-    'announcement', 'hero', 'categories', 'presentation', 'new_arrivals',
+    'announcement', 'hero', 'categories', 'new_arrivals',
     'featured', 'promotion', 'bestsellers', 'brand_story', 'testimonials',
     'catalog', 'size_guide', 'shipping', 'payments', 'newsletter',
   ],
@@ -520,18 +523,17 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // les photos de ceux qui l'ont pris. La galerie n'est pas décorative sur ce
   // gabarit : c'est la preuve, et elle vaut tous les avis écrits.
   sport: [
-    'announcement', 'hero', 'benefits', 'presentation', 'bestsellers',
+    'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
     'featured', 'gallery', 'video', 'testimonials', 'catalog', 'faq',
     'shipping', 'payments', 'cta_band',
   ],
 
-  // Fait main : l'histoire en DEUXIÈME écran, juste après la bannière. C'est
-  // l'inverse de l'Artisan, et c'est voulu — l'artisan vend des pièces qu'on
-  // regarde d'abord ; cette marque-ci vend un récit, et ses objets seraient
-  // ordinaires sans lui.
+  // Fait main : les pièces, les collections, puis l'histoire — elle vient
+  // aussitôt les rayons montrés, comme sur tous les gabarits, et la fabrication
+  // la suit : on vient de dire qui fait, on dit comment.
   maker: [
-    'announcement', 'hero', 'brand_story', 'presentation', 'benefits',
-    'featured', 'categories', 'process', 'gallery', 'team', 'testimonials',
+    'announcement', 'hero', 'benefits',
+    'featured', 'categories', 'brand_story', 'process', 'gallery', 'team', 'testimonials',
     'catalog', 'shipping', 'payments', 'newsletter',
   ],
 
@@ -540,8 +542,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // suffit : une marque qui affiche « 97 % de sommeil amélioré » ne se raconte
   // pas de la même façon que celle qui affiche quatre étoiles et demie.
   naturel: [
-    'announcement', 'hero', 'stats', 'presentation', 'bestsellers',
-    'benefits', 'featured', 'brand_story', 'ingredients', 'testimonials',
+    'announcement', 'hero', 'stats', 'bestsellers', 'brand_story',
+    'benefits', 'featured', 'ingredients', 'testimonials',
     'partners', 'catalog', 'faq', 'shipping', 'payments', 'newsletter',
   ],
 
@@ -550,17 +552,17 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // catalogue ferme la marche, pour les deux ou trois variantes qu'une telle
   // marque finit toujours par avoir.
   monoproduit: [
-    'announcement', 'featured_product', 'benefits', 'presentation',
+    'announcement', 'featured_product', 'benefits', 'brand_story',
     'process', 'ingredients', 'testimonials', 'video', 'faq', 'countdown',
     'cta_band', 'catalog', 'shipping', 'payments',
   ],
 
   // ── Les trois gabarits historiques ──────────────────────────────────────
 
-  // Le luxe se vend par l'envie puis par la confiance : l'image, l'histoire,
-  // une sélection courte, et seulement ensuite le catalogue.
+  // Le luxe se vend par l'envie puis par la confiance : l'image, une sélection
+  // courte, les rayons, l'histoire, et seulement ensuite le catalogue.
   luxe: [
-    'hero', 'brand_story', 'presentation', 'featured', 'categories',
+    'hero', 'featured', 'categories', 'brand_story',
     'catalog', 'testimonials', 'faq', 'shipping', 'payments', 'newsletter',
   ],
   // La conversion se vend par la réassurance : ce que vous vendez, pourquoi
@@ -580,17 +582,36 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // nouveautés et la promotion sont l'ajout qui compte le plus : un catalogue
   // qui bouge doit pouvoir le montrer, et rien ne le permettait.
   modern: [
-    'announcement', 'hero', 'benefits', 'categories', 'presentation',
-    'bestsellers', 'new_arrivals', 'featured', 'promotion', 'bundles',
+    'announcement', 'hero', 'benefits', 'categories',
+    'bestsellers', 'brand_story', 'new_arrivals', 'featured', 'promotion', 'bundles',
     'testimonials', 'catalog', 'gallery', 'size_guide', 'faq',
     'shipping', 'payments', 'contact', 'newsletter', 'social',
   ],
   // Le trafic social n'a pas de patience : les produits au premier écran.
   flash: [
-    'announcement', 'countdown', 'categories', 'presentation', 'catalog',
-    'bundles', 'promotion', 'bestsellers', 'shipping', 'payments', 'social',
+    'announcement', 'countdown', 'categories', 'catalog',
+    'bundles', 'promotion', 'bestsellers', 'brand_story', 'shipping', 'payments', 'social',
   ],
 };
+
+/**
+ * Les sections qui ne se rendent plus, nulle part.
+ *
+ * « Présentation & services » (`presentation`) a été retirée des vingt-deux
+ * gabarits le 18/09/2026 : elle redisait « Notre histoire » en moins bien. Ses
+ * points numérotés sont désormais les « 01 · 02 · 03 » de `BrandStorySection`,
+ * et son contenu reste dans le thème — c'est lui qui les porte.
+ *
+ * La clé reste dans `SECTION_KEYS` parce que des vitrines l'ont enregistrée
+ * dans `store_sections` : `resolveSections` l'écarte, et l'éditeur ne la
+ * propose plus. Sans cela, un marchand qui a un jour réglé ses sections la
+ * verrait encore, seul parmi tous.
+ */
+const RETIRED_SECTIONS: ReadonlySet<SectionKey> = new Set<SectionKey>(['presentation']);
+
+export function isRetiredSection(key: string): boolean {
+  return RETIRED_SECTIONS.has(key as SectionKey);
+}
 
 export function presetFor(templateId: TemplateId): SectionKey[] {
   return PRESETS[templateId] ?? PRESETS.retail;
@@ -691,7 +712,9 @@ export function resolveSections(
   templateId: TemplateId,
   stored: StoredSection[] | null | undefined,
 ): ResolvedSection[] {
-  const rows = (stored ?? []).filter((r) => isSectionKey(r.section_key));
+  const rows = (stored ?? []).filter(
+    (r) => isSectionKey(r.section_key) && !isRetiredSection(r.section_key),
+  );
   const byKey = new Map(rows.map((r) => [r.section_key as SectionKey, r]));
 
   const preset = presetFor(templateId);

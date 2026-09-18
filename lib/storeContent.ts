@@ -117,9 +117,11 @@ const BASE: ContentPreset = {
       + "a été choisi, vérifié et mis en ligne avec son vrai prix — celui que vous "
       + "payez, sans surprise à la livraison.",
     items: [
-      { title: 'Choisi, pas empilé',   body: "Le catalogue est court parce qu'il est trié. Ce qui ne nous convainc pas n'y entre pas." },
-      { title: 'Le prix affiché',      body: "Ce que vous voyez est ce que vous payez. La livraison est annoncée avant la commande, jamais après." },
-      { title: 'Joignable',            body: "Un doute sur une taille, une couleur, un délai ? Écrivez-nous sur WhatsApp avant de commander." },
+      // Les titres seuls s'affichent, en « 01 · 02 · 03 » sous « Notre
+      // histoire » : ils doivent se lire en trois ou quatre mots.
+      { title: 'Sélection soignée',           body: "Le catalogue est court parce qu'il est trié. Ce qui ne nous convainc pas n'y entre pas." },
+      { title: 'Prix affichés clairement',    body: "Ce que vous voyez est ce que vous payez. La livraison est annoncée avant la commande, jamais après." },
+      { title: 'Service humain sur WhatsApp', body: "Un doute sur une taille, une couleur, un délai ? Écrivez-nous sur WhatsApp avant de commander." },
     ],
   },
 
@@ -136,6 +138,9 @@ const BASE: ContentPreset = {
 
   brandStory: {
     enabled: true,
+    // Le titre s'affiche en grand : c'est une phrase, pas une étiquette. Le
+    // surtitre « La maison » au-dessus fait déjà office d'étiquette.
+    title:   'Une boutique pensée pour la vraie vie.',
     body:
       "Cette boutique a commencé comme beaucoup commencent ici : quelques articles, "
       + "un téléphone, et des clients qui écrivaient pour demander le prix.\n\n"

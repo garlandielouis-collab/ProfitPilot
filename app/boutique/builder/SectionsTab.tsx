@@ -28,7 +28,7 @@ import { useState } from 'react';
 import { ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import { saveSections, type BuilderState } from '../../actions/storeBuilder';
 import {
-  SECTIONS, SECTION_KEYS, defaultSectionTitle, type SectionKey,
+  SECTIONS, SECTION_KEYS, defaultSectionTitle, isRetiredSection, type SectionKey,
 } from '../../../lib/storeSections';
 import { isTemplateId } from '../../../lib/storeTheme';
 import { Button } from '../../../components/ds/Button';
@@ -88,7 +88,9 @@ export function SectionsTab({
     setRows((current) => current.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   }
 
-  const absent = SECTION_KEYS.filter((k) => !rows.some((r) => r.key === k));
+  const absent = SECTION_KEYS.filter(
+    (k) => !isRetiredSection(k) && !rows.some((r) => r.key === k),
+  );
 
   return (
     <div className="flex flex-col gap-6">

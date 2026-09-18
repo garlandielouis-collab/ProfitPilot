@@ -19,7 +19,7 @@
 // généré » que la refonte cherche à effacer.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { ComponentType } from 'react';
+import { Fragment, type ComponentType } from 'react';
 import type { SectionKey } from '../../../lib/storeSections';
 import { designFor } from '../../../lib/storeDesign';
 import type { SectionProps } from './types';
@@ -50,6 +50,11 @@ import {
   AvailabilitySection, WholesaleSection, PackagesSection, CaseStudiesSection,
   JournalSection, VideoWallSection,
 } from './MetierSections';
+
+// Une bande, pas une section : elle n'a pas de clé à elle et se range, non
+// dans l'ordre du gabarit, mais sous la bannière. Elle s'éteint avec
+// « Réassurance » — voir `SectionRenderer` plus bas.
+import { ProofStrip } from '../blocks/ProofStrip';
 
 const REGISTRY: Record<SectionKey, ComponentType<SectionProps>> = {
   announcement:     AnnouncementSection,
@@ -96,12 +101,20 @@ const REGISTRY: Record<SectionKey, ComponentType<SectionProps>> = {
   video_wall:       VideoWallSection,
 };
 
-export function SectionRenderer({ store, data, sections }: {
+export function SectionRenderer({ store, data, sections, infoPage }: {
   store:    SectionProps['store'];
   data:     SectionProps['data'];
   sections: SectionProps['section'][];
+  /** La page interne rendue, absente sur l'accueil. Voir `SectionProps`. */
+  infoPage?: string;
 }) {
   const design = designFor(store.templateId);
+
+  // La bande de preuves suit la bannière quand il y en a une ; la section
+  // « Réassurance » s'efface alors, sans quoi la bande paraîtrait deux fois.
+  // Un marchand qui a ÉTEINT « Réassurance » dans l'éditeur n'a pas de bande.
+  const hasHero        = sections.some((s) => s.key === 'hero' && s.enabled);
+  const proofsDisabled = sections.some((s) => s.key === 'benefits' && !s.enabled);
 
   return (
     <>
@@ -110,14 +123,40 @@ export function SectionRenderer({ store, data, sections }: {
         .map((section) => {
           const Component = REGISTRY[section.key];
           if (!Component) return null;
-          return (
+          if (section.key === 'benefits' && hasHero) return null;
+
+          const rendered = (
             <Component
               key={section.key}
               store={store}
               section={section}
               data={data}
               design={design}
+              infoPage={infoPage}
             />
+          );
+
+          if (section.key !== 'hero') return rendered;
+
+          // ── La bande de preuves, juste sous la bannière ─────────────────────
+          //
+          // Elle est accrochée à la BANNIÈRE et non à une clé de section, pour
+          // deux raisons. Six des vingt et un gabarits n'ont pas de section
+          // « Réassurance » dans leur ordre — ils n'auraient rien eu — et deux
+          // autres la placent ailleurs qu'au deuxième rang, où elle ne serait
+          // plus sous la bannière. Accrochée ici, la bande est au même endroit
+          // sur les vingt et un.
+          //
+          // Sur une page sans bannière, c'est `BenefitsSection` qui la rend à
+          // sa place. Les pages internes n'ont ni l'une ni l'autre :
+          // la fiche produit et les pages « À propos » ou « Contact » n'en portent pas,
+          // et une bande de preuves au-dessus d'un formulaire de contact
+          // n'aurait rien à prouver.
+          return (
+            <Fragment key="hero">
+              {rendered}
+              {!proofsDisabled && <ProofStrip store={store} />}
+            </Fragment>
           );
         })}
     </>

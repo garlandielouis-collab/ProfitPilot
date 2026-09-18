@@ -50,12 +50,12 @@ import {
 import { StoreImage } from '../blocks/StoreImage';
 import { templateArt, heroOverlay } from '../../../lib/storeArt';
 import { ProductMedia } from '../blocks/ProductMedia';
-import { TrustBadges } from '../blocks/TrustBadges';
+import { ProofStrip } from '../blocks/ProofStrip';
 import { FadeIn } from '../blocks/FadeIn';
 import { NewsletterForm } from './NewsletterForm';
 import { Section, SectionHeader } from './Shell';
 import { storeLink } from './storeLink';
-import { sectionTitle } from '../../../lib/storeSections';
+import { sectionTitle, defaultSectionTitle, SECTIONS } from '../../../lib/storeSections';
 import { collectionHref } from '../../../lib/storeTheme';
 import { buildBookingLink, resolveOrderPhone } from '../../../lib/storeWhatsApp';
 import { IMAGE_SIZES } from '../../../lib/storeImage';
@@ -496,8 +496,15 @@ export function HeroSection({ store, design }: SectionProps) {
 
 // ── Réassurance ─────────────────────────────────────────────────────────────
 
+/**
+ * La bande de preuves, là où la page n'a pas de bannière pour la porter.
+ *
+ * D'ordinaire `SectionRenderer` l'accroche sous la bannière et écarte cette
+ * section, pour qu'elle ne paraisse pas deux fois. Sur les gabarits sans
+ * bannière (`monoproduit`, `flash`), c'est ici qu'elle prend place.
+ */
 export function BenefitsSection({ store }: SectionProps) {
-  return <TrustBadges trust={store.theme.trust} />;
+  return <ProofStrip store={store} />;
 }
 
 // ── Rayons ──────────────────────────────────────────────────────────────────
@@ -769,50 +776,120 @@ export function PromotionSection({ store, design }: SectionProps) {
 }
 
 // ── Notre histoire ──────────────────────────────────────────────────────────
+//
+// La même composition sur les vingt-deux gabarits : la photo à gauche, le récit
+// à droite — un surtitre, un titre en grand, un paragraphe, trois engagements
+// numérotés et un lien vers la page « À propos ». Seuls les jetons du gabarit
+// (police, couleurs, rayons) la font varier.
+//
+// Elle a absorbé « Présentation & services », retirée des gabarits : les trois
+// points que le marchand y avait saisis sont les « 01 · 02 · 03 » d'ici. Rien
+// de ce qu'il avait écrit ne se perd, et l'accueil dit qui il est en un seul
+// bloc au lieu de deux qui se répétaient.
 
-export function BrandStorySection({ store, section, design }: SectionProps) {
+/** Le surtitre, quand ni le marchand ni le gabarit n'en donnent un meilleur. */
+const STORY_EYEBROW = 'La maison';
+
+export function BrandStorySection({ store, section, design, infoPage }: SectionProps) {
   const s = store.theme.brandStory;
-  if (!s.enabled || !s.body.trim()) return null;
+  const story = s.body.trim();
+  if (!s.enabled || !story) return null;
+
+  const onAboutPage = infoPage === 'a-propos';
+  const heading = s.title.trim() || SECTIONS.brand_story.defaultTitle;
+
+  // Le surtitre est le titre de SECTION : celui que le marchand a réglé, ou le
+  // mot du gabarit (« Notre atelier », « Notre démarche »). Le générique
+  // « Notre histoire », ou un surtitre qui redirait le titre, cède la place.
+  const sectionLabel = section.config.title.trim()
+    || defaultSectionTitle('brand_story', store.templateId);
+  const eyebrow =
+    sectionLabel === SECTIONS.brand_story.defaultTitle
+    || sectionLabel.toLowerCase() === heading.toLowerCase()
+      ? STORY_EYEBROW
+      : sectionLabel;
+
+  // Sur l'accueil, le premier paragraphe seulement : l'histoire entière est à
+  // un clic, sur la page « À propos », où elle se lit en entier.
+  const text = onAboutPage ? story : story.split(/\n\s*\n/)[0];
+
+  // Sans égard pour `presentation.enabled` : l'interrupteur appartenait à la
+  // section retirée, et un marchand ne pourrait plus le rallumer. Il retire un
+  // point en le supprimant, dans le bloc « Notre histoire » de l'éditeur.
+  const points = store.theme.presentation.items
+    .map((i) => i.title.trim()).filter(Boolean).slice(0, 3);
 
   const body = (
-    <Section design={design} tone="surface-2" label={s.title}>
-      <div className="grid items-center gap-10 md:grid-cols-2 md:gap-16">
-        {/* Sans photo d'atelier, l'histoire s'écrivait seule au milieu de la
-            page. Elle garde ses deux colonnes : la matière du gabarit tient la
-            gauche, le récit la droite. */}
+    <Section design={design} label={heading}>
+      <div className="grid items-center gap-10 md:grid-cols-[1.1fr_1fr] md:gap-14">
         <ProductMedia
           src={s.imageUrl ?? templateArt(store.templateId, 'story')}
           alt=""
-          rule={{ ratio: '4 / 3', fit: 'cover', pad: 0 }}
+          rule={{ ratio: '15 / 14', fit: 'cover', pad: 0 }}
           sizes={IMAGE_SIZES.editorial}
           radius="var(--st-radius-card)"
         />
+
         <div>
-          {design.type.eyebrow && (
-            <p
-              className="mb-3 text-[11px] font-semibold uppercase text-[var(--st-ink-3)]"
-              style={{ letterSpacing: '0.18em' }}
-            >
-              La maison
-            </p>
-          )}
+          <p
+            className="flex items-center gap-4 text-[11px] font-semibold uppercase text-[var(--st-ink-2)]"
+            style={{ letterSpacing: '0.24em' }}
+          >
+            {eyebrow}
+            <span className="h-px w-12" style={{ background: 'var(--st-border)' }} aria-hidden />
+          </p>
+
           <h2
-            className="text-[var(--st-ink)]"
+            className="mt-6 text-[var(--st-ink)]"
             style={{
               fontFamily:    'var(--st-font-heading)',
-              fontSize:      'var(--st-h2)',
-              fontWeight:    600,
-              lineHeight:    1.2,
+              fontSize:      'clamp(2rem, 1.3rem + 2.4vw, 3.25rem)',
+              fontWeight:    500,
+              lineHeight:    1.12,
               letterSpacing: 'var(--st-tracking)',
             }}
           >
-            {sectionTitle(section, store.templateId) || s.title}
+            {heading}
           </h2>
+
           {/* `whitespace-pre-line` : le marchand écrit des paragraphes dans un
               champ de texte, ses retours à la ligne sont son découpage. */}
-          <p className="mt-5 whitespace-pre-line text-[15px] leading-relaxed text-[var(--st-ink-2)]">
-            {s.body}
+          <p className="mt-6 max-w-xl whitespace-pre-line text-[16px] leading-[1.75] text-[var(--st-ink-2)]">
+            {text}
           </p>
+
+          {points.length > 0 && (
+            // Trois colonnes même sur téléphone : ce sont des titres courts, et
+            // une pile de trois lignes pousserait le lien sous le pli.
+            <ul className="mt-10 grid grid-cols-3">
+              {points.map((point, i) => (
+                <li
+                  key={`${point}-${i}`}
+                  className={i === 0 ? 'pr-3' : 'border-l px-3 sm:pl-6'}
+                  style={i === 0 ? undefined : { borderColor: 'var(--st-border)' }}
+                >
+                  <p className="text-[13px] font-medium tabular-nums text-[var(--st-ink)]">
+                    {String(i + 1).padStart(2, '0')}
+                  </p>
+                  <p className="mt-3 text-[13px] leading-snug text-[var(--st-ink)] sm:text-[15px]">
+                    {point}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Pas de lien vers la page où l'on est déjà. */}
+          {!onAboutPage && (
+            <Link
+              href={`${store.base}/a-propos`}
+              className="mt-10 inline-flex min-h-[44px] items-center gap-3 border-b text-[15px] font-medium text-[var(--st-ink)] transition-[gap] hover:gap-4"
+              style={{ borderColor: 'var(--st-ink)' }}
+            >
+              Découvrir notre histoire
+              <ArrowRight className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+            </Link>
+          )}
         </div>
       </div>
     </Section>

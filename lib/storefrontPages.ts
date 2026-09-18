@@ -142,10 +142,10 @@ export const INFO_PAGES: InfoPage[] = [
     slug:  'a-propos',
     label: 'À propos',
     title: 'À propos',
-    // L'histoire, puis ce qu'on fait, puis comment on le fait, avec quoi, par
+    // L'histoire — avec ses engagements —, puis comment on le fait, avec quoi, par
     // qui — et les preuves autour à la fin : chiffres, partenaires, journal.
     sections: [
-      'brand_story', 'presentation', 'process', 'ingredients',
+      'brand_story', 'process', 'ingredients',
       'team', 'gallery', 'stats', 'partners', 'journal',
     ],
   },
@@ -193,9 +193,9 @@ const CONTENU: Record<InfoPageKey, (store: StorefrontLike) => boolean> = {
 
   'a-propos': (s) => {
     const t = s.theme;
+    // Pas de `presentation` : ses engagements ne s'affichent plus que dans
+    // « Notre histoire », qui a déjà sa propre garde juste ici.
     return (t.brandStory.enabled && filled(t.brandStory.body))
-      || (t.presentation.enabled
-          && (filled(t.presentation.intro) || t.presentation.items.some((i) => filled(i.title))))
       || (t.process.enabled && t.process.steps.some((i) => filled(i.title)))
       || (t.ingredients.enabled
           && (filled(t.ingredients.body) || t.ingredients.items.some((i) => filled(i.name))))

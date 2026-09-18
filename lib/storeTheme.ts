@@ -326,18 +326,14 @@ export const themeConfigSchema = z.object({
   // sa zone, sa politique de retour.
 
   /**
-   * La présentation : qui vous êtes, et ce que vous faites pour vos clients.
+   * La présentation : ce que le visiteur peut attendre de la maison.
    *
-   * C'est la section qui manquait le plus. « Notre histoire » raconte le passé
-   * de la maison ; celle-ci dit le PRÉSENT — ce que le visiteur peut attendre,
-   * en trois ou quatre points, avec les mots qui donnent envie.
-   *
-   * Elle se rédige à l'IA depuis l'éditeur (`draftStorePresentation`), à partir
-   * des faits réels de la boutique : son nom, ses rayons, ses modes de livraison
-   * et de paiement. Le marchand relit, corrige, enregistre. Rien n'est publié
-   * sans son geste, et le rédacteur a interdiction d'inventer une ancienneté,
-   * un nombre de clients ou une certification — c'est la règle qui vaut déjà
-   * pour les fiches produits (`lib/ai/copywriter.ts`).
+   * La section « Présentation & services » a été retirée des gabarits le
+   * 18/09/2026 (`RETIRED_SECTIONS`, lib/storeSections.ts). Ce bloc reste pour
+   * ses `items` : leurs titres sont les trois engagements « 01 · 02 · 03 » de
+   * « Notre histoire », saisis dans l'éditeur de cette section-là. `title`,
+   * `intro` et le bouton ne s'affichent plus, mais restent lus : rien de ce
+   * qu'un marchand a écrit ne se perd.
    */
   presentation: selfFilling(z.object({
     enabled: z.boolean().catch(true),

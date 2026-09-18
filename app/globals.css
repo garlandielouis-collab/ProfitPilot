@@ -504,3 +504,29 @@ body[data-sheet='open'] #pp-app {
 .pp-markdown ol      { padding-left: 16px; list-style: disc; }
 .pp-markdown ol      { list-style: decimal; }
 .pp-markdown li + li { margin-top: 4px; }
+
+/* Bande de preuves de la vitrine (components/store/blocks/ProofStrip.tsx).
+   La piste contient la liste DEUX fois : glisser de -50 % ramene exactement
+   au point de depart, et la boucle ne se voit pas. Le survol et le focus la
+   mettent en pause, pour qu'on puisse lire ce qui passe. Avec « reduire les
+   animations », elle ne defile plus toute seule : elle se pousse au doigt, et
+   tout ce qui n est la que pour la boucle (.st-marquee-copy) est masque. */
+@keyframes st-marquee { to { transform: translateX(-50%); } }
+.st-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: st-marquee var(--st-marquee-duration, 40s) linear infinite;
+}
+.st-marquee:hover .st-marquee-track,
+.st-marquee:focus-within .st-marquee-track { animation-play-state: paused; }
+.st-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+          mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-marquee { overflow-x: auto; scrollbar-width: none; -webkit-mask-image: none; mask-image: none; }
+  .st-marquee::-webkit-scrollbar { display: none; }
+  .st-marquee-track { animation: none !important; }
+  .st-marquee-copy { display: none; }
+}

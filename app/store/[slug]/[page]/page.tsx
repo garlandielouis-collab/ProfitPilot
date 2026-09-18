@@ -117,7 +117,7 @@ export default async function StoreInfoPage({ params }: Props) {
         </h1>
       </div>
 
-      <SectionRenderer store={view} data={data} sections={sections} />
+      <SectionRenderer store={view} data={data} sections={sections} infoPage={page.key} />
     </>
   );
 }

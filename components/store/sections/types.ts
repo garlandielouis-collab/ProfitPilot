@@ -65,4 +65,10 @@ export type SectionProps = {
    * elle-même pourrait, un jour, en tirer un profil différent des autres.
    */
   design:  DesignProfile;
+  /**
+   * La page interne où la section est rendue (`'a-propos'`…), absente sur
+   * l'accueil. Une section qui renvoie vers une page s'en sert pour ne pas
+   * renvoyer vers celle où l'on est déjà.
+   */
+  infoPage?: string;
 };
