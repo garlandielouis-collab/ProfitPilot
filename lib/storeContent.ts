@@ -940,6 +940,67 @@ const BY_TEMPLATE: Record<TemplateId, ContentPreset[]> = {
     },
   }],
 
+  // ── Style Chic ────────────────────────────────────────────────────────────
+  //
+  // Le texte de sa maquette, sans ce qu'elle inventait : pas de saison datée
+  // (« Printemps 2025 » aurait vieilli sur toutes les vitrines le même jour),
+  // pas de délai d'échange chiffré — « sous 7 jours » est une politique que
+  // seul le marchand peut promettre, il l'écrit dans la précision s'il la tient.
+  chic: [V_BOUTIQUE, {
+    announcement: {
+      enabled: true,
+      text: 'Livraison rapide à Port-au-Prince et dans les provinces  |  Paiement MonCash, NatCash ou à la livraison',
+    },
+    hero: {
+      eyebrow:     'Nouvelle collection',
+      headline:    'Élégance\nau quotidien',
+      subheadline: 'Des pièces tendance, des accessoires qui subliment votre style.',
+      ctaLabel:    'Découvrir la collection',
+    },
+    trust: {
+      enabled: true,
+      badges: [
+        { icon: 'truck',   label: 'Livraison rapide', note: 'Port-au-Prince et provinces' },
+        { icon: 'card',    label: 'Paiement mobile',  note: 'MonCash & NatCash' },
+        { icon: 'refresh', label: 'Échange facile',   note: 'Produit non conforme' },
+        { icon: 'phone',   label: 'Service client',   note: 'WhatsApp' },
+      ],
+    },
+    // La bande de preuves de sa maquette ne montre que les quatre
+    // engagements. Les références (MonCash, Visa…) et les chiffres de départ
+    // du socle s'y ajouteraient : ils se rallument dans l'éditeur, le jour où
+    // le marchand y met les siens. Les moyens de paiement restent affichés sur
+    // la fiche produit, où ils décident de l'achat.
+    partners: { enabled: false },
+    stats:    { enabled: false },
+    // Deux lignes : la seconde passe en or dans la composition « split ».
+    promotion: {
+      enabled:  true,
+      title:    'Nouvelle collection\nLes pièces de la saison',
+      subtitle: 'Découvrez les dernières tendances.',
+      ctaLabel: 'Voir la collection',
+      ctaHref:  '/products',
+    },
+    // Pas d'engagements numérotés sous l'histoire : la maquette la veut
+    // courte. Le marchand en ajoute dans le bloc « Notre histoire ».
+    presentation: { items: [] },
+    brandStory: {
+      enabled: true,
+      title:   "Plus qu'une boutique, une passion",
+      body:
+        "Cette boutique est née d'une envie simple : offrir des vêtements et des "
+        + "accessoires de qualité, à des prix accessibles. Chaque pièce est choisie "
+        + "avec soin, pour vous accompagner dans tous vos moments.",
+    },
+    ctaBand: {
+      enabled:  true,
+      title:    'Vous avez une question ?',
+      body:     'Écrivez-nous sur WhatsApp',
+      ctaLabel: 'Me contacter',
+      ctaHref:  '',
+    },
+  }],
+
   // ── Les cinq presets de rayon ─────────────────────────────────────────────
   fashion: [V_BOUTIQUE, {
     hero: {

@@ -23,14 +23,14 @@ import { applyContentPreset } from './storeContent';
 
 // ── Gabarits ────────────────────────────────────────────────────────────────
 
-// Vingt-deux : six gabarits métier (§34), huit gabarits de marque en ligne
+// Vingt-trois : six gabarits métier (§34), neuf gabarits de marque en ligne
 // (§35), cinq presets de rayon (§33) et trois gabarits historiques. Ces
 // derniers ne sont pas dépréciés au sens où ils cesseraient de fonctionner :
 // des vitrines en production les portent, et `template_id` est du texte libre
 // en base. Les retirer changerait l'identité de ces boutiques du jour au
 // lendemain, sans que leur marchand ait rien demandé.
 //
-// Ce qui distingue ces vingt-deux gabarits ne vit PAS ici :
+// Ce qui distingue ces vingt-trois gabarits ne vit PAS ici :
 // `lib/storeDesign.ts` porte la direction artistique de chacun,
 // `lib/storeSections.ts` l'ordre de sa page d'accueil, et `BRAND_PRESETS` plus
 // bas sa palette de départ. Ce fichier ne connaît que les noms.
@@ -39,11 +39,11 @@ export const TEMPLATE_IDS = [
   // même page : chacun a sa composition de bannière, sa carte produit, son
   // en-tête, l'ordre de ses sections et son vocabulaire.
   'proximite', 'social', 'artisan', 'services', 'agri', 'traiteur',
-  // Les huit gabarits de marque en ligne (§35). Le métier dit ce qu'on vend ;
+  // Les neuf gabarits de marque en ligne (§35). Le métier dit ce qu'on vend ;
   // ceux-ci disent comment on le vend — une marque qui pousse un catalogue
   // court, assumé, avec sa promesse, sa preuve et son argumentaire.
   'wellness', 'skincare', 'animalerie', 'magazine',
-  'sport', 'maker', 'naturel', 'monoproduit',
+  'sport', 'maker', 'naturel', 'monoproduit', 'chic',
   // Les cinq presets de rayon (§33).
   'fashion', 'beauty', 'tech', 'food', 'retail',
   // Les trois gabarits historiques.
@@ -97,6 +97,14 @@ export const themeConfigSchema = z.object({
     surface2:  hex('#F6F8FA'),
     /** Le texte courant. */
     ink:       hex('#2A3846'),
+    /**
+     * La couleur d'appel : les boutons de bannière et de promotion, les
+     * étoiles, l'étiquette « Best-seller », les surtitres. Nulle, elle prend
+     * la couleur d'action — c'est le cas de tous les gabarits sauf ceux qui
+     * posent une seconde couleur, comme l'or de « Style Chic ». Une palette
+     * enregistrée avant son arrivée n'en a pas, et ne change donc pas.
+     */
+    highlight: z.string().regex(HEX).nullable().catch(null),
   })),
 
   typography: selfFilling(z.object({
@@ -111,6 +119,8 @@ export const themeConfigSchema = z.object({
     imageUrl:    z.string().url().nullable().catch(null),
     /** Voile posé sur l'image pour que le texte reste lisible. 0 → 80. */
     overlay:     z.number().min(0).max(80).catch(35),
+    /** Le petit surtitre au-dessus du titre — « Nouvelle collection ». Facultatif. */
+    eyebrow:     z.string().max(40).catch(''),
   })),
 
   catalog: selfFilling(z.object({
@@ -653,7 +663,8 @@ export const DEFAULT_THEME: ThemeConfig = themeConfigSchema.parse({});
 // bouton d'achat est vérifié, pas supposé (`readableInk`).
 
 type BrandPreset = {
-  palette:    ThemeConfig['palette'];
+  /** `highlight` absent : la couleur d'appel suit la couleur d'action. */
+  palette:    Omit<ThemeConfig['palette'], 'highlight'> & { highlight?: string | null };
   typography: ThemeConfig['typography'];
 };
 
@@ -767,14 +778,14 @@ const BRAND_PRESETS: Partial<Record<TemplateId, BrandPreset>> = {
     typography: { heading: 'inter', body: 'inter' },
   },
 
-  // ── Les huit gabarits de marque en ligne (§35) ────────────────────────────
+  // ── Les neuf gabarits de marque en ligne (§35) ────────────────────────────
   //
-  // Un mot d'honnêteté sur ces huit-là. La règle plus haut — deux palettes
+  // Un mot d'honnêteté sur ces neuf-là. La règle plus haut — deux palettes
   // voisines font douter le marchand d'avoir changé de gabarit — a été écrite
-  // pour onze. À dix-neuf, elle ne tient plus toute seule : ces huit marques
+  // pour onze. À vingt, elle ne tient plus toute seule : ces neuf marques
   // vivent dans le même registre (fond clair, une couleur de structure sombre,
-  // une action franche), et cinq d'entre elles vendent quelque chose de
-  // « sain », donc cinq d'entre elles sont vertes.
+  // une action franche), et la moitié d'entre elles vendent quelque chose de
+  // « sain », donc la moitié d'entre elles sont vertes.
   //
   // Ce qui les sépare n'est donc pas la seule teinte. C'est la composition
   // (`storeDesign`), l'ordre de la page (`storeSections`) et la typographie.
@@ -783,7 +794,8 @@ const BRAND_PRESETS: Partial<Record<TemplateId, BrandPreset>> = {
   // choisir, ce qui règle ce que la couleur seule ne réglait pas.
   //
   // Les teintes ont quand même été écartées les unes des autres autant que le
-  // sujet le permettait : forêt sourd, olive, menthe, sapin froid.
+  // sujet le permettait : forêt sourd, olive, menthe, sapin froid, bouteille
+  // — et ce dernier, celui de Style Chic, se distingue en plus par son or.
 
   // Compléments : vert forêt très sombre sur un crème chaud, typographie
   // sérif. La couleur d'action est SOURDE, pas franche — un complément
@@ -859,6 +871,16 @@ const BRAND_PRESETS: Partial<Record<TemplateId, BrandPreset>> = {
     typography: { heading: 'inter', body: 'inter' },
   },
 
+  // Style Chic : vert bouteille, or, ivoire. Le seul gabarit à deux couleurs
+  // d'appel — le vert achète (panier, fiche), l'or invite (bannière,
+  // promotion, étiquettes, étoiles). Titres en sérif : c'est la boutique de
+  // mode et d'accessoires qui s'habille pour recevoir.
+  chic: {
+    palette: { primary: '#16382A', accent: '#1B4332', surface: '#FBF8F3',
+               surface2: '#F3EEE5', ink: '#1E2621', highlight: '#C9A45C' },
+    typography: { heading: 'serif', body: 'inter' },
+  },
+
   // ── Les trois gabarits historiques ────────────────────────────────────────
   //
   // Ils n'en avaient pas, et l'argument était bon : leur en donner un
@@ -919,19 +941,24 @@ const BRAND_PRESETS: Partial<Record<TemplateId, BrandPreset>> = {
 /**
  * Les couleurs et les familles typographiques que ce gabarit propose.
  *
- * Les vingt-deux en ont un, y compris les trois historiques depuis le
+ * Les vingt-trois en ont un, y compris les trois historiques depuis le
  * 9 septembre 2026 — voir le bloc qui les introduit pour la raison du
  * changement et pour ce qui le rend sûr. Le repli ci-dessous ne sert donc plus
  * qu'à un `template_id` écrit à la main en base, que `resolveTemplateId` aurait
  * de toute façon ramené sur `modern`.
  */
-export function brandPresetFor(templateId: TemplateId | string): BrandPreset {
-  return (
-    BRAND_PRESETS[templateId as TemplateId] ?? {
-      palette:    DEFAULT_THEME.palette,
-      typography: DEFAULT_THEME.typography,
-    }
-  );
+export function brandPresetFor(templateId: TemplateId | string): {
+  palette:    ThemeConfig['palette'];
+  typography: ThemeConfig['typography'];
+} {
+  const preset = BRAND_PRESETS[templateId as TemplateId];
+  if (!preset) {
+    return { palette: DEFAULT_THEME.palette, typography: DEFAULT_THEME.typography };
+  }
+  return {
+    palette:    { ...preset.palette, highlight: preset.palette.highlight ?? null },
+    typography: preset.typography,
+  };
 }
 
 // ── Ce que valent les deux couleurs héritées ────────────────────────────────
@@ -1144,6 +1171,8 @@ export function themeCssVars(theme: ThemeConfig): Record<string, string> {
     // L'encre du bouton d'achat est calculée, jamais supposée blanche.
     '--st-accent-ink':   readableInk(palette.accent),
     '--st-accent-hover': shade(palette.accent, -0.12),
+    '--st-highlight':     palette.highlight ?? palette.accent,
+    '--st-highlight-ink': readableInk(palette.highlight ?? palette.accent),
     '--st-surface':      palette.surface,
     '--st-surface-2':    palette.surface2,
     '--st-ink':          palette.ink,

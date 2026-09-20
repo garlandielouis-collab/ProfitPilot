@@ -21,7 +21,7 @@
 
 import { Fragment, type ComponentType } from 'react';
 import type { SectionKey } from '../../../lib/storeSections';
-import { designFor } from '../../../lib/storeDesign';
+import { designFor, proofStripFor } from '../../../lib/storeDesign';
 import type { SectionProps } from './types';
 
 import {
@@ -35,6 +35,7 @@ import {
 } from './ProductSections';
 import {
   StatsSection, ProcessSection, GallerySection, OrderFormSection, CtaBandSection,
+  WhatsAppHelpSection,
 } from './TradeSections';
 import {
   ShippingSection, PaymentsSection, ContactSection, SizeGuideSection,
@@ -99,6 +100,9 @@ const REGISTRY: Record<SectionKey, ComponentType<SectionProps>> = {
   case_studies:     CaseStudiesSection,
   journal:          JournalSection,
   video_wall:       VideoWallSection,
+
+  // La barre « Vous avez une question ? », avant « Comment payer ».
+  whatsapp_help:    WhatsAppHelpSection,
 };
 
 export function SectionRenderer({ store, data, sections, infoPage }: {
@@ -113,7 +117,12 @@ export function SectionRenderer({ store, data, sections, infoPage }: {
   // La bande de preuves suit la bannière quand il y en a une ; la section
   // « Réassurance » s'efface alors, sans quoi la bande paraîtrait deux fois.
   // Un marchand qui a ÉTEINT « Réassurance » dans l'éditeur n'a pas de bande.
-  const hasHero        = sections.some((s) => s.key === 'hero' && s.enabled);
+  //
+  // Sauf sur un gabarit qui la veut à SA place dans l'ordre (`place:
+  // 'section'`, « Style Chic ») : « Réassurance » la rend là où elle est
+  // rangée, et rien ne s'accroche sous la bannière.
+  const underHero      = proofStripFor(design).place === 'hero';
+  const hasHero        = underHero && sections.some((s) => s.key === 'hero' && s.enabled);
   const proofsDisabled = sections.some((s) => s.key === 'benefits' && !s.enabled);
 
   return (
@@ -155,7 +164,7 @@ export function SectionRenderer({ store, data, sections, infoPage }: {
           return (
             <Fragment key="hero">
               {rendered}
-              {!proofsDisabled && <ProofStrip store={store} />}
+              {underHero && !proofsDisabled && <ProofStrip store={store} design={design} />}
             </Fragment>
           );
         })}

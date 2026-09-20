@@ -85,6 +85,11 @@ export const SECTION_KEYS = [
   'case_studies',
   'journal',
   'video_wall',
+
+  // La barre « Vous avez une question ? » : WhatsApp, juste avant « Comment
+  // payer », sur tous les gabarits. Rien à saisir — elle suit le numéro de la
+  // boutique et disparaît sans lui.
+  'whatsapp_help',
 ] as const;
 
 export type SectionKey = (typeof SECTION_KEYS)[number];
@@ -316,6 +321,12 @@ export const SECTIONS: Record<SectionKey, SectionDefinition> = {
     hint: 'Vos vidéos, chacune reliée à un article. Le visiteur a vu le produit là — il vient le retrouver.',
     hasLimit: false, canBeEmpty: true, defaultTitle: 'À voir',
   },
+
+  whatsapp_help: {
+    key: 'whatsapp_help', label: 'Question WhatsApp',
+    hint: 'Une barre « Vous avez une question ? » qui ouvre WhatsApp. Elle suit votre numéro ; sans numéro, elle ne s\'affiche pas.',
+    hasLimit: false, canBeEmpty: true, defaultTitle: 'Vous avez une question ?',
+  },
 };
 
 // ── Les ordres de départ, par gabarit ───────────────────────────────────────
@@ -340,8 +351,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // garde le contact pour la prochaine arrivée de marchandise.
   proximite: [
     'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
-    'categories', 'new_arrivals', 'promotion', 'testimonials', 'catalog',
-    'gallery', 'newsletter', 'size_guide', 'shipping', 'payments', 'faq',
+    'categories', 'new_arrivals', 'promotion', 'catalog', 'testimonials',
+    'gallery', 'newsletter', 'size_guide', 'shipping', 'whatsapp_help', 'payments', 'faq',
     'contact', 'social',
   ],
 
@@ -354,9 +365,9 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // ferme la page sur le seul geste que ce trafic fait vraiment — écrire.
   social: [
     'announcement', 'hero', 'categories', 'new_arrivals', 'featured',
-    'video_wall', 'bestsellers', 'brand_story', 'gallery', 'testimonials',
-    'bundles', 'catalog', 'countdown', 'promotion', 'cta_band', 'shipping',
-    'payments', 'social',
+    'video_wall', 'bestsellers', 'brand_story', 'gallery',
+    'bundles', 'catalog', 'testimonials', 'countdown', 'promotion', 'cta_band', 'shipping',
+    'whatsapp_help', 'payments', 'social',
   ],
 
   // Artisan : la réassurance du fait-main, les créations, puis l'atelier. La
@@ -370,8 +381,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   artisan: [
     'announcement', 'hero', 'benefits', 'featured',
     'categories', 'brand_story', 'process', 'ingredients', 'gallery',
-    'testimonials', 'catalog', 'order_form', 'journal', 'team', 'shipping',
-    'payments', 'faq', 'newsletter',
+    'catalog', 'testimonials', 'order_form', 'journal', 'team', 'shipping',
+    'whatsapp_help', 'payments', 'faq', 'newsletter',
   ],
 
   // Services : la promesse, les chiffres qui la soutiennent, les prestations,
@@ -385,9 +396,9 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // Ni meilleures ventes ni rayons ici : « Notre histoire » suit donc le
   // catalogue des prestations, qui en tient lieu.
   services: [
-    'announcement', 'hero', 'stats', 'catalog', 'brand_story', 'process',
-    'case_studies', 'video', 'team', 'testimonials',
-    'packages', 'partners', 'faq', 'payments', 'contact', 'cta_band', 'social',
+    'announcement', 'hero', 'stats', 'catalog', 'testimonials', 'brand_story', 'process',
+    'case_studies', 'video', 'team',
+    'packages', 'partners', 'faq', 'whatsapp_help', 'payments', 'contact', 'cta_band', 'social',
   ],
 
   // Élevage : disponibilité, espèces, catalogue. La réassurance porte ici sur
@@ -400,7 +411,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   agri: [
     'announcement', 'hero', 'benefits', 'availability',
     'categories', 'catalog', 'bestsellers', 'brand_story', 'wholesale',
-    'journal', 'faq', 'shipping', 'payments', 'order_form', 'contact',
+    'journal', 'faq', 'shipping', 'whatsapp_help', 'payments', 'order_form', 'contact',
     'location', 'social',
   ],
 
@@ -413,9 +424,9 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // formulaire sur mesure : elles répondent à « et ensuite ? », pas à « quoi ? ».
   traiteur: [
     'announcement', 'hero', 'benefits', 'categories',
-    'bestsellers', 'brand_story', 'featured', 'catalog', 'order_form', 'process',
-    'promotion', 'gallery', 'ingredients', 'testimonials', 'faq', 'shipping',
-    'payments', 'cta_band', 'contact', 'location',
+    'bestsellers', 'brand_story', 'featured', 'catalog', 'testimonials', 'order_form', 'process',
+    'promotion', 'gallery', 'ingredients', 'faq', 'shipping',
+    'whatsapp_help', 'payments', 'cta_band', 'contact', 'location',
   ],
 
   // ── Fashion Atelier (§7) ────────────────────────────────────────────────
@@ -426,8 +437,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // — sur ce rayon, on ne cherche pas un article, on parcourt une saison.
   fashion: [
     'announcement', 'hero', 'featured', 'new_arrivals',
-    'promotion', 'bestsellers', 'brand_story', 'categories', 'testimonials',
-    'catalog', 'size_guide', 'shipping', 'payments', 'newsletter',
+    'promotion', 'bestsellers', 'brand_story', 'categories',
+    'catalog', 'testimonials', 'size_guide', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // ── Beauty Studio (§8) ──────────────────────────────────────────────────
@@ -437,8 +448,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // se vend par la preuve — ce que d'autres ont acheté, et pourquoi.
   beauty: [
     'announcement', 'hero', 'bestsellers', 'brand_story', 'categories',
-    'benefits', 'featured', 'testimonials',
-    'ingredients', 'faq', 'catalog', 'shipping', 'payments', 'newsletter',
+    'benefits', 'featured',
+    'ingredients', 'faq', 'catalog', 'testimonials', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // ── Tech Store (§9) ─────────────────────────────────────────────────────
@@ -448,8 +459,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // questions qui bloquent — garantie, livraison, compatibilité.
   tech: [
     'announcement', 'hero', 'featured_product', 'categories', 'bestsellers',
-    'brand_story', 'benefits', 'testimonials', 'catalog', 'bundles',
-    'partners', 'faq', 'shipping', 'payments', 'newsletter',
+    'brand_story', 'benefits', 'catalog', 'testimonials', 'bundles',
+    'partners', 'faq', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // ── Food Market (§10) ───────────────────────────────────────────────────
@@ -460,8 +471,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // client qui vient chercher.
   food: [
     'announcement', 'hero', 'bestsellers', 'brand_story', 'categories',
-    'promotion', 'catalog', 'bundles', 'ingredients',
-    'testimonials', 'shipping', 'payments', 'contact', 'location',
+    'promotion', 'catalog', 'testimonials', 'bundles', 'ingredients',
+    'shipping', 'whatsapp_help', 'payments', 'contact', 'location',
   ],
 
   // ── Modern Retail (§11) ─────────────────────────────────────────────────
@@ -470,13 +481,13 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // réassurance, rayons, sélection, meilleures ventes, lots, avis, catalogue.
   retail: [
     'announcement', 'hero', 'benefits', 'categories',
-    'featured', 'bestsellers', 'brand_story', 'bundles', 'testimonials', 'catalog', 'faq',
-    'shipping', 'payments', 'contact', 'newsletter',
+    'featured', 'bestsellers', 'brand_story', 'bundles', 'catalog', 'testimonials', 'faq',
+    'shipping', 'whatsapp_help', 'payments', 'contact', 'newsletter',
   ],
 
-  // ── Les huit gabarits de marque en ligne (§35) ──────────────────────────
+  // ── Les neuf gabarits de marque en ligne (§35) ──────────────────────────
   //
-  // Ces huit-là ont un catalogue COURT. L'ordre y compte donc plus qu'ailleurs :
+  // Ces neuf-là ont un catalogue COURT. L'ordre y compte donc plus qu'ailleurs :
   // sur une page de dix références, le visiteur voit tout, et ce qu'il a lu
   // avant de voir le prix décide de l'achat. C'est l'inverse d'un catalogue de
   // rayon, où l'on cherche un article et où le discours est un obstacle.
@@ -487,8 +498,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // pour se décider à l'envisager.
   wellness: [
     'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
-    'featured', 'ingredients', 'testimonials', 'partners',
-    'catalog', 'faq', 'shipping', 'payments', 'newsletter',
+    'featured', 'ingredients', 'partners',
+    'catalog', 'testimonials', 'faq', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // Soin : même colonne vertébrale, avec les besoins (peau sèche, taches,
@@ -496,8 +507,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // une catégorie de produit, on achète une réponse à un besoin.
   skincare: [
     'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
-    'categories', 'ingredients', 'testimonials', 'catalog',
-    'faq', 'shipping', 'payments', 'newsletter',
+    'categories', 'ingredients', 'catalog', 'testimonials',
+    'faq', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // Animalerie : la réassurance AVANT la bannière, et c'est le seul gabarit du
@@ -506,8 +517,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // n'est pas un argument de bas de page, c'est la condition de l'achat.
   animalerie: [
     'announcement', 'benefits', 'hero', 'categories',
-    'bestsellers', 'brand_story', 'promotion', 'featured', 'testimonials', 'catalog',
-    'faq', 'shipping', 'payments', 'contact', 'newsletter',
+    'bestsellers', 'brand_story', 'promotion', 'featured', 'catalog', 'testimonials',
+    'faq', 'shipping', 'whatsapp_help', 'payments', 'contact', 'newsletter',
   ],
 
   // Mode éditoriale : la campagne, les rayons juste dessous — c'est ce qui la
@@ -515,8 +526,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // écran — puis les tendances, la sélection, la maison.
   magazine: [
     'announcement', 'hero', 'categories', 'new_arrivals',
-    'featured', 'promotion', 'bestsellers', 'brand_story', 'testimonials',
-    'catalog', 'size_guide', 'shipping', 'payments', 'newsletter',
+    'featured', 'promotion', 'bestsellers', 'brand_story',
+    'catalog', 'testimonials', 'size_guide', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // Sport : l'affirmation, ce que le produit fait, ce qui se vend le plus, et
@@ -524,8 +535,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // gabarit : c'est la preuve, et elle vaut tous les avis écrits.
   sport: [
     'announcement', 'hero', 'benefits', 'bestsellers', 'brand_story',
-    'featured', 'gallery', 'video', 'testimonials', 'catalog', 'faq',
-    'shipping', 'payments', 'cta_band',
+    'featured', 'gallery', 'video', 'catalog', 'testimonials', 'faq',
+    'shipping', 'whatsapp_help', 'payments', 'cta_band',
   ],
 
   // Fait main : les pièces, les collections, puis l'histoire — elle vient
@@ -533,8 +544,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // la suit : on vient de dire qui fait, on dit comment.
   maker: [
     'announcement', 'hero', 'benefits',
-    'featured', 'categories', 'brand_story', 'process', 'gallery', 'team', 'testimonials',
-    'catalog', 'shipping', 'payments', 'newsletter',
+    'featured', 'categories', 'brand_story', 'process', 'gallery', 'team',
+    'catalog', 'testimonials', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // Naturel : les chiffres à la place des avis, tout de suite sous la
@@ -543,8 +554,8 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // pas de la même façon que celle qui affiche quatre étoiles et demie.
   naturel: [
     'announcement', 'hero', 'stats', 'bestsellers', 'brand_story',
-    'benefits', 'featured', 'ingredients', 'testimonials',
-    'partners', 'catalog', 'faq', 'shipping', 'payments', 'newsletter',
+    'benefits', 'featured', 'ingredients',
+    'partners', 'catalog', 'testimonials', 'faq', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
 
   // Mono-produit : pas de bannière. La fiche EST la page — prix, arguments,
@@ -553,8 +564,19 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // marque finit toujours par avoir.
   monoproduit: [
     'announcement', 'featured_product', 'benefits', 'brand_story',
-    'process', 'ingredients', 'testimonials', 'video', 'faq', 'countdown',
-    'cta_band', 'catalog', 'shipping', 'payments',
+    'process', 'ingredients', 'video', 'faq', 'countdown',
+    'cta_band', 'catalog', 'testimonials', 'shipping', 'whatsapp_help', 'payments',
+  ],
+
+  // Style Chic : l'ordre exact de sa maquette. Les rayons collent à la
+  // bannière, sans titre ; les meilleures ventes ; la ligne de réassurance ;
+  // la collection en aplat ; l'histoire ; les avis ; et la barre WhatsApp, qui
+  // ferme l'accueil sur la question qu'on n'a pas osé poser. Livraison,
+  // paiement et questions fréquentes ont leurs pages : l'accueil s'arrête là.
+  // Pas de `whatsapp_help` ici : sa bande d'appel EST déjà cette barre.
+  chic: [
+    'announcement', 'hero', 'categories', 'bestsellers', 'benefits',
+    'promotion', 'brand_story', 'testimonials', 'cta_band',
   ],
 
   // ── Les trois gabarits historiques ──────────────────────────────────────
@@ -563,7 +585,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // courte, les rayons, l'histoire, et seulement ensuite le catalogue.
   luxe: [
     'hero', 'featured', 'categories', 'brand_story',
-    'catalog', 'testimonials', 'faq', 'shipping', 'payments', 'newsletter',
+    'catalog', 'testimonials', 'faq', 'shipping', 'whatsapp_help', 'payments', 'newsletter',
   ],
   // La conversion se vend par la réassurance : ce que vous vendez, pourquoi
   // vous faire confiance, ce que d'autres en disent, puis tout le reste.
@@ -573,7 +595,7 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   // `template_id` vide ou inconnu. Une vitrine créée avant le Store Builder,
   // une ligne dont la colonne n'a jamais été écrite, une clé mal recopiée —
   // toutes atterrissent ici. Il ne peut donc pas être le plus pauvre des
-  // vingt-deux : il est celui que le plus grand nombre de marchands voient
+  // vingt-trois : il est celui que le plus grand nombre de marchands voient
   // sans l'avoir choisi.
   //
   // Il suit maintenant l'ordre du commerce de détail (§01) : la réassurance
@@ -584,20 +606,20 @@ const PRESETS: Record<TemplateId, SectionKey[]> = {
   modern: [
     'announcement', 'hero', 'benefits', 'categories',
     'bestsellers', 'brand_story', 'new_arrivals', 'featured', 'promotion', 'bundles',
-    'testimonials', 'catalog', 'gallery', 'size_guide', 'faq',
-    'shipping', 'payments', 'contact', 'newsletter', 'social',
+    'catalog', 'testimonials', 'gallery', 'size_guide', 'faq',
+    'shipping', 'whatsapp_help', 'payments', 'contact', 'newsletter', 'social',
   ],
   // Le trafic social n'a pas de patience : les produits au premier écran.
   flash: [
     'announcement', 'countdown', 'categories', 'catalog',
-    'bundles', 'promotion', 'bestsellers', 'brand_story', 'shipping', 'payments', 'social',
+    'bundles', 'promotion', 'bestsellers', 'brand_story', 'shipping', 'whatsapp_help', 'payments', 'social',
   ],
 };
 
 /**
  * Les sections qui ne se rendent plus, nulle part.
  *
- * « Présentation & services » (`presentation`) a été retirée des vingt-deux
+ * « Présentation & services » (`presentation`) a été retirée de tous les
  * gabarits le 18/09/2026 : elle redisait « Notre histoire » en moins bien. Ses
  * points numérotés sont désormais les « 01 · 02 · 03 » de `BrandStorySection`,
  * et son contenu reste dans le thème — c'est lui qui les porte.
@@ -652,19 +674,26 @@ const PDP_SECTIONS: Partial<Record<TemplateId, SectionKey[]>> = {
   agri:      ['wholesale', 'faq'],
   traiteur:  ['ingredients', 'process', 'faq'],
 
-  // Les huit marques en ligne (§35).
-  wellness:    ['ingredients', 'faq'],
-  skincare:    ['ingredients', 'faq'],
+  // Les neuf marques en ligne (§35).
+  //
+  // Cette liste et les onglets de `storeProductPage.ts` parlent de la même
+  // fiche : ce qu'un onglet porte, la liste doit le connaître — sinon la page
+  // rend la section en pleine largeur SOUS l'onglet qui la porte déjà, et le
+  // marchand lit deux fois sa composition. La déduplication de
+  // `products/[id]/page.tsx` s'appuie dessus, et un test tient l'accord.
+  wellness:    ['ingredients', 'process', 'faq'],
+  skincare:    ['ingredients', 'process', 'faq'],
   animalerie:  ['ingredients', 'faq'],
   magazine:    ['size_guide', 'faq'],
-  sport:       ['ingredients', 'faq'],
+  sport:       ['ingredients', 'process', 'case_studies', 'faq'],
   maker:       ['ingredients', 'process'],
-  naturel:     ['ingredients', 'faq'],
+  naturel:     ['ingredients', 'case_studies', 'faq'],
   monoproduit: ['ingredients', 'process', 'faq'],
+  chic:        ['size_guide', 'faq'],
 
   // Les cinq presets de rayon (§33).
   fashion: ['size_guide', 'faq'],
-  beauty:  ['ingredients', 'faq'],
+  beauty:  ['ingredients', 'process', 'faq'],
   tech:    ['faq'],
   food:    ['ingredients', 'faq'],
   retail:  ['faq'],
@@ -910,6 +939,12 @@ const TITLES: Partial<Record<TemplateId, Partial<Record<SectionKey, string>>>> =
     ingredients:   'Ce qu\'il y a dedans',
     video:         'Le voir en vrai',
     presentation:  'Pourquoi ce produit',
+  },
+
+  chic: {
+    bestsellers:  'Meilleures ventes',
+    brand_story:  'Notre histoire',
+    testimonials: "Ce qu'elles disent",
   },
 
   // Les cinq presets de rayon parlent la langue générale : « Nos produits »

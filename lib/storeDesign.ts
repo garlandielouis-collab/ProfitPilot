@@ -43,7 +43,8 @@ export type CardStyle =
   // Les trois peaux des gabarits métier (§34).
   | 'service'    // une prestation : durée, à partir de, « Réserver »
   | 'wholesale'  // un lot : unité, prix de gros, « Commander »
-  | 'social';    // un produit tendance : étiquette, note, prix, ajout direct
+  | 'social'     // un produit tendance : étiquette, note, prix, ajout direct
+  | 'chic';      // boutique de mode : étiquette, favori, nom, matières, note, prix, « Ajouter au panier »
 
 /** La composition de la bannière (§7 à §11, §34). */
 export type HeroStyle =
@@ -72,8 +73,10 @@ export type NavCta = 'none' | 'booking' | 'phone';
  *   'chips'   pastilles de texte — on sait déjà ce qu'on cherche
  *   'circles' médaillons ronds — la grammaire des stories, pour le trafic social
  *   'tabs'    onglets posés au-dessus du catalogue — un menu, une liste d'espèces
+ *   'cards'   quatre cartes photo sur une rangée, le nom posé dessus — même sur
+ *             téléphone : les rayons se voient d'un coup, sans titre de section
  */
-export type CategoryStyle = 'tiles' | 'chips' | 'circles' | 'tabs';
+export type CategoryStyle = 'tiles' | 'chips' | 'circles' | 'tabs' | 'cards';
 
 /**
  * Une entrée du socle de navigation mobile (§4).
@@ -118,6 +121,35 @@ export type CheckoutSchedule = 'none' | 'delivery' | 'appointment';
  */
 export type ProofStyle = 'cards' | 'editorial' | 'band' | 'ledger';
 
+/**
+ * La bande de preuves (components/store/blocks/ProofStrip.tsx).
+ *
+ *   place  'hero'     accrochée sous la bannière, quel que soit l'ordre
+ *          'section'  à la place de « Réassurance » dans l'ordre du gabarit
+ *   look   'marks'    des marques et des chiffres, un libellé court dessous
+ *          'inline'   l'icône à gauche, le titre et la précision à droite —
+ *                     la ligne de réassurance d'une boutique de mode
+ */
+export type ProofStripRule = { place: 'hero' | 'section'; look: 'marks' | 'inline' };
+
+/**
+ * La promotion.
+ *
+ *   'band'   la photo en fond, le texte posé dessus
+ *   'split'  un aplat de la couleur de structure, le texte à gauche, la photo
+ *            à droite ; la deuxième ligne du titre passe en couleur d'appel
+ */
+export type PromoStyle = 'band' | 'split';
+
+/**
+ * La bande d'appel qui ferme la page.
+ *
+ *   'band'      un aplat, un titre, un bouton vers le lien saisi
+ *   'whatsapp'  une barre basse : l'icône WhatsApp, la question, « Me
+ *               contacter » qui ouvre la conversation, un téléphone dessiné
+ */
+export type CtaBandStyle = 'band' | 'whatsapp';
+
 /** Comment une photo est posée dans son cadre. */
 export type MediaFit = 'cover' | 'contain';
 
@@ -157,6 +189,11 @@ export type DesignProfile = {
     media:  number;
     button: number;
     input:  number;
+    /**
+     * Les boutons d'INVITATION — bannière, promotion, bande d'appel — quand
+     * ils n'ont pas la forme du bouton d'achat. Absent : celle du bouton.
+     */
+    cta?:   number;
   };
 
   /** Le rythme vertical : ce qui sépare deux sections. */
@@ -201,6 +238,15 @@ export type DesignProfile = {
    * Chez un éleveur, c'est une référence — le nom, la ville, la commande.
    */
   proof: ProofStyle;
+
+  /** Absent : `{ place: 'hero', look: 'marks' }`. Voir `proofStripFor`. */
+  proofStrip?: ProofStripRule;
+
+  /** Absent : `'band'`. */
+  promo?: PromoStyle;
+
+  /** Absent : `'band'`. */
+  ctaBand?: CtaBandStyle;
 
   /** Vrai quand la carte montre sa seconde photo au survol (§27). */
   hoverSwap: boolean;
@@ -266,7 +312,7 @@ export type DesignProfile = {
 
 // ── Les profils ─────────────────────────────────────────────────────────────
 //
-// Six gabarits métier (§34), huit gabarits de marque en ligne (§35), cinq
+// Six gabarits métier (§34), neuf gabarits de marque en ligne (§35), cinq
 // presets de rayon (§33) et trois gabarits historiques, ces derniers conservés
 // parce que des vitrines en production les portent : `template_id` est du texte
 // libre en base, et un marchand ne doit pas voir sa boutique changer d'identité
@@ -584,7 +630,7 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Les huit gabarits de marque en ligne (§35)
+  // Les neuf gabarits de marque en ligne (§35)
   //
   // Les six métiers répondent à « qu'est-ce que je fais ? ». Ceux-ci répondent
   // à une autre question : « comment ma marque parle-t-elle ? ». C'est le
@@ -824,6 +870,38 @@ const PROFILES: Record<TemplateId, DesignProfile> = {
     checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: true },
   },
 
+  // ── 9. Style Chic ───────────────────────────────────────────────────────
+  //
+  // La boutique de mode et d'accessoires, dessinée d'après une maquette
+  // précise : bannière photo, rayons en quatre cartes sur une rangée, cartes
+  // produit complètes avec leur bouton vert, une ligne de réassurance, la
+  // collection en aplat vert et or, l'histoire, les avis, et la barre
+  // WhatsApp qui ferme la page. Deux couleurs d'appel (voir la palette) : le
+  // vert achète, l'or invite — d'où des boutons d'invitation en pilule et des
+  // boutons d'achat presque droits.
+  chic: {
+    id: 'chic',
+    card: 'chic', hero: 'feature', nav: 'classic',
+    navCta: 'none', headerDark: false, categories: 'cards',
+    media:    { ratio: '1 / 1', fit: 'cover', pad: 0 },
+    mediaPdp: { ratio: '4 / 3', fit: 'cover', pad: 0 },
+    grid:   { mobile: 2, tablet: 3, desktop: 4, gap: 18 },
+    radius: { card: 10, media: 8, button: 6, input: 6, cta: 999 },
+    space:  { section: 40, sectionLg: 64 },
+    type:   { h1: 36, h1Lg: 60, h2: 20, h2Lg: 26, cardTitle: 14,
+              upper: false, tracking: 0, eyebrow: false },
+    shadow:      '0 1px 3px 0 rgba(22,56,42,0.07)',
+    shadowHover: '0 12px 26px -12px rgba(22,56,42,0.24)',
+    showRating: true,
+    proof: 'cards',
+    proofStrip: { place: 'section', look: 'inline' },
+    promo: 'split',
+    ctaBand: 'whatsapp',
+    hoverSwap: true, hoverAction: false, reveal: false,
+    mobile: { dock: ['home', 'categories', 'search', 'cart'], cta: 'Ajouter au panier', catalogLabel: 'Boutique' },
+    checkout: { schedule: 'none', customisation: false, whatsappFirst: false, quote: false, buyNow: true },
+  },
+
   // ── Les trois gabarits historiques ──────────────────────────────────────
   //
   // Ils ne sont pas des alias : ce sont les profils que leurs vitrines portent
@@ -917,6 +995,11 @@ export function designFor(templateId: TemplateId | string): DesignProfile {
   return PROFILES[templateId as TemplateId] ?? PROFILES.retail;
 }
 
+/** La règle de la bande de preuves, défaut compris. */
+export function proofStripFor(d: DesignProfile): ProofStripRule {
+  return d.proofStrip ?? { place: 'hero', look: 'marks' };
+}
+
 // ── Les variables CSS du gabarit ────────────────────────────────────────────
 //
 // Elles se posent une fois, sur le layout de la vitrine, à côté des couleurs.
@@ -933,6 +1016,7 @@ export function designCssVars(d: DesignProfile): Record<string, string> {
     '--st-radius-media':  `${d.radius.media}px`,
     '--st-radius-btn':    `${d.radius.button}px`,
     '--st-radius-input':  `${d.radius.input}px`,
+    '--st-radius-cta':    `${d.radius.cta ?? d.radius.button}px`,
 
     '--st-grid-gap':      `${d.grid.gap}px`,
     '--st-section-y':     `${d.space.section}px`,

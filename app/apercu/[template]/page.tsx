@@ -121,7 +121,7 @@ export default async function ApercuPage({ params }: Props) {
         <PlanLockScreen
           feature="online_store"
           title="Aperçu des gabarits"
-          hint="Voir votre boutique dans chacun des 22 gabarits, avec vos vrais produits"
+          hint="Voir votre boutique dans chacun des 23 gabarits, avec vos vrais produits"
         />
         {/* La cause la plus fréquente en développement, et la plus invisible :
             l'aperçu d'offre reste dans un cookie et filtre TOUT le produit, y

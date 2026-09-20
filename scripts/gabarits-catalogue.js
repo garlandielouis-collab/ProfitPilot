@@ -10,7 +10,7 @@
 // annonçait encore trois gabarits actifs (luxe, modern, flash) qui sont
 // justement les trois retirés de la création.
 //
-// D'où cet outil plutôt qu'un fichier écrit à la main : recopier vingt-deux
+// D'où cet outil plutôt qu'un fichier écrit à la main : recopier vingt-trois
 // libellés à la main, c'est garantir qu'ils divergeront au premier changement
 // de nom. Ici, la migration se regénère.
 // ─────────────────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@
 //   Traiteur   Menu · Rechercher · Panier · Commander
 //
 // La liste vient de `designFor(templateId).mobile.dock`. Le composant ne
-// connaît aucun nom de gabarit : ajouter un vingt-troisième gabarit ne demande
+// connaît aucun nom de gabarit : ajouter un vingt-quatrième gabarit ne demande
 // pas de revenir ici.
 //
 // ── Une entrée qui ne mène nulle part ne s'affiche pas ─────────────────────

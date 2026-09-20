@@ -112,15 +112,23 @@ function HeroTitle({
   );
 }
 
+/**
+ * Le bouton de bannière.
+ *
+ * Il porte la couleur et la forme d'INVITATION (`--st-highlight`,
+ * `--st-radius-cta`) : l'or en pilule de « Style Chic ». Sur tous les autres
+ * gabarits, les deux valent la couleur et la forme du bouton d'achat — rien
+ * n'y change.
+ */
 function HeroCta({ store, label }: { store: StoreView; label: string }) {
   return (
     <Link
       href={`${store.base}/products`}
       className="mt-8 inline-flex min-h-[56px] items-center justify-center gap-2 px-8 text-[15px] font-semibold transition hover:brightness-95"
       style={{
-        background:   'var(--st-accent)',
-        color:        'var(--st-accent-ink)',
-        borderRadius: 'var(--st-radius-btn)',
+        background:   'var(--st-highlight)',
+        color:        'var(--st-highlight-ink)',
+        borderRadius: 'var(--st-radius-cta)',
       }}
     >
       {label}
@@ -245,6 +253,16 @@ export function HeroSection({ store, design }: SectionProps) {
 
         <div className="relative mx-auto flex min-h-[54vh] max-w-6xl flex-col justify-center px-4 py-16 sm:px-6 sm:py-24">
           <div className="max-w-lg">
+            {/* Le surtitre n'existe que si le marchand (ou le contenu de
+                démarrage du gabarit) en a écrit un. */}
+            {theme.hero.eyebrow.trim() && (
+              <p
+                className="mb-4 text-[12px] font-semibold uppercase"
+                style={{ color: 'var(--st-highlight)', letterSpacing: '0.2em' }}
+              >
+                {theme.hero.eyebrow}
+              </p>
+            )}
             <HeroTitle design={design} onDark>{headline}</HeroTitle>
             {sub && (
               <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/85">{sub}</p>
@@ -503,8 +521,8 @@ export function HeroSection({ store, design }: SectionProps) {
  * section, pour qu'elle ne paraisse pas deux fois. Sur les gabarits sans
  * bannière (`monoproduit`, `flash`), c'est ici qu'elle prend place.
  */
-export function BenefitsSection({ store }: SectionProps) {
-  return <ProofStrip store={store} />;
+export function BenefitsSection({ store, design }: SectionProps) {
+  return <ProofStrip store={store} design={design} />;
 }
 
 // ── Rayons ──────────────────────────────────────────────────────────────────
@@ -627,6 +645,54 @@ export function CategoriesSection({ store, section, data, design }: SectionProps
     );
   }
 
+  // ── Cartes ──────────────────────────────────────────────────────────────
+  //
+  // Quatre cartes sur une rangée, sur toutes les largeurs, collées à la
+  // bannière et sans titre : les rayons se lisent comme la suite de la
+  // bannière, pas comme une section de plus. Au-delà de quatre, la rangée
+  // glisse au doigt plutôt que de passer à la ligne — une deuxième rangée
+  // repousserait les produits sous le pli.
+  if (design.categories === 'cards') {
+    return (
+      <section aria-label={title || 'Rayons'} className="pt-4 sm:pt-6" style={{ background: 'var(--st-surface)' }}>
+        <nav aria-label="Rayons" className="mx-auto max-w-6xl px-4 sm:px-6">
+          <ul
+            className="grid grid-flow-col overflow-x-auto pb-1"
+            style={{
+              gap: '12px',
+              gridAutoColumns: 'calc((100% - 36px) / 4)',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {categories.map((c) => (
+              <li key={c.id}>
+                <Link href={collectionHref(store.base, c)} className="group block">
+                  <ProductMedia
+                    src={sampleFor(c.id)}
+                    alt=""
+                    rule={{ ratio: '5 / 4', fit: 'cover', pad: 0 }}
+                    sizes="(max-width: 768px) 25vw, 280px"
+                    radius="var(--st-radius-card)"
+                    imageClassName="transition-transform duration-700 group-hover:scale-[1.05]"
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: 'linear-gradient(to top, rgba(14,24,34,0.6), rgba(14,24,34,0) 55%)' }}
+                      aria-hidden
+                    />
+                    <p className="absolute inset-x-0 bottom-0 truncate p-2 text-[11px] font-medium text-white sm:p-3 sm:text-[14px]">
+                      {c.name}
+                    </p>
+                  </ProductMedia>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </section>
+    );
+  }
+
   if (design.categories === 'chips') {
     return (
       <Section design={design} label={title}>
@@ -721,6 +787,8 @@ export function PromotionSection({ store, design }: SectionProps) {
   const p = store.theme.promotion;
   if (!p.enabled || !p.title.trim()) return null;
 
+  if (design.promo === 'split') return <PromotionSplit store={store} design={design} />;
+
   return (
     <Section design={design} label={p.title}>
       <div
@@ -775,9 +843,84 @@ export function PromotionSection({ store, design }: SectionProps) {
   );
 }
 
+/**
+ * La promotion en aplat : le texte à gauche sur la couleur de structure, la
+ * photo à droite, fondue dans l'aplat.
+ *
+ * Le titre se lit sur deux lignes quand le marchand en écrit deux : la
+ * première en blanc, la seconde en couleur d'appel — « Nouvelle collection »
+ * puis le nom de la saison. Une seule ligne reste blanche.
+ */
+function PromotionSplit({ store, design }: { store: StoreView; design: DesignProfile }) {
+  const p = store.theme.promotion;
+  const [first, ...rest] = p.title.split('\n').map((l) => l.trim()).filter(Boolean);
+  const second = rest.join(' ');
+  const image = p.imageUrl ?? templateArt(store.templateId, 'band');
+
+  return (
+    <Section design={design} label={p.title.replace(/\n/g, ' ')}>
+      <div
+        className="relative isolate grid overflow-hidden sm:grid-cols-[1fr_1.1fr]"
+        style={{ background: 'var(--st-primary)', borderRadius: 'var(--st-radius-card)' }}
+      >
+        <div className="relative z-10 px-6 py-8 sm:px-10 sm:py-12">
+          <h2
+            style={{
+              fontFamily:    'var(--st-font-heading)',
+              fontSize:      'clamp(1.6rem, 1.2rem + 1.6vw, 2.5rem)',
+              fontWeight:    500,
+              lineHeight:    1.1,
+              letterSpacing: 'var(--st-tracking)',
+            }}
+          >
+            <span className="block" style={{ color: 'var(--st-primary-ink)' }}>{first}</span>
+            {second && <span className="block" style={{ color: 'var(--st-highlight)' }}>{second}</span>}
+          </h2>
+          {p.subtitle && (
+            <p className="mt-3 max-w-sm text-[14px] leading-relaxed" style={{ color: 'var(--st-primary-ink)', opacity: 0.82 }}>
+              {p.subtitle}
+            </p>
+          )}
+          {p.ctaLabel && (
+            <Link
+              href={storeLink(p.ctaHref, store.base)}
+              className="mt-6 inline-flex min-h-[44px] items-center justify-center gap-2 px-6 text-[14px] font-semibold transition hover:brightness-95"
+              style={{
+                background:   'var(--st-highlight)',
+                color:        'var(--st-highlight-ink)',
+                borderRadius: 'var(--st-radius-cta)',
+              }}
+            >
+              {p.ctaLabel}
+              <ArrowRight className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+            </Link>
+          )}
+        </div>
+
+        {/* La photo : dessous sur téléphone, à droite sur grand écran. Le
+            dégradé la fond dans l'aplat, pour qu'aucun bord ne coupe la
+            composition en deux cartes. */}
+        <div className="relative min-h-[200px]">
+          <StoreImage src={image} alt="" sizes={IMAGE_SIZES.band} className="object-cover" />
+          <div
+            className="absolute inset-0 hidden sm:block"
+            style={{ background: 'linear-gradient(to right, var(--st-primary) 0%, transparent 38%)' }}
+            aria-hidden
+          />
+          <div
+            className="absolute inset-0 sm:hidden"
+            style={{ background: 'linear-gradient(to bottom, var(--st-primary) 0%, transparent 40%)' }}
+            aria-hidden
+          />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // ── Notre histoire ──────────────────────────────────────────────────────────
 //
-// La même composition sur les vingt-deux gabarits : la photo à gauche, le récit
+// La même composition sur les vingt-trois gabarits : la photo à gauche, le récit
 // à droite — un surtitre, un titre en grand, un paragraphe, trois engagements
 // numérotés et un lien vers la page « À propos ». Seuls les jetons du gabarit
 // (police, couleurs, rayons) la font varier.

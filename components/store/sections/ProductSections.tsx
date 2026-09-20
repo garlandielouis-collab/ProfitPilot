@@ -42,7 +42,7 @@ const EYEBROWS: Record<string, string> = {
 };
 
 function ProductRow({
-  store, design, title, eyebrow, products, limit, ratings, showAll, tone,
+  store, design, title, eyebrow, products, limit, ratings, showAll, tone, bestsellers,
 }: {
   store:    StoreView;
   design:   DesignProfile;
@@ -53,6 +53,7 @@ function ProductRow({
   ratings:  RatingMap;
   showAll:  boolean;
   tone?:    'surface' | 'surface-2';
+  bestsellers?: boolean;
 }) {
   if (products.length === 0) return null;
 
@@ -67,7 +68,7 @@ function ProductRow({
         href={showAll ? `${store.base}/products` : undefined}
         align={design.hero === 'editorial' ? 'center' : 'left'}
       />
-      <ProductGrid store={store} products={visible} ratings={ratings} design={design} />
+      <ProductGrid store={store} products={visible} ratings={ratings} design={design} bestsellers={bestsellers} />
     </Section>
   );
 
@@ -94,7 +95,7 @@ export function BestsellersSection({ store, section, data, design }: SectionProp
       store={store} design={design}
       title={sectionTitle(section, store.templateId)} eyebrow={EYEBROWS.bestsellers}
       products={data.bestsellers} limit={section.config.limit}
-      ratings={data.ratings} showAll tone="surface-2"
+      ratings={data.ratings} showAll tone="surface-2" bestsellers
     />
   );
 }

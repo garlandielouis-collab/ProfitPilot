@@ -201,6 +201,13 @@ function renderEditor(
       return (
         <Block title="Bannière" hint={hint}>
           <Field
+            label="Le surtitre"
+            hint="Facultatif. Quelques mots au-dessus de l'accroche : « Nouvelle collection »."
+            maxLength={40}
+            value={theme.hero.eyebrow}
+            onChange={(e) => patch('hero', { eyebrow: e.target.value })}
+          />
+          <Field
             label="L'accroche"
             hint="Ce que vous vendez, en une ligne. Vide : le nom de votre boutique."
             maxLength={120}

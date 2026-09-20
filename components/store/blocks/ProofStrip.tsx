@@ -23,6 +23,14 @@
 // verticaux, posés sur le fond de la page. Ce sont les codes d'une bande de
 // marques, et c'est ce qui la fait lire comme des références plutôt que comme
 // des boutons.
+//
+// ── Deux allures ───────────────────────────────────────────────────────────
+//
+// `marks` est la bande de marques décrite ci-dessus. `inline` est la ligne de
+// réassurance d'une boutique de mode (« Style Chic ») : l'icône à gauche, le
+// titre et sa précision à droite, sans filets. Elle défile de la même façon —
+// seule l'allure de chaque élément change. Le gabarit choisit
+// (`proofStripFor`, lib/storeDesign.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { CSSProperties } from 'react';
@@ -34,7 +42,10 @@ import {
   proofStripItems, type PaymentBrand, type ProofIcon, type ProofItem,
 } from '../../../lib/storeProofs';
 import type { StoreView } from '../types';
+import { designFor, proofStripFor, type DesignProfile } from '../../../lib/storeDesign';
 import { StoreImage } from './StoreImage';
+
+type Look = 'marks' | 'inline';
 
 const ICONS: Record<ProofIcon, typeof ShieldCheck> = {
   truck:   Truck,
@@ -59,15 +70,21 @@ const MIN_PER_COPY = 8;
 /** Secondes par élément : assez lent pour lire un libellé en passant. */
 const SECONDS_PER_ITEM = 3.5;
 
-export function ProofStrip({ store }: { store: StoreView }) {
+export function ProofStrip({ store, design }: { store: StoreView; design?: DesignProfile }) {
   const items = proofStripItems(store.theme);
   if (items.length === 0) return null;
+
+  const look = proofStripFor(design ?? designFor(store.templateId)).look;
 
   const repeats = Math.ceil(MIN_PER_COPY / items.length);
   const copy = Array.from({ length: repeats }, () => items).flat();
 
   return (
-    <section aria-label="Nos références" className="py-6 md:py-8">
+    <section
+      aria-label={look === 'inline' ? 'Nos engagements' : 'Nos références'}
+      className={look === 'inline' ? 'py-4 md:py-6' : 'py-6 md:py-8'}
+      style={{ background: 'var(--st-surface)' }}
+    >
       <div
         className="st-marquee"
         style={{ '--st-marquee-duration': `${copy.length * SECONDS_PER_ITEM}s` } as CSSProperties}
@@ -77,12 +94,12 @@ export function ProofStrip({ store }: { store: StoreView }) {
               seconde copie n'existent que pour l'œil. */}
           <ul className="flex items-center">
             {copy.map((item, i) => (
-              <Cell key={`${item.key}-${i}`} item={item} hidden={i >= items.length} />
+              <Cell key={`${item.key}-${i}`} item={item} hidden={i >= items.length} look={look} />
             ))}
           </ul>
           <ul className="st-marquee-copy flex items-center" aria-hidden>
             {copy.map((item, i) => (
-              <Cell key={`${item.key}-${i}`} item={item} hidden />
+              <Cell key={`${item.key}-${i}`} item={item} hidden look={look} />
             ))}
           </ul>
         </div>
@@ -91,10 +108,23 @@ export function ProofStrip({ store }: { store: StoreView }) {
   );
 }
 
-function Cell({ item, hidden }: { item: ProofItem; hidden: boolean }) {
+function Cell({ item, hidden, look }: { item: ProofItem; hidden: boolean; look: Look }) {
   // Une cellule qui n'existe que pour l'œil porte `st-marquee-copy` : avec
   // « réduire les animations », la bande ne boucle plus, et les répétitions de
   // la première copie se liraient comme des doublons.
+  if (look === 'inline') {
+    return (
+      <li
+        className={`flex flex-shrink-0 items-center${hidden ? ' st-marquee-copy' : ''}`}
+        aria-hidden={hidden || undefined}
+      >
+        <div className="flex h-12 items-center px-5 text-[var(--st-ink)] md:px-8">
+          <InlineProof item={item} />
+        </div>
+      </li>
+    );
+  }
+
   return (
     <li
       className={`flex flex-shrink-0 items-center${hidden ? ' st-marquee-copy' : ''}`}
@@ -105,6 +135,39 @@ function Cell({ item, hidden }: { item: ProofItem; hidden: boolean }) {
       </div>
       <span className="h-10 w-px" style={{ background: 'var(--st-border)' }} aria-hidden />
     </li>
+  );
+}
+
+/**
+ * Un élément en ligne : l'icône, puis le titre et sa précision l'un sous
+ * l'autre. Une marque de paiement garde son dessin ; un chiffre met sa valeur
+ * à la place de l'icône.
+ */
+function InlineProof({ item }: { item: ProofItem }) {
+  if (item.logoUrl || item.brand || item.kind === 'partner') return <Proof item={item} />;
+
+  const lead = item.kind === 'stat'
+    ? (
+      <span className="text-[18px] font-semibold leading-none" style={{ fontFamily: 'var(--st-font-heading)' }}>
+        {item.label}
+      </span>
+    )
+    : (() => {
+      const Icon = item.icon ? ICONS[item.icon] : ShieldCheck;
+      return <Icon className="h-6 w-6 flex-shrink-0" strokeWidth={1.5} aria-hidden />;
+    })();
+
+  const title = item.kind === 'stat' ? item.note : item.label;
+  const note  = item.kind === 'stat' ? undefined : item.note;
+
+  return (
+    <span className="flex items-center gap-3">
+      {lead}
+      <span className="flex flex-col gap-0.5 whitespace-nowrap">
+        {title && <span className="text-[13px] font-semibold leading-tight">{title}</span>}
+        {note && <span className="text-[11px] leading-tight text-[var(--st-ink-3)]">{note}</span>}
+      </span>
+    </span>
   );
 }
 

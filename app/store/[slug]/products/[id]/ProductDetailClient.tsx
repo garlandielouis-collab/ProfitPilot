@@ -3,51 +3,51 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // La fiche produit
 //
-// C'est l'écran où la vente se décide. Le §16 en donne la structure :
-// galerie à gauche, informations à droite, et un bouton d'achat visuellement
-// dominant. Le §17 y ajoute la réassurance, le §18 la barre d'achat collante.
+// C'est l'écran où la vente se décide. Le §16 en donne la structure : galerie à
+// gauche, colonne d'achat à droite, bouton dominant ; le §17 la réassurance, le
+// §18 la barre collante du téléphone.
 //
-// ── Ce qui a été corrigé au passage ────────────────────────────────────────
+// ── Ce que ce fichier fait, et ce qu'il ne fait plus ───────────────────────
 //
-//   L'ajout au panier renvoyait vers /cart. On quittait la fiche, on perdait
-//   les produits similaires, et la deuxième vente ne se faisait pas. Le tiroir
-//   s'ouvre à la place, la page reste.
+// Il tient le CADRE : le fil d'Ariane, la galerie, les onglets, la barre
+// d'achat collante. Il ne dessine plus la colonne de droite — elle existe en
+// six versions, une par métier, et vivait ici en une seule (`BuyColumn`).
 //
-//   Le prix affiché ne suivait pas la quantité. « Ajouter au panier —
-//   1 250 HTG » pour trois unités est un chiffre faux sur l'écran d'un logiciel
-//   de gestion. Le bouton porte maintenant le total réel.
+// Ce n'était pas une question de style. Un éleveur doit lire un poids et un âge
+// avant un prix, un traiteur doit donner une date avant de payer, un
+// prestataire ne met rien au panier. Une colonne unique ne pouvait dire les six
+// qu'en les disant mal.
 //
-//   La galerie était une image carrée rognée et quatre vignettes. Pas de zoom,
-//   pas de navigation. Sur un objet qu'on ne peut pas toucher, c'est la
-//   moitié de l'argument de vente qui manquait.
+// ── Ce qui a été corrigé en chemin ─────────────────────────────────────────
 //
-//   Les déclinaisons saisies par le marchand — taille, couleur, capacité —
-//   n'apparaissaient nulle part alors qu'elles étaient en base et servaient
-//   déjà de filtres au catalogue.
+//   L'ajout au panier renvoyait vers /cart : on quittait la fiche et la
+//   deuxième vente ne se faisait pas. Le tiroir s'ouvre, la page reste.
 //
-// Sur mobile, la barre d'achat colle en bas dès que le bouton principal sort de
-// l'écran : sur une fiche longue, l'acheteur convaincu par la description
-// devait remonter pour acheter.
+//   Le bouton porte le total réel de la quantité choisie.
+//
+//   La description longue, les détails, la livraison et les avis s'empilaient
+//   en colonne sur quatre écrans. Ils sont en onglets (`ProductTabs`), lisibles
+//   sans faire défiler.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Minus, Plus, MessageCircle, Star, BellRing, Heart, Share2, Check, CalendarCheck, ChevronDown } from 'lucide-react';
+import { MessageCircle, CalendarCheck } from 'lucide-react';
 import { useCart } from '../../../../../components/store/CartContext';
-import { useFavorites } from '../../../../../components/store/FavoritesContext';
 import { ProductGallery } from '../../../../../components/store/blocks/ProductGallery';
-import { AddToCartButton } from '../../../../../components/store/blocks/AddToCartButton';
-import { ProductAssurance } from '../../../../../components/store/blocks/ProductAssurance';
-import { PaymentMarks } from '../../../../../components/store/blocks/PaymentMarks';
+import { BuyColumn } from '../../../../../components/store/product/BuyColumn';
+import { ProductTabs } from '../../../../../components/store/product/ProductTabs';
+import { ProductBand } from '../../../../../components/store/product/ProductBand';
+import { TrustRail } from '../../../../../components/store/product/TrustRail';
 import { storeMoney } from '../../../../../components/store/format';
 import { trackStoreEvent } from '../../../../../components/store/blocks/TrackView';
-import { NotifyWhenAvailable } from '../../../../../components/store/blocks/NotifyWhenAvailable';
 import { buildWhatsAppOrderLink, buildBookingLink, resolveOrderPhone } from '../../../../../lib/storeWhatsApp';
 import { designFor } from '../../../../../lib/storeDesign';
+import { pdpProfileFor } from '../../../../../lib/storeProductPage';
 import { useOwnsBottomBar } from '../../../../../components/store/StorefrontUI';
 import { collectionHref } from '../../../../../lib/storeTheme';
 import type { ShippingMode } from '../../../../actions/store-public';
+import type { StoreReview } from '../../../../../components/store/sections/types';
 import type { StoreProduct, StoreView } from '../../../../../components/store/types';
 
 export function ProductDetailClient({
@@ -55,6 +55,7 @@ export function ProductDetailClient({
   store,
   businessId,
   rating,
+  reviews,
   shippingModes,
   paymentMethods,
 }: {
@@ -63,16 +64,16 @@ export function ProductDetailClient({
   businessId: string;
   /** La note moyenne réelle. `count` à zéro : rien ne s'affiche. */
   rating:  { average: number; count: number };
+  /** Les avis publiés, rendus dans l'onglet « Avis ». */
+  reviews: StoreReview[];
   shippingModes:  ShippingMode[];
   paymentMethods: string[];
 }) {
-  const router    = useRouter();
   const { addItem, openDrawer } = useCart();
-  const favorites = useFavorites();
-  const design    = designFor(store.templateId);
+  const design  = designFor(store.templateId);
+  const profile = pdpProfileFor(store.templateId);
 
-  const [qty, setQty]   = useState(1);
-  const [copied, setCopied] = useState(false);
+  const [qty, setQty] = useState(1);
   const [ctaVisible, setCtaVisible] = useState(true);
   const ctaRef = useRef<HTMLDivElement>(null);
 
@@ -85,30 +86,6 @@ export function ProductDetailClient({
   const images = [product.image_url, ...product.images].filter(
     (src, i, arr): src is string => Boolean(src) && arr.indexOf(src) === i,
   );
-
-  const variants = Object.entries(product.attributes ?? {}).filter(
-    ([, v]) => typeof v === 'string' && v.trim(),
-  );
-
-  // ── Les points forts, enfin lus ────────────────────────────────────────
-  //
-  // Le Studio de rédaction les demande au marchand — « trois à cinq lignes
-  // courtes, lues sans faire défiler » — et la vitrine ne les affichait nulle
-  // part. Ils prennent la place que les maquettes leur donnent : un bandeau de
-  // pastilles sous la description, à hauteur d'œil, là où l'on décide.
-  //
-  // Toutes celles qu'il a écrites, et pas les trois premières : le Studio lui
-  // en fait saisir cinq, et n'en afficher que trois rejouerait le défaut qu'on
-  // corrige ici — un texte payé en crédits qui ne sort nulle part. Le bandeau
-  // tient trois pastilles par rangée et passe à la ligne au-delà ; sur
-  // téléphone il est déjà empilé, donc rien ne se casse.
-  const highlights = product.highlights;
-
-  const discount = product.compare_at_price !== null && product.compare_at_price > price
-    ? Math.round((1 - price / product.compare_at_price) * 100)
-    : null;
-
-  const isFavorite = favorites.hydrated && favorites.has(product.id);
 
   // La barre collante n'apparaît que quand le vrai bouton a quitté l'écran.
   // Sinon deux boutons d'achat identiques se superposent.
@@ -130,27 +107,6 @@ export function ProductDetailClient({
       productId: product.id,
       value:     price * qty,
     });
-  }
-
-  /**
-   * Le partage. `navigator.share` sur les téléphones — c'est par WhatsApp que
-   * circulent les liens ici, et le partage natif y mène en un geste. Ailleurs,
-   * l'adresse part dans le presse-papier et on le dit.
-   */
-  async function share() {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    if (!url) return;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: product.name, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // Partage annulé par le visiteur, ou presse-papier refusé : rien à dire.
-    }
   }
 
   /**
@@ -230,371 +186,72 @@ export function ProductDetailClient({
         <span className="truncate text-[var(--st-ink-2)]">{product.name}</span>
       </nav>
 
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-        {/* ── Visuels ── */}
-        <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
-
-        {/* ── Informations ── */}
-        <div className="flex flex-col">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              {/* Le rayon, et l'étiquette quand il y en a une. La maquette pose
-                  une pastille au-dessus du titre ; la nôtre ne dit que ce qui
-                  est vrai — « Nouveau » vient de la case cochée par le
-                  marchand, et la remise du prix barré, pas d'un chiffre
-                  décidé ici. Une seule des deux paraît : deux pastilles côte à
-                  côte ne se lisent ni l'une ni l'autre. */}
-              {(product.category || product.is_new || discount !== null) && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {product.category && (
-                    <p className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">
-                      {product.category}
-                    </p>
-                  )}
-                  {(discount !== null || product.is_new) && (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 text-[11px] font-bold uppercase"
-                      style={{
-                        letterSpacing: '0.06em',
-                        borderRadius:  'var(--st-radius-btn)',
-                        background:    discount !== null ? 'var(--st-accent)'   : 'var(--st-surface-2)',
-                        color:         discount !== null ? 'var(--st-accent-ink)' : 'var(--st-ink-2)',
-                        border:        discount !== null ? 'none' : '1px solid var(--st-border)',
-                      }}
-                    >
-                      {discount !== null ? `−${discount} %` : 'Nouveau'}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <h1
-                className="mt-1 text-[var(--st-ink)]"
-                style={{
-                  fontFamily:    'var(--st-font-heading)',
-                  fontSize:      'var(--st-h2)',
-                  fontWeight:    design.type.upper ? 500 : 600,
-                  lineHeight:    1.15,
-                  letterSpacing: 'var(--st-tracking)',
-                  textTransform: design.type.upper ? 'uppercase' : undefined,
-                }}
-              >
-                {product.name}
-              </h1>
-
-              {/* L'accroche. Le Studio de rédaction annonce au marchand :
-                  « Une phrase, sous le nom. Elle s'affiche en tête de la
-                  fiche. » Elle ne s'y affichait pas. Elle y est, à la place
-                  exacte que la phrase décrit — et seulement si elle apporte
-                  autre chose que la description : recopiée mot pour mot, elle
-                  ferait lire deux fois le même texte à dix lignes d'écart. */}
-              {product.short_description
-                && product.short_description !== product.description && (
-                <p className="mt-2 text-[15px] leading-relaxed text-[var(--st-ink-2)]">
-                  {product.short_description}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-shrink-0 gap-1">
-              <button
-                type="button"
-                onClick={() => favorites.toggle(product.id)}
-                aria-label={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                aria-pressed={isFavorite}
-                className="flex h-11 w-11 items-center justify-center border transition"
-                style={{ borderColor: 'var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-              >
-                <Heart
-                  className="h-[18px] w-[18px]"
-                  strokeWidth={1.8}
-                  style={{
-                    fill:  isFavorite ? 'var(--st-accent)' : 'transparent',
-                    color: isFavorite ? 'var(--st-accent)' : 'var(--st-ink-2)',
-                  }}
-                  aria-hidden
-                />
-              </button>
-              <button
-                type="button"
-                onClick={share}
-                aria-label="Partager ce produit"
-                className="flex h-11 w-11 items-center justify-center border transition"
-                style={{ borderColor: 'var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-              >
-                {copied
-                  ? <Check className="h-[18px] w-[18px] text-[var(--st-ink-2)]" strokeWidth={2.2} aria-hidden />
-                  : <Share2 className="h-[18px] w-[18px] text-[var(--st-ink-2)]" strokeWidth={1.8} aria-hidden />}
-              </button>
-            </div>
+      <div
+        className={
+          profile.rail
+            ? 'grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)_200px] lg:gap-10 xl:gap-12'
+            : 'grid grid-cols-1 gap-10 lg:grid-cols-[1.05fr_1fr] lg:gap-16'
+        }
+      >
+        {/* ── La colonne de gauche : ce qu'on regarde ───────────────────────
+            La galerie, et sous elle la bande — l'une finissait 500 px avant
+            l'autre colonne, et la moitié de l'écran où l'acheteur regarde le
+            produit était vide au moment où il hésite. */}
+        {profile.rail ? (
+          <div className="min-w-0">
+            <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
+            <ProductBand store={store} />
           </div>
+        ) : (
+          <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
+        )}
 
-          {rating.count > 0 && (
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex gap-0.5" aria-label={`${rating.average} sur 5`}>
-                {Array.from({ length: 5 }, (_, i) => (
-                  <Star
-                    key={i}
-                    className="h-4 w-4"
-                    strokeWidth={1.5}
-                    style={{
-                      fill:  i < Math.round(rating.average) ? 'var(--st-accent)' : 'transparent',
-                      color: i < Math.round(rating.average) ? 'var(--st-accent)' : 'var(--st-ink-3)',
-                    }}
-                    aria-hidden
-                  />
-                ))}
-              </div>
-              <a href="#avis" className="text-[13px] text-[var(--st-ink-2)] underline underline-offset-4">
-                {rating.count} avis
-              </a>
-            </div>
-          )}
+        {/* ── La colonne d'achat de CE métier (§16, §34) ────────────────────
+            Six mécaniques, pas six couleurs : on ajoute au panier chez un
+            commerçant, on réserve chez un prestataire, on demande un lot chez
+            un éleveur, on commande pour une date chez un traiteur. */}
+        <BuyColumn
+          product={product}
+          store={store}
+          businessId={businessId}
+          design={design}
+          profile={profile}
+          rating={rating}
+          shippingModes={shippingModes}
+          paymentMethods={paymentMethods}
+          qty={qty}
+          setQty={setQty}
+          ctaRef={ctaRef}
+          onAdd={trackAdd}
+          whatsappLink={whatsappLink}
+          booking={booking}
+        />
 
-          {store.showPrices && (
-            <p className="mt-5 flex flex-wrap items-baseline gap-3">
-              <span className="text-[32px] font-semibold tabular-nums text-[var(--st-ink)]">
-                {storeMoney(price, store.currency)}
-              </span>
-              {product.compare_at_price !== null && (
-                <>
-                  <span className="text-[17px] tabular-nums text-[var(--st-ink-3)] line-through">
-                    {storeMoney(product.compare_at_price, store.currency)}
-                  </span>
-                  {discount !== null && (
-                    <span
-                      className="rounded-[6px] px-2 py-0.5 text-[12px] font-semibold"
-                      style={{ background: 'var(--st-accent)', color: 'var(--st-accent-ink)' }}
-                    >
-                      −{discount} %
-                    </span>
-                  )}
-                </>
-              )}
-            </p>
-          )}
-
-          {store.showStock && (
-            <p
-              className="mt-2 text-[13px] font-semibold"
-              style={{
-                color: outOfStock ? '#B23A2F' : soldOut || product.stock <= 5 ? '#B45309' : '#0B7F54',
-              }}
-            >
-              {outOfStock
-                ? 'Épuisé'
-                : soldOut
-                  // Commandable mais pas en rayon : le dire franchement plutôt
-                  // que d'afficher « En stock » et de décevoir à la livraison.
-                  ? 'Sur commande — délai à confirmer avec le marchand'
-                  : product.stock <= 5
-                    ? `Plus que ${product.stock} en stock`
-                    : 'En stock'}
-            </p>
-          )}
-
-          {product.description && (
-            <p className="mt-6 whitespace-pre-line text-[15px] leading-relaxed text-[var(--st-ink-2)]">
-              {product.description}
-            </p>
-          )}
-
-          {/* Les points forts, en bandeau — la rangée de pastilles des
-              maquettes, remplie par ce que le marchand a réellement écrit. */}
-          {highlights.length > 0 && (
-            <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {highlights.map((line, i) => (
-                <li
-                  // Deux points forts identiques sont une faute de frappe du
-                  // marchand, pas une raison de faire disparaître une pastille.
-                  key={`${i}-${line}`}
-                  className="flex items-start gap-2 px-3 py-2.5"
-                  style={{
-                    border:       '1px solid var(--st-border)',
-                    borderRadius: 'var(--st-radius-btn)',
-                  }}
-                >
-                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--st-ink-3)]" strokeWidth={2} aria-hidden />
-                  <p className="min-w-0 text-[13px] font-semibold leading-snug text-[var(--st-ink)]">{line}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* ── Ce que le produit a dans le ventre ──────────────────────────
-              Les déclinaisons décrivent CETTE fiche : ProfitPilot gère un
-              produit par variante, une taille est donc un attribut de l'article
-              et non un sélecteur. Les afficher comme un choix promettrait une
-              bascule qui n'existe pas ; les afficher comme une caractéristique
-              dit la vérité et sert quand même à décider.
-
-              Elles tenaient dans une grille de paires posée en pleine fiche,
-              qui repoussait le bouton d'achat d'autant de lignes qu'il y avait
-              d'attributs. Repliées, elles restent à un geste de celui qui les
-              cherche — et ne coûtent rien à celui qui ne les cherche pas. */}
-          {variants.length > 0 && (
-            // `<details>` natif : il s'ouvre sans JavaScript et se replie au
-            // clavier, comme la foire aux questions de l'accueil.
-            <details
-              className="group mt-4"
-              style={{ borderTop: '1px solid var(--st-border)' }}
-            >
-              <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 text-[14px] font-semibold text-[var(--st-ink)]">
-                Détails du produit
-                <ChevronDown
-                  className="h-4 w-4 flex-shrink-0 text-[var(--st-ink-3)] transition group-open:rotate-180"
-                  strokeWidth={2}
-                  aria-hidden
-                />
-              </summary>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3 pb-4">
-                {variants.map(([key, value]) => (
-                  <div key={key} className="min-w-0">
-                    <dt className="text-[12px] uppercase tracking-wide text-[var(--st-ink-3)]">{key}</dt>
-                    <dd className="truncate text-[14px] font-medium text-[var(--st-ink)]">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </details>
-          )}
-
-          {!outOfStock && !booking && (
-            <div className="mt-8 flex items-center gap-4">
-              <span className="text-[14px] font-semibold text-[var(--st-ink)]">Quantité</span>
-              <div
-                className="flex items-center border"
-                style={{ borderColor: 'var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                  aria-label="Diminuer la quantité"
-                  className="flex h-11 w-11 items-center justify-center text-[var(--st-ink-2)]"
-                >
-                  <Minus className="h-4 w-4" strokeWidth={2} aria-hidden />
-                </button>
-                <span className="min-w-[36px] text-center text-[15px] font-semibold tabular-nums text-[var(--st-ink)]">
-                  {qty}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setQty((q) => q + 1)}
-                  aria-label="Augmenter la quantité"
-                  className="flex h-11 w-11 items-center justify-center text-[var(--st-ink-2)]"
-                >
-                  <Plus className="h-4 w-4" strokeWidth={2} aria-hidden />
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div ref={ctaRef} className="mt-6 flex flex-col gap-3">
-            {/* La prestation ne va pas au panier : elle se réserve (§34). Le
-                bouton n'apparaît que si le prestataire est joignable — sinon
-                la fiche retombe sur le panier, qui vaut mieux qu'une impasse. */}
-            {booking ? (
-              <a
-                href={booking}
-                target={booking.startsWith('http') ? '_blank' : undefined}
-                rel={booking.startsWith('http') ? 'noopener noreferrer' : undefined}
-                onClick={() => trackStoreEvent({ businessId, event: 'whatsapp_click', productId: product.id })}
-                className="flex min-h-[56px] w-full items-center justify-center gap-2 text-[15px] font-semibold transition hover:brightness-95"
-                style={{
-                  background:   'var(--st-accent)',
-                  color:        'var(--st-accent-ink)',
-                  borderRadius: 'var(--st-radius-btn)',
-                }}
-              >
-                <CalendarCheck className="h-4 w-4" strokeWidth={2.2} aria-hidden />
-                Réserver cette prestation
-              </a>
-            ) : (
-              <AddToCartButton
-                product={product}
-                store={store}
-                quantity={qty}
-                showTotal
-                onAdded={trackAdd}
-              />
-            )}
-
-            {/* ── « Acheter maintenant » (§16) ──────────────────────────────
-                Le geste de celui qui a déjà décidé : l'article part au panier et
-                la page suivante est le tunnel, sans passer par le tiroir.
-
-                Il n'existe que sur les gabarits où l'achat est un réflexe. Sur
-                une prestation ou un lot de bétail, il n'y a rien à acheter en un
-                geste — il y a un rendez-vous à prendre, ou un prix à demander —
-                et le proposer ferait promettre à la page une caisse qui ne
-                conclura pas la vente.
-
-                Volontairement SECONDAIRE à l'écran : deux boutons pleins de la
-                couleur d'action se disputent l'œil, et le visiteur qui hésite
-                entre deux actions dominantes n'en fait aucune. */}
-            {design.checkout.buyNow && !outOfStock && !booking && (
-              <button
-                type="button"
-                onClick={() => {
-                  addItem(product, qty);
-                  trackAdd();
-                  router.push(`${store.base}/checkout`);
-                }}
-                className="flex min-h-[52px] w-full items-center justify-center gap-2 border text-[15px] font-semibold text-[var(--st-ink)] transition hover:bg-[var(--st-surface-2)]"
-                style={{ borderColor: 'var(--st-ink)', borderRadius: 'var(--st-radius-btn)' }}
-              >
-                Acheter maintenant
-              </button>
-            )}
-
-            {whatsappLink && !outOfStock && !booking && (
-              <a
-                href={whatsappLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackStoreEvent({ businessId, event: 'whatsapp_click', productId: product.id })}
-                className="flex min-h-[52px] w-full items-center justify-center gap-2 border text-[14px] font-semibold text-[var(--st-ink)] transition hover:bg-[var(--st-surface-2)]"
-                style={{ borderColor: 'var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-              >
-                <MessageCircle className="h-4 w-4" strokeWidth={2} aria-hidden />
-                Commander sur WhatsApp
-              </a>
-            )}
-
-            {/* Épuisé sans vente à découvert : la fiche cesse d'être une
-                impasse. Le visiteur laisse son adresse, le marchand récupère
-                une demande au lieu de perdre un client (§25). */}
-            {outOfStock && (
-              <div
-                className="border p-4"
-                style={{
-                  borderColor: 'var(--st-border)',
-                  background: 'var(--st-surface-2)',
-                  borderRadius: 'var(--st-radius-card)',
-                }}
-              >
-                <p className="flex items-center gap-2 text-[14px] font-semibold text-[var(--st-ink)]">
-                  <BellRing className="h-4 w-4" strokeWidth={2} aria-hidden />
-                  Prévenez-moi quand c'est disponible
-                </p>
-                <NotifyWhenAvailable businessId={businessId} productId={product.id} />
-              </div>
-            )}
-          </div>
-
-          {/* Les marques de paiement, là où l'acheteur se demande comment il
-              va payer : juste sous le bouton, avant la réassurance. Elles ne
-              montrent que ce que la caisse encaisse — la rangée est vide et
-              disparaît si le marchand n'a rien activé. */}
-          <PaymentMarks methods={paymentMethods} className="mt-5" />
-
-          <ProductAssurance
+        {/* ── Le rail de réassurance (§17) ──────────────────────────────────
+            La troisième colonne. Elle ne s'affiche qu'au-dessus de `lg` : sur
+            un téléphone, la réassurance reste dans la colonne d'achat, où elle
+            suit le bouton au lieu de le précéder de trois écrans. */}
+        {profile.rail && (
+          <TrustRail
             theme={store.theme}
             shippingModes={shippingModes}
-            contactPhone={store.contactPhone}
             currency={store.currency}
           />
-        </div>
+        )}
       </div>
+
+      {/* ── Ce que la fiche sait dire, en onglets (§16) ─────────────────────
+          Description, détails, livraison, retours, avis, questions — et chez
+          l'artisan : histoire de la pièce, matériaux, fabrication, dimensions.
+          Un onglet dont la source est vide ne s'affiche pas. */}
+      <ProductTabs
+        tabs={profile.tabs}
+        product={product}
+        store={store}
+        shippingModes={shippingModes}
+        reviews={reviews}
+        average={rating.average}
+      />
 
       {/* ── Barre d'achat collante, mobile uniquement (§18) ── */}
       {!outOfStock && !ctaVisible && (
@@ -614,12 +271,6 @@ export function ProductDetailClient({
               </p>
             </div>
           )}
-          {/* ── Le verbe du métier (§5) ──────────────────────────────────
-              « Ajouter au panier » sur les six gabarits métier en ferait une
-              seule boutique. Le libellé vient du gabarit — mais il ne promet
-              jamais plus que ce que le bouton fait vraiment : un « Demander ce
-              lot » posé sur un ajout au panier serait un mensonge à l'écran, et
-              c'est pour cela que le cas se résout AVANT d'être affiché. */}
           {stickyCta.kind === 'link' ? (
             <a
               href={stickyCta.href}

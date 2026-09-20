@@ -45,7 +45,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isTemplateId, type TemplateId } from './storeTheme';
-import { hasPhoto } from './storeArtManifest';
+import { hasPhoto, hasBandPhoto } from './storeArtManifest';
 
 /**
  * Les quatre emplois d'une image de gabarit.
@@ -81,13 +81,17 @@ const PHOTO_SLOTS: readonly ArtSlot[] = ['hero', 'story'];
 /**
  * L'adresse de l'image de gabarit, sous `public/`.
  *
- * Ne lève jamais et ne rend jamais `null` : les 22 gabarits ont leurs images, et
+ * Ne lève jamais et ne rend jamais `null` : les 23 gabarits ont leurs images, et
  * un `template_id` écrit à la main en base retombe sur celles de « retail »
  * plutôt que de laisser un trou dans la page d'un marchand. Un gabarit sans
  * photographie retombe sur sa composition dessinée.
  */
 export function templateArt(templateId: TemplateId | string, slot: ArtSlot): string {
   const id = isTemplateId(templateId) ? templateId : FALLBACK;
+  // L'exception à la règle ci-dessus : un gabarit dont la promotion pose une
+  // photo À CÔTÉ du texte (« Style Chic ») — aucun texte ne s'y superpose,
+  // donc l'argument qui garde les bandes dessinées ne s'applique pas.
+  if (slot === 'band' && hasBandPhoto(id)) return `/gabarits/photo/${id}-band.webp`;
   return PHOTO_SLOTS.includes(slot) && hasPhoto(id)
     ? `/gabarits/photo/${id}-${slot}.webp`
     : `/gabarits/art/${id}-${slot}.webp`;

@@ -26,7 +26,7 @@ import { storeMoney } from '../format';
 import type { StoreProduct, StoreView } from '../types';
 
 export function AddToCartButton({
-  product, store, quantity = 1, className, onAdded, showTotal = false,
+  product, store, quantity = 1, className, onAdded, showTotal = false, label,
 }: {
   product:  StoreProduct;
   store:    StoreView;
@@ -36,6 +36,14 @@ export function AddToCartButton({
   onAdded?: () => void;
   /** Vrai sur la fiche produit, où le bouton porte le montant réel. */
   showTotal?: boolean;
+  /**
+   * Le verbe du métier (§5) : « Commander cette création » chez un artisan,
+   * « Commander » chez un traiteur. Il remplace « Ajouter au panier » — le
+   * geste, lui, ne change pas, et c'est pour cela que le bouton reste
+   * celui-ci : un second bouton d'achat serait un quatrième endroit où oublier
+   * la vente à découvert.
+   */
+  label?: string;
 }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
@@ -76,11 +84,11 @@ export function AddToCartButton({
       ) : (
         <>
           <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden />
-          {backorder
+          {backorder && !label
             ? 'Commander'
             : showTotal && store.showPrices
-              ? `Ajouter — ${storeMoney(price * quantity, store.currency)}`
-              : 'Ajouter au panier'}
+              ? `${label ?? 'Ajouter'} — ${storeMoney(price * quantity, store.currency)}`
+              : label ?? 'Ajouter au panier'}
         </>
       )}
     </button>

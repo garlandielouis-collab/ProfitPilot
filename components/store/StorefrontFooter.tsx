@@ -221,7 +221,7 @@ export function StorefrontFooter({
               style={{
                 fontFamily:    'var(--st-font-heading)',
                 // La taille d'un titre de section : le nom grandit avec le
-                // gabarit au lieu de rester à 18 pixels sur les vingt-deux.
+                // gabarit au lieu de rester à 18 pixels sur les vingt-trois.
                 fontSize:      'var(--st-h2)',
                 fontWeight:    design.type.upper ? 500 : 600,
                 letterSpacing: design.type.upper ? '0.18em' : 'var(--st-tracking)',

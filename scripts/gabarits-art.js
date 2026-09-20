@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Les images de gabarit
 //
-//   node scripts/gabarits-art.js              # les 22 gabarits, 4 images chacun
+//   node scripts/gabarits-art.js              # les 23 gabarits, 4 images chacun
 //   node scripts/gabarits-art.js tech food    # ceux-là seulement
 //   node scripts/gabarits-art.js --slot hero  # un seul emploi
 //
@@ -41,7 +41,7 @@
 //
 // ── Trois pièges de palette, et comment ils sont tenus ─────────────────────
 //
-// Les vingt-deux palettes ne se ressemblent pas, et une composition écrite pour
+// Les vingt-trois palettes ne se ressemblent pas, et une composition écrite pour
 // l'une casse sur l'autre. Trois cas réels :
 //
 //   « Sport » a une SURFACE presque noire. Une forme claire tirée de la surface
@@ -236,7 +236,7 @@ function colorsFor(palette, tone) {
  *
  * Un motif ne nomme jamais une couleur : il demande de la lumière (`G`), de la
  * structure (`S`) ou de l'ombre (`D`), à telle intensité. C'est ce qui lui
- * permet de tenir sur les vingt-deux palettes sans être réécrit, et c'est ce
+ * permet de tenir sur les vingt-trois palettes sans être réécrit, et c'est ce
  * qui manquait à la première version — écrite pour une palette claire, elle
  * rendait des images vides sur les quatre gabarits sombres.
  */
@@ -401,6 +401,7 @@ const MOTIF_OF = {
   retail:    'terraces', fashion:  'columns', beauty: 'mesh',       tech: 'grid',
   food:      'arcs',
   luxe:      'rings',    modern:   'diagonal', flash: 'fan',
+  chic:      'arcs',
 };
 
 // ── La page rendue ──────────────────────────────────────────────────────────
@@ -452,7 +453,10 @@ async function main() {
   const args = process.argv.slice(2);
   const slotArg = args.indexOf('--slot');
   const slots = slotArg >= 0 ? [args[slotArg + 1]] : Object.keys(SLOTS);
-  const ids = args.filter((a, i) => !a.startsWith('--') && i !== slotArg + 1);
+  // La valeur de `--slot` n'est à écarter QUE si l'option est là : sans elle,
+  // `slotArg` vaut −1 et le premier gabarit demandé disparaissait — la
+  // commande régénérait alors les vingt-trois.
+  const ids = args.filter((a, i) => !a.startsWith('--') && (slotArg < 0 || i !== slotArg + 1));
   const targets = ids.length ? ids : Object.keys(TEMPLATES);
 
   for (const slot of slots) {

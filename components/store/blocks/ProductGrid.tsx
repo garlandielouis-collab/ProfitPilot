@@ -26,7 +26,7 @@ import type { StoreProduct, StoreView } from '../types';
 export type RatingMap = Record<string, ProductRating>;
 
 export function ProductGrid({
-  store, products, ratings, design, priorityCount = 4, className,
+  store, products, ratings, design, priorityCount = 4, className, bestsellers = false,
 }: {
   store:    StoreView;
   products: StoreProduct[];
@@ -40,6 +40,8 @@ export function ProductGrid({
    */
   priorityCount?: number;
   className?: string;
+  /** Vrai quand la grille EST la liste des meilleures ventes réelles. */
+  bestsellers?: boolean;
 }) {
   const d     = design ?? designFor(store.templateId);
   const sizes = gridSizes(d);
@@ -56,6 +58,7 @@ export function ProductGrid({
           store={store}
           design={d}
           sizes={sizes}
+          bestseller={bestsellers}
           rating={ratings?.[p.id]}
           priority={i < priorityCount}
         />

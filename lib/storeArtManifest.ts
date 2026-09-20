@@ -12,6 +12,7 @@ export const TEMPLATES_WITH_PHOTO: readonly string[] = [
   'animalerie',
   'artisan',
   'beauty',
+  'chic',
   'fashion',
   'flash',
   'food',
@@ -34,4 +35,13 @@ export const TEMPLATES_WITH_PHOTO: readonly string[] = [
 
 export function hasPhoto(templateId: string): boolean {
   return TEMPLATES_WITH_PHOTO.includes(templateId);
+}
+
+/** Ceux qui ont AUSSI une photographie de promotion (`<id>-band.webp`). */
+export const TEMPLATES_WITH_BAND_PHOTO: readonly string[] = [
+  'chic',
+];
+
+export function hasBandPhoto(templateId: string): boolean {
+  return TEMPLATES_WITH_BAND_PHOTO.includes(templateId);
 }

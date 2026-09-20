@@ -30,6 +30,7 @@ import type { StoreView } from '../../../../components/store/types';
 import { designFor } from '../../../../lib/storeDesign';
 import { buildWhatsAppOrderLink, resolveOrderPhone } from '../../../../lib/storeWhatsApp';
 import { forgetPendingOrder, readPendingOrder, rememberPendingOrder } from '../confirmation/pendingOrder';
+import { readOrderExtras, clearOrderExtras } from '../../../../lib/storeOrderExtras';
 import { unwrap, screenMessage  } from '../../../../lib/actionResult';
 import { offeredPayments, PAYMENT_LABEL } from '../../../../lib/storePayments';
 
@@ -165,6 +166,33 @@ export function CheckoutClient({
       value: total,
     });
   }, [businessId, hydrated, empty, total]);
+
+  // ── Ce que la fiche produit a déjà demandé (§6) ───────────────────────────
+  //
+  // La date d'un gâteau, le créneau d'une séance, le message à graver : le
+  // gabarit les demande sur la FICHE, au moment où l'acheteur y pense. Ils
+  // arrivent ici par `storeOrderExtras` et remplissent les champs
+  // correspondants — l'acheteur les corrige s'il veut, et c'est toujours
+  // `composedNotes` qui les range dans la commande.
+  //
+  // Après le montage, jamais pendant : `localStorage` n'existe pas côté
+  // serveur, et un état initial qui en dépendrait ferait diverger l'hydratation.
+  // Les champs déjà saisis ici gagnent : on ne réécrit pas par-dessus
+  // l'acheteur.
+  useEffect(() => {
+    const extras = readOrderExtras(store.slug);
+    setForm((f) => ({
+      ...f,
+      wantedDate:    f.wantedDate    || extras.wantedDate,
+      wantedTime:    f.wantedTime    || extras.wantedTime,
+      customisation: f.customisation || extras.customisation,
+      line1:         f.line1         || extras.address,
+      shipping_mode: extras.shippingModeId
+        && shippingModes.some((m) => m.id === extras.shippingModeId)
+        ? extras.shippingModeId
+        : f.shipping_mode,
+    }));
+  }, [store.slug, shippingModes]);
 
   // ── Une commande payée sur une autre origine ──────────────────────────────
   //
@@ -398,6 +426,8 @@ export function CheckoutClient({
       // panier peut partir tout de suite.
       const { orderId } = unwrap(await createStoreOrder(orderData));
       forgetPendingOrder(store.slug);
+      // La date de la prochaine commande n'est pas celle-ci.
+      clearOrderExtras(store.slug);
       clear();
       router.push(`${store.base}/confirmation?id=${orderId}`);
     } catch (err) {

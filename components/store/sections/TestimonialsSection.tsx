@@ -41,15 +41,16 @@
 //
 // Trois cartes côte à côte sur un écran de 375 pixels deviennent trois cartes
 // empilées, soit deux écrans et demi de citations que personne ne fait défiler
-// jusqu'au bout. `cards` et `band` passent donc en bande à défilement au doigt
-// sous 640 pixels, avec accrochage : une carte à l'écran, la suivante qui
-// dépasse pour dire qu'il y en a une suivante. `editorial` et `ledger` n'ont
-// pas ce problème — l'un n'a qu'une citation en vue, l'autre est une liste
-// verticale, qui est déjà la bonne forme sur un téléphone.
+// jusqu'au bout. `cards`, `band` et les citations sous la grande d'`editorial`
+// glissent donc, avec accrochage — et à TOUTES les largeurs : deux cartes sur
+// tablette, trois sur ordinateur, des flèches dès que la bande déborde
+// (`ReviewSlider`). `ledger` reste une liste verticale : c'est un relevé
+// qu'on parcourt de haut en bas, pas une bande.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Star, BadgeCheck } from 'lucide-react';
 import { FadeIn } from '../blocks/FadeIn';
+import { ReviewSlider, SLIDE_ITEM } from '../blocks/ReviewSlider';
 import { Section, SectionHeader } from './Shell';
 import { sectionTitle } from '../../../lib/storeSections';
 import type { SectionProps } from './types';
@@ -122,33 +123,22 @@ function monthOf(iso: string | null): string | null {
 
 // ── Les quatre formes ───────────────────────────────────────────────────────
 
-/**
- * Bande à défilement, sous 640 pixels seulement.
- *
- * `-mx-4 px-4` fait dépasser la bande des marges de la section : la première
- * carte s'aligne sur le texte, la dernière peut sortir de l'écran. Une bande
- * qui s'arrête pile au bord ressemble à une grille mal cadrée.
- */
-const MOBILE_BAND =
-  '-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-1 '
-  + 'sm:mx-0 sm:grid sm:snap-none sm:overflow-visible sm:px-0 sm:pb-0';
-
-const MOBILE_BAND_ITEM = 'w-[82%] flex-shrink-0 snap-start sm:w-auto';
-
 const CARD: React.CSSProperties = {
   borderColor:  'var(--st-border)',
   background:   'var(--st-surface)',
   borderRadius: 'var(--st-radius-card)',
 };
 
-function ProofCards({ items }: { items: Proof[] }) {
+/**
+ * Les cartes, dans une bande qui glisse à toutes les largeurs : une carte et
+ * demie sur téléphone, deux sur tablette, trois sur ordinateur, et des flèches
+ * dès que la bande déborde (`ReviewSlider`).
+ */
+function ProofCards({ items, label }: { items: Proof[]; label: string }) {
   return (
-    <ul
-      className={`${MOBILE_BAND} sm:grid-cols-2 lg:grid-cols-3`}
-      style={{ gap: 'var(--st-grid-gap)' }}
-    >
+    <ReviewSlider label={label}>
       {items.map((p) => (
-        <li key={p.key} className={MOBILE_BAND_ITEM}>
+        <li key={p.key} className={SLIDE_ITEM}>
           <figure className="flex h-full flex-col gap-3 border p-5" style={CARD}>
             <Stars rating={p.rating} />
 
@@ -168,18 +158,18 @@ function ProofCards({ items }: { items: Proof[] }) {
           </figure>
         </li>
       ))}
-    </ul>
+    </ReviewSlider>
   );
 }
 
 /**
- * La première citation en grand, les suivantes en colonnes dessous.
+ * La première citation en grand, les suivantes dans une bande qui glisse dessous.
  *
  * Aucun cadre, aucune ombre : sur un gabarit éditorial, une citation encadrée
  * se lit comme un encart publicitaire. Ce qui la tient est le filet au-dessus
  * du nom et l'air autour — la même grammaire que `PresentationSection`.
  */
-function ProofEditorial({ items }: { items: Proof[] }) {
+function ProofEditorial({ items, label }: { items: Proof[]; label: string }) {
   const [lead, ...rest] = items;
   if (!lead) return null;
 
@@ -218,47 +208,39 @@ function ProofEditorial({ items }: { items: Proof[] }) {
       </figure>
 
       {rest.length > 0 && (
-        <ul
-          className="mx-auto mt-14 grid max-w-5xl gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {rest.map((p) => (
-            <li key={p.key}>
-              <Stars rating={p.rating} size={3.5} />
-              {p.text && (
-                <blockquote className="mt-3 text-[14px] leading-relaxed text-[var(--st-ink-2)]">
-                  « {p.text} »
-                </blockquote>
-              )}
-              <p className="mt-3 text-[13px] font-semibold text-[var(--st-ink)]">{p.author}</p>
-              {p.verified && (
-                <p className="mt-1 flex text-[12px]"><Verified /></p>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="mx-auto mt-14 max-w-5xl">
+          <ReviewSlider label={label}>
+            {rest.map((p) => (
+              <li key={p.key} className={SLIDE_ITEM}>
+                <Stars rating={p.rating} size={3.5} />
+                {p.text && (
+                  <blockquote className="mt-3 text-[14px] leading-relaxed text-[var(--st-ink-2)]">
+                    « {p.text} »
+                  </blockquote>
+                )}
+                <p className="mt-3 text-[13px] font-semibold text-[var(--st-ink)]">{p.author}</p>
+                {p.verified && (
+                  <p className="mt-1 flex text-[12px]"><Verified /></p>
+                )}
+              </li>
+            ))}
+          </ReviewSlider>
+        </div>
       )}
     </div>
   );
 }
 
 /**
- * La bande, à tous les paliers.
- *
- * Elle ne passe PAS en grille sur grand écran, contrairement à `cards` : sur
- * les gabarits qui la portent, c'est le défilement lui-même qui dit le volume.
- * Une grille de dix avis sur trois rangées se lit comme une page d'archive.
+ * La bande du volume : la même bande que `cards`, mais nourrie de neuf avis
+ * au moins (voir `limit` plus bas) — c'est le défilement qui dit « beaucoup
+ * de monde ». Sans le produit noté : sur un volume, il alourdirait chaque carte.
  */
-function ProofBand({ items }: { items: Proof[] }) {
+function ProofBand({ items, label }: { items: Proof[]; label: string }) {
   return (
-    <ul
-      className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0"
-      style={{ gap: 'var(--st-grid-gap)' }}
-    >
+    <ReviewSlider label={label}>
       {items.map((p) => (
-        <li
-          key={p.key}
-          className="w-[78%] flex-shrink-0 snap-start sm:w-[46%] lg:w-[31%]"
-        >
+        <li key={p.key} className={SLIDE_ITEM}>
           <figure className="flex h-full flex-col gap-3 border p-5" style={CARD}>
             <Stars rating={p.rating} />
             {p.text && (
@@ -273,7 +255,7 @@ function ProofBand({ items }: { items: Proof[] }) {
           </figure>
         </li>
       ))}
-    </ul>
+    </ReviewSlider>
   );
 }
 
@@ -384,10 +366,10 @@ export function TestimonialsSection({ store, section, data, design }: SectionPro
         align={style === 'editorial' || style === 'ledger' ? 'center' : 'left'}
       />
 
-      {style === 'editorial' ? <ProofEditorial items={items} />
-        : style === 'band'   ? <ProofBand items={items} />
+      {style === 'editorial' ? <ProofEditorial items={items} label={title} />
+        : style === 'band'   ? <ProofBand items={items} label={title} />
         : style === 'ledger' ? <ProofLedger items={items} />
-        : <ProofCards items={items} />}
+        : <ProofCards items={items} label={title} />}
     </Section>
   );
 

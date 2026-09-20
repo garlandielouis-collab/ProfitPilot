@@ -20,10 +20,18 @@ function formatDate(iso: string): string {
 }
 
 export function ProductReviews({
-  reviews, average,
+  reviews, average, embedded = false,
 }: {
   reviews: StoreReview[];
   average: number;
+  /**
+   * Vrai quand les avis sont rendus DANS l'onglet « Avis » de la fiche.
+   *
+   * L'onglet porte déjà le mot et l'espace : garder ici le titre « Avis
+   * clients » et la marge de vingt unités ferait un titre sous un titre, et un
+   * trou au-dessus du premier avis.
+   */
+  embedded?: boolean;
 }) {
   if (reviews.length === 0) return null;
 
@@ -36,13 +44,15 @@ export function ProductReviews({
   }));
 
   return (
-    <section id="avis" className="mt-20 scroll-mt-24">
-      <h2
-        className="mb-6 text-[20px] font-semibold text-[var(--st-ink)]"
-        style={{ fontFamily: 'var(--st-font-heading)' }}
-      >
-        Avis clients
-      </h2>
+    <section id="avis" className={embedded ? 'scroll-mt-24' : 'mt-20 scroll-mt-24'}>
+      {!embedded && (
+        <h2
+          className="mb-6 text-[20px] font-semibold text-[var(--st-ink)]"
+          style={{ fontFamily: 'var(--st-font-heading)' }}
+        >
+          Avis clients
+        </h2>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[240px_1fr]">
         {/* ── Le résumé ── */}

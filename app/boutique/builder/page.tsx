@@ -502,9 +502,9 @@ function DesignTab({
              marchand — c'est un dessin, et le lien d'aperçu juste dessous
              existe précisément pour montrer la vraie.
           2. Les GROUPES. « Par métier », « Marques en ligne », « Par rayon » :
-             trois questions courtes à la place d'un catalogue de dix-neuf.
+             trois questions courtes à la place d'un catalogue de vingt.
           3. Le DÉTAIL À LA DEMANDE. Les points forts et le plan de page ne
-             s'affichent que sur le gabarit sélectionné. Dix-neuf fois quatre
+             s'affichent que sur le gabarit sélectionné. Vingt fois quatre
              lignes de prose, personne ne les lit — et celui qui les lirait
              aurait perdu de vue la première carte. */}
       <section>
@@ -622,7 +622,7 @@ function DesignTab({
           Couleurs
         </h2>
         {/* D'où viennent les couleurs, dit AVANT de changer de gabarit :
-            choisies, elles tiennent sur les vingt-deux ; sinon, elles suivent
+            choisies, elles tiennent sur les vingt-trois ; sinon, elles suivent
             le gabarit. Sans cette ligne, le marchand découvre la règle en
             voyant tous ses gabarits porter la même teinte. */}
         <p className="mb-4 text-note text-muted dark:text-dark-muted">
@@ -649,6 +649,17 @@ function DesignTab({
             value={theme.palette.accent}
             onChange={(accent) => patch('palette', { accent })}
           />
+          {/* La couleur d'appel n'existe que sur les gabarits qui en posent
+              une (l'or de « Style Chic ») : ailleurs elle suit la couleur
+              d'action, et un troisième sélecteur ne ferait rien de visible. */}
+          {theme.palette.highlight !== null && (
+            <ColorField
+              label="Couleur d'appel"
+              hint="Les boutons de bannière et de promotion, les étiquettes, les étoiles."
+              value={theme.palette.highlight}
+              onChange={(highlight) => patch('palette', { highlight })}
+            />
+          )}
         </div>
 
         {/* L'aperçu du bouton, avec son ratio réel. */}
@@ -776,7 +787,7 @@ function DesignTab({
  * `<img>` et non `next/image` : ces fichiers sont servis depuis `public/` à une
  * taille fixe et connue, l'optimiseur n'a rien à y gagner. `object-top` cadre
  * sur la bannière, qui est ce qui distingue deux gabarits ; `loading="lazy"`
- * parce que dix-neuf vignettes se chargeraient sinon toutes à l'ouverture de
+ * parce que vingt vignettes se chargeraient sinon toutes à l'ouverture de
  * l'onglet, sur une connexion souvent comptée.
  */
 function TemplatePreview({ templateId, src }: { templateId: TemplateId; src: string | null }) {

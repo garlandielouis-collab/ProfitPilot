@@ -39,6 +39,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link';
+import { ArrowRight, MessageCircle } from 'lucide-react';
 import { ProductMedia } from '../blocks/ProductMedia';
 import { StoreImage } from '../blocks/StoreImage';
 import { FadeIn } from '../blocks/FadeIn';
@@ -47,6 +48,9 @@ import { OrderRequestForm } from './OrderRequestForm';
 import { storeLink } from './storeLink';
 import { sectionTitle } from '../../../lib/storeSections';
 import { resolveOrderPhone } from '../../../lib/storeWhatsApp';
+import { buildWhatsAppLink } from '../../../lib/whatsappReport';
+import type { DesignProfile } from '../../../lib/storeDesign';
+import type { StoreView } from '../types';
 import { IMAGE_SIZES } from '../../../lib/storeImage';
 import { ART_SLOTS, templateArt } from '../../../lib/storeArt';
 import type { SectionProps } from './types';
@@ -287,6 +291,8 @@ export function CtaBandSection({ store, design }: SectionProps) {
   const c = store.theme.ctaBand;
   if (!c.enabled || !c.title.trim()) return null;
 
+  if (design.ctaBand === 'whatsapp') return <WhatsAppBand store={store} design={design} />;
+
   return (
     <Section design={design} label={c.title}>
       <div
@@ -342,5 +348,145 @@ export function CtaBandSection({ store, design }: SectionProps) {
         </div>
       </div>
     </Section>
+  );
+}
+
+// ── La barre WhatsApp ───────────────────────────────────────────────────────
+//
+// La bande d'appel de « Style Chic » : une barre basse plutôt qu'un grand
+// aplat. La question à gauche, « Me contacter » à droite, qui ouvre la
+// conversation avec le même message que le bouton de l'en-tête — le marchand
+// reçoit la même phrase quel que soit le bouton pressé.
+//
+// Elle ne promet pas un canal qui n'existe pas : sans numéro WhatsApp, le
+// bouton suit le lien saisi dans l'éditeur ; sans l'un ni l'autre, la barre
+// ne s'affiche pas — une question sans personne pour y répondre n'invite à
+// rien.
+
+function WhatsAppBand({ store, design }: { store: StoreView; design: DesignProfile }) {
+  const c = store.theme.ctaBand;
+  return (
+    <WhatsAppBar
+      store={store}
+      design={design}
+      title={c.title}
+      body={c.body}
+      label={c.ctaLabel.trim() || 'Me contacter'}
+      fallbackHref={c.ctaHref.trim() ? storeLink(c.ctaHref, store.base) : null}
+    />
+  );
+}
+
+// ── « Vous avez une question ? » ────────────────────────────────────────────
+//
+// La même barre, sur tous les gabarits, juste avant « Comment payer » : c'est
+// là que la dernière hésitation se forme — la taille lue, le prix vu, reste une
+// question qu'on n'ose pas poser. Elle prend la couleur du gabarit
+// (`--st-primary`, `--st-highlight`) et ne suit que le numéro WhatsApp de la
+// boutique : sans numéro, pas de barre.
+
+export function WhatsAppHelpSection({ store, section, design }: SectionProps) {
+  return (
+    <WhatsAppBar
+      store={store}
+      design={design}
+      title={sectionTitle(section, store.templateId)}
+      body="Écrivez-nous sur WhatsApp"
+      label="Me contacter"
+      fallbackHref={null}
+    />
+  );
+}
+
+function WhatsAppBar({ store, design, title, body, label, fallbackHref }: {
+  store:        StoreView;
+  design:       DesignProfile;
+  title:        string;
+  body:         string;
+  label:        string;
+  /** Où mène le bouton quand la boutique n'a pas de numéro WhatsApp. */
+  fallbackHref: string | null;
+}) {
+  const number = resolveOrderPhone(
+    store.theme.whatsapp.number,
+    store.whatsappPhone,
+    store.contactPhone,
+  );
+  const href = number
+    ? buildWhatsAppLink(
+        number,
+        store.theme.whatsapp.greeting
+          || `Bonjour ${store.name}, j'ai une question sur un produit.`,
+      )
+    : fallbackHref;
+  if (!href) return null;
+
+  const external = Boolean(number);
+
+  return (
+    <Section design={design} label={title}>
+      <div
+        className="relative flex items-center gap-3 overflow-hidden py-3 pl-3 pr-3 sm:gap-4 sm:py-4 sm:pl-5 sm:pr-28"
+        style={{ background: 'var(--st-primary)', borderRadius: 'var(--st-radius-card)' }}
+      >
+        {/* Le vert de WhatsApp, pas celui du gabarit : c'est à sa couleur
+            qu'on reconnaît le canal (voir le bouton de l'en-tête). */}
+        <span
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full sm:h-11 sm:w-11"
+          style={{ background: '#25D366', color: '#FFFFFF' }}
+          aria-hidden
+        >
+          <MessageCircle className="h-5 w-5" strokeWidth={2} />
+        </span>
+
+        <div className="min-w-0 flex-1" style={{ color: 'var(--st-primary-ink)' }}>
+          <p className="text-[14px] font-semibold leading-tight sm:text-[15px]">{title}</p>
+          {body && <p className="mt-0.5 truncate text-[12px] opacity-80 sm:text-[13px]">{body}</p>}
+        </div>
+
+        <a
+          href={href}
+          {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          className="relative z-10 inline-flex min-h-[40px] flex-shrink-0 items-center gap-1.5 px-4 text-[13px] font-semibold transition hover:brightness-95"
+          style={{
+            background:   'var(--st-highlight)',
+            color:        'var(--st-highlight-ink)',
+            borderRadius: 'var(--st-radius-cta)',
+          }}
+        >
+          {label}
+          <ArrowRight className="h-4 w-4" strokeWidth={2.2} aria-hidden />
+        </a>
+
+        <PhoneSketch />
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * Le téléphone qui dépasse de la barre, à droite.
+ *
+ * Dessiné, pas photographié : une conversation montrée en photo serait celle
+ * de quelqu'un d'autre. Il ne dit qu'une chose — « ça se passe sur le
+ * téléphone » — et disparaît sur les petits écrans, où le bouton a besoin de
+ * la place.
+ */
+function PhoneSketch() {
+  return (
+    <span
+      className="pointer-events-none absolute -bottom-6 right-5 hidden rotate-[8deg] sm:block"
+      aria-hidden
+    >
+      <span
+        className="flex h-[92px] w-[52px] flex-col gap-1.5 rounded-[10px] border-[3px] p-1.5 pt-3"
+        style={{ borderColor: '#10151A', background: '#F4F1EA' }}
+      >
+        <span className="h-2 w-8 rounded-full" style={{ background: '#DCF8C6' }} />
+        <span className="ml-auto h-2 w-6 rounded-full" style={{ background: '#FFFFFF' }} />
+        <span className="h-2 w-7 rounded-full" style={{ background: '#DCF8C6' }} />
+        <span className="ml-auto h-2 w-5 rounded-full" style={{ background: '#FFFFFF' }} />
+      </span>
+    </span>
   );
 }

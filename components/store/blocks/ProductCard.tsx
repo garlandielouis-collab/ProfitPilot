@@ -23,6 +23,8 @@
 //   service    photo · nom · durée · « à partir de » · Réserver
 //   wholesale  photo · nom · unité de vente · « à partir de » · Commander
 //   social     photo · badge · nom · note · prix · ajout direct
+//   chic       photo · étiquette en pilule · favori · nom · matières · note ·
+//              prix · « Ajouter au panier » en toutes lettres
 //
 // Les trois dernières viennent des gabarits métier, et la première d'entre
 // elles est la seule qui ne mène pas au panier : une prestation se réserve, et
@@ -41,7 +43,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Check, Plus, Heart, Star, ShoppingBag, Clock, CalendarCheck } from 'lucide-react';
+import { Check, Plus, Heart, Star, ShoppingBag, ShoppingCart, Clock, CalendarCheck } from 'lucide-react';
 import { ProductMedia } from './ProductMedia';
 import { useCart } from '../CartContext';
 import { useFavorites } from '../FavoritesContext';
@@ -62,6 +64,12 @@ type Props = {
   rating?: ProductRating;
   /** Permet à une section de forcer une peau — un encart « vedette », par exemple. */
   design?: DesignProfile;
+  /**
+   * Vrai quand la carte est rendue dans « Meilleures ventes », calculée sur les
+   * ventes réelles des 90 derniers jours. C'est la seule source de l'étiquette
+   * « Best-seller » : un produit n'en est pas un parce qu'on le dit.
+   */
+  bestseller?: boolean;
 };
 
 /** La remise, en points de pourcentage, quand elle est réelle. */
@@ -123,7 +131,7 @@ function variantChips(product: StoreProduct): string[] {
 }
 
 export function ProductCard({
-  product, store, priority = false, sizes, rating, design,
+  product, store, priority = false, sizes, rating, design, bestseller = false,
 }: Props) {
   const { addItem } = useCart();
   const favorites   = useFavorites();
@@ -140,21 +148,26 @@ export function ProductCard({
   const discount   = store.showPrices ? discountPercent(price, product.compare_at_price) : null;
 
   // Une seule étiquette, dans l'ordre où elle pèse sur la décision d'achat :
-  // je ne peux pas l'avoir > il coûte moins cher > il vient d'arriver.
+  // je ne peux pas l'avoir > il coûte moins cher > les autres l'ont choisi >
+  // il vient d'arriver. « Best-seller » n'existe que sur la peau chic, dont la
+  // maquette le demande : ailleurs, la section le dit déjà dans son titre.
+  const pill = skin === 'chic';
   const badge = outOfStock
     ? { text: 'Épuisé', tone: 'ink' as const }
     : discount !== null
-      ? { text: `−${discount} %`, tone: 'accent' as const }
-      : product.is_new
-        ? { text: 'Nouveau', tone: 'soft' as const }
-        : null;
+      ? { text: `−${discount} %`, tone: pill ? 'highlight' as const : 'accent' as const }
+      : pill && bestseller
+        ? { text: 'Best-seller', tone: 'highlight' as const }
+        : product.is_new
+          ? { text: 'Nouveau', tone: pill ? 'primary' as const : 'soft' as const }
+          : null;
 
   const hoverSrc = d.hoverSwap ? (product.images.find((i) => i !== product.image_url) ?? null) : null;
 
   const bordered = skin !== 'editorial' && skin !== 'fashion';
   const framed   =
     skin === 'beauty' || skin === 'tech' || skin === 'minimal' || skin === 'compact'
-    || skin === 'service' || skin === 'wholesale' || skin === 'social';
+    || skin === 'service' || skin === 'wholesale' || skin === 'social' || skin === 'chic';
 
   // ── Ce que les trois peaux métier ajoutent ──────────────────────────────
   //
@@ -232,13 +245,21 @@ export function ProductCard({
       >
         {badge && (
           <span
-            className="absolute left-2 top-2 rounded-[6px] px-2 py-1 text-[11px] font-semibold uppercase tracking-wide"
+            className={
+              pill
+                ? 'absolute left-2 top-2 rounded-full px-2.5 py-1 text-[11px] font-semibold'
+                : 'absolute left-2 top-2 rounded-[6px] px-2 py-1 text-[11px] font-semibold uppercase tracking-wide'
+            }
             style={
               badge.tone === 'ink'
                 ? { background: 'var(--st-ink)', color: 'var(--st-surface)' }
                 : badge.tone === 'accent'
                   ? { background: 'var(--st-accent)', color: 'var(--st-accent-ink)' }
-                  : { background: 'var(--st-surface)', color: 'var(--st-ink)' }
+                  : badge.tone === 'highlight'
+                    ? { background: 'var(--st-highlight)', color: 'var(--st-highlight-ink)' }
+                    : badge.tone === 'primary'
+                      ? { background: 'var(--st-primary)', color: 'var(--st-primary-ink)' }
+                      : { background: 'var(--st-surface)', color: 'var(--st-ink)' }
             }
           >
             {badge.text}
@@ -315,6 +336,7 @@ export function ProductCard({
           skin === 'service'   ? 'gap-1.5 p-4'     : '',
           skin === 'wholesale' ? 'gap-1 p-3.5'     : '',
           skin === 'social'    ? 'gap-1 p-3.5'     : '',
+          skin === 'chic'      ? 'gap-1 p-3.5'     : '',
         ].join(' ')}
       >
         {/* Le rayon, en sur-titre. Il situe le produit dans la boutique sans
@@ -341,6 +363,14 @@ export function ProductCard({
           {product.name}
         </h3>
 
+        {/* Les matières et déclinaisons de la peau chic : « Légère • Confortable
+            • Tendance ». Les VALEURS saisies par le marchand, jamais inventées. */}
+        {skin === 'chic' && variantChips(product).length > 0 && (
+          <p className="truncate text-[12px] text-[var(--st-ink-3)]">
+            {variantChips(product).join(' • ')}
+          </p>
+        )}
+
         {/* La note. Elle n'apparaît que si de vrais avis ont été publiés — le
             §29 interdit d'en inventer, et une note par défaut en serait une.
             Le gabarit décide seulement si la carte a de la PLACE pour elle :
@@ -354,8 +384,8 @@ export function ProductCard({
                   className="h-3 w-3"
                   strokeWidth={1.6}
                   style={{
-                    fill:  i < Math.round(rating.average) ? 'var(--st-accent)' : 'transparent',
-                    color: i < Math.round(rating.average) ? 'var(--st-accent)' : 'var(--st-ink-3)',
+                    fill:  i < Math.round(rating.average) ? 'var(--st-highlight)' : 'transparent',
+                    color: i < Math.round(rating.average) ? 'var(--st-highlight)' : 'var(--st-ink-3)',
                   }}
                 />
               ))}
@@ -489,6 +519,12 @@ export function ProductCard({
               'Indisponible'
             ) : justAdded ? (
               <><Check className="h-4 w-4" strokeWidth={2.5} aria-hidden /> Ajouté</>
+            ) : skin === 'chic' ? (
+              // En toutes lettres, comme la maquette : à 13 px, le libellé
+              // tient sur une ligne dans une carte de 160 px de large.
+              <span className="flex items-center gap-2 whitespace-nowrap text-[13px]">
+                <ShoppingCart className="h-4 w-4" strokeWidth={2} aria-hidden /> Ajouter au panier
+              </span>
             ) : skin === 'wholesale' ? (
               // « Commander » plutôt qu'« Ajouter » : on ne fait pas ses
               // courses chez un éleveur, on passe une commande.

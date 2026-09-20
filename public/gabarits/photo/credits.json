@@ -196,5 +196,36 @@
     "author": "Ramsés Cervantes",
     "link": "https://unsplash.com/photos/silver-shoes-jeans-glasses-and-a-watch-4VNdaN3b7Ws",
     "source": "Unsplash"
+  },
+  "chic": {
+    "slots": {
+      "hero": {
+        "rank": null,
+        "query": "african woman sunglasses fashion",
+        "photo": "x9R5l5eU020",
+        "alt": "woman in black sunglasses and white long sleeve shirt",
+        "author": "Beth Macdonald",
+        "link": "https://unsplash.com/photos/woman-in-black-sunglasses-and-white-long-sleeve-shirt-x9R5l5eU020",
+        "source": "Unsplash"
+      },
+      "story": {
+        "rank": null,
+        "query": "boutique clothing store interior",
+        "photo": "zoWuHiPJYHc",
+        "alt": "Woman in a clothing store with racks of clothes",
+        "author": "Muhammad-Taha Ibrahim",
+        "link": "https://unsplash.com/photos/woman-in-a-clothing-store-with-racks-of-clothes-zoWuHiPJYHc",
+        "source": "Unsplash"
+      },
+      "band": {
+        "rank": null,
+        "query": "african woman sunglasses fashion",
+        "photo": "lj8ev5hDVLk",
+        "alt": "A woman wearing sunglasses standing next to a window",
+        "author": "Soweto Graphics",
+        "link": "https://unsplash.com/photos/a-woman-wearing-sunglasses-standing-next-to-a-window-lj8ev5hDVLk",
+        "source": "Unsplash"
+      }
+    }
   }
 }

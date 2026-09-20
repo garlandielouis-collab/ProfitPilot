@@ -7,8 +7,9 @@ import { loadProductPageSections } from '../../../../../lib/storefrontHome';
 import { storePublicUrl } from '../../../../../lib/storeTheme';
 import { toStoreView } from '../../../../../components/store/types';
 import { resolveTemplateId } from '../../../../../components/store/templates/registry';
+import { pdpProfileFor, TAB_SECTION } from '../../../../../lib/storeProductPage';
 import { ProductGrid } from '../../../../../components/store/blocks/ProductGrid';
-import { ProductReviews } from '../../../../../components/store/blocks/ProductReviews';
+import { RelatedStrip } from '../../../../../components/store/product/RelatedStrip';
 import { TrackView } from '../../../../../components/store/blocks/TrackView';
 import { getBoughtTogetherIds } from '../../../../actions/store-public';
 import { getProductReviews } from '../../../../actions/store-content';
@@ -95,6 +96,11 @@ export default async function ProductDetailPage({ params }: Props) {
     .filter((p, i, arr) => p.id !== product.id && arr.findIndex((x) => x.id === p.id) === i)
     .slice(0, 4);
 
+  // Les sections reprises sous la fiche, moins celles qu'un onglet porte déjà.
+  const profile  = pdpProfileFor(templateId);
+  const inTabs   = new Set(profile.tabs.map((t) => TAB_SECTION[t.key]).filter(Boolean));
+  const repeated = pdp.sections.filter((s) => !inTabs.has(s.key));
+
   const origin  = ctx.origin || storePublicUrl(store);
   const pageUrl = `${origin}${ctx.base}/products/${product.id}`;
 
@@ -148,7 +154,10 @@ export default async function ProductDetailPage({ params }: Props) {
 
   return (
     <>
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      {/* Trois colonnes réclament de la place : à 1152 px, la galerie, l'achat
+          et le rail se serrent au point que le prix passe sur deux lignes. Les
+          gabarits restés en deux colonnes gardent la largeur d'avant. */}
+      <div className={`mx-auto ${profile.rail ? 'max-w-7xl' : 'max-w-6xl'} px-4 py-8 sm:px-6 sm:py-12`}>
       <TrackView businessId={store.business_id} event="product_view" productId={product.id} />
 
       <ProductDetailClient
@@ -156,26 +165,29 @@ export default async function ProductDetailPage({ params }: Props) {
         store={view}
         businessId={store.business_id}
         rating={{ average: reviewData.average, count: reviewData.count }}
+        reviews={reviewData.reviews}
         shippingModes={Array.isArray(store.shipping_modes) ? store.shipping_modes : []}
         paymentMethods={Array.isArray(store.payment_methods) ? store.payment_methods : []}
       />
 
-      <ProductReviews reviews={reviewData.reviews} average={reviewData.average} />
-
       {recommended.length > 0 && (
-        <section className="mt-20">
-          <h2
-            className="mb-6 text-[var(--st-ink)]"
-            style={{
-              fontFamily: 'var(--st-font-heading)',
-              fontSize:   'var(--st-h2)',
-              fontWeight: 600,
-            }}
-          >
-            Vous aimerez aussi
-          </h2>
-          <ProductGrid store={view} products={recommended} ratings={ratings} priorityCount={0} />
-        </section>
+        profile.rail ? (
+          <RelatedStrip store={view} products={recommended} title={profile.relatedTitle} />
+        ) : (
+          <section className="mt-20">
+            <h2
+              className="mb-6 text-[var(--st-ink)]"
+              style={{
+                fontFamily: 'var(--st-font-heading)',
+                fontSize:   'var(--st-h2)',
+                fontWeight: 600,
+              }}
+            >
+              {profile.relatedTitle}
+            </h2>
+            <ProductGrid store={view} products={recommended} ratings={ratings} priorityCount={0} />
+          </section>
+        )
       )}
 
       <script
@@ -194,9 +206,14 @@ export default async function ProductDetailPage({ params }: Props) {
 
           Aucune n'apparaît si le marchand ne l'a pas remplie — c'est la règle du
           moteur, et c'est elle qui permet de proposer cette reprise à tous les
-          gabarits sans allonger la fiche de personne. */}
-      {pdp.sections.length > 0 && (
-        <SectionRenderer store={view} data={pdp.data} sections={pdp.sections} />
+          gabarits sans allonger la fiche de personne.
+
+          Celles qu'un ONGLET porte déjà sont retirées ici : depuis que la fiche
+          a ses onglets, « Composition » ou « Questions fréquentes » paraîtraient
+          deux fois sur la même page, une fois repliées et une fois en pleine
+          largeur. L'onglet gagne — il est à hauteur de décision. */}
+      {repeated.length > 0 && (
+        <SectionRenderer store={view} data={pdp.data} sections={repeated} />
       )}
     </>
   );

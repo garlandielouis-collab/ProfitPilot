@@ -87,7 +87,7 @@ describe('Fonds de gabarit', () => {
     assert.equal(resolveTemplateId(undefined), 'proximite');
     assert.deepEqual(
       templateChoices(undefined).map((t) => t.id),
-      ['proximite', 'social', 'artisan', 'services', 'agri', 'traiteur', 'wellness', 'skincare', 'animalerie', 'magazine', 'sport', 'maker', 'naturel', 'monoproduit', 'retail', 'fashion', 'beauty', 'tech', 'food'],
+      ['proximite', 'social', 'artisan', 'services', 'agri', 'traiteur', 'wellness', 'skincare', 'animalerie', 'magazine', 'sport', 'maker', 'naturel', 'monoproduit', 'chic', 'retail', 'fashion', 'beauty', 'tech', 'food'],
     );
   });
 });

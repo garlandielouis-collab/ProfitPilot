@@ -12,9 +12,9 @@
 // leurs catégories et leur grille. Trois fois le même code, donc trois fois la
 // même correction à faire — et deux fois faite en pratique.
 //
-// ── Vingt-deux gabarits, dix-neuf proposés ─────────────────────────────────
+// ── Vingt-trois gabarits, vingt proposés ───────────────────────────────────
 //
-// Six gabarits métier (§34), huit gabarits de marque en ligne (§35) et cinq
+// Six gabarits métier (§34), neuf gabarits de marque en ligne (§35) et cinq
 // presets de rayon (§33) sont offerts au marchand.
 // Trois gabarits historiques restent valides mais ne sont plus proposés à la
 // création : des vitrines en production les portent, et les retirer changerait
@@ -22,9 +22,9 @@
 // marchand qui en porte un le voit dans son éditeur, sélectionné, avec la
 // mention qui va bien — et il peut passer à un preset quand il le veut.
 //
-// ── Dix-neuf choix, et pourquoi ils tiennent quand même ────────────────────
+// ── Vingt choix, et pourquoi ils tiennent quand même ───────────────────────
 //
-// Dix-neuf cartes à la file seraient un catalogue, pas un choix. Deux choses
+// Vingt cartes à la file seraient un catalogue, pas un choix. Deux choses
 // l'évitent : `family` les range en trois groupes que l'éditeur titre, et
 // `preview` porte la vignette — le marchand reconnaît sa boutique sur une
 // image en une seconde, là où il aurait fallu lire trois lignes.
@@ -37,9 +37,9 @@
 // juste dessous : la vignette dit à quoi cela ressemble, l'aperçu dit ce que
 // CE marchand obtiendra avec SON catalogue.
 //
-// Les dix-neuf gabarits proposés en ont une, et elles ne se ressemblent pas :
-// les quatorze gabarits métier et marque ont une maquette photographique, les
-// cinq presets de rayon un schéma en aplats dessiné par
+// Les vingt-trois en ont une — les vingt proposés comme les trois historiques
+// — et elles ne se ressemblent pas : dix-huit ont une maquette photographique,
+// les cinq presets de rayon un schéma en aplats dessiné par
 // `scripts/gabarits-vignettes.js` à partir de `designFor`, `presetFor` et
 // `brandPresetFor`. La différence se voit, et c'est assumé : une maquette
 // photographique demande des photographies, et en inventer pour un gabarit
@@ -96,10 +96,11 @@ export type TemplateDefinition = {
   /** Ce que le gabarit apporte, en clair, pour que le choix soit informé. */
   highlights: string[];
   /**
-   * La maquette montrée dans le sélecteur, sous `public/`. Les dix-neuf
-   * gabarits proposés en ont une ; seuls les trois historiques restent à
-   * `null`, et l'éditeur pose alors leur palette à la place — plutôt que la
-   * vignette d'un autre gabarit : un aperçu qui ment est pire qu'absent.
+   * La maquette montrée dans le sélecteur, sous `public/`. Les vingt-trois en
+   * ont une aujourd'hui. `null` reste permis pour un gabarit ajouté avant sa
+   * vignette : l'éditeur pose alors sa palette à la place — plutôt que la
+   * vignette d'un autre gabarit, parce qu'un aperçu qui ment est pire
+   * qu'absent.
    */
   preview: string | null;
   /**
@@ -211,7 +212,7 @@ export const TEMPLATES: Record<TemplateId, TemplateDefinition> = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Les huit gabarits de marque en ligne (§35)
+  // Les neuf gabarits de marque en ligne (§35)
   //
   // Les six métiers répondent à « qu'est-ce que je fais ? ». Ceux-ci répondent
   // à « comment ma marque parle-t-elle ? ». Le marchand concerné n'a pas un
@@ -340,6 +341,21 @@ export const TEMPLATES: Record<TemplateId, TemplateDefinition> = {
       'Une colonne sur mobile : un catalogue de trois articles n\'est pas une grille',
     ],
     preview: '/gabarits/monoproduit.webp',
+    offered: true,
+  },
+
+  chic: {
+    id:      'chic',
+    name:    'Style Chic',
+    tagline: 'Vert bouteille et or : la boutique de mode qui reçoit',
+    family:  'marque',
+    bestFor: ['Prêt-à-porter', 'Accessoires', 'Bijoux', 'Sacs', 'Chaussures'],
+    highlights: [
+      'Bannière photo, rayons en quatre cartes juste dessous',
+      'Cartes complètes : étiquette, matières, note, bouton « Ajouter au panier »',
+      'La collection en aplat vert et or, et une barre WhatsApp pour conclure',
+    ],
+    preview: '/gabarits/chic.webp',
     offered: true,
   },
 
@@ -494,6 +510,7 @@ export const TEMPLATE_LIST: TemplateDefinition[] = [
   TEMPLATES.maker,
   TEMPLATES.naturel,
   TEMPLATES.monoproduit,
+  TEMPLATES.chic,
   // Les rayons en dernier : ce sont les mises en page générales, celles qu'on
   // prend quand on ne s'est reconnu nulle part au-dessus.
   TEMPLATES.retail,
@@ -506,7 +523,7 @@ export const TEMPLATE_LIST: TemplateDefinition[] = [
 /**
  * Ce que l'éditeur doit montrer à CE marchand.
  *
- * Les dix-neuf gabarits proposés, plus son gabarit actuel s'il porte un
+ * Les vingt gabarits proposés, plus son gabarit actuel s'il porte un
  * gabarit historique : un marchand ne doit pas découvrir que sa boutique
  * tourne sur un gabarit absent de la liste — il conclurait que quelque chose
  * est cassé.
@@ -520,7 +537,7 @@ export function templateChoices(current: unknown): TemplateDefinition[] {
 /**
  * Les mêmes, groupés par famille et dans l'ordre de `templateChoices`.
  *
- * L'éditeur en a besoin parce qu'une liste de dix-neuf cartes à la file n'est
+ * L'éditeur en a besoin parce qu'une liste de vingt cartes à la file n'est
  * plus un choix : trois titres transforment un catalogue en trois questions
  * courtes, dont le marchand n'a à s'en poser qu'une.
  *

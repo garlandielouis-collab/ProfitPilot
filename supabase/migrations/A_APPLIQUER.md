@@ -6,6 +6,12 @@ fichier se colle à la main dans le SQL Editor de Supabase.
 
 D'où ce fichier : savoir, sans deviner, ce qui reste à coller.
 
+## Ajoutée le 18/09/2026 — facultative
+
+| Migration | Effet si elle n'est pas collée |
+|---|---|
+| `20260918_store_template_chic` | Aucun sur l'application : le gabarit « Style Chic » fonctionne sans elle (le code lit le registre, jamais `store_templates`). Elle ne fait que tenir la table-miroir à jour. |
+
 ## État vérifié le 15/09/2026 — **tout est appliqué**
 
 Les cinq migrations en attente ont été collées. Vérifié depuis le poste, avec

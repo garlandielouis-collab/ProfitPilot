@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // L'ordre des gabarits : « Notre histoire » partout, « Présentation » nulle part
 //
-// Deux règles posées le 18/09/2026, valables pour les vingt-deux gabarits, et
+// Deux règles posées le 18/09/2026, valables pour les vingt-trois gabarits, et
 // qui se cassent sans bruit. Un préréglage réécrit à la main peut réintroduire
 // `presentation` ou oublier `brand_story` : la page s'affiche quand même, il
 // lui manque juste un bloc. Et une vitrine qui a enregistré ses sections avant
@@ -25,8 +25,9 @@ describe('presetFor — la place de « Notre histoire »', () => {
         : preset.includes('categories') ? 'categories'
         : null;
       // `services` et `monoproduit` n'ont ni l'un ni l'autre : leur place est
-      // décidée à la main, dans le préréglage.
-      if (anchor) {
+      // décidée à la main, dans le préréglage. `chic` suit l'ordre exact de sa
+      // maquette, où la réassurance et la collection passent avant l'histoire.
+      if (anchor && id !== 'chic') {
         assert.equal(preset[preset.indexOf('brand_story') - 1], anchor);
       }
     });
