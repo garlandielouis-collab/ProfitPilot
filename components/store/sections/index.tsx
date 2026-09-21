@@ -38,9 +38,9 @@ import {
   WhatsAppHelpSection,
 } from './TradeSections';
 import {
-  ShippingSection, PaymentsSection, ContactSection, SizeGuideSection,
-  IngredientsSection,
+  ShippingSection, PaymentsSection, SizeGuideSection, IngredientsSection,
 } from './InfoSections';
+import { ContactSection } from './ContactSection';
 import {
   CountdownSection, VideoSection, PartnersSection, TeamSection,
 } from './BrandSections';

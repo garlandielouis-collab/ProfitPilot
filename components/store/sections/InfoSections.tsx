@@ -32,15 +32,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  Truck, RotateCcw, Banknote, CreditCard, Smartphone, Clock, Phone,
-  MessageCircle, Mail, MapPin, Ruler, Leaf,
+  Truck, RotateCcw, Banknote, CreditCard, Smartphone, Ruler, Leaf,
 } from 'lucide-react';
 import { Section, SectionHeader } from './Shell';
 import { storeMoney } from '../format';
 import { sectionTitle } from '../../../lib/storeSections';
 import { offeredPayments, PAYMENT_LABEL, PAYMENT_NOTE } from '../../../lib/storePayments';
 import type { SectionProps } from './types';
-import type { StoreView } from '../types';
 
 // ── Livraison & retours ─────────────────────────────────────────────────────
 
@@ -169,111 +167,10 @@ export function PaymentsSection({ store, section, design }: SectionProps) {
 }
 
 // ── Nous joindre ────────────────────────────────────────────────────────────
-
-/**
- * Les horaires et les moyens de contact.
- *
- * Trois des quatre lignes sont déjà en base — téléphone, WhatsApp, courriel :
- * les redemander dans l'éditeur, c'est se garantir deux numéros différents sur
- * la même page. Seuls les horaires se saisissent, parce qu'ils n'existent nulle
- * part ailleurs.
- */
-function contactLinks(store: StoreView) {
-  const links: Array<{ href: string; label: string; value: string; Icon: typeof Phone }> = [];
-
-  if (store.whatsappPhone) {
-    links.push({
-      href:  `https://wa.me/${store.whatsappPhone.replace(/[^\d]/g, '')}`,
-      label: 'WhatsApp',
-      value: store.whatsappPhone,
-      Icon:  MessageCircle,
-    });
-  }
-  if (store.contactPhone) {
-    links.push({
-      href:  `tel:${store.contactPhone.replace(/\s/g, '')}`,
-      label: 'Téléphone',
-      value: store.contactPhone,
-      Icon:  Phone,
-    });
-  }
-  if (store.contactEmail) {
-    links.push({ href: `mailto:${store.contactEmail}`, label: 'Courriel', value: store.contactEmail, Icon: Mail });
-  }
-  if (store.contactAddress) {
-    links.push({
-      href:  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.contactAddress)}`,
-      label: 'Adresse',
-      value: store.contactAddress,
-      Icon:  MapPin,
-    });
-  }
-  return links;
-}
-
-export function ContactSection({ store, section, design }: SectionProps) {
-  const c = store.theme.contact;
-  if (!c.enabled) return null;
-
-  const hours = c.hours.filter((h) => h.days.trim());
-  const links = contactLinks(store);
-  if (hours.length === 0 && links.length === 0 && !c.body.trim()) return null;
-
-  const title = sectionTitle(section, store.templateId);
-
-  return (
-    <Section design={design} tone="surface-2" label={title}>
-      <SectionHeader design={design} title={title} eyebrow="Contact" description={c.body.trim() || undefined} />
-
-      <div className="grid gap-8 md:grid-cols-2">
-        {hours.length > 0 && (
-          <div>
-            <p className="mb-3 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-[var(--st-ink-3)]">
-              <Clock className="h-4 w-4" strokeWidth={1.6} aria-hidden />
-              Horaires
-            </p>
-            <ul className="flex flex-col">
-              {hours.map((h, i) => (
-                <li
-                  key={`${h.days}-${i}`}
-                  className="flex items-baseline justify-between gap-4 border-b py-2 last:border-0"
-                  style={{ borderColor: 'var(--st-border)' }}
-                >
-                  <span className="text-[14px] text-[var(--st-ink-2)]">{h.days}</span>
-                  <span className="text-[14px] font-semibold text-[var(--st-ink)]">
-                    {h.hours.trim() || 'Fermé'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {links.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {links.map(({ href, label, value, Icon }) => (
-              <li key={label}>
-                <a
-                  href={href}
-                  target={href.startsWith('http') ? '_blank' : undefined}
-                  rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className="flex min-h-[48px] items-center gap-3 px-4 transition hover:bg-[var(--st-surface)]"
-                  style={{ border: '1px solid var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-                >
-                  <Icon className="h-5 w-5 flex-shrink-0 text-[var(--st-ink-3)]" strokeWidth={1.6} aria-hidden />
-                  <span className="min-w-0">
-                    <span className="block text-[12px] text-[var(--st-ink-3)]">{label}</span>
-                    <span className="block truncate text-[14px] font-semibold text-[var(--st-ink)]">{value}</span>
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </Section>
-  );
-}
+//
+// Elle a quitté ce fichier : un bandeau, une fiche de contact, un plan et des
+// horaires ne tiennent plus dans les quarante lignes d'une section qui répond.
+// Voir `ContactSection.tsx`, qui la réexporte pour le registre.
 
 // ── Guide des tailles ───────────────────────────────────────────────────────
 

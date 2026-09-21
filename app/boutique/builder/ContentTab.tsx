@@ -754,6 +754,12 @@ function renderEditor(
             onChange={(e) => patch('social', { tiktok: e.target.value })}
           />
           <Field
+            label="YouTube"
+            maxLength={200}
+            value={theme.social.youtube}
+            onChange={(e) => patch('social', { youtube: e.target.value })}
+          />
+          <Field
             label="WhatsApp"
             hint="Le lien wa.me de votre numéro."
             maxLength={200}

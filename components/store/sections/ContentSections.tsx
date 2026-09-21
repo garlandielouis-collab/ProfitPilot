@@ -44,7 +44,7 @@
 
 import Link from 'next/link';
 import {
-  ChevronDown, Instagram, Facebook, MessageCircle, Music2, ArrowRight, MapPin,
+  ChevronDown, ArrowRight, MapPin,
   CalendarCheck,
 } from 'lucide-react';
 import { StoreImage } from '../blocks/StoreImage';
@@ -59,6 +59,7 @@ import { sectionTitle, defaultSectionTitle, SECTIONS } from '../../../lib/storeS
 import { collectionHref } from '../../../lib/storeTheme';
 import { buildBookingLink, resolveOrderPhone } from '../../../lib/storeWhatsApp';
 import { IMAGE_SIZES } from '../../../lib/storeImage';
+import { socialLinks } from '../blocks/SocialLinks';
 import type { SectionProps } from './types';
 import type { DesignProfile } from '../../../lib/storeDesign';
 import type { StoreView } from '../types';
@@ -1168,26 +1169,14 @@ export function LocationSection({ store, section, design }: SectionProps) {
 }
 
 // ── Réseaux sociaux ─────────────────────────────────────────────────────────
-
-const SOCIAL_ICONS = {
-  instagram: Instagram,
-  facebook:  Facebook,
-  tiktok:    Music2,
-  whatsapp:  MessageCircle,
-} as const;
-
-const SOCIAL_LABELS = {
-  instagram: 'Instagram',
-  facebook:  'Facebook',
-  tiktok:    'TikTok',
-  whatsapp:  'WhatsApp',
-} as const;
-
+//
+// La liste, les logos et la normalisation des adresses viennent de
+// `blocks/SocialLinks`, comme au pied de page. Cette section en tenait une
+// deuxième : elle ignorait YouTube, elle donnait à TikTok l'icône d'une portée
+// de musique, et surtout elle posait en `href` l'adresse TELLE QUE TAPÉE — le
+// marchand qui écrit « @lalou » avait un bouton qui ne menait nulle part.
 export function SocialSection({ store, section, design }: SectionProps) {
-  const links = (Object.keys(SOCIAL_ICONS) as Array<keyof typeof SOCIAL_ICONS>)
-    .map((k) => ({ key: k, href: store.theme.social[k]?.trim() }))
-    .filter((l): l is { key: keyof typeof SOCIAL_ICONS; href: string } => Boolean(l.href));
-
+  const links = socialLinks(store);
   if (links.length === 0) return null;
 
   return (
@@ -1200,22 +1189,19 @@ export function SocialSection({ store, section, design }: SectionProps) {
           {sectionTitle(section, store.templateId)}
         </h2>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          {links.map(({ key, href }) => {
-            const Icon = SOCIAL_ICONS[key];
-            return (
-              <a
-                key={key}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex min-h-[48px] items-center gap-2 px-5 text-[14px] font-medium text-[var(--st-ink)] transition hover:brightness-95"
-                style={{ border: '1px solid var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-              >
-                <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-                {SOCIAL_LABELS[key]}
-              </a>
-            );
-          })}
+          {links.map(({ href, label, Glyph }) => (
+            <a
+              key={label}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-[48px] items-center gap-2 px-5 text-[14px] font-medium text-[var(--st-ink)] transition hover:brightness-95"
+              style={{ border: '1px solid var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
+            >
+              <Glyph className="h-4 w-4" />
+              {label}
+            </a>
+          ))}
         </div>
       </div>
     </Section>

@@ -39,22 +39,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link';
-import {
-  Mail, MapPin, Phone, Instagram, Facebook, MessageCircle, ChevronDown, Clock,
-} from 'lucide-react';
+import { Mail, MapPin, Phone, ChevronDown, Clock } from 'lucide-react';
 import { collectionHref } from '../../lib/storeTheme';
 import { designFor, type DesignProfile } from '../../lib/storeDesign';
 import { PaymentMarks } from './blocks/PaymentMarks';
+import { SocialRow } from './blocks/SocialLinks';
 import { offeredPayments } from '../../lib/storePayments';
 import type { InfoPage } from '../../lib/storefrontPages';
 import type { StoreCategory, StoreView } from './types';
-
-function normalizeSocial(value: string, base: string): string | null {
-  const v = value.trim();
-  if (!v) return null;
-  if (/^https?:\/\//i.test(v)) return v;
-  return `${base}${v.replace(/^@/, '')}`;
-}
 
 /**
  * L'intitulé d'une colonne.
@@ -151,13 +143,6 @@ export function StorefrontFooter({
   infoPages?: InfoPage[];
 }) {
   const design: DesignProfile = designFor(store.templateId);
-  const { social } = store.theme;
-
-  const socials = [
-    { href: normalizeSocial(social.instagram, 'https://instagram.com/'), Icon: Instagram, label: 'Instagram' },
-    { href: normalizeSocial(social.facebook,  'https://facebook.com/'),  Icon: Facebook,  label: 'Facebook' },
-    { href: normalizeSocial(social.tiktok,    'https://tiktok.com/@'),   Icon: MessageCircle, label: 'TikTok' },
-  ].filter((s): s is { href: string; Icon: typeof Instagram; label: string } => Boolean(s.href));
 
   const contacts = [
     store.contactPhone   ? { Icon: Phone,  text: store.contactPhone,   href: `tel:${store.contactPhone.replace(/\s/g, '')}` } : null,
@@ -238,23 +223,10 @@ export function StorefrontFooter({
               </p>
             )}
 
-            {socials.length > 0 && (
-              <div className="mt-6 flex gap-2">
-                {socials.map(({ href, Icon, label }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={label}
-                    className="flex h-11 w-11 items-center justify-center border text-[var(--st-ink-2)] transition hover:border-[var(--st-ink-2)] hover:text-[var(--st-ink)]"
-                    style={{ borderColor: 'var(--st-border)', borderRadius: 'var(--st-radius-btn)' }}
-                  >
-                    <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-                  </a>
-                ))}
-              </div>
-            )}
+            {/* Les cinq réseaux, dessinés une seule fois pour toute la vitrine :
+                voir `blocks/SocialLinks`. Le pied les porte encadrés, parce
+                qu'un glyphe isolé flotte sur un fond clair. */}
+            <SocialRow store={store} className="mt-6" />
           </div>
 
           {categories.length > 0 && (

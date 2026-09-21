@@ -619,6 +619,7 @@ export const themeConfigSchema = z.object({
     instagram: z.string().max(200).catch(''),
     facebook:  z.string().max(200).catch(''),
     tiktok:    z.string().max(200).catch(''),
+    youtube:   z.string().max(200).catch(''),
     whatsapp:  z.string().max(200).catch(''),
   })),
 
