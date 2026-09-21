@@ -24,10 +24,24 @@ import { Banknote } from 'lucide-react';
 import { offeredPayments, PAYMENT_LABEL, PAYMENT_MARK } from '../../../lib/storePayments';
 
 export function PaymentMarks({
-  methods, className = '',
+  methods, className = '', onDark = false,
 }: {
   methods:    readonly string[];
   className?: string;
+  /**
+   * La rangée est-elle posée sur un aplat sombre ?
+   *
+   * Le pied de vitrine est l'ancre sombre de la page, et la pastille y suivait
+   * `--st-surface` — que le pied redéfinit à sa couleur de structure. Le mot
+   * « MonCash » sortait donc rouge sur presque noir, et « À la livraison »,
+   * dont la graphie est une encre foncée, disparaissait tout à fait.
+   *
+   * La pastille reste BLANCHE dans ce cas, comme sur la maquette : une marque
+   * de paiement se reconnaît sur son fond d'origine, et c'est le seul endroit
+   * de la vitrine où une couleur ne vient pas du gabarit — parce qu'elle
+   * n'appartient pas au gabarit, elle appartient à l'opérateur.
+   */
+  onDark?:    boolean;
 }) {
   const offered = offeredPayments(methods);
   if (offered.length === 0) return null;
@@ -45,9 +59,9 @@ export function PaymentMarks({
             title={PAYMENT_LABEL[method]}
             className="flex h-8 items-center gap-1.5 px-2.5"
             style={{
-              border:       '1px solid var(--st-border)',
+              border:       onDark ? '1px solid transparent' : '1px solid var(--st-border)',
               borderRadius: 'var(--st-radius-btn)',
-              background:   'var(--st-surface)',
+              background:   onDark ? '#FFFFFF' : 'var(--st-surface)',
             }}
           >
             {method === 'cash' && (

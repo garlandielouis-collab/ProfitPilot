@@ -31,19 +31,47 @@
 //             bouts de la page
 //   intitulés le sur-titre canonique de `SectionHeader` (11px, 0.18em)
 //   angles    `--st-radius-btn`
-//   en-tête   sombre ⇒ pied sombre : sur les gabarits dont l'en-tête est un
-//             aplat de la couleur de structure, un pied resté clair coupait la
-//             page en deux. Les variables sont redéfinies localement, comme
-//             dans `StorefrontHeader` : tout ce que porte le pied suit sans le
-//             savoir.
+//   couleurs  le pied est l'ANCRE SOMBRE de la page, sur les vingt-trois
+//             gabarits. Il l'était déjà sur les deux dont l'en-tête est sombre ;
+//             il l'est maintenant partout, parce que c'est ce que la maquette
+//             demande et parce que la palette le permet sans exception :
+//             `palette.primary` est par contrat la couleur de STRUCTURE —
+//             « navigation, titres, aplats sombres » — et les vingt-trois
+//             presets y posent un ton foncé (#141B22 chez Proximité, #160B24
+//             chez Social, #3A2A1B chez Artisan…). Les variables sont
+//             redéfinies localement, comme dans `StorefrontHeader` : tout ce
+//             que porte le pied suit sans le savoir, et le pied sort vert
+//             bouteille chez Style Chic et brun chez Artisan sans une seule
+//             condition sur le gabarit. Mesuré : les vingt-trois primaires ont
+//             une luminance relative sous 0,08. Et le marchand qui poserait sa
+//             PROPRE couleur claire ne casse rien — `--st-primary-ink` vient de
+//             `readableInk()`, qui rend une encre foncée sur un fond clair.
+//
+// ── Ce que la maquette a ajouté ────────────────────────────────────────────
+//
+// Trois choses, et aucune n'invente sa matière :
+//
+//   la lettre  le formulaire d'inscription, celui de la section d'accueil
+//              (`NewsletterForm`) — une seule mécanique, un seul carnet
+//              d'adresses. Il suit l'interrupteur « Newsletter » du marchand :
+//              le pied ne rallume pas ce qu'il a éteint.
+//   le paiement il remonte dans la colonne de marque, sous les réseaux, à la
+//              place qu'il occupe sur la maquette. Il fermait la page ; il
+//              appartient à l'identité, pas au colophon.
+//   le retour  un bouton « Haut de page » en fin de pied, sur téléphone. Le
+//              pied est le bas d'une page qui fait sept mille pixels : sans
+//              lui, revenir au panier est un geste de pouce de huit écrans.
+//              Il est DANS le flux, pas flottant — le coin bas-droit est déjà
+//              pris par le socle mobile et la bulle d'aide (§4).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import Link from 'next/link';
-import { Mail, MapPin, Phone, ChevronDown, Clock } from 'lucide-react';
+import { Mail, MapPin, Phone, ChevronDown, Clock, ArrowUp } from 'lucide-react';
 import { collectionHref } from '../../lib/storeTheme';
 import { designFor, type DesignProfile } from '../../lib/storeDesign';
 import { PaymentMarks } from './blocks/PaymentMarks';
 import { SocialRow } from './blocks/SocialLinks';
+import { NewsletterForm } from './sections/NewsletterForm';
 import { offeredPayments } from '../../lib/storePayments';
 import type { InfoPage } from '../../lib/storefrontPages';
 import type { StoreCategory, StoreView } from './types';
@@ -68,7 +96,7 @@ function ColumnHeading({ children }: { children: React.ReactNode }) {
 }
 
 /** Une entrée de liste : toute la ligne est tactile, l'icône reste centrée dessus. */
-const ROW = 'flex min-h-[44px] items-center gap-2 text-[14px] text-[var(--st-ink-2)] transition hover:text-[var(--st-ink)]';
+const ROW = 'flex min-h-[44px] min-w-0 items-center gap-2 break-words text-[14px] text-[var(--st-ink-2)] transition hover:text-[var(--st-ink)]';
 
 /**
  * Une colonne du pied : dépliée sur grand écran, repliée sur téléphone (§13).
@@ -94,17 +122,26 @@ const ROW = 'flex min-h-[44px] items-center gap-2 text-[14px] text-[var(--st-ink
  * occupe, et il reste trouvable au Ctrl+F même replié.
  */
 function FooterColumn({
-  heading, label, children,
+  heading, label, span = '', children,
 }: {
   heading:  string;
   /** Le nom du repère de navigation, pour les lecteurs d'écran. */
   label:    string;
+  /**
+   * La place de la colonne dans la grille de douze.
+   *
+   * Portée par les DEUX rendus, et pas par une enveloppe : un `div` autour des
+   * deux ferait de la colonne une cellule qui contient une cellule, et le
+   * repli de l'accordéon — qui compte sur le filet de son voisin — se
+   * décalerait d'un cran sur téléphone.
+   */
+  span?:    string;
   children: React.ReactNode;
 }) {
   return (
     <>
       <details
-        className="group border-b sm:hidden"
+        className={`group border-b sm:hidden ${span}`}
         style={{ borderColor: 'var(--st-border)' }}
       >
         <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3">
@@ -118,7 +155,7 @@ function FooterColumn({
         <nav aria-label={label} className="pb-2">{children}</nav>
       </details>
 
-      <nav aria-label={label} className="hidden sm:block">
+      <nav aria-label={label} className={`hidden sm:block ${span}`}>
         <ColumnHeading>{heading}</ColumnHeading>
         <div className="mt-4">{children}</div>
       </nav>
@@ -157,38 +194,62 @@ export function StorefrontFooter({
   // Ce que la caisse encaisse réellement, et rien d'autre.
   const payments = offeredPayments(store.paymentMethods);
 
-  // La colonne de marque tient deux places quand elle est seule en face d'une
-  // autre, et quatre quand elle l'est tout court : un nom de boutique perdu à
-  // gauche d'un vide de trois colonnes se lit comme une page mal chargée.
+  /**
+   * La lettre d'information, telle que le marchand l'a réglée.
+   *
+   * Le pied ne RALLUME pas ce qu'il a éteint : l'interrupteur « Newsletter » de
+   * l'éditeur commande les deux endroits où le formulaire paraît, la section
+   * d'accueil et cette carte. Un marchand qui ne veut pas collecter d'adresses
+   * n'en collecte nulle part.
+   */
+  const letter = store.theme.newsletter;
+
+  // ── La grille de la maquette ───────────────────────────────────────────────
+  //
+  // Douze colonnes : la marque en tient trois, chaque liste deux, la carte de
+  // la lettre trois. La marque prend ce que les absentes laissent — une
+  // boutique sans rayon ni page interne n'a pas un nom coincé à gauche d'un
+  // vide de neuf colonnes.
+  //
   const columns = (categories.length > 0 ? 1 : 0)
     + (infoPages.length > 0 ? 1 : 0)
     + (contacts.length > 0 || hours.length > 0 ? 1 : 0);
 
-  // Le nom occupe ce que les autres colonnes laissent. Écrit en table plutôt
-  // qu'en cascade de ternaires : il y a maintenant quatre cas, et le troisième
-  // manquait — la colonne « Informations » aurait débordé la grille.
-  const brandSpan = ['lg:col-span-4', 'lg:col-span-3', 'lg:col-span-2', 'lg:col-span-1'][columns];
+  // Les classes sont ÉCRITES, pas construites : Tailwind lit le source pour
+  // décider ce qu'il génère, et une classe assemblée à l'exécution
+  // (`lg:col-span-${n}`) n'existe dans aucun fichier — elle ne serait donc
+  // jamais produite, et la colonne retomberait silencieusement à sa largeur
+  // par défaut. Le tableau est indexé par le nombre de listes présentes.
+  const BRAND_SPAN = {
+    avecLettre: ['lg:col-span-9', 'lg:col-span-7', 'lg:col-span-5', 'lg:col-span-3'],
+    sansLettre: ['lg:col-span-12', 'lg:col-span-10', 'lg:col-span-8', 'lg:col-span-6'],
+  } as const;
+  const brandSpan = BRAND_SPAN[letter.enabled ? 'avecLettre' : 'sansLettre'][columns];
 
   return (
     <footer
       id="contact"
       className="border-t"
       style={{
-        // L'inversion de `StorefrontHeader`, à l'identique : sur les gabarits
-        // dont l'en-tête est sombre, le pied l'est aussi, et tout ce qu'il
-        // contient lit les mêmes variables sans savoir qu'elles ont changé.
-        ...(design.headerDark
-          ? {
-              ['--st-surface'   as string]: 'var(--st-primary)',
-              ['--st-surface-2' as string]: 'var(--st-primary)',
-              ['--st-ink'       as string]: 'var(--st-primary-ink)',
-              ['--st-ink-2'     as string]: 'color-mix(in srgb, var(--st-primary-ink) 78%, transparent)',
-              ['--st-ink-3'     as string]: 'color-mix(in srgb, var(--st-primary-ink) 58%, transparent)',
-              ['--st-border'    as string]: 'color-mix(in srgb, var(--st-primary-ink) 20%, transparent)',
-            }
-          : null),
+        // L'ancre sombre. Les variables sont redéfinies ICI, une fois : tout ce
+        // que le pied contient — titres, liens, filets, marques de paiement,
+        // formulaire — lit `--st-ink` et `--st-border` sans savoir qu'elles ne
+        // valent plus la même chose qu'au-dessus. C'est ce qui permet de
+        // retourner le pied sans toucher à une seule de ses vingt règles.
+        //
+        // `--st-panel` n'existe qu'ici : la carte de la lettre d'information est
+        // un aplat LÉGÈREMENT plus clair que le fond, comme sur la maquette. Un
+        // second ton tiré du fond lui-même, donc juste sur les vingt-trois.
+        ['--st-surface'   as string]: 'var(--st-primary)',
+        ['--st-surface-2' as string]: 'var(--st-primary)',
+        ['--st-panel'     as string]: 'color-mix(in srgb, var(--st-primary-ink) 7%, var(--st-primary))',
+        ['--st-ink'       as string]: 'var(--st-primary-ink)',
+        ['--st-ink-2'     as string]: 'color-mix(in srgb, var(--st-primary-ink) 78%, transparent)',
+        ['--st-ink-3'     as string]: 'color-mix(in srgb, var(--st-primary-ink) 58%, transparent)',
+        ['--st-border'    as string]: 'color-mix(in srgb, var(--st-primary-ink) 20%, transparent)',
         borderColor: 'var(--st-border)',
         background:  'var(--st-surface-2)',
+        color:       'var(--st-ink)',
         // Le rythme du gabarit, jamais celui du pied de page.
         paddingTop:    'var(--st-section-y)',
         paddingBottom: 'var(--st-section-y)',
@@ -199,7 +260,7 @@ export function StorefrontFooter({
             leur filet inférieur fait la séparation, et quarante-huit pixels
             entre deux intitulés repliés les feraient lire comme quatre blocs
             sans rapport. L'écart revient dès que ce sont de vraies colonnes. */}
-        <div className="grid gap-x-10 gap-y-0 sm:gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-x-10 gap-y-0 sm:gap-y-12 sm:grid-cols-2 lg:grid-cols-12">
           <div className={`${columns === 0 ? 'max-w-xl' : 'max-w-sm'} ${brandSpan} pb-8 sm:pb-0`}>
             <p
               className="text-[var(--st-ink)]"
@@ -224,13 +285,33 @@ export function StorefrontFooter({
             )}
 
             {/* Les cinq réseaux, dessinés une seule fois pour toute la vitrine :
-                voir `blocks/SocialLinks`. Le pied les porte encadrés, parce
-                qu'un glyphe isolé flotte sur un fond clair. */}
-            <SocialRow store={store} className="mt-6" />
+                voir `blocks/SocialLinks`. SANS cadre ici : sur l'aplat sombre
+                du pied, un glyphe plein se tient tout seul, et cinq carrés
+                bordés côte à côte feraient une rangée de boutons là où la
+                maquette ne montre que des logos. */}
+            <SocialRow store={store} look="bare" className="mt-6 -ml-2.5" />
+
+            {/* ── Les moyens de paiement ──────────────────────────────────
+                Ils fermaient la page, sous les colonnes. Ils remontent ici,
+                sous les réseaux et derrière un filet : « MonCash · NatCash »
+                n'est pas un colophon, c'est la réponse à la question qui
+                décide de rester — un visiteur sans carte bancaire, c'est-à-dire
+                la grande majorité du trafic haïtien, la cherche avant de
+                regarder un seul prix.
+
+                `offeredPayments` écarte les valeurs mortes restées dans les
+                réglages d'anciennes boutiques : une marque affichée est une
+                marque que la caisse encaisse réellement. Aucun moyen
+                configuré, aucune rangée — pas une promesse par défaut. */}
+            {payments.length > 0 && (
+              <div className="mt-7 border-t pt-6" style={{ borderColor: 'var(--st-border)' }}>
+                <PaymentMarks methods={store.paymentMethods} onDark />
+              </div>
+            )}
           </div>
 
           {categories.length > 0 && (
-            <FooterColumn heading={design.mobile.catalogLabel} label="Rayons">
+            <FooterColumn heading={design.mobile.catalogLabel} label="Rayons" span="lg:col-span-2">
               <ul className="flex flex-col">
                 <li>
                   <Link href={`${store.base}/products`} className={ROW}>Tout voir</Link>
@@ -249,7 +330,7 @@ export function StorefrontFooter({
               vivaient en bas de la page d'accueil, sans adresse à elles — donc
               impossibles à envoyer par message ou à mettre en favori. */}
           {infoPages.length > 0 && (
-            <FooterColumn heading="Informations" label="Informations">
+            <FooterColumn heading="Informations" label="Informations" span="lg:col-span-2">
               <ul className="flex flex-col">
                 {infoPages.map((page) => (
                   <li key={page.key}>
@@ -263,7 +344,7 @@ export function StorefrontFooter({
           )}
 
           {(contacts.length > 0 || hours.length > 0) && (
-            <FooterColumn heading="Nous joindre" label="Nous joindre">
+            <FooterColumn heading="Nous joindre" label="Nous joindre" span="lg:col-span-2">
               <ul className="flex flex-col">
                 {contacts.map(({ Icon, text, href }) => (
                   <li key={text}>
@@ -315,38 +396,44 @@ export function StorefrontFooter({
               )}
             </FooterColumn>
           )}
+
+          {/* ── Restez connecté ─────────────────────────────────────────────
+              La carte de la maquette : un aplat légèrement plus clair que le
+              pied, posé dans la grille comme une quatrième colonne large.
+
+              Le formulaire est CELUI de la section d'accueil, importé tel quel.
+              En écrire un second ici aurait donné deux mécaniques, deux
+              messages de confirmation et, le jour d'une correction, une seule
+              des deux corrigée — c'est exactement ce que le registre des
+              sections existe pour éviter. L'adresse part dans le carnet de
+              clients du marchand, avec son consentement marqué, et rien ne
+              promet un envoi que personne n'a encore écrit. */}
+          {letter.enabled && (
+            <div className="lg:col-span-3 pt-8 sm:pt-0">
+              <div
+                className="p-6"
+                style={{
+                  background:   'var(--st-panel)',
+                  borderRadius: 'var(--st-radius-card)',
+                }}
+              >
+                <p className="flex items-center gap-2.5 text-[15px] font-semibold text-[var(--st-ink)]">
+                  <Mail className="h-4 w-4 flex-shrink-0" strokeWidth={1.9} aria-hidden />
+                  {letter.title}
+                </p>
+                {letter.body.trim() && (
+                  <p className="mt-2 text-[13px] leading-relaxed text-[var(--st-ink-2)]">
+                    {letter.body.trim()}
+                  </p>
+                )}
+                <NewsletterForm store={store} layout="stacked" />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* ── Les moyens de paiement ────────────────────────────────────────
-            Ils ne figuraient que sous le bouton d'achat de la fiche produit.
-            Or la question « est-ce que je peux payer avec MonCash ? » se pose
-            AVANT d'ouvrir une fiche, et souvent décide de rester ou de partir :
-            un visiteur qui n'a pas de carte bancaire — c'est-à-dire la grande
-            majorité du trafic haïtien — cherche cette rangée-là en bas de page
-            avant de regarder un seul prix.
-
-            `offeredPayments` écarte les valeurs mortes restées dans les
-            réglages d'anciennes boutiques : une marque affichée ici est une
-            marque que la caisse encaisse réellement. Aucun moyen configuré,
-            aucune rangée — pas une promesse de paiement par défaut. */}
-        {payments.length > 0 && (
-          <div
-            /* Sur téléphone, le dernier accordéon ferme déjà par un filet. Un
-               second filet 48 pixels plus bas n'ajoute pas une séparation : il
-               dessine une bande vide, qui se lit comme une colonne oubliée.
-               Le bloc se pose donc juste sous le filet existant, et ne reprend
-               le sien qu'à partir du moment où les colonnes s'alignent — ou
-               tout de suite si cette vitrine n'a aucune colonne à aligner. */
-            className={`mt-6 pt-6 sm:mt-12 sm:border-t sm:pt-8 ${columns > 0 ? '' : 'border-t'}`}
-            style={{ borderColor: 'var(--st-border)' }}
-          >
-            <ColumnHeading>Paiement</ColumnHeading>
-            <PaymentMarks methods={store.paymentMethods} className="mt-4" />
-          </div>
-        )}
-
         <div
-          className={`${payments.length > 0 ? 'mt-8' : 'mt-12'} flex flex-col gap-2 border-t pt-6 text-[12px] text-[var(--st-ink-3)] sm:flex-row sm:items-center sm:justify-between`}
+          className="mt-12 flex flex-col gap-2 border-t pt-6 text-[12px] text-[var(--st-ink-3)] sm:flex-row sm:items-center sm:justify-between"
           style={{ borderColor: 'var(--st-border)' }}
         >
           <p>© {new Date().getFullYear()} {store.name}</p>
@@ -360,6 +447,30 @@ export function StorefrontFooter({
             className="transition hover:text-[var(--st-ink-2)]"
           >
             Propulsé par ProfitPilot
+          </a>
+        </div>
+
+        {/* ── Haut de page ────────────────────────────────────────────────
+            Sur téléphone seulement : sur un écran à souris, la barre de
+            défilement et la touche Origine font déjà ce travail.
+
+            C'est une ANCRE, pas un bouton : `href="#"` remonte sans une ligne
+            de JavaScript, donc sans rien envoyer dans le paquet du visiteur, et
+            reste utilisable au clavier sans qu'on s'en occupe. Un
+            `scrollTo({ behavior: 'smooth' })` aurait coûté un composant client
+            pour rendre le même service en moins fiable.
+
+            Dans le flux, centré, avec sa réserve sous lui : le coin bas-droit
+            est pris par le socle mobile et la bulle d'aide, et un troisième
+            rond flottant au même endroit les recouvrirait (§4). */}
+        <div className="mt-8 flex justify-center pb-2 sm:hidden">
+          <a
+            href="#"
+            aria-label="Revenir en haut de la page"
+            className="flex h-11 w-11 items-center justify-center border text-[var(--st-ink-2)] transition hover:text-[var(--st-ink)]"
+            style={{ borderColor: 'var(--st-border)', borderRadius: '9999px' }}
+          >
+            <ArrowUp className="h-4 w-4" strokeWidth={1.9} aria-hidden />
           </a>
         </div>
       </div>
