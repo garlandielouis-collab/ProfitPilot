@@ -5,7 +5,7 @@ import { getBusinessContext, requirePermission } from '../../lib/serverAuth';
 import { getSupabaseService } from '../../lib/supabaseServiceClient';
 import { assertFeature } from '../../lib/entitlements';
 import { revalidateStore } from '../../lib/storefrontData';
-import { slugify, validateSlug } from '../../lib/storeTheme';
+import { parseThemeConfig, slugify, validateSlug } from '../../lib/storeTheme';
 import { confirmStoreOrder } from './store-public';
 import type { StoreSettings, ShippingMode } from './store-public';
 import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
@@ -177,6 +177,69 @@ export async function upsertStoreSettings(
 
   return { slug };
   });
+}
+
+// ─── Les pages de l'aperçu ────────────────────────────────────────────────────
+
+/** Une page de la vitrine que l'aperçu sait montrer. */
+export type PreviewPage = {
+  label: string;
+  /** Le chemin sous `/store/<slug>` : '' pour l'accueil. */
+  path:  string;
+};
+
+/**
+ * Les pages que le marchand peut regarder dans l'aperçu.
+ *
+ * L'aperçu n'en montrait qu'une : le haut de l'accueil. Le marchand n'avait
+ * donc AUCUN moyen de voir sa fiche produit depuis l'éditeur — l'écran où la
+ * vente se décide, et celui qui change le plus d'un gabarit à l'autre
+ * (`storeProductPage.ts`). Il concluait que sa fiche n'avait pas changé, ce
+ * qui était faux, et que son pied de page avait disparu, alors qu'il était à
+ * sept mille pixels plus bas.
+ *
+ * Aucune page n'est proposée à vide (§2) : le catalogue et la fiche n'entrent
+ * dans la liste que s'il y a un produit à montrer, et c'est un produit RÉEL,
+ * choisi comme la vitrine le choisit — en mode « sélection », seuls les
+ * produits cochés sont en ligne, et proposer les autres montrerait une page
+ * que le client ne verra jamais.
+ */
+export async function getPreviewPages(): Promise<PreviewPage[]> {
+  const { supabase, businessId } = await getBusinessContext();
+
+  const pages: PreviewPage[] = [{ label: 'Accueil', path: '' }];
+
+  const { data: settings } = await supabase
+    .from('store_settings')
+    .select('theme_config, template_id')
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  const theme = parseThemeConfig(
+    (settings as any)?.theme_config,
+    undefined,
+    (settings as any)?.template_id,
+  );
+
+  // La même règle que `storefrontHome` : en mode « sélection », la vitrine ne
+  // montre que les produits cochés.
+  let q = supabase
+    .from('products')
+    .select('id, name')
+    .eq('business_id', businessId);
+  if (theme.catalog.mode === 'selected') q = q.eq('is_published_to_store', true);
+
+  const { data: products } = await q.order('created_at', { ascending: false }).limit(1);
+  const first = products?.[0] as { id: string; name: string } | undefined;
+
+  if (first) {
+    pages.push({ label: 'Tous les produits', path: '/products' });
+    // Nommée par le produit qu'elle montre : « Fiche produit » ne dit pas au
+    // marchand ce qu'il est en train de regarder, et il en a trente.
+    pages.push({ label: first.name, path: `/products/${first.id}` });
+  }
+
+  return pages;
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

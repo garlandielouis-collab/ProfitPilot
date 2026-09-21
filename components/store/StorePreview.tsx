@@ -46,13 +46,27 @@
 //   que la colonne fasse 358 px ou 900. Un facteur fixe ne peut pas tenir cette
 //   promesse — il est juste pour une largeur, et faux pour toutes les autres.
 //
+// ── Pourquoi il y a un sélecteur de page ───────────────────────────────────
+//
+// L'aperçu ne montrait qu'une adresse : l'accueil. Or c'est la FICHE PRODUIT
+// qui change le plus d'un gabarit à l'autre (`storeProductPage.ts` en tient
+// vingt profils), et c'est l'écran où la vente se décide. Le marchand ne
+// pouvait pas la voir d'ici : il choisissait un gabarit sur sa seule page
+// d'accueil, et concluait que sa fiche n'avait pas changé.
+//
+// Le pied de page se trouvait dans le même angle mort. Il est bien rendu — à
+// sept mille pixels sous le haut de l'accueil, soit huit hauteurs de cadre. Sur
+// une fiche produit, il est à deux. Pouvoir changer de page, c'est donc aussi
+// pouvoir vérifier le bas de sa vitrine.
+//
 // L'iframe est en `sandbox` : elle exécute les scripts de la vitrine et rien
 // d'autre. Le marchand consulte son propre site, mais un aperçu n'a aucune
 // raison de pouvoir naviguer la page qui le contient.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Monitor, Tablet, Smartphone, RefreshCw, ExternalLink } from 'lucide-react';
+import { Monitor, Tablet, Smartphone, RefreshCw, ExternalLink, FileText } from 'lucide-react';
+import type { PreviewPage } from '../../app/actions/boutique';
 
 type Device = 'mobile' | 'tablet' | 'desktop';
 
@@ -82,13 +96,20 @@ function deviceForViewport(width: number): Device {
 const FALLBACK_SCALE: Record<Device, number> = { mobile: 0.9, tablet: 0.5, desktop: 0.3 };
 
 export function StorePreview({
-  slug, path = '', className,
+  slug, pages = [], className,
 }: {
   slug: string;
-  /** Le chemin à afficher dans la vitrine : '', '/products', '/cart'… */
-  path?: string;
+  /**
+   * Les pages proposées au marchand, dans l'ordre. Vide ou à une seule entrée,
+   * aucun sélecteur ne s'affiche — un menu à un choix n'est pas un choix.
+   * Résolues par `getPreviewPages()`, qui n'y met que des pages remplies.
+   */
+  pages?: PreviewPage[];
   className?: string;
 }) {
+  // La page regardée. Par défaut la première — l'accueil.
+  const [pageIndex, setPageIndex] = useState(0);
+  const path = pages[pageIndex]?.path ?? '';
   // L'appareil de départ est celui du marchand. Lu à l'initialisation plutôt
   // que dans un effet : l'aperçu n'est monté qu'après le chargement des
   // réglages, donc côté navigateur — aucun rendu serveur à faire coïncider.
@@ -167,6 +188,25 @@ export function StorePreview({
             );
           })}
         </div>
+
+        {/* Les pages. Une seule entrée, pas de sélecteur : le marchand qui n'a
+            aucun produit n'a qu'un accueil à regarder, et un menu à un choix
+            ne ferait que le lui rappeler. */}
+        {pages.length > 1 && (
+          <label className="flex min-h-touch items-center gap-2 rounded-control border border-border px-3 dark:border-dark-border">
+            <FileText className="h-4 w-4 flex-shrink-0 text-text2 dark:text-dark-text2" strokeWidth={1.9} aria-hidden />
+            <span className="sr-only">Page à afficher</span>
+            <select
+              value={pageIndex}
+              onChange={(e) => setPageIndex(Number(e.target.value))}
+              className="max-w-[180px] truncate bg-transparent text-body font-semibold text-text2 outline-none dark:text-dark-text2"
+            >
+              {pages.map((pg, i) => (
+                <option key={pg.path} value={i}>{pg.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <button
           type="button"

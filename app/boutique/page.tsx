@@ -3,7 +3,9 @@
 import { useEffect, useState, useTransition } from 'react';
 import {
   getMyStoreSettings,
+  getPreviewPages,
   upsertStoreSettings,
+  type PreviewPage,
 } from '../actions/boutique';
 import { StorePreview } from '../../components/store/StorePreview';
 import { TEMPLATE_LIST } from '../../components/store/templates/registry';
@@ -271,6 +273,10 @@ export default function BoutiquePage() {
     payment_methods:  ['cash'] as string[],
   });
 
+  // Les pages que l'aperçu sait montrer. Résolues à part des réglages : elles
+  // dépendent du catalogue, pas du formulaire, et une boutique sans produit
+  // n'en a qu'une.
+  const [previewPages, setPreviewPages] = useState<PreviewPage[]>([]);
   const [shippingModes, setShippingModes] = useState<ShippingMode[]>([]);
   const [newMode,       setNewMode]       = useState({ label: '', price: 0, days: '2-3 jours' });
   const [creds, setCreds] = useState({
@@ -314,6 +320,13 @@ export default function BoutiquePage() {
         });
       }
     }).finally(() => setLoading(false));
+  }, []);
+
+  // L'aperçu n'est monté que sur son onglet : la liste peut arriver après le
+  // reste, elle ne retarde pas l'ouverture de l'écran. Une lecture qui échoue
+  // laisse l'aperçu sur l'accueil seul, ce qu'il montrait de toute façon avant.
+  useEffect(() => {
+    getPreviewPages().then(setPreviewPages).catch(() => {});
   }, []);
 
   function togglePayment(method: string) {
@@ -492,7 +505,7 @@ export default function BoutiquePage() {
       {/* ── Aperçu : la vitrine réelle, pas une simulation (§34) ── */}
       {tab === 'apercu' && (
         form.slug ? (
-          <StorePreview slug={form.slug} />
+          <StorePreview slug={form.slug} pages={previewPages} />
         ) : (
           <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center">
             <Eye className="mx-auto h-10 w-10 text-slate-300" strokeWidth={1.5} aria-hidden />
