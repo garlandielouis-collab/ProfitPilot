@@ -27,6 +27,7 @@ import type { StoreProduct, StoreView } from '../types';
 
 export function AddToCartButton({
   product, store, quantity = 1, className, onAdded, showTotal = false, label,
+  size = 'hero',
 }: {
   product:  StoreProduct;
   store:    StoreView;
@@ -44,6 +45,15 @@ export function AddToCartButton({
    * la vente à découvert.
    */
   label?: string;
+  /**
+   * La taille du bouton.
+   *
+   * `hero` — 56 px, l'action principale d'un écran : la fiche, le lot, la
+   * vedette. `compact` — 44 px, le plancher de ce qui se touche (§8), pour
+   * un ajout SECONDAIRE posé sur une vignette. Deux boutons héro dans la même
+   * page se disputeraient la même décision.
+   */
+  size?: 'hero' | 'compact';
 }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
@@ -67,7 +77,8 @@ export function AddToCartButton({
       disabled={outOfStock}
       aria-label={outOfStock ? `${product.name} est épuisé` : `Ajouter ${product.name} au panier`}
       className={[
-        'flex min-h-[56px] w-full items-center justify-center gap-2 text-[15px] font-semibold transition',
+        'flex w-full items-center justify-center gap-2 font-semibold transition',
+        size === 'compact' ? 'min-h-[44px] text-[13.5px]' : 'min-h-[56px] text-[15px]',
         outOfStock ? 'cursor-not-allowed' : 'hover:brightness-95 active:brightness-90',
         className ?? '',
       ].join(' ')}
@@ -83,7 +94,7 @@ export function AddToCartButton({
         <><Check className="h-5 w-5" strokeWidth={2.5} aria-hidden /> Ajouté au panier</>
       ) : (
         <>
-          <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden />
+          <ShoppingBag className={size === 'compact' ? 'h-4 w-4' : 'h-[18px] w-[18px]'} strokeWidth={1.9} aria-hidden />
           {backorder && !label
             ? 'Commander'
             : showTotal && store.showPrices

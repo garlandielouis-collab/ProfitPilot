@@ -1014,14 +1014,20 @@ function SpecColumn(props: BuyColumnProps) {
       )}
       <StockLine product={product} show={store.showStock} />
 
-      {specs.length > 0 ? (
-        <SpecTable rows={specs.map(([key, value]) => [key, String(value)])} />
-      ) : (
-        <MerchantHint title="Les caractéristiques de l'appareil" where="Produits → cette fiche → Attributs">
-          <p className="text-[14px] text-[var(--st-ink-2)]">
-            Capacité · Autonomie · Connectique · Garantie
-          </p>
-        </MerchantHint>
+      {/* La bande de tuiles, quand le gabarit en pose une, porte les
+          caractéristiques à elle seule (`SpecGrid`) : les redire ici serait la
+          même donnée deux fois à deux écrans d'intervalle, et ce serait
+          justement celle qui sépare le prix du bouton. */}
+      {!profile.specGrid && (
+        specs.length > 0 ? (
+          <SpecTable rows={specs.map(([key, value]) => [key, String(value)])} />
+        ) : (
+          <MerchantHint title="Les caractéristiques de l'appareil" where="Produits → cette fiche → Attributs">
+            <p className="text-[14px] text-[var(--st-ink-2)]">
+              Capacité · Autonomie · Connectique · Garantie
+            </p>
+          </MerchantHint>
+        )
       )}
 
       <HighlightList items={product.highlights} title={profile.highlightsTitle} />

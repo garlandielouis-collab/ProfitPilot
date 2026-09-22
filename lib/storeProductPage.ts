@@ -169,6 +169,18 @@ export type PdpProfile = {
    * prestataire. Vide : la liste s'affiche sans titre.
    */
   highlightsTitle?: string;
+  /**
+   * Le titre de la bande de TUILES, sous la zone d'achat. Vide : pas de bande.
+   *
+   * Le rayon où l'on compare porte dix ou douze caractéristiques. En tableau
+   * dans la colonne, elles poussent le bouton d'achat sous la ligne de
+   * flottaison ; en tuiles, en pleine largeur, elles se balaient (`SpecGrid`).
+   *
+   * Un gabarit qui pose cette bande ne garde PAS d'onglet « Caractéristiques »,
+   * et sa colonne ne pose plus le tableau : la même donnée deux fois sur une
+   * page fait douter de la deuxième.
+   */
+  specGrid?: string;
 };
 
 // ── Les onglets communs ─────────────────────────────────────────────────────
@@ -521,9 +533,12 @@ const PROFILES: Partial<Record<TemplateId, PdpProfile>> = {
   tech: {
     buy: 'spec',
     rail: true,
+    // La bande de tuiles remplace à la fois le tableau de la colonne et l'onglet
+    // « Caractéristiques » : c'est la même donnée, et elle se lit mieux à plat
+    // qu'en colonne étroite ou derrière un onglet fermé.
+    specGrid: 'Caractéristiques techniques',
     tabs: [
       DESCRIPTION,
-      { key: 'attributes', label: 'Caractéristiques' },
       SHIPPING,
       { key: 'returns',    label: 'Garantie & retours' },
       REVIEWS,

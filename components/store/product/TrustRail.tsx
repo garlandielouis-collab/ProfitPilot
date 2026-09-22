@@ -35,11 +35,12 @@
 // repasse en deux colonnes plutôt que d'afficher une colonne vide.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Truck, Shield, RefreshCw, Phone, CreditCard, Clock } from 'lucide-react';
+import { Truck, Shield, RefreshCw, Phone, CreditCard, Clock, Quote } from 'lucide-react';
 import { storeMoney } from '../format';
 import { MerchantHint } from './MerchantHint';
 import type { ThemeConfig } from '../../../lib/storeTheme';
 import type { ShippingMode } from '../../../app/actions/store-public';
+import type { StoreReview } from '../sections/types';
 
 const BADGE_ICONS = {
   truck:   Truck,
@@ -93,14 +94,22 @@ export function trustLines(theme: ThemeConfig, shippingModes: ShippingMode[], cu
   return lines.slice(0, 5);
 }
 
-export function TrustRail({ theme, shippingModes, currency }: {
+export function TrustRail({ theme, shippingModes, currency, review, reviewCount = 0 }: {
   theme:         ThemeConfig;
   shippingModes: ShippingMode[];
   currency:      string;
+  /**
+   * Un avis RÉEL, choisi par `pickRailReview`. `null` quand la boutique n'en
+   * a pas encore, ou qu'aucun ne passe la barre : le rail s'en tient alors aux
+   * engagements, et les avis restent dans leur onglet.
+   */
+  review?:       StoreReview | null;
+  /** Le nombre d'avis publiés. Réel, et c'est pour cela qu'il s'affiche. */
+  reviewCount?:  number;
 }) {
   const lines = trustLines(theme, shippingModes, currency);
 
-  if (lines.length === 0) {
+  if (lines.length === 0 && !review) {
     return (
       <MerchantHint title="Vos engagements" where="Éditeur → Contenu → Réassurance">
         <RailList lines={[
@@ -118,7 +127,8 @@ export function TrustRail({ theme, shippingModes, currency }: {
           rester à côté d'elle pendant qu'on la déroule. `top-24` dégage
           l'en-tête collant de la vitrine. */}
       <div className="sticky top-24">
-        <RailList lines={lines} />
+        {lines.length > 0 && <RailList lines={lines} />}
+        {review && <RailReview review={review} count={reviewCount} first={lines.length === 0} />}
       </div>
     </aside>
   );
@@ -147,5 +157,50 @@ function RailList({ lines }: { lines: Line[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Le témoignage du rail : une phrase, un prénom, et le compte des avis.
+ *
+ * Il est COUPÉ à six lignes plutôt que rendu en entier. Le rail fait 200 px :
+ * un avis de quinze lignes y pousse les engagements hors de l'écran et retire
+ * au prix la réponse qu'il était venu chercher. Le lien mène aux avis complets,
+ * qui eux ne sont coupés nulle part.
+ *
+ * Le compte est celui des avis publiés, et rien d'autre : ni clients servis,
+ * ni commandes livrées, ni aucun des chiffres ronds que les maquettes posent
+ * à cet endroit. Un chiffre de réassurance se vérifie en trois secondes, juste
+ * en dessous.
+ */
+function RailReview({ review, count, first }: {
+  review: StoreReview;
+  count:  number;
+  /** Seul dans le rail : il prend la place des engagements, sans marge. */
+  first:  boolean;
+}) {
+  const body = (review.body ?? '').trim();
+
+  return (
+    <figure
+      className={`${first ? '' : 'mt-2.5'} border px-3 py-3`}
+      style={{ borderColor: 'var(--st-border)', borderRadius: 'var(--st-radius-card)' }}
+    >
+      <Quote className="h-4 w-4 text-[var(--st-ink-3)]" strokeWidth={1.8} aria-hidden />
+      <blockquote className="mt-1.5 line-clamp-6 text-[12.5px] leading-relaxed text-[var(--st-ink-2)]">
+        {body}
+      </blockquote>
+      <figcaption className="mt-2 text-[11.5px] font-semibold text-[var(--st-ink)]">
+        {review.author_name}
+      </figcaption>
+      {count > 0 && (
+        <a
+          href="#avis"
+          className="mt-2 inline-block text-[11.5px] text-[var(--st-ink-3)] underline underline-offset-4"
+        >
+          {count === 1 ? '1 avis publié' : `${count} avis publiés`}
+        </a>
+      )}
+    </figure>
   );
 }

@@ -10,6 +10,7 @@ import { resolveTemplateId } from '../../../../../components/store/templates/reg
 import { pdpProfileFor, TAB_SECTION } from '../../../../../lib/storeProductPage';
 import { ProductGrid } from '../../../../../components/store/blocks/ProductGrid';
 import { RelatedStrip } from '../../../../../components/store/product/RelatedStrip';
+import { BoughtTogether } from '../../../../../components/store/product/BoughtTogether';
 import { TrackView } from '../../../../../components/store/blocks/TrackView';
 import { getBoughtTogetherIds } from '../../../../actions/store-public';
 import { getProductReviews } from '../../../../actions/store-content';
@@ -87,13 +88,45 @@ export default async function ProductDetailPage({ params }: Props) {
   // ce produit, puis la même catégorie pour compléter. La co-occurrence est
   // meilleure que la similarité — elle vient des clients, pas d'une hypothèse —
   // mais elle n'existe pas tant que la boutique n'a pas vendu.
+  // ── Deux listes, et deux intentions (§26) ──────────────────────────────
+  //
+  // Elles n'en faisaient qu'une, et la fusion perdait ce qui les distingue.
+  //
+  //   commandés ensemble   ce que d'autres ont RÉELLEMENT mis dans la même
+  //                        commande. Un fait, pas une hypothèse — et c'est ce
+  //                        qui autorise le bouton d'ajout.
+  //   aimerez aussi        le même rayon, faute de mieux. Une ressemblance
+  //                        supposée, donc sans bouton : sous une fiche, on a
+  //                        déjà choisi.
+  //
+  // Le co-achat était en plus RAPPROCHÉ du seul rayon déjà chargé, celui du
+  // produit affiché. Or un produit souvent commandé avec celui-ci est rarement
+  // du même rayon — le riz et les haricots ne se ressemblent pas, ils se
+  // commandent ensemble. Les identifiants absents du rayon étaient donc perdus,
+  // c'est-à-dire exactement ceux qui avaient quelque chose à apprendre. Ils sont
+  // relus par identifiant, et seulement s'il en manque.
   const catalogById = new Map(sameCategory.map((p) => [p.id, p]));
-  const recommended = [
-    ...togetherIds.map((id) => catalogById.get(id)).filter(Boolean),
-    ...sameCategory,
-  ]
+  const missing = togetherIds.filter((tid) => !catalogById.has(tid));
+  const fetched = missing.length > 0
+    ? await loadCatalog(store.business_id, { ids: missing, onlyPublished })
+    : [];
+  for (const p of fetched) catalogById.set(p.id, p);
+
+  // Épuisé et non commandable : le bloc porte un bouton d'ajout, et proposer
+  // d'ajouter ce qu'on ne peut pas commander est une impasse de plus dans une
+  // page qui en a déjà assez.
+  const together = togetherIds
+    .map((tid) => catalogById.get(tid))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
-    .filter((p, i, arr) => p.id !== product.id && arr.findIndex((x) => x.id === p.id) === i)
+    .filter((p) => p.id !== product.id && (p.stock > 0 || p.allow_backorders))
+    .slice(0, 4);
+
+  const togetherIdSet = new Set(together.map((p) => p.id));
+
+  // Le rayon complète, sans redire ce que la première liste vient de dire.
+  const recommended = sameCategory
+    .filter((p) => p.id !== product.id && !togetherIdSet.has(p.id))
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
     .slice(0, 4);
 
   // Les sections reprises sous la fiche, moins celles qu'un onglet porte déjà.
@@ -168,6 +201,13 @@ export default async function ProductDetailPage({ params }: Props) {
         reviews={reviewData.reviews}
         shippingModes={Array.isArray(store.shipping_modes) ? store.shipping_modes : []}
         paymentMethods={Array.isArray(store.payment_methods) ? store.payment_methods : []}
+      />
+
+      <BoughtTogether
+        store={view}
+        businessId={store.business_id}
+        products={together}
+        title="Produits souvent commandés ensemble"
       />
 
       {recommended.length > 0 && (

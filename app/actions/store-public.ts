@@ -229,6 +229,18 @@ export async function getStoreProducts(
     maxPrice?:  number;
     /** Ne rendre que ce qui est réellement disponible. */
     inStock?:   boolean;
+    /**
+     * Des fiches précises, par identifiant.
+     *
+     * Pour les listes calculées ailleurs — co-achats, meilleures ventes — qui
+     * rendent des identifiants et non des fiches. Les rapprocher d'un catalogue
+     * déjà chargé ne marche que si ce catalogue les contient : un produit
+     * souvent acheté avec celui-ci est rarement du même rayon, et c'est
+     * justement ce qui le rend intéressant.
+     *
+     * Une liste VIDE rend une liste vide, et non tout le catalogue.
+     */
+    ids?: string[];
   },
 ): Promise<StoreProduct[]> {
   const svc = getSupabaseService();
@@ -246,6 +258,13 @@ export async function getStoreProducts(
   // les moteurs de recherche pointent dessus, et une URL publique ne se casse
   // pas parce qu'on a normalisé un schéma.
   else if (opts?.category) q = q.eq('category', opts.category);
+
+  // Les identifiants passent AVANT le rayon : une liste d'identifiants est une
+  // réponse, pas un filtre à croiser avec un autre.
+  if (opts?.ids) {
+    if (opts.ids.length === 0) return [];
+    q = q.in('id', opts.ids);
+  }
 
   if (opts?.search)   q = q.ilike('name', `%${opts.search}%`);
   if (opts?.inStock)  q = q.gt('stock_quantity', 0);

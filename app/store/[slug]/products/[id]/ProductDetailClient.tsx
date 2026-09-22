@@ -39,11 +39,13 @@ import { BuyColumn } from '../../../../../components/store/product/BuyColumn';
 import { ProductTabs } from '../../../../../components/store/product/ProductTabs';
 import { ProductBand } from '../../../../../components/store/product/ProductBand';
 import { TrustRail } from '../../../../../components/store/product/TrustRail';
+import { SpecGrid } from '../../../../../components/store/product/SpecGrid';
 import { storeMoney } from '../../../../../components/store/format';
 import { trackStoreEvent } from '../../../../../components/store/blocks/TrackView';
 import { buildWhatsAppOrderLink, buildBookingLink, resolveOrderPhone } from '../../../../../lib/storeWhatsApp';
 import { designFor } from '../../../../../lib/storeDesign';
 import { pdpProfileFor } from '../../../../../lib/storeProductPage';
+import { pickRailReview } from '../../../../../lib/storeReviewPick';
 import { useOwnsBottomBar } from '../../../../../components/store/StorefrontUI';
 import { collectionHref } from '../../../../../lib/storeTheme';
 import type { ShippingMode } from '../../../../actions/store-public';
@@ -236,6 +238,8 @@ export function ProductDetailClient({
             theme={store.theme}
             shippingModes={shippingModes}
             currency={store.currency}
+            review={pickRailReview(reviews)}
+            reviewCount={rating.count}
           />
         )}
       </div>
@@ -244,6 +248,14 @@ export function ProductDetailClient({
           Description, détails, livraison, retours, avis, questions — et chez
           l'artisan : histoire de la pièce, matériaux, fabrication, dimensions.
           Un onglet dont la source est vide ne s'affiche pas. */}
+      {/* ── Les caractéristiques en tuiles, quand le rayon compare (§16, §34) ──
+          Entre l'achat et les onglets : après la décision de prix, avant le
+          détail qu'on va chercher. Le gabarit qui la pose n'a plus d'onglet
+          « Caractéristiques » ni de tableau dans sa colonne. */}
+      {profile.specGrid && (
+        <SpecGrid attributes={product.attributes} title={profile.specGrid} />
+      )}
+
       <ProductTabs
         tabs={profile.tabs}
         product={product}
