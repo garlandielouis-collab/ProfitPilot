@@ -196,17 +196,12 @@ export function ProductDetailClient({
         }
       >
         {/* ── La colonne de gauche : ce qu'on regarde ───────────────────────
-            La galerie, et sous elle la bande — l'une finissait 500 px avant
-            l'autre colonne, et la moitié de l'écran où l'acheteur regarde le
-            produit était vide au moment où il hésite. */}
-        {profile.rail ? (
-          <div className="min-w-0">
-            <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
-            <ProductBand store={store} />
-          </div>
-        ) : (
+            La galerie seule. La bande de marque qui la suivait est descendue
+            en pleine largeur, là où les vingt-trois maquettes la posent — en
+            colonne à 40 %, l'histoire du marchand était une note de bas de page. */}
+        <div className="min-w-0">
           <ProductGallery images={images} alt={product.name} rule={design.mediaPdp} />
-        )}
+        </div>
 
         {/* ── La colonne d'achat de CE métier (§16, §34) ────────────────────
             Six mécaniques, pas six couleurs : on ajoute au panier chez un
@@ -264,6 +259,12 @@ export function ProductDetailClient({
         reviews={reviews}
         average={rating.average}
       />
+
+      {/* ── La bande de marque, en pleine largeur (§16, §34) ──
+          Le seul moment de la fiche où la BOUTIQUE parle d'elle-même : après
+          le détail, avant les suggestions. Vide chez le marchand, elle n'existe
+          pas. */}
+      <ProductBand store={store} />
 
       {/* ── Barre d'achat collante, mobile uniquement (§18) ── */}
       {!outOfStock && !ctaVisible && (

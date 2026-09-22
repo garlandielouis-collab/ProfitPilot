@@ -142,3 +142,17 @@ describe('pickRailReview — un seul avis, et le bon', () => {
     assert.deepEqual(liste.map((r) => r.id), ['a', 'b']);
   });
 });
+
+describe('la note renvoie toujours vers un panneau qui existe', () => {
+  // `RatingRow` et le témoignage du rail ouvrent l'onglet des avis par
+  // évènement. Un profil sans onglet « Avis » ne trouverait personne : le clic
+  // ne déplacerait rien, et le chiffre resterait un lien mort.
+  for (const id of TEMPLATE_IDS) {
+    test(`${id} porte l'onglet des avis`, () => {
+      assert.ok(
+        pdpProfileFor(id).tabs.some((t) => t.key === 'reviews'),
+        `${id} affiche une note cliquable mais n'a pas d'onglet d'avis à ouvrir.`,
+      );
+    });
+  }
+});

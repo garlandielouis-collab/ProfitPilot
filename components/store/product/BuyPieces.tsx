@@ -22,6 +22,7 @@
 
 import { Minus, Plus, Star, Truck, Shield, RefreshCw, Phone, CreditCard, Clock } from 'lucide-react';
 import { storeMoney } from '../format';
+import { openPdpTab } from './pdpTabs';
 import type { ThemeConfig } from '../../../lib/storeTheme';
 import type { StoreProduct, StoreView } from '../types';
 import type { ShippingMode } from '../../../app/actions/store-public';
@@ -89,9 +90,17 @@ export function RatingRow({ average, count }: { average: number; count: number }
           />
         ))}
       </div>
-      <a href="#avis" className="text-[13px] text-[var(--st-ink-2)] underline underline-offset-4">
+      {/* Un bouton, pas une ancre : seul l'onglet ACTIF est rendu, donc
+          « #avis » ne désignait aucun nœud tant que le panneau des avis n'était
+          pas ouvert. Le lien ne déplaçait rien. L'évènement ouvre le panneau
+          et l'amène sous les yeux (`pdpTabs.ts`). */}
+      <button
+        type="button"
+        onClick={() => openPdpTab('reviews')}
+        className="text-[13px] text-[var(--st-ink-2)] underline underline-offset-4"
+      >
         {count} avis
-      </a>
+      </button>
     </div>
   );
 }

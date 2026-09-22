@@ -38,6 +38,7 @@
 import { Truck, Shield, RefreshCw, Phone, CreditCard, Clock, Quote } from 'lucide-react';
 import { storeMoney } from '../format';
 import { MerchantHint } from './MerchantHint';
+import { openPdpTab } from './pdpTabs';
 import type { ThemeConfig } from '../../../lib/storeTheme';
 import type { ShippingMode } from '../../../app/actions/store-public';
 import type { StoreReview } from '../sections/types';
@@ -194,12 +195,13 @@ function RailReview({ review, count, first }: {
         {review.author_name}
       </figcaption>
       {count > 0 && (
-        <a
-          href="#avis"
+        <button
+          type="button"
+          onClick={() => openPdpTab('reviews')}
           className="mt-2 inline-block text-[11.5px] text-[var(--st-ink-3)] underline underline-offset-4"
         >
           {count === 1 ? '1 avis publié' : `${count} avis publiés`}
-        </a>
+        </button>
       )}
     </figure>
   );

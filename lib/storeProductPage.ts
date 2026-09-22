@@ -463,9 +463,12 @@ const PROFILES: Partial<Record<TemplateId, PdpProfile>> = {
   // la taille, l'envoi, le retour — dans le vocabulaire de la tenue.
   chic: {
     buy: 'apparel',
+    // La maquette pose la matière, la finition et l'entretien en rangée de
+    // cartes sous la bande, pas en onglet fermé : sur une pièce chère, c'est
+    // le détail qui justifie le prix, et un onglet le cache.
+    specGrid: 'Le détail de la pièce',
     tabs: [
       DESCRIPTION,
-      DETAILS,
       { key: 'sizeGuide', label: 'Guide des tailles' },
       SHIPPING,
       RETURNS,
@@ -555,6 +558,9 @@ const PROFILES: Partial<Record<TemplateId, PdpProfile>> = {
   food: {
     buy: 'catering',
     rail: true,
+    // Provenance, conservation, poids : ce qu'on vérifie AVANT de commander
+    // à manger, et ce que la maquette pose en cartes sous les onglets.
+    specGrid: 'Bon à savoir',
     tabs: [
       DESCRIPTION,
       { key: 'ingredients', label: 'Ingrédients' },
