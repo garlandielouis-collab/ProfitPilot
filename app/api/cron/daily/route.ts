@@ -29,6 +29,7 @@ import { notify } from '../../../../lib/notify';
 import { sweepDocumentExpirations } from '../../../../lib/documents/expirationSweep';
 import { sweepReferralActivations } from '../../../actions/referrals';
 import { sweepReviewRequests } from '../../../../lib/reviewRequestSweep';
+import { sweepPaymentBridge } from '../../../../lib/paymentBridge/sweep';
 import {
   getEnhancementProvider,
   type EnhancementProvider,
@@ -311,6 +312,13 @@ export async function GET(req: NextRequest) {
     sent: 0, skipped: 0, failed: 0,
   });
 
+  // Payment Bridge : les délais de paiement échus et les téléphones muets. Rien
+  // qui touche à de l'argent — voir lib/paymentBridge/sweep.ts. Isolé comme les
+  // autres : une migration pas encore collée ne fait pas taire le reste.
+  const paymentBridge = await run('paymentBridge', () => sweepPaymentBridge(), {
+    sessions: 0, intents: 0, offline: 0,
+  });
+
   // Les retouches IA bloquées : débitées, jamais livrées, jamais remboursées.
   // En dernier et sous budget — voir la section plus haut.
   const imageJobs = await run(
@@ -332,6 +340,9 @@ export async function GET(req: NextRequest) {
     imageJobsCompleted:    imageJobs.completed,
     imageJobsFailed:       imageJobs.failed,
     imageJobsLeft:         imageJobs.left,
+    paymentSessionsExpired: paymentBridge.sessions,
+    paymentIntentsExpired:  paymentBridge.intents,
+    paymentDevicesOffline:  paymentBridge.offline,
     ...(failures.length > 0 ? { failures } : {}),
   });
 }

@@ -7,6 +7,7 @@ import { assertFeature } from '../../lib/entitlements';
 import { revalidateStore } from '../../lib/storefrontData';
 import { parseThemeConfig, slugify, validateSlug } from '../../lib/storeTheme';
 import { confirmStoreOrder } from './store-public';
+import { queueOrderConfirmedEmail } from '../../lib/orderEmails';
 import type { StoreSettings, ShippingMode } from './store-public';
 import { attempt, UserFacingError, type ActionResult } from '../../lib/actionResult';
 
@@ -373,6 +374,10 @@ export async function updateOrderStatus(
   if (status === 'confirmed') update.payment_status = 'paid';
 
   await svc.from('orders').update(update).eq('id', orderId).eq('business_id', businessId);
+
+  // Le client apprend que sa commande est acceptée. Une seule fois par
+  // commande, même reconfirmée ou réglée ensuite par passerelle.
+  if (status === 'confirmed') queueOrderConfirmedEmail(orderId);
 
   revalidatePath('/boutique/commandes');
   });

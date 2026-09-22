@@ -24,6 +24,7 @@
 import { after, NextResponse } from 'next/server';
 import { getSupabaseService } from './supabaseServiceClient';
 import { notify } from './notify';
+import { queueOrderConfirmedEmail, sendMerchantOrderEmail } from './orderEmails';
 
 export type GatewayName = 'moncash' | 'natcash';
 
@@ -455,6 +456,10 @@ async function sendStoreOrderNotification(orderId: string, event: StoreOrderEven
         event,
       },
     });
+
+    // La cloche ne sonne que pour qui a l'application ouverte : le courriel
+    // suit le marchand hors de ProfitPilot. Ne lève jamais.
+    await sendMerchantOrderEmail(order.id as string, event);
   } catch {
     // Jamais au détriment de la commande.
   }
@@ -801,6 +806,8 @@ export async function settleGatewayOrder(params: {
       .throwOnError();
     saleId = typeof confirmedSaleId === 'string' ? confirmedSaleId : null;
     await svc.from('orders').update({ status: 'confirmed' }).eq('id', order.id);
+    // Sans effet au second rappel : le courriel se dédoublonne lui-même.
+    queueOrderConfirmedEmail(order.id as string);
   } catch (err) {
     console.error(
       `[${params.gateway}] paiement encaissé mais commande non confirmée`,

@@ -21,6 +21,7 @@ import type { Metadata } from 'next';
 import { loadStore, buildStorefrontContext } from '../../../../lib/storefrontData';
 import { toStoreView } from '../../../../components/store/types';
 import { resolveTemplateId } from '../../../../components/store/templates/registry';
+import { payableMethods } from '../../../../lib/paymentBridge/checkout';
 import { CheckoutClient } from './CheckoutClient';
 
 type Props = {
@@ -44,13 +45,20 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   const templateId = resolveTemplateId(store.template_id);
   const view       = toStoreView(store, { base: ctx.base, origin: ctx.origin, templateId });
 
+  // Seulement ce qui peut être encaissé : NatCash coché sans numéro ni
+  // identifiants API n'est pas proposé (lib/paymentBridge/checkout.ts).
+  const methods = await payableMethods(
+    store.business_id,
+    Array.isArray(store.payment_methods) ? store.payment_methods : ['cash'],
+  );
+
   const failed = (Array.isArray(sp.error) ? sp.error[0] : sp.error) === 'payment_failed';
 
   return (
     <CheckoutClient
       store={view}
       businessId={store.business_id}
-      paymentMethods={Array.isArray(store.payment_methods) ? store.payment_methods : ['cash']}
+      paymentMethods={methods}
       shippingModes={Array.isArray(store.shipping_modes) ? store.shipping_modes : []}
       paymentFailed={failed}
     />

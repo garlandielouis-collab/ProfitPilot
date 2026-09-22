@@ -88,6 +88,16 @@ function whatsappUrlOf(n: Notification): string | null {
   return typeof url === 'string' && url.startsWith('https://wa.me/') ? url : null;
 }
 
+/**
+ * La page où agir sur ce que la notification annonce — un chemin INTERNE
+ * seulement (`/paiements?id=…`, `/boutique/commandes`). Sans ce lien, « Paiement
+ * signalé par un client » se lisait, et le marchand ne savait pas où confirmer.
+ */
+function actionUrlOf(n: Notification): string | null {
+  const url = n.data?.action_url ?? n.data?.href;
+  return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') ? url : null;
+}
+
 /** Ce que chaque type prévient — la ligne qui manquait à l'écran de réglages. */
 const PREF_HINTS: Record<string, Bilingual> = {
   sale_created:        { fr: 'À chaque vente enregistrée, y compris par un employé.', ht: 'Chak fwa yon vant anrejistre, menm pa yon anplwaye.' },
@@ -258,6 +268,7 @@ function NotificationsInner() {
                     const Icon = cfg.icon;
                     const isUnread = !n.readAt;
                     const whatsappUrl = whatsappUrlOf(n);
+                    const actionUrl = actionUrlOf(n);
 
                     return (
                       <li key={n.id}>
@@ -312,6 +323,18 @@ function NotificationsInner() {
                             lien, le message restait enfermé dans la notification.
                             Hors du bouton — un lien ne s'imbrique pas dans un
                             bouton — et aligné sous le texte. */}
+                        {actionUrl && (
+                          <div className="-mt-2 pb-2 pl-[4.25rem] pr-4">
+                            <a
+                              href={actionUrl}
+                              className="pressable inline-flex min-h-touch items-center text-note font-bold text-primary underline underline-offset-4 dark:text-dark-text"
+                            >
+                              {n.data?.event?.startsWith?.('payment_')
+                                ? t({ fr: 'Voir le paiement', ht: 'Wè peman an' })
+                                : t({ fr: 'Ouvrir', ht: 'Louvri' })}
+                            </a>
+                          </div>
+                        )}
                         {whatsappUrl && (
                           <div className="-mt-2 pb-2 pl-[4.25rem] pr-4">
                             <a

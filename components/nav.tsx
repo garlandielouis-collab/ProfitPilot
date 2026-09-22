@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-  Activity, BarChart3, Bell, Boxes, Building2, ClipboardList, Code2, CreditCard, Database,
+  Activity, Banknote, BarChart3, Bell, Boxes, Building2, ClipboardList, Code2, CreditCard, Database,
   FileText, FolderOpen, Gift, HandCoins, Home, Landmark, Layers, Lock, MessageSquare,
   MoreHorizontal, Package, Palette, Plus,
   Receipt, Rocket, Settings, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Store,
@@ -91,6 +91,11 @@ export const MORE_SECTIONS: MoreSection[] = [
         hint: { fr: 'Chez qui vous vous approvisionnez', ht: 'Kote w achte' }, icon: Truck },
       { href: '/expenses',  label: { fr: 'Dépenses', ht: 'Depans' },
         hint: { fr: 'Loyer, transport, salaires', ht: 'Lwaye, transpò, salè' }, icon: Receipt },
+      // Les paiements MonCash/NatCash reçus directement sur le numéro du
+      // marchand, à confirmer (Payment Bridge). Près des dettes et des clients :
+      // c'est de l'argent qui arrive, pas un réglage de la vitrine.
+      { href: '/paiements', label: { fr: 'Paiements reçus', ht: 'Peman resevwa' },
+        hint: { fr: 'MonCash et NatCash à confirmer', ht: 'MonCash ak NatCash pou konfime' }, icon: Banknote },
       { href: '/dettes',    label: { fr: 'Dettes', ht: 'Dèt' },
         hint: { fr: 'Ce que vous devez, et à qui', ht: 'Sa w dwe, ak kiyès' }, icon: Wallet },
       { href: '/customers', label: { fr: 'Clients', ht: 'Kliyan' },
@@ -230,6 +235,9 @@ export const ROUTE_FEATURE: Record<string, Feature> = {
   '/rapports/comptabilite': 'advanced_reports',
   '/rentabilite':           'product_profitability',
   '/boutique':              'online_store',
+  // Les paiements directs naissent des commandes de la vitrine : sans boutique
+  // en ligne, l'écran resterait vide pour toujours. Même règle, donc.
+  '/paiements':             'online_store',
   '/ai-assistant':          'ai_assistant',
   '/employes':              'employees',
   '/activity':              'activity_log',

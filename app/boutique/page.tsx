@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { unwrap, screenMessage  } from '../../lib/actionResult';
+import { listPaymentMethods } from '../actions/paymentBridge';
 
 // La carte reste listée mais n'est pas sélectionnable : aucune passerelle carte
 // n'est branchée. Cochée, elle apparaissait chez l'acheteur et la commande
@@ -287,6 +288,15 @@ export default function BoutiquePage() {
     natcash_client_secret: '',
     natcash_sandbox:       false,
   });
+
+  // Les numéros Payment Bridge déclarés : sans eux ni identifiants API, un
+  // moyen mobile coché n'a nulle part où envoyer l'argent, et la caisse le masque.
+  const [bridgeNumbers, setBridgeNumbers] = useState<string[]>([]);
+  useEffect(() => {
+    listPaymentMethods().then((r) => {
+      if (r.ok) setBridgeNumbers(r.data.methods.filter((m) => m.isEnabled).map((m) => m.method));
+    });
+  }, []);
 
   useEffect(() => {
     getMyStoreSettings().then((s) => {
@@ -640,6 +650,30 @@ export default function BoutiquePage() {
                   ))}
                 </div>
               </div>
+              {/* Payment Bridge : la voie SANS contrat API. Proposée avant les
+                  identifiants, parce que c'est celle qu'un petit commerce peut
+                  réellement utiliser dès aujourd'hui — les identifiants restent
+                  en dessous pour ceux qui ont MonCash Business. */}
+              {(['moncash', 'natcash'] as const)
+                .filter((m) => form.payment_methods.includes(m)
+                  && !creds[m === 'moncash' ? 'moncash_client_id' : 'natcash_client_id'].trim()
+                  && !bridgeNumbers.includes(m))
+                .map((m) => (
+                  <p key={m} role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    {m === 'moncash' ? 'MonCash' : 'NatCash'} est coché, mais aucun numéro ni identifiant n'est
+                    enregistré : vos clients ne le verront pas à la caisse tant que vous n'aurez pas ajouté votre numéro.
+                  </p>
+                ))}
+              {(form.payment_methods.includes('moncash') || form.payment_methods.includes('natcash')) && (
+                <a href="/paiements/reglages"
+                   className="block rounded-2xl border border-slate-200 p-5 transition hover:bg-slate-50">
+                  <span className="block font-bold text-slate-800">Pas de compte MonCash Business ?</span>
+                  <span className="mt-1 block text-sm text-slate-600">
+                    Indiquez simplement votre numéro MonCash ou NatCash. Vos clients paieront directement dessus,
+                    et vous confirmerez les paiements depuis l'écran « Paiements reçus ». →
+                  </span>
+                </a>
+              )}
               {/* MonCash credentials — shown when MonCash is enabled */}
               {form.payment_methods.includes('moncash') && (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">

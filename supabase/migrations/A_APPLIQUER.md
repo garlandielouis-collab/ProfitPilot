@@ -6,6 +6,34 @@ fichier se colle à la main dans le SQL Editor de Supabase.
 
 D'où ce fichier : savoir, sans deviner, ce qui reste à coller.
 
+## Ajoutée le 30/09/2026 — **URGENTE : les commandes du site ne deviennent pas des ventes**
+
+| Migration | Effet si elle n'est pas collée |
+|---|---|
+| `20260930_confirm_store_order_entrepot` | Toute confirmation de commande échoue pour un commerce sans entrepôt (`warehouse_id` NOT NULL) : pas de vente, pas de stock décrémenté. Payment Bridge enregistre le paiement mais laisse la commande « à régulariser ». Rattrape aussi les commandes payées restées sans vente (ORD-2026-00004). |
+
+La dernière requête doit rendre **0 ligne** ; les messages du SQL Editor listent
+les commandes comptabilisées.
+
+## Ajoutée le 30/09/2026 — **À COLLER avant de déployer les courriels de commande**
+
+| Migration | Effet si elle n'est pas collée |
+|---|---|
+| `20260930_order_confirmation_email` | L'acheteur ne reçoit pas le courriel « Votre commande est confirmée » : sans la colonne `orders.confirmation_email_sent_at`, le code ne sait pas dédoublonner et n'envoie rien (un avertissement au journal). Le courriel « Nouvelle commande » au marchand, lui, part quand même. |
+
+Idempotente. La dernière requête doit rendre `true`.
+
+## Ajoutée le 28/09/2026 — **À COLLER avant de déployer Payment Bridge**
+
+| Migration | Effet si elle n'est pas collée |
+|---|---|
+| `20260927_payment_bridge` | Les sept tables du module n'existent pas. La caisse ne casse pas : `bridgeAvailable()` rend faux quand la table manque, et MonCash/NatCash sans contrat API retombent sur le message « pas encore disponible » d'avant. Mais l'écran « Paiements reçus » et ses réglages échouent, et le cron journalise un échec `paymentBridge`. |
+
+Idempotente, rejouable. Coller le fichier **entier**, y compris le bloc de
+vérification après le `COMMIT` : il doit rendre une ligne avec `tables = 7`,
+`fonctions = 4`, `politiques = 9`, et `true` dans les trois dernières colonnes.
+Toute autre valeur : relancer le fichier avant de déployer le code.
+
 ## Ajoutée le 18/09/2026 — facultative
 
 | Migration | Effet si elle n'est pas collée |

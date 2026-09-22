@@ -7,6 +7,7 @@ import {
 } from '../../../../../lib/storePaymentGateway';
 import { createStoreOrder } from '../../../../actions/store-public';
 import { unwrap, screenMessage  } from '../../../../../lib/actionResult';
+import { bridgeAvailable, startBridgeCheckout } from '../../../../../lib/paymentBridge/checkout';
 
 // ── NatCash (Natcom Haiti) API helpers ────────────────────────────────────────
 // API docs: obtained from Natcom merchant portal after registration.
@@ -76,8 +77,24 @@ export async function POST(req: NextRequest) {
 
     const creds = await readGatewayCredentials(businessId, 'natcash');
     if (!creds) {
+      // Pas de contrat API : la seconde voie, Payment Bridge, si le marchand a
+      // déclaré un numéro. L'acheteur transfère directement vers ce numéro et
+      // voit une page d'instructions au lieu d'une redirection
+      // (lib/paymentBridge/checkout.ts).
+      if (await bridgeAvailable(businessId, 'natcash')) {
+        const bridged = await startBridgeCheckout({ businessId, method: 'natcash', orderData });
+        if (!bridged.ok) return NextResponse.json({ error: bridged.error }, { status: bridged.status });
+        return NextResponse.json({
+          mode:        'bridge',
+          orderId:     bridged.orderId,
+          orderNumber: bridged.orderNumber,
+          intentId:    bridged.intentId,
+        });
+      }
+      // Ce message s'adresse à l'ACHETEUR : il ne peut rien faire d'un réglage
+      // manquant chez le marchand, mais il peut choisir un autre moyen.
       return NextResponse.json({
-        error: 'Identifiants NatCash non configurés. Allez dans Boutique → Paiement pour les ajouter.',
+        error: "NatCash n'est pas encore disponible dans cette boutique. Choisissez un autre moyen de paiement ou contactez-la.",
       }, { status: 400 });
     }
 

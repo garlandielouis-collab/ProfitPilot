@@ -418,6 +418,13 @@ export function CheckoutClient({
         // Il se vide quand la base dit payée (confirmation/ClearPaidCart, ou le
         // rapprochement ci-dessus) ; on note quelle commande l'engage.
         rememberPendingOrder(store.slug, json.orderId);
+        // Payment Bridge : pas de contrat API chez ce marchand, l'acheteur paie
+        // directement sur son numéro. On reste sur la vitrine, sur la page qui
+        // donne le montant, le numéro et la référence (paiement/page.tsx).
+        if (json.mode === 'bridge') {
+          router.push(`${store.base}/paiement?id=${json.intentId}`);
+          return;
+        }
         window.location.href = json.redirectUrl;
         return;
       }

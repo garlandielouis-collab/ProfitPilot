@@ -42,6 +42,16 @@ function whatsappUrlOf(n: Notification): string | null {
   return typeof url === 'string' && url.startsWith('https://wa.me/') ? url : null;
 }
 
+/**
+ * La page où agir sur ce que la notification annonce — un chemin INTERNE
+ * seulement (`/paiements?id=…`, `/boutique/commandes`). Sans ce lien, « Paiement
+ * signalé par un client » se lisait, et le marchand ne savait pas où confirmer.
+ */
+function actionUrlOf(n: Notification): string | null {
+  const url = n.data?.action_url ?? n.data?.href;
+  return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') ? url : null;
+}
+
 function relDate(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (diff < 60)    return 'À l\'instant';
@@ -214,6 +224,7 @@ export function NotificationBell() {
               notifs.map((n) => {
                 const c = cfg(n.type);
                 const whatsappUrl = whatsappUrlOf(n);
+                const actionUrl = actionUrlOf(n);
                 return (
                   <div key={n.id}>
                   <button
@@ -247,6 +258,15 @@ export function NotificationBell() {
                   </button>
                   {/* Le résumé du dimanche porte son message prêt à partir.
                       Hors du bouton : un lien ne s'imbrique pas dans un bouton. */}
+                  {actionUrl && (
+                    <a
+                      href={actionUrl}
+                      onClick={() => { void handleMarkRead(n.id); setOpen(false); }}
+                      className="block px-4 pb-3 pl-[3.75rem] text-note font-semibold text-primary hover:underline dark:text-slate-300"
+                    >
+                      {n.data?.event?.startsWith?.('payment_') ? 'Voir le paiement →' : 'Ouvrir →'}
+                    </a>
+                  )}
                   {whatsappUrl && (
                     <a
                       href={whatsappUrl}
