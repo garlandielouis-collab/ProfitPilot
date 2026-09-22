@@ -23,8 +23,16 @@ import type { TemplateId } from '../../../lib/storeTheme';
 import { unwrap, screenMessage  } from '../../../lib/actionResult';
 
 export function ApercuBar({
-  templateId, name, tagline, isCurrent, productCount, accent, accentInk,
+  templateId, name, tagline, isCurrent, productCount, accent, accentInk, path = '', pageLabel,
 }: {
+  /**
+   * La page regardée, sous la base de l'aperçu : `/products/<id>` sur une
+   * fiche. Les flèches la gardent — passer au gabarit suivant, c'est revoir la
+   * MÊME fiche dans un autre gabarit, et c'est la comparaison qu'on vient faire.
+   */
+  path?:        string;
+  /** Le nom de la page regardée, quand ce n'est pas l'accueil. */
+  pageLabel?:   string;
   templateId:   TemplateId;
   name:         string;
   tagline:      string;
@@ -87,7 +95,7 @@ export function ApercuBar({
 
       <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
         <Link
-          href={`/apercu/${prev.id}`}
+          href={`/apercu/${prev.id}${path}`}
           aria-label={`Gabarit précédent : ${prev.name}`}
           className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-control text-white/80 transition hover:bg-white/10"
         >
@@ -96,11 +104,13 @@ export function ApercuBar({
 
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <p className="truncate text-[14px] font-semibold">{name}</p>
-          <p className="truncate text-[12px] text-white/65">{tagline}</p>
+          <p className="truncate text-[12px] text-white/65">
+            {pageLabel ? `Fiche produit · ${pageLabel}` : tagline}
+          </p>
         </div>
 
         <Link
-          href={`/apercu/${next.id}`}
+          href={`/apercu/${next.id}${path}`}
           aria-label={`Gabarit suivant : ${next.name}`}
           className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-control text-white/80 transition hover:bg-white/10"
         >
