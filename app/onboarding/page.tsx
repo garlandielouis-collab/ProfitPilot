@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useLanguage } from '../../components/LanguageWrapper';
+import { TRIAL_DAYS, TRIAL_PLAN_KEY, getPlanLabel } from '../../lib/plans';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ export default function OnboardingPage() {
                 {t({ fr: 'Bienvenue sur ProfitPilot', ht: 'Byenveni sou ProfitPilot' })}
               </h1>
               <p className="mt-3 text-sm text-white/60 max-w-md mx-auto">
-                {t({ fr: '72 heures d\'essai gratuit — après cela, un abonnement est nécessaire pour continuer.', ht: '72 èdtan esè gratis — apre sa, ou bezwen yon abònman pou kontinye.' })}
+                {t({ fr: `${TRIAL_DAYS} jours d'essai gratuit — après cela, un abonnement est nécessaire pour continuer.`, ht: `${TRIAL_DAYS} jou esè gratis — apre sa, ou bezwen yon abònman pou kontinye.` })}
               </p>
           </motion.div>
 
@@ -269,7 +270,7 @@ export default function OnboardingPage() {
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}
             className="w-full max-w-xl mb-10">
             <AIBubble
-              text={t({ fr: 'Bonjour ! Je suis Pilot AI — votre guide intelligent ProfitPilot. Souhaitez-vous voir une démonstration rapide de ma puissance, ou commencer à configurer votre propre business dès maintenant ?\n\n**Rappel** : Vous avez **72 heures** d\'essai gratuit après votre inscription. Après cela, un abonnement sera nécessaire pour continuer à utiliser ProfitPilot.', ht: 'Bonjou ! Mwen se Pilot AI — ou gid entèlijan ProfitPilot. Souhaitez-vous voir une démonstration rapide de ma puissance, ou commencer à configurer votre propre business dès maintenant ?\n\n**Rapèl** : Ou gen **72 èdtan** esè gratis apre enskripsyon ou. Apre sa, yon abònman pral nesesè pou kontinye itilize ProfitPilot.' })}
+              text={t({ fr: `Bonjour ! Je suis Pilot AI — votre guide intelligent ProfitPilot. Souhaitez-vous voir une démonstration rapide de ma puissance, ou commencer à configurer votre propre business dès maintenant ?\n\n**Rappel** : Vous avez **${TRIAL_DAYS} jours** d'essai gratuit après votre inscription. Après cela, un abonnement sera nécessaire pour continuer à utiliser ProfitPilot.`, ht: `Bonjou ! Mwen se Pilot AI — gid entelijan ou nan ProfitPilot. Èske ou vle wè yon ti demonstrasyon rapid sou sa m kapab fè, oswa kòmanse mete biznis pa w kanpe kounye a ?\n\n**Rapèl** : Ou gen **${TRIAL_DAYS} jou** esè gratis apre enskripsyon ou. Apre sa, yon abònman pral nesesè pou kontinye itilize ProfitPilot.` })}
               showNext={false}
             />
           </motion.div>
@@ -584,7 +585,7 @@ export default function OnboardingPage() {
                   </Link>
                 </div>
 
-                <p className="text-center text-xs text-white/30">{t({ fr: 'Aucune carte bancaire • 3 jours Premium gratuits inclus', ht: 'Pa gen kat bankè • 3 jou Premium gratis enkli' })}</p>
+                <p className="text-center text-xs text-white/30">{t({ fr: `Aucune carte bancaire • ${TRIAL_DAYS} jours ${getPlanLabel(TRIAL_PLAN_KEY)} gratuits inclus`, ht: `Pa gen kat bankè • ${TRIAL_DAYS} jou ${getPlanLabel(TRIAL_PLAN_KEY)} gratis enkli` })}</p>
               </motion.div>
             </AnimatePresence>
           )}

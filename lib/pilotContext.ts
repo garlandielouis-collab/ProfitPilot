@@ -32,6 +32,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isPublicAppPath } from './publicRoutes';
+import { TRIAL_DAYS } from './plans';
 
 export type PilotRoute = {
   /**
@@ -280,7 +281,7 @@ export const DEFAULT_PILOT_ROUTE: PilotRoute = {
 export const EXPIRED_PILOT_ROUTE: PilotRoute = {
   key:     'expired',
   here:    'Votre essai est terminé',
-  capsule: 'Votre essai de 72 h est terminé. Souscrivez pour continuer.',
+  capsule: `Votre essai de ${TRIAL_DAYS} jours est terminé. Souscrivez pour continuer.`,
   prompts: [],
   next:    { label: 'Voir les abonnements', href: '/pricing' },
 };

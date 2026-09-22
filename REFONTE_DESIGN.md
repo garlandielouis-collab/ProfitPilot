@@ -550,18 +550,26 @@ Puis, par ordre de poids :
 
 1. **Le créole.** Le mécanisme existe partout (`t({ fr, ht })`) ; les tournures
    créoles méritent d'être relues par quelqu'un dont c'est la langue. La vague 5
-   en a ajouté six écrans entiers.
-2. **La décision produit sur `api_access`** : l'écran ne ment plus, mais l'offre
-   Elit vend toujours un accès API qui n'existe pas (`lib/plans.ts`). Soit on le
-   construit, soit on le retire des arguments de vente.
-3. **La durée de l'essai, annoncée à deux endroits différents.**
-   `/onboarding` promet « 72 heures d'essai gratuit », `hooks/useSubscription.ts`
-   en accorde 720 (trente jours). Ce n'est pas un défaut d'affichage : c'est un
-   chiffre de vente qui contredit le code. Il faut trancher lequel est le bon.
-4. **Le mode sombre des écrans hérités.** Les couleurs sont désormais des
+   en a ajouté six écrans entiers. Deux chaînes servaient du FRANÇAIS dans le
+   champ `ht` — la bulle d'accueil de `/onboarding` et le robot de la page
+   d'accueil — ; elles sont traduites, et c'est la relecture qui reste.
+2. **Le mode sombre des écrans hérités.** Les couleurs sont désormais des
    tokens, ce qui était le préalable ; mais un `bg-white` sans `dark:` reste
    blanc dans le thème sombre. Le passage se fera écran par écran, à l'occasion
    de la prochaine reprise de chacun.
+
+**La durée de l'essai, tranchée (22/09/2026).** Le produit en annonçait quatre :
+72 heures à l'installation, sur l'écran d'essai terminé et dans la capsule du
+copilote ; 14 jours dans le robot de la page d'accueil ; 3 jours « Premium »
+— une offre qui n'existe pas — au pied de l'inscription ; 30 dans
+`subscriptions`, la seule que le compte reçoive. C'est `TRIAL_DAYS`
+(`lib/plans.ts`) qui gagne, parce que c'est elle que `lib/trial.ts` écrit en
+base : les cinq endroits la lisent désormais, `TRIAL_HOURS` s'en déduit, et
+`tests/trialDuration.test.ts` refuse qu'on en réécrive une à la main.
+
+**La décision sur `api_access`, prise.** `lib/plans.ts` ne l'a jamais vendu — les
+six lignes d'Elit parlent de boutiques, d'employés, de journal et de projection,
+jamais d'API. Rien à retirer ; l'écran `/api-access` porte le raisonnement.
 
 **Fait depuis** : `app/actions/financialReporting.ts` passe désormais par
 `getBusinessContext()` — il prenait « la plus ancienne boutique du

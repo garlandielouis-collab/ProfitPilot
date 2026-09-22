@@ -4,7 +4,10 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/useAuth';
 import { useSubscriptionCheck } from '../hooks/useSubscription';
+import Link from 'next/link';
 import { useLanguage } from './LanguageWrapper';
+import { Button } from './ds';
+import { TRIAL_DAYS } from '../lib/plans';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -22,33 +25,31 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
   }, [checking, user, router]);
 
-  // Show expired screen (quick localStorage check, no delay)
+  // ── Essai terminé ──────────────────────────
+  // Le même écran que celui d'`AppShell`, et non plus sa version d'avant la
+  // refonte : l'ancienne posait ses couleurs en clair (`bg-slate-50`,
+  // `bg-amber-100`, `text-slate-500`) et restait blanche en thème sombre. Une
+  // page enveloppée par `ProtectedRoute` seul la servait encore.
   if (!checking && isExpired && !isPublic) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md text-center space-y-6">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100">
-            <svg className="h-8 w-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-primary">
-            {t({ fr: 'Période d\'essai terminée', ht: 'Periyòd esè fini' })}
-          </h2>
-          <p className="text-sm text-slate-500">
+      <main className="flex min-h-screen items-center justify-center bg-surface px-4 dark:bg-dark-bg">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="text-screen font-semibold text-primary dark:text-dark-text">
+            {t({ fr: "Période d'essai terminée", ht: 'Peryòd esè a fini' })}
+          </h1>
+          <p className="mt-2 text-body text-text2 dark:text-dark-text2">
             {t({
-              fr: 'Votre période d\'essai de 72 heures est expirée. Souscrivez à un abonnement pour continuer à utiliser ProfitPilot.',
-              ht: 'Periyòd esè 72 èdtan ou fini. Abonne-w pou kontinye itilize ProfitPilot.',
+              fr: `Votre période d'essai de ${TRIAL_DAYS} jours est terminée. Vos données sont intactes : choisissez un abonnement pour y accéder de nouveau.`,
+              ht: `Peryòd esè ${TRIAL_DAYS} jou ou a fini. Done ou yo la : chwazi yon abònman pou w jwenn yo ankò.`,
             })}
           </p>
-          <a
-            href="/pricing"
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary-h"
-          >
-            {t({ fr: 'Voir les abonnements', ht: 'Wè abònman yo' })}
-          </a>
+          <Link href="/pricing" className="mt-8 block">
+            <Button variant="accent" size="lg" block>
+              {t({ fr: 'Voir les abonnements', ht: 'Wè abònman yo' })}
+            </Button>
+          </Link>
         </div>
-      </div>
+      </main>
     );
   }
 

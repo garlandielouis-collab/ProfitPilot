@@ -3,10 +3,15 @@
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { TRIAL_DAYS } from '../lib/plans';
 
 export const LOGIN_TIME_KEY = 'pp_login_time';
 export const SUBSCRIPTION_ACTIVE_KEY = 'pp_subscription_active';
-const TRIAL_HOURS = 720; // 30 jours
+// La durée de l'essai a une seule source : `TRIAL_DAYS` (lib/plans.ts), celle
+// que `lib/trial.ts` écrit dans `subscriptions` et que la page de prix annonce.
+// Ce garde-fou de navigateur ne peut pas en tenir une autre, sinon il ferme
+// l'application avant l'échéance que le marchand a lue.
+const TRIAL_HOURS = TRIAL_DAYS * 24;
 
 const PUBLIC_PATHS = ['/', '/pricing', '/checkout', '/auth/login', '/auth/register', '/onboarding',
   '/blog', '/faq', '/guide', '/legal', '/updates'];

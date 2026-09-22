@@ -6,14 +6,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useLanguage } from '../LanguageWrapper';
+import { TRIAL_DAYS } from '../../lib/plans';
 
 type Msg = { role: 'bot' | 'user'; text: string };
 
 const BOT = [
   { triggers: ['bonjour','hello','salut','bonjou','alo','hi'],
-    reply: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a? 🔔 **Rappel**: Après 72h d\'essai gratuit, vous devrez souscrire à un abonnement pour continuer. Klike sou "Tarifs" pou wè opsyon yo!' },
+    reply: `Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a? 🔔 **Rapèl**: Apre ${TRIAL_DAYS} jou esè gratis, w ap bezwen yon abònman pou kontinye. Klike sou "Tarifs" pou wè opsyon yo!` },
   { triggers: ['prix','coût','tarif','paye','pri','combien','konbe','abonnement'],
-    reply: 'ProfitPilot ofri yon essai gratis 14 jou — san kat kredi. Klike sou "Tarifs" pou wè detay yo! 💰' },
+    reply: `ProfitPilot ofri yon esè gratis ${TRIAL_DAYS} jou — san kat kredi. Klike sou "Tarifs" pou wè detay yo! 💰` },
   { triggers: ['feature','fonction','fonksyon','kisa','kapab','offre'],
     reply: 'ProfitPilot ofri:\n✅ Suivi ventes & achats\n✅ Scan produit instantané\n✅ Rapports HTG/USD\n✅ Gestion dettes fournisseurs\n✅ PilotAI — conseils IA\n✅ Mode hors-ligne' },
   { triggers: ['commencer','démarrer','inscrire','kòmanse','enskri','essai','gratis'],
@@ -34,7 +35,7 @@ export function PilotAIChatbot() {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
-    { role: 'bot', text: 'Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a?\n\n🔔 **Rappel**: Après 72h d\'essai gratuit, vous devrez souscrire à un abonnement pour continuer. Klike sou "Tarifs" pou wè opsyon yo!' },
+    { role: 'bot', text: `Bonjou! 👋 Mwen se PilotAI. Kijan mwen ka ede ou jodi a?\n\n🔔 **Rapèl**: Apre ${TRIAL_DAYS} jou esè gratis, w ap bezwen yon abònman pou kontinye. Klike sou "Tarifs" pou wè opsyon yo!` },
   ]);
   const [flow, setFlow] = useState<null | 'demo' | 'buyer'>(null);
   const [buyerStep, setBuyerStep] = useState(0);
