@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Les couleurs de la marque (CONSTITUTION_VISUELLE.md) : marine et émeraude. -->
+<resources>
+    <color name="colorPrimary">#001F3F</color>
+    <color name="colorPrimaryDark">#001F3F</color>
+    <color name="colorAccent">#50C878</color>
+    <color name="pp_white">#FFFFFF</color>
+</resources>

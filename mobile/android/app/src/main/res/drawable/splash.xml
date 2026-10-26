@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  L'écran de démarrage d'avant Android 12 : le logo centré sur blanc. Une seule
+  image (drawable-nodpi/splash_logo.png, 7 Ko) remplace les dix images plein
+  écran du gabarit Capacitor.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/pp_white" />
+    <item
+        android:width="128dp"
+        android:height="128dp"
+        android:gravity="center"
+        android:drawable="@drawable/splash_logo" />
+</layer-list>
