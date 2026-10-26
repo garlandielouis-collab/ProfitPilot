@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# L'APK de test de l'application Android (coque Capacitor)
+#
+# Le poste de développement n'a ni Java ni SDK Android, et 3,7 Go de RAM :
+# Gradle ne peut pas y tourner. Le build se fait ici, sur les machines de
+# GitHub, qui ont déjà le SDK Android.
+#
+# Sortie : `app-debug.apk`, téléchargeable depuis l'onglet « Actions » de la
+# branche, à installer sur un téléphone de test. Signé avec la clé de débogage
+# de Gradle : pas pour le Play Store (phase 6), suffisant pour essayer.
+#
+# Aucun secret n'est nécessaire. `CAP_SERVER_URL` (variable du dépôt,
+# facultative) choisit l'adresse chargée par la coque ; sans elle, la
+# production.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: APK Android (test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Adresse chargée par la coque (vide = production)"
+        required: false
+  push:
+    branches: [claude/app-mobile-capacitor]
+    paths:
+      - 'mobile/**'
+      - 'capacitor.config.ts'
+      - 'scripts/mobile-*.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-apk.yml'
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Capacitor 8 et le plugin Gradle 8.13 demandent un JDK 21.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Synchroniser le projet Android
+        env:
+          CAP_SERVER_URL: ${{ inputs.server_url || vars.CAP_SERVER_URL }}
+        run: npm run mobile:sync
+
+      - name: Construire l'APK de test
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Taille de l'APK
+        run: |
+          APK=mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          BYTES=$(stat -c %s "$APK")
+          echo "### APK de test" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Fichier | Taille |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| app-debug.apk | $(awk "BEGIN {printf \"%.2f\", $BYTES/1048576}") Mo |" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: profitpilot-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
