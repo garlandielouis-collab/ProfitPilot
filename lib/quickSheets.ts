@@ -17,6 +17,8 @@ export type SalePreset = {
   amount?: number;
   note?: string;
   customerName?: string;
+  /** L'unité où le montant a été dit (« 50 dola » reste 50 dola). */
+  unit?: 'HTG' | 'DOLA' | 'USD';
 };
 
 export type ExpensePreset = {
@@ -25,6 +27,7 @@ export type ExpensePreset = {
   amount?: number;
   note?: string;
   category?: string;
+  unit?: 'HTG' | 'DOLA' | 'USD';
 };
 
 export const OPEN_SALE_EVENT = 'pp:open-sale';
