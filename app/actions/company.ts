@@ -12,6 +12,7 @@ import { getPreviewPlanServer } from '../../lib/planPreviewServer';
 import { resolvePlanKey } from '../../lib/trial';
 import { isExchangeRateSet } from '../../lib/currency';
 import { screenMessage } from '../../lib/actionResult';
+import { readKaye, type KayeSettings } from '../../lib/kaye';
 
 const ACTIVE_STORE_COOKIE = 'pp_active_store';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +38,8 @@ export type CompanyInfo = {
   phone:           string | null;
   address:         string | null;
   taxId:           string | null;
+  /** Métier et réglages du quotidien (`businesses.settings.kaye`, lib/kaye.ts). */
+  kaye:            KayeSettings;
 };
 
 export type CompanyRow = CompanyInfo & {
@@ -81,6 +84,7 @@ function mapBiz(b: any): CompanyInfo {
     phone:    b.phone     ?? null,
     address:  b.address   ?? null,
     taxId:    b.tax_id    ?? null,
+    kaye:     readKaye(b.settings),
   };
 }
 
@@ -98,14 +102,14 @@ export async function getClientTenantContext(): Promise<ClientTenantContext | nu
     const [{ data: owned }, { data: memberOf }] = await Promise.all([
       supabase
         .from('businesses')
-        .select('id, name, sector, default_currency, exchange_rate, logo_url, country, timezone, email, phone, address, tax_id')
+        .select('id, name, sector, default_currency, exchange_rate, logo_url, country, timezone, email, phone, address, tax_id, settings')
         .eq('owner_id', user.id)
         .is('deleted_at', null)
         .is('archived_at', null)
         .order('created_at', { ascending: true }),
       supabase
         .from('business_members')
-        .select('business_id, role, businesses(id, name, sector, default_currency, exchange_rate, logo_url, country, timezone, email, phone, address, tax_id)')
+        .select('business_id, role, businesses(id, name, sector, default_currency, exchange_rate, logo_url, country, timezone, email, phone, address, tax_id, settings)')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .is('deleted_at', null),

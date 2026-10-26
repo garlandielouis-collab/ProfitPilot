@@ -5,13 +5,16 @@ import { motion, useInView } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../LanguageWrapper';
+import { TRIAL_DAYS } from '../../lib/plans';
 
+// L'installation de l'étude de marché inversée (§11.3) : dix minutes, et
+// l'étape 4 est la démonstration qui vend le produit.
 const STEPS = [
-  { n: '01', icon: '🏪', title: { fr: 'Créez votre compte', ht: 'Kreye kont ou' }, desc: { fr: 'En 2 minutes, sans carte bancaire. Votre business est configuré instantanément.', ht: 'An 2 minit, san kat bank. Biznis ou konfigire imedyatman.' } },
-  { n: '02', icon: '📦', title: { fr: 'Ajoutez vos produits', ht: 'Ajoute pwodui ou yo' }, desc: { fr: 'Scannez vos codes-barres ou importez votre catalogue. Stock et prix configurés automatiquement.', ht: 'Skane kòd ba ou yo oswa enpòte katalòg ou. Stock ak pri konfigire otomatikman.' } },
-  { n: '03', icon: '💰', title: { fr: 'Enregistrez vos ventes', ht: 'Anrejistre vant ou yo' }, desc: { fr: 'Point de vente ultra-rapide. Chaque vente met à jour votre stock et profit en temps réel.', ht: 'Pwen vant ultra-rapid. Chak vant mete ajou stock ak pwofi ou an tan reyèl.' } },
-  { n: '04', icon: '🤖', title: { fr: 'Pilot AI analyse tout', ht: 'Pilot AI analize tout' }, desc: { fr: 'L\'intelligence artificielle détecte vos opportunités, vos risques et vous guide vers la croissance.', ht: 'Entèlijans atifisyèl detekte opòtinite ou yo, risk ou yo epi gide w nan kwasans lan.' } },
-  { n: '05', icon: '📈', title: { fr: 'Développez votre business', ht: 'Devlope biznis ou' }, desc: { fr: 'Rapports, bilans, prévisions. Prenez des décisions éclairées et regardez votre business grandir.', ht: 'Rapò, bilans, prévisions. Pran desizyon éklere epi gade biznis ou grandi.' } },
+  { n: '01', icon: '🏪', title: { fr: 'Choisissez votre métier', ht: 'Chwazi metye w' }, desc: { fr: 'Machandiz (commerce), Sèvis (service) ou Toulède (les deux). L’écran s’adapte à vous.', ht: 'Machandiz (komès), Sèvis, oswa Toulède. Ekran an adapte l ak ou.' } },
+  { n: '02', icon: '📦', title: { fr: 'Vos 10 produits ou services', ht: '10 pwodwi oswa sèvis ou yo' }, desc: { fr: 'Choisis dans un catalogue local déjà rempli ; les prix se modifient.', ht: 'Chwazi nan yon katalòg lokal ki deja plen ; ou ka chanje pri yo.' } },
+  { n: '03', icon: '💰', title: { fr: 'L’argent dans la caisse', ht: 'Kòb ki nan kès la' }, desc: { fr: 'Dites combien il y a aujourd’hui : ProfitPilot calcule la caisse attendue chaque soir.', ht: 'Di konbyen ki genyen jodi a : ProfitPilot kalkile kès atandi a chak swa.' } },
+  { n: '04', icon: '📷', title: { fr: 'Pran foto kaye ou', ht: 'Pran foto kaye ou' }, desc: { fr: 'Photographiez votre cahier de crédit : la liste « qui me doit combien » apparaît, vous corrigez et validez.', ht: 'Pran foto kaye kredi w : lis « kiyès ki dwe m konbyen » parèt, ou korije epi ou valide.' } },
+  { n: '05', icon: '📈', title: { fr: 'L’heure du bilan', ht: 'Lè rapò a' }, desc: { fr: 'Choisissez l’heure du bilan du soir. C’est fini : vous vendez, il compte.', ht: 'Chwazi lè rapò chak swa a. Se tout : ou vann, li konte.' } },
 ];
 
 export function HowItWorks() {
@@ -94,10 +97,10 @@ export function HowItWorks() {
             href="/onboarding"
             className="group inline-flex items-center gap-3 rounded-2xl bg-primary px-8 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] hover:bg-primary/90 active:scale-95"
           >
-            {t({ fr: 'Commencer maintenant — c\'est gratuit', ht: 'Kòmanse kounye a — li gratis' })}
+            {t({ fr: `Essayer ${TRIAL_DAYS} jours gratuitement`, ht: `Eseye l gratis ${TRIAL_DAYS} jou` })}
             <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
           </Link>
-          <p className="mt-3 text-sm text-slate-400">{t({ fr: 'Aucune carte bancaire requise • Configuration en 2 minutes', ht: 'Pa gen kat bank ki nesesè • Konfigirasyon an 2 minit' })}</p>
+          <p className="mt-3 text-sm text-slate-400">{t({ fr: 'Aucune carte bancaire · Installation en 10 minutes', ht: 'Pa gen kat bank · Enstalasyon an 10 minit' })}</p>
         </motion.div>
       </div>
     </section>

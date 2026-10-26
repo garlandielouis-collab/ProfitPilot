@@ -403,6 +403,7 @@ export async function getInsights(limit = 5): Promise<Insight[]> {
       salesCount:          cur.salesCount,
       previousRevenue:     prev.revenue,
       previousGrossMargin: prev.grossMargin,
+      previousBusinessExpenses: prev.businessExpenses,
       personalExpenses:    cur.personalExpenses,
       products:            productInputs,
       receivables,

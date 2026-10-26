@@ -67,6 +67,9 @@ export async function sendHrInvitation({
       employee_id: employeeId ?? null,
       email:       email.toLowerCase().trim(),
       invited_by:  userId,
+      // Un aide note les ventes sans voir le profit ni la caisse (étude, F16) :
+      // caissier, et non plus `viewer`, qui lisait les rapports sans pouvoir vendre.
+      role:        'cashier',
     })
     .select('id, email, token, expires_at')
     .single();

@@ -2,39 +2,42 @@
 
 import { useRef, useState } from 'react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-import { BarChart3, ChevronLeft, ChevronRight, Cpu, ScanLine, Shield, TrendingUp, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Coins, HandCoins, MessageCircle, Mic, WifiOff, Zap } from 'lucide-react';
 import { useLanguage } from '../LanguageWrapper';
 
+// Les six fonctions qui répondent aux six premières douleurs (étude de marché
+// inversée, §5 et §12). « Double Comptabilité » est partie avec la
+// comptabilité elle-même (§12.1) : on remplace le cahier, pas le comptable.
 const FEATURES = [
   {
-    id: 1, Icon: BarChart3, color: '#1d4ed8', glow: 'rgba(59,130,246,0.18)',
-    title: { fr: 'Double Comptabilité', ht: 'Doub Kontablite' },
-    desc: { fr: 'Gérez le cash et le crédit séparément avec une vision 360° de votre trésorerie en temps réel.', ht: 'Jere lajan kach ak kredi separeman ak yon vizyon 360° sou lajan ou an tan reyèl.' },
+    id: 1, Icon: Zap, color: '#1d4ed8', glow: 'rgba(59,130,246,0.18)',
+    title: { fr: 'Une vente en 3 secondes', ht: 'Yon vant an 3 segonn' },
+    desc: { fr: 'Un tap sur un favori, ou juste le montant. Plus rapide que d’écrire dans le cahier.', ht: 'Yon tap sou yon favori, oswa montan an sèlman. Pi vit pase ekri nan kaye a.' },
   },
   {
-    id: 2, Icon: ScanLine, color: '#50c878', glow: 'rgba(16,185,129,0.18)',
-    title: { fr: 'Scan Produit', ht: 'Eskan Pwodwi' },
-    desc: { fr: 'Capturez vos produits en 2 secondes avec le scanner intégré. Inventaire automatique.', ht: 'Kaptire pwodwi ou yo nan 2 segond ak scanner entegre a. Envantè otomatik.' },
+    id: 2, Icon: Mic, color: '#50c878', glow: 'rgba(16,185,129,0.18)',
+    title: { fr: 'Parlez au kaye', ht: 'Pale ak kaye a' },
+    desc: { fr: '« M vann 2 kola 150 goud » : vous le dites, ProfitPilot le note, vous confirmez d’un tap.', ht: '« M vann 2 kola 150 goud » : ou di l, ProfitPilot note l, ou konfime an yon tap.' },
   },
   {
-    id: 3, Icon: Cpu, color: '#64748b', glow: 'rgba(139,92,246,0.18)',
-    title: { fr: 'PilotAI', ht: 'PilotAI' },
-    desc: { fr: 'Recommandations intelligentes pour optimiser vos marges, stocks et flux de trésorerie.', ht: 'Rekòmandasyon entèlijan pou optimize maj, estòk ak flus lajan ou.' },
+    id: 3, Icon: HandCoins, color: '#64748b', glow: 'rgba(139,92,246,0.18)',
+    title: { fr: 'Le cahier de crédit', ht: 'Kaye kredi a' },
+    desc: { fr: 'Qui vous doit combien, depuis quand, et un rappel WhatsApp poli, envoyé par vous.', ht: 'Kiyès ki dwe w konbyen, depi kilè, ak yon rapèl WhatsApp poli, se ou ki voye l.' },
   },
   {
-    id: 4, Icon: TrendingUp, color: '#b45309', glow: 'rgba(245,158,11,0.18)',
-    title: { fr: 'Rapports HTG/USD', ht: 'Rapò HTG/USD' },
-    desc: { fr: 'Rapports financiers complets avec conversion automatique Gourdes/Dollar en temps réel.', ht: 'Rapò finansye konplè ak konvèsyon otomatik Goud/Dola an tan reyèl.' },
+    id: 4, Icon: MessageCircle, color: '#b45309', glow: 'rgba(245,158,11,0.18)',
+    title: { fr: 'Le bilan du soir', ht: 'Rapò chak swa' },
+    desc: { fr: 'Vendu, dépensé, gagné, caisse attendue, qui doit quoi, et un conseil : il vient à vous.', ht: 'Sa w vann, sa w depanse, sa w fè, kès atandi, kiyès ki dwe w, ak yon konsèy : li vin jwenn ou.' },
   },
   {
-    id: 5, Icon: Shield, color: '#dc2626', glow: 'rgba(239,68,68,0.18)',
-    title: { fr: 'Sécurité Renforcée', ht: 'Sekirite Ranfòse' },
-    desc: { fr: 'Vos données sont cryptées et sauvegardées automatiquement. Accès sécurisé 24/7.', ht: 'Done ou yo kriptografye epi sovgade otomatikman. Aksè sekirize 24/7.' },
+    id: 5, Icon: Coins, color: '#dc2626', glow: 'rgba(239,68,68,0.18)',
+    title: { fr: 'Goud, dola, dollar', ht: 'Goud, dola, dola ameriken' },
+    desc: { fr: 'Notez dans l’unité de votre choix ; le taux du jour fait le calcul et vos prix suivent le dollar.', ht: 'Note nan sa w vle ; to jounen an fè kalkil la, epi pri w yo swiv dola a.' },
   },
   {
-    id: 6, Icon: Zap, color: '#64748b', glow: 'rgba(6,182,212,0.18)',
-    title: { fr: 'Mode Hors Ligne', ht: 'Mòd San Entènèt' },
-    desc: { fr: 'Continuez à vendre sans connexion internet. Synchronisation automatique dès reconnexion.', ht: 'Kontinye vann san koneksyon entènèt. Sinkronizasyon otomatik depi ou rekonekte.' },
+    id: 6, Icon: WifiOff, color: '#64748b', glow: 'rgba(6,182,212,0.18)',
+    title: { fr: 'Sans internet, sans rien perdre', ht: 'San entènèt, san pèdi anyen' },
+    desc: { fr: 'La vente rapide marche sans réseau et part au retour du réseau. Tout est sauvegardé.', ht: 'Vann rapid la mache san rezo, li pati lè rezo a tounen. Tout bagay sove.' },
   },
 ];
 

@@ -85,7 +85,9 @@ export async function GET(req: NextRequest) {
 
     const body = `
       <p>Client : <strong>${escapeHtml(userEmail)}</strong><br/>
-         Offre : <strong>${escapeHtml(planName(payment.plan_key))}</strong><br/>
+         Offre : <strong>${escapeHtml(planName(payment.plan_key))}</strong>${
+           Number(payment.billing_months) > 1 ? ` · <strong>${escapeHtml(payment.billing_months)} mois</strong>` : ''
+         }<br/>
          Montant : <strong>${escapeHtml(Number(payment.amount_htg ?? 0).toLocaleString('fr-FR'))} HTG</strong>${
            payment.discount_percent ? ` (−${escapeHtml(payment.discount_percent)} % parrainage)` : ''
          }<br/>
@@ -168,7 +170,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Calculate expiry ───────────────────────────────────────────────────
-    const days = PLAN_DURATIONS[payment.plan_key] ?? 30;
+    // `billing_months` vaut 6 quand le marchand a payé six mois d'avance ; une
+    // ligne antérieure à la colonne n'en porte pas et vaut un mois.
+    const months = Math.max(1, Number(payment.billing_months ?? 1) || 1);
+    const days = (PLAN_DURATIONS[payment.plan_key] ?? 30) * months;
     const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString();
 
     // ── Mark payment as approved ──────────────────────────────────────────

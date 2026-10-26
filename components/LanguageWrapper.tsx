@@ -16,21 +16,38 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 const LANG_KEY = 'pp_language';
 
+/**
+ * Kreyòl par défaut, français en option (étude de marché inversée, §4 et
+ * §11.1). Beaucoup de patrons savent lire le français ; peu ont le temps de le
+ * lire, et « aplikasyon yo pa fèt pou moun tankou m » commence à la première
+ * phrase dans une langue qui n'est pas la leur. Le choix enregistré, lui, est
+ * toujours respecté : qui a choisi le français le garde.
+ */
+export const DEFAULT_LANGUAGE: Language = 'ht';
+
 export function LanguageWrapper({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('fr');
+  const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(LANG_KEY) as Language | null;
-    if (saved === 'fr' || saved === 'ht') {
-      setLanguageState(saved);
-    }
+    try {
+      const saved = localStorage.getItem(LANG_KEY) as Language | null;
+      if (saved === 'fr' || saved === 'ht') {
+        setLanguageState(saved);
+      }
+    } catch { /* stockage indisponible : la langue par défaut tient */ }
     setHydrated(true);
   }, []);
 
+  // `<html lang>` suit la langue affichée : un lecteur d'écran lit le kreyòl
+  // avec une voix kreyòl, pas avec la prononciation française.
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem(LANG_KEY, lang);
+    try { localStorage.setItem(LANG_KEY, lang); } catch { /* choix non retenu, sans plus */ }
   };
 
   const value = useMemo(

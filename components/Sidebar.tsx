@@ -14,7 +14,9 @@
 
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { BOTTOM_BAR, MORE_SECTIONS, ROUTE_FEATURE, type Entry } from './nav';
+import { BOTTOM_BAR, ROUTE_FEATURE, moreSectionsFor, type Entry } from './nav';
+import { useCompanyContext } from '../contexts/CompanyContext';
+import { saleWord } from '../lib/kaye';
 import { PlanTag, useIsLocked } from './PlanLock';
 import { useLanguage } from './LanguageWrapper';
 import { cn } from '../lib/utils';
@@ -28,6 +30,9 @@ export function Sidebar({
 }) {
   const { t } = useLanguage();
   const [home, sales, receivables] = BOTTOM_BAR;
+  const { company } = useCompanyContext();
+  const trade = company?.kaye?.trade ?? null;
+  const sections = moreSectionsFor(trade);
 
   return (
     <aside className="hidden w-64 flex-shrink-0 border-r border-border bg-white dark:border-dark-border dark:bg-dark-surface lg:block">
@@ -40,7 +45,7 @@ export function Sidebar({
           className="pressable mb-6 flex min-h-13 w-full items-center justify-center gap-2 rounded-surface bg-accent text-body font-bold text-accent-ink shadow-card hover:bg-accent-h"
         >
           <Plus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-          {t({ fr: 'Nouvelle vente', ht: 'Nouvo vant' })}
+          {t(saleWord(trade))}
         </button>
 
         <nav className="space-y-6" aria-label={t({ fr: 'Navigation', ht: 'Navigasyon' })}>
@@ -50,7 +55,7 @@ export function Sidebar({
             ))}
           </ul>
 
-          {MORE_SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.title.fr}>
               <h2 className="mb-2 px-3 text-note font-bold uppercase tracking-wide text-muted dark:text-dark-muted">
                 {t(section.title)}

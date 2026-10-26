@@ -123,7 +123,7 @@ export async function inviteEmployeeByEmail(email: string): Promise<void> {
       .upsert({
         business_id: businessId,
         user_id:     existing.id,
-        role:        'viewer',
+        role:        'cashier', // un aide note les ventes sans voir le profit (étude, F16)
         is_active:   true,
         invited_by:  userId,
       }, { onConflict: 'business_id,user_id' });
@@ -135,7 +135,7 @@ export async function inviteEmployeeByEmail(email: string): Promise<void> {
       .insert({
         business_id: businessId,
         email:       email.toLowerCase().trim(),
-        role:        'viewer',
+        role:        'cashier', // un aide note les ventes sans voir le profit (étude, F16)
         invited_by:  userId,
         expires_at:  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       });

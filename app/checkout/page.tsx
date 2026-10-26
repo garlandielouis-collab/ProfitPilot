@@ -15,7 +15,10 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { USD_RATE, getPlanByKey, getPlanLabel, type Plan } from '../../lib/plans';
+import {
+  BILLING_PERIODS, USD_RATE, getPlanByKey, getPlanLabel, periodTotalHtg, pricePerDay,
+  type BillingMonths, type Plan,
+} from '../../lib/plans';
 import { createPendingPayment, getCheckoutQuote } from '../actions/payments';
 import type { CheckoutQuote } from '../../lib/referral';
 import { cn } from '../../lib/utils';
@@ -100,15 +103,20 @@ function PlanSummary({
   plan,
   currency,
   quote,
+  months,
+  onMonthsChange,
 }: {
   plan: Plan;
   currency: 'HTG' | 'USD';
   quote: CheckoutQuote | null;
+  months: BillingMonths;
+  onMonthsChange: (months: BillingMonths) => void;
 }) {
   const { t } = useLanguage();
   const discounted = quote && quote.percentOff > 0;
-  const priceG = quote?.amountHtg ?? plan.priceG;
+  const priceG = periodTotalHtg(quote?.amountHtg ?? plan.priceG, plan.priceG, months);
   const price  = currency === 'HTG' ? priceG : priceG * USD_RATE;
+  const fullG  = plan.priceG * months;
 
   return (
     <div className="rounded-surface border border-slate-200 bg-white p-6">
@@ -125,10 +133,42 @@ function PlanSummary({
       <p className="mt-0.5 text-sm font-semibold italic text-primary">{plan.stage.kreyol}</p>
       <p className="mt-1 text-sm text-anthracite/70">{t(plan.description)}</p>
 
-      <div className="mt-5 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 p-4">
-        <p className="text-xs uppercase tracking-wider text-anthracite/50">{t({ fr: 'Total mensuel', ht: 'Total chak mwa' })}</p>
+      {/* La période : un mois, ou six payés d'avance (§13.4). Sans remise : le
+          gain est de ne plus y penser pendant six mois, pas un prix inventé. */}
+      <div
+        role="radiogroup"
+        aria-label={t({ fr: 'Durée', ht: 'Dire' })}
+        className="mt-5 grid grid-cols-2 gap-2"
+      >
+        {BILLING_PERIODS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={months === m}
+            onClick={() => onMonthsChange(m)}
+            className={cn(
+              'pressable min-h-touch rounded-control border px-3 py-2 text-sm font-semibold transition-colors',
+              months === m
+                ? 'border-primary bg-primary text-white'
+                : 'border-slate-200 bg-white text-anthracite hover:bg-slate-50',
+            )}
+          >
+            {m === 1
+              ? t({ fr: '1 mois', ht: '1 mwa' })
+              : t({ fr: '6 mois d’avance', ht: '6 mwa davans' })}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 rounded-2xl bg-gradient-to-br from-primary/5 to-primary/10 p-4">
+        <p className="text-xs uppercase tracking-wider text-anthracite/50">
+          {months === 1
+            ? t({ fr: 'Total mensuel', ht: 'Total chak mwa' })
+            : t({ fr: 'Total pour 6 mois', ht: 'Total pou 6 mwa' })}
+        </p>
         <p className="mt-1 flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-primary">
+          <span className="amount text-3xl font-bold text-primary">
             {currency === 'HTG'
               ? `G ${price.toLocaleString('fr-FR')}`
               : `$${price.toFixed(2)} USD`}
@@ -136,12 +176,20 @@ function PlanSummary({
           {discounted && (
             <span className="text-base font-semibold text-anthracite/40 line-through">
               {currency === 'HTG'
-                ? `G ${plan.priceG.toLocaleString('fr-FR')}`
-                : `$${plan.priceUsd.toFixed(2)}`}
+                ? `G ${fullG.toLocaleString('fr-FR')}`
+                : `$${(fullG * USD_RATE).toFixed(2)}`}
             </span>
           )}
         </p>
+        <p className="mt-1 text-sm font-semibold text-primary">
+          {t({ fr: `≈ ${pricePerDay(plan.priceG)} HTG par jour`, ht: `≈ ${pricePerDay(plan.priceG)} goud pa jou` })}
+        </p>
         {discounted && <DiscountNote quote={quote!} />}
+        {discounted && months > 1 && (
+          <p className="mt-1 text-xs text-anthracite/60">
+            {t({ fr: 'La réduction porte sur le premier mois.', ht: 'Rabè a se sou premye mwa a.' })}
+          </p>
+        )}
       </div>
 
       <div className="mt-5 space-y-2.5">
@@ -377,6 +425,7 @@ function CheckoutContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [reference, setReference] = useState('');
   const [currency, setCurrency] = useState<'HTG' | 'USD'>('HTG');
+  const [months, setMonths] = useState<BillingMonths>(1);
   // Le devis vient du serveur, jamais d'un calcul local : les bons de réduction
   // sont dans la base, et un prix calculé dans le navigateur n'engage personne.
   const [quote, setQuote] = useState<CheckoutQuote | null>(null);
@@ -461,8 +510,9 @@ function CheckoutContent() {
         userName:  user?.user_metadata?.full_name ?? user?.user_metadata?.name ?? undefined,
         // Indicatif : le serveur recalcule le montant dû à partir des bons
         // réellement détenus. Un prix qui vient du navigateur ne s'encaisse pas.
-        amountHtg: quote?.amountHtg ?? plan.priceG,
+        amountHtg: periodTotalHtg(quote?.amountHtg ?? plan.priceG, plan.priceG, months),
         reference,
+        months,
       });
 
       markSubscriptionActive();
@@ -517,7 +567,7 @@ function CheckoutContent() {
                 ))}
               </div>
             </div>
-            <PlanSummary plan={plan} currency={currency} quote={quote} />
+            <PlanSummary plan={plan} currency={currency} quote={quote} months={months} onMonthsChange={setMonths} />
           </div>
 
           {/* Right — Payment flow */}
@@ -656,7 +706,7 @@ function CheckoutContent() {
 
                     <MobilePaymentFlow
                       method={selectedMethodData}
-                      dueHtg={quote?.amountHtg ?? plan.priceG}
+                      dueHtg={periodTotalHtg(quote?.amountHtg ?? plan.priceG, plan.priceG, months)}
                       reference={reference}
                       onConfirm={handleConfirmPayment}
                       isLoading={isLoading}

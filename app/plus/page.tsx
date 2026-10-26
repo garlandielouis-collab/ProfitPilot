@@ -17,12 +17,16 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { useLanguage } from '../../components/LanguageWrapper';
-import { MORE_SECTIONS, ROUTE_FEATURE, type Entry } from '../../components/nav';
+import { ROUTE_FEATURE, moreSectionsFor, type Entry } from '../../components/nav';
+import { useCompanyContext } from '../../contexts/CompanyContext';
 import { PlanTag, useIsLocked } from '../../components/PlanLock';
 import { ScreenHeader, Stack } from '../../components/ds';
 
 function PlusInner() {
   const { t } = useLanguage();
+  // Un métier, un écran : le coiffeur ne voit pas l'inventaire (lib/kaye.ts).
+  const { company } = useCompanyContext();
+  const sections = moreSectionsFor(company?.kaye?.trade ?? null);
 
   return (
     <div className="pp-enter mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
@@ -35,7 +39,7 @@ function PlusInner() {
       />
 
       <Stack className="mt-6">
-        {MORE_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <section key={section.title.fr} className="space-y-2">
             {/* L'en-tête est du TEXTE, pas un conteneur : c'est l'espace qui
                 groupe (§5.5). */}

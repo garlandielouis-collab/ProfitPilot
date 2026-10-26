@@ -6,6 +6,17 @@ fichier se colle à la main dans le SQL Editor de Supabase.
 
 D'où ce fichier : savoir, sans deviner, ce qui reste à coller.
 
+## Ajoutée le 25/10/2026 — À COLLER avant de déployer l'étude de marché inversée
+
+| Migration | Effet si elle n'est pas collée |
+|---|---|
+| `20261025_etude_marche_inversee` | Caisse du jour, sòl, fiches de travail, rendez-vous, coût des services et paie des aides répondent « pas encore ouvert sur ce compte ». Le paiement de 6 mois est refusé (sans `payments.billing_months`, il s'approuverait pour 30 jours). Une vente « au montant » ou d'un service écrit un mouvement de stock inutile là où un entrepôt par défaut existe. Tout le reste de l'application fonctionne. |
+
+Sondes après collage (clé de service, sans SQL Editor) : `cash_days?select=id`
+→ 200 ; `payments?select=billing_months` → 200 ;
+`business_members?select=pay_mode` → 200. Suivi complet du chantier :
+`ETUDE_MARCHE_INVERSEE.md` à la racine.
+
 ## Ajoutée le 18/09/2026 — facultative
 
 | Migration | Effet si elle n'est pas collée |

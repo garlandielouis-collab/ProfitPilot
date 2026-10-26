@@ -21,6 +21,7 @@ import { linkPhoneToAccount } from '../../app/actions/phoneAuth';
 import { PhoneField } from '../../components/ds';
 import { forceRefreshAndRecalculate } from '../../app/actions/exchangeRate';
 import { cn } from '../../lib/utils';
+import { KayeSettingsCard } from '../../components/settings/KayeSettingsCard';
 import type { BusinessProfileInput, UserPreferencesInput } from '../../lib/validations';
 import { unwrap, screenMessage } from '../../lib/actionResult';
 
@@ -485,6 +486,7 @@ function PreferencesTab({ userId }: { userId: string | undefined }) {
 
   return (
     <div className="space-y-6">
+      <KayeSettingsCard />
       <GlassCard>
         <h2 className="mb-5 flex items-center gap-2 text-base font-semibold text-[var(--color-text)]">
           <Languages className="h-4 w-4 text-emerald-400" />

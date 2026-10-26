@@ -1,173 +1,89 @@
 'use client';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Le haut de la page d'accueil — le message commun (étude de marché inversée, §8)
+//
+//   Message principal : « Konnen sa w FÈ vre, chak swa. »
+//   Positionnement    : « ProfitPilot ranplase kaye a, pa kontab la. »
+//   Signature         : « Kaye ou, nan telefòn ou. »
+//
+// L'illustration n'est plus un tableau de bord à graphiques : c'est l'angle
+// même du produit (§10) — le marchand ne va pas chercher son rapport, c'est le
+// bilan du soir qui vient à lui sur WhatsApp, avec trois chiffres et un conseil.
+// Les montants sont ceux d'une illustration, comme le dit sa légende : cette
+// page s'adresse à quelqu'un qui n'a pas encore de compte.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowRight, Sparkles, TrendingUp, ShoppingCart, AlertCircle, DollarSign } from 'lucide-react';
+import { ArrowRight, MessageCircle, Mic } from 'lucide-react';
 import { useLanguage } from '../LanguageWrapper';
+import { PLANS, TRIAL_DAYS, pricePerDay } from '../../lib/plans';
 
-// ── Animated Dashboard Mockup ─────────────────────────────────────────────────
+const FROM_PER_DAY = pricePerDay(PLANS[0].priceG);
 
-function DashboardMockup() {
-  const bars = [45, 62, 38, 78, 55, 88, 67, 92, 71, 95];
+// ── Le bilan du soir, tel qu'il arrive sur WhatsApp ──────────────────────────
+
+function EveningMessageMockup() {
+  const { t } = useLanguage();
+  const lines = [
+    { label: t({ fr: 'Vendu', ht: 'Sa w vann' }),        value: '20 000 G' },
+    { label: t({ fr: 'Dépensé', ht: 'Sa w depanse' }),    value: '13 400 G' },
+    { label: t({ fr: 'Gagné', ht: 'Pwofi' }),             value: '6 600 G', strong: true },
+    { label: t({ fr: 'Caisse attendue', ht: 'Kès atandi' }), value: '9 200 G' },
+    { label: t({ fr: 'On vous doit', ht: 'Sa yo dwe w' }), value: '7 500 G' },
+  ];
 
   return (
-    <div className="relative w-full max-w-[580px]">
-      {/* Glow effects */}
+    <div className="relative w-full max-w-[360px]">
       <div className="pointer-events-none absolute -top-12 -right-12 h-48 w-48 rounded-full bg-accent/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
 
       <motion.div
         initial={{ opacity: 0, y: 32, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+        className="overflow-hidden rounded-[28px] border border-border bg-[#ECE5DD] shadow-[0_32px_80px_rgba(0,31,63,0.14)]"
       >
-        {/* Browser frame */}
-        <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_32px_80px_rgba(0,31,63,0.14),0_0_0_1px_rgba(0,31,63,0.04)]">
-          {/* Browser chrome */}
-          <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
-            <div className="flex gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
-              <div className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]" />
-              <div className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
-            </div>
-            <div className="mx-auto flex h-6 w-56 items-center gap-2 rounded-md bg-white px-3 border border-border">
-              <div className="h-2 w-2 rounded-full bg-accent" />
-              <span className="text-note text-slate-400">app.profitpilot.ht/dashboard</span>
-            </div>
+        {/* En-tête de conversation */}
+        <div className="flex items-center gap-3 bg-[#075E54] px-4 py-3 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-sm font-bold">PP</span>
+          <div>
+            <p className="text-sm font-semibold">ProfitPilot</p>
+            <p className="text-note text-white/70">{t({ fr: 'ce soir, 19 h', ht: 'aswè a, 7è' })}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 p-4">
+          {/* La vente dite à voix haute, plus tôt dans la journée */}
+          <div className="ml-auto flex w-fit max-w-[85%] items-center gap-2 rounded-2xl rounded-tr-sm bg-[#DCF8C6] px-3 py-2 text-sm text-slate-700">
+            <Mic size={16} className="flex-shrink-0 text-[#075E54]" aria-hidden />
+            « M vann 2 kola 150 goud »
           </div>
 
-          {/* Dashboard content */}
-          <div className="bg-surface p-4">
-            {/* Header */}
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <p className="text-note font-bold uppercase tracking-widest text-accent">ProfitPilot</p>
-                <p className="text-sm font-semibold text-primary">Bonjour, Marie 👋</p>
-              </div>
-              <span className="rounded-full bg-accent/10 px-2.5 py-1 text-note font-semibold text-accent">
-                ● En direct
-              </span>
-            </div>
-
-            {/* KPI row */}
-            <div className="mb-3 grid grid-cols-3 gap-2">
-              {[
-                { label: 'Ventes aujourd\'hui', value: '48 500', unit: 'HTG', color: '#50c878', up: '+14%' },
-                { label: 'Profit net', value: '12 800', unit: 'HTG', color: '#001f3f', up: '+8%' },
-                { label: 'Stock critique', value: '3', unit: 'alertes', color: '#b45309', up: null },
-              ].map((k, i) => (
-                <div key={i} className="rounded-xl bg-white p-2.5 border border-border">
-                  <p className="text-note text-slate-400 mb-1">{k.label}</p>
-                  <div className="flex items-end gap-1">
-                    <p className="text-sm font-bold" style={{ color: k.color }}>{k.value}</p>
-                    <p className="text-note text-slate-400 mb-0.5">{k.unit}</p>
-                  </div>
-                  {k.up && (
-                    <span className="text-note font-semibold text-accent">↑ {k.up}</span>
-                  )}
+          {/* Le bilan */}
+          <div className="w-fit max-w-[92%] rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
+            <p className="font-semibold text-primary">{t({ fr: 'Votre journée', ht: 'Jounen ou' })}</p>
+            <dl className="mt-2 space-y-1">
+              {lines.map((line) => (
+                <div key={line.label} className="flex justify-between gap-6">
+                  <dt className="text-slate-500">{line.label}</dt>
+                  <dd className={`amount ${line.strong ? 'font-bold text-success' : 'font-semibold text-primary'}`}>{line.value}</dd>
                 </div>
               ))}
-            </div>
-
-            {/* Chart */}
-            <div className="rounded-xl bg-white p-3 border border-border mb-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-note font-semibold text-primary">Ventes — 10 derniers jours</p>
-                <span className="text-note text-slate-400">HTG</span>
-              </div>
-              <div className="flex h-16 items-end gap-1">
-                {bars.map((h, i) => (
-                  <motion.div
-                    key={i}
-                    className="flex-1 rounded-t-sm"
-                    style={{
-                      background: i === bars.length - 1
-                        ? 'linear-gradient(to top, #001f3f, #50c878)'
-                        : i > 6 ? 'rgba(80,200,120,0.3)' : 'rgba(0,31,63,0.08)',
-                    }}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${h}%` }}
-                    transition={{ delay: 0.4 + i * 0.06, duration: 0.5, ease: 'easeOut' }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* AI insight */}
-            <motion.div
-              className="rounded-xl border border-accent/20 bg-gradient-to-r from-primary/5 to-accent/10 p-3"
-              animate={{ borderColor: ['rgba(80,200,120,0.2)', 'rgba(80,200,120,0.4)', 'rgba(80,200,120,0.2)'] }}
-              transition={{ duration: 3, repeat: Infinity }}
-            >
-              <div className="flex items-start gap-2">
-                <span className="text-base">🤖</span>
-                <div>
-                  <p className="text-note font-semibold text-primary mb-0.5">Pilot AI</p>
-                  <p className="text-note text-slate-600 leading-relaxed">
-                    Votre produit <strong>Savon Karité</strong> génère 34% de votre marge.
-                    Augmentez votre stock de 50 unités avant dimanche.
-                  </p>
-                </div>
-              </div>
-            </motion.div>
+            </dl>
+            <p className="mt-3 border-t border-slate-100 pt-2 text-slate-600">
+              {t({
+                fr: 'Conseil : Jean vous doit 2 500 G depuis 12 jours. Envoyez-lui un rappel ?',
+                ht: 'Konsèy : Jean dwe w 2 500 G depi 12 jou. Ou vle voye yon rapèl ba li ?',
+              })}
+            </p>
           </div>
         </div>
       </motion.div>
 
-      {/* Floating KPI cards */}
-      <motion.div
-        className="absolute -left-10 top-20 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl hidden lg:block"
-        animate={{ y: [0, -8, 0] }}
-        transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-        initial={{ opacity: 0, x: -20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/10">
-            <TrendingUp size={12} className="text-accent" />
-          </div>
-          <div>
-            <p className="text-note text-slate-400">Profit ce mois</p>
-            <p className="text-sm font-bold text-primary">+18%</p>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        className="absolute -right-8 top-32 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl hidden lg:block"
-        animate={{ y: [0, 8, 0] }}
-        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-        initial={{ opacity: 0, x: 20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100">
-            <AlertCircle size={12} className="text-amber-600" />
-          </div>
-          <div>
-            <p className="text-note text-slate-400">Stock Savon</p>
-            <p className="text-sm font-bold text-amber-600">3 restants</p>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        className="absolute -bottom-4 left-16 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl hidden lg:block"
-        animate={{ y: [0, -6, 0] }}
-        transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-            <DollarSign size={12} className="text-primary" />
-          </div>
-          <div>
-            <p className="text-note text-slate-400">Vente enregistrée</p>
-            <p className="text-sm font-bold text-primary">5 200 HTG ✓</p>
-          </div>
-        </div>
-      </motion.div>
+      <p className="mt-3 text-center text-note text-slate-400">
+        {t({ fr: 'Illustration : chaque soir, vos vrais chiffres.', ht: 'Egzanp : chak swa, vrè chif ou yo.' })}
+      </p>
     </div>
   );
 }
@@ -193,101 +109,81 @@ export function Hero() {
           backgroundSize: '48px 48px',
         }}
       />
-      {/* Gradient blobs */}
       <div className="pointer-events-none absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-accent/8 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 left-0 h-[300px] w-[400px] rounded-full bg-primary/5 blur-[80px]" />
 
       <div className="relative mx-auto grid max-w-7xl items-center gap-16 lg:grid-cols-2">
-        {/* Left: copy */}
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="visible"
           className="flex flex-col gap-7"
         >
-          {/* Badge */}
+          {/* La signature */}
           <motion.div variants={fadeUp}>
             <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-xs font-semibold text-accent">
-              <Sparkles size={11} />
-              {t({ fr: 'Propulsé par Pilot AI — Intelligence artificielle financière', ht: 'Propulse pa Pilot AI — Entèlijans atifisyèl finansye' })}
+              <MessageCircle size={16} aria-hidden />
+              {t({ fr: 'Votre cahier, dans votre téléphone.', ht: 'Kaye ou, nan telefòn ou.' })}
             </span>
           </motion.div>
 
-          {/* Headline */}
+          {/* Le message principal */}
           <motion.h1
             variants={fadeUp}
             className="text-4xl font-extrabold leading-[1.1] tracking-tight text-primary sm:text-5xl"
           >
-            Pilotez votre
+            {t({ fr: 'Savoir ce que vous gagnez vraiment,', ht: 'Konnen sa w FÈ vre,' })}
             <br />
-            <span className="relative">
-              <span className="relative z-10" style={{ background: 'linear-gradient(135deg, #001f3f 0%, #50c878 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                business avec clarté.
-              </span>
-            </span>
+            <span className="text-accent">{t({ fr: 'chaque soir.', ht: 'chak swa.' })}</span>
           </motion.h1>
 
-          {/* Subheadline */}
-          <motion.p variants={fadeUp} className="max-w-lg text-lg leading-8 text-slate-500">
-            {t({
-              fr: 'Stock, ventes, dépenses, trésorerie et intelligence artificielle. Tout ce dont vous avez besoin pour développer votre entreprise, enfin réuni au même endroit.',
-              ht: 'Estòk, vant, depans, trezoreri ak entèlijans atifisyèl. Tout sa ou bezwen pou devlope antrepriz ou a, finalman nan yon sèl kote.',
-            })}
-          </motion.p>
+          {/* Le positionnement, puis la mécanique */}
+          <motion.div variants={fadeUp} className="max-w-lg space-y-3">
+            <p className="text-lg font-semibold text-primary">
+              {t({ fr: 'ProfitPilot remplace le cahier, pas le comptable.', ht: 'ProfitPilot ranplase kaye a, pa kontab la.' })}
+            </p>
+            <p className="text-lg leading-8 text-slate-500">
+              {t({
+                fr: 'Vous notez en 3 secondes, d’un bouton ou de la voix, en kreyòl. Chaque soir, ProfitPilot vient à vous sur WhatsApp avec 3 chiffres et 1 conseil.',
+                ht: 'Ou note an 3 segonn, ak yon bouton oswa ak vwa w, an kreyòl. Chak swa, ProfitPilot vin jwenn ou sou WhatsApp ak 3 chif ak 1 konsèy.',
+              })}
+            </p>
+          </motion.div>
+
+          {/* Les deux métiers, dans leurs propres mots */}
+          <motion.ul variants={fadeUp} className="flex flex-col gap-2 text-sm text-primary">
+            <li className="rounded-xl border border-border bg-surface px-4 py-3">
+              {t({ fr: '« Vous avez vendu 20 000 gourdes aujourd’hui. Combien sont à vous ? »', ht: '« Ou vann 20 000 goud jodi a. Konbyen ki pou ou ? »' })}
+            </li>
+            <li className="rounded-xl border border-border bg-surface px-4 py-3">
+              {t({ fr: '« Vous avez fait 8 têtes aujourd’hui. Combien reste-t-il après les produits et votre aide ? »', ht: '« Ou fè 8 tèt jodi a. Konbyen ki rete apre pwodui yo ak èd ou ? »' })}
+            </li>
+          </motion.ul>
 
           {/* CTAs */}
           <motion.div variants={fadeUp} className="flex flex-wrap gap-3">
             <Link
               href="/onboarding"
-              className="group relative inline-flex items-center gap-3 overflow-hidden rounded-2xl px-7 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] hover:shadow-accent/40 active:scale-95"
-              style={{
-                background: 'linear-gradient(135deg, #001f3f 0%, #002d5b 100%)',
-                boxShadow: '0 0 0 1px rgba(0,31,63,0.2), 0 16px 48px rgba(0,31,63,0.25)',
-              }}
+              className="group inline-flex min-h-touch items-center gap-3 rounded-2xl bg-primary px-7 py-4 text-base font-bold text-white shadow-xl transition-all hover:scale-[1.02] active:scale-95"
             >
-              <span className="pointer-events-none absolute inset-0 translate-x-[-120%] skew-x-[-20deg] bg-white/10 transition-transform duration-700 group-hover:translate-x-[120%]" />
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 text-accent text-sm">✦</span>
-              {t({ fr: 'Commencer gratuitement', ht: 'Kòmanse gratis' })}
+              {t({ fr: `Essayer ${TRIAL_DAYS} jours gratuitement`, ht: `Eseye l gratis ${TRIAL_DAYS} jou` })}
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
             </Link>
             <Link
-              href="/auth/login"
-              className="inline-flex items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-primary transition hover:border-accent/40 hover:bg-accent/5 active:scale-95"
+              href="/pricing"
+              className="inline-flex min-h-touch items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-primary transition hover:border-accent/40 hover:bg-accent/5 active:scale-95"
             >
-              {t({ fr: 'Voir la démo', ht: 'Wè demo a' })}
+              {t({ fr: `Voir les prix : dès ${FROM_PER_DAY} HTG par jour`, ht: `Wè pri yo : apati ${FROM_PER_DAY} goud pa jou` })}
             </Link>
-          </motion.div>
-
-          {/* Social proof mini */}
-          <motion.div variants={fadeUp} className="flex items-center gap-4 pt-2">
-            <div className="flex -space-x-2">
-              {['#1d4ed8', '#64748b', '#50c878', '#b45309', '#dc2626'].map((c, i) => (
-                <div key={i} className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-note font-bold text-white" style={{ background: c }}>
-                  {['J', 'M', 'C', 'R', 'A'][i]}
-                </div>
-              ))}
-            </div>
-            <div>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className="text-accent text-sm">★</span>
-                ))}
-              </div>
-              <p className="text-xs text-slate-500">
-                <span className="font-semibold text-primary">250+</span> {t({ fr: 'commerçants haïtiens nous font confiance', ht: 'machann ayisyen fè nou konfyans' })}
-              </p>
-            </div>
           </motion.div>
         </motion.div>
 
-        {/* Right: dashboard */}
         <motion.div
           initial={{ opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 1, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
           className="flex justify-center lg:justify-end"
         >
-          <DashboardMockup />
+          <EveningMessageMockup />
         </motion.div>
       </div>
     </section>

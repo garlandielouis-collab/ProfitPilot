@@ -10,8 +10,18 @@
 // marchand — d'où le champ `stage`, qui est ce qu'il lit en premier sur la
 // page de prix. Il doit s'y reconnaître, pas s'y classer.
 //
+// ── L'étude de marché inversée (octobre 2026, §13) ──────────────────────────
+//
+// Les trois stades sont désormais dits à la première personne, dans la phrase
+// que le marchand prononcerait lui-même : « Mwen vle KONNEN », « Mwen vle
+// KONTWOLE », « Mwen vle GRANDI ». Les prix ne bougent pas ; c'est le contenu
+// qui change, et l'écran qui s'adapte au métier (commerce ou service) — un
+// commerce et un service paient le même prix, mais ne voient pas les mêmes
+// outils. D'où `forWhom` et `extras`, chacun en deux versions.
+//
 // Les arguments ci-dessous sont écrits de son côté de l'écran : « ce que chaque
 // produit vous rapporte vraiment », jamais « analyse de marge par référence ».
+// Jamais « comptabilité », « bilan », « créance » (§6 et §11.1 de l'étude).
 // Le registre technique correspondant vit dans `planFeatures.ts` — c'est lui
 // qui décide, celui-ci ne fait que le raconter.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,18 +34,31 @@ export type PlanLabel = 'Esansyel' | 'Kwasans' | 'Elit';
 /** Un texte affiché au marchand, dans ses deux langues. */
 export type Bilingual = { fr: string; ht: string };
 
+/** Un texte qui change selon le métier : commerce fixe ou entreprise de service. */
+export type ByTrade<T> = { commerce: T; service: T };
+
 export type Plan = {
   key: PlanKey;
   /** Nom commercial affiché (Esansyel / Kwasans / Elit). */
   label: PlanLabel;
   priceG: number;
   priceUsd: number;
-  /** Le stade de vie : la devise créole, et à qui elle parle. */
+  /** Le stade de vie : la phrase créole, et ce qu'elle veut dire. */
   stage: { kreyol: string; fr: Bilingual };
+  /** La promesse complète de l'offre, telle que l'étude l'écrit (§13). */
   description: Bilingual;
   /** Profil de marchand ciblé, repris du script de vente. */
   audience: string;
+  /** À qui elle parle, dans le métier du lecteur. */
+  forWhom: ByTrade<Bilingual>;
+  /** Inclus pour tous, quel que soit le métier. */
   features: Bilingual[];
+  /** En plus, selon le métier. */
+  extras: ByTrade<Bilingual[]>;
+  /** Ce que l'offre ne fait pas — dit avant qu'il le découvre. */
+  limits: Bilingual;
+  /** Le signe qu'il est temps de passer à l'offre suivante. */
+  nextSignal: Bilingual;
   /** Ce que l'offre règle en une phrase, sous le bouton. */
   promise: Bilingual;
   highlight: Bilingual;
@@ -44,6 +67,37 @@ export type Plan = {
 
 export const USD_RATE = 0.012;
 
+/**
+ * Le prix d'une journée, arrondi à la gourde : 1 000 HTG par mois, c'est
+ * « 33 goud pa jou », moins qu'un kola (§7 de l'étude). Le prix mensuel reste
+ * celui qu'on encaisse ; celui-ci sert à le rendre lisible.
+ */
+export function pricePerDay(priceG: number): number {
+  return Math.round(priceG / 30);
+}
+
+// ── Les périodes de paiement ────────────────────────────────────────────────
+//
+// Un mois, ou six mois payés d'avance (§13.4 « Modalités recommandées »). Pas
+// de remise sur les six mois : l'étude n'en fixe aucune, et une remise inventée
+// ici serait un prix que personne n'a décidé.
+
+export type BillingMonths = 1 | 6;
+export const BILLING_PERIODS: BillingMonths[] = [1, 6];
+
+export function normalizeBillingMonths(value: unknown): BillingMonths {
+  return Number(value) === 6 ? 6 : 1;
+}
+
+/**
+ * Ce que coûte une période entière. Le bon de parrainage ne vaut qu'un mois
+ * (`upgrade_credits` se décompte mois par mois) : il s'applique au premier, les
+ * suivants sont au tarif.
+ */
+export function periodTotalHtg(firstMonthHtg: number, baseHtg: number, months: BillingMonths): number {
+  return firstMonthHtg + (months - 1) * baseHtg;
+}
+
 export const PLANS: Plan[] = [
   {
     key: 'Ti Machann',
@@ -51,32 +105,64 @@ export const PLANS: Plan[] = [
     priceG: 1000,
     priceUsd: 1000 * USD_RATE,
     stage: {
-      kreyol: 'Kite kaye a',
+      kreyol: 'Mwen vle KONNEN',
       fr: {
-        fr: 'Vous tenez encore vos comptes dans un cahier',
-        ht: 'Ou toujou ap kenbe kont ou nan yon kaye',
+        fr: 'Savoir chaque soir ce que je gagne, ce que je dépense et qui me doit',
+        ht: 'Konnen chak swa sa m fè, sa m depanse ak kiyès ki dwe m',
       },
     },
     description: {
-      fr: 'Sortir du cahier papier et ne plus rien perdre.',
-      ht: 'Soti nan kaye papye a pou w pa pèdi anyen ankò.',
+      fr: "Chaque soir, savoir combien j'ai vendu, combien j'ai dépensé, combien je gagne vraiment et qui me doit de l'argent, en moins de 5 minutes par jour.",
+      ht: 'Chak swa, konnen konbyen m vann, konbyen m depanse, konbyen m fè vre ak kiyès ki dwe m lajan, nan mwens pase 5 minit pa jou.',
     },
-    audience: 'Marchand seul, une boutique, qui démarre son suivi',
+    audience: 'Le marchand ou le prestataire seul, qui veut sortir du cahier',
+    forWhom: {
+      commerce: {
+        fr: 'Boutik de quartier, marchande installée au marché, petit dépôt tenu seul.',
+        ht: 'Boutik katye, machann ki chita nan mache, ti depo yon sèl moun kenbe.',
+      },
+      service: {
+        fr: 'Coiffeuse ou barbier seul, couturière, réparateur de téléphones indépendant.',
+        ht: 'Kwafèz oswa kwafè poukont li, koutiryè, moun ki ranje telefòn poukont li.',
+      },
+    },
     features: [
-      { fr: 'Ventes, dépenses et crédits illimités',            ht: 'Vant, depans ak kredi san limit' },
-      // Seule la vente rapide passe en file hors ligne (QuickSaleForm) : dépenses
-      // et crédits saisis à la main exigent encore le réseau.
-      { fr: 'Vente rapide sans internet, envoyée au retour du réseau', ht: 'Vann rapid san entènèt, li pati lè rezo a tounen' },
-      { fr: "Argent de la maison séparé de l'argent du commerce", ht: 'Lajan kay la separe ak lajan komès la' },
-      { fr: 'Qui vous doit combien, et depuis quand',           ht: 'Kiyès ki dwe ou konbyen, e depi kilè' },
-      { fr: "Votre journée et votre semaine en un coup d'œil",  ht: 'Jounen ou ak semèn ou nan yon sèl kout je' },
-      { fr: "Jusqu'à 50 produits, une boutique, une personne", ht: 'Jiska 50 pwodwi, yon boutik, yon moun' },
+      { fr: 'Noter une vente en 3 secondes : un favori, ou juste le montant', ht: 'Note yon vant an 3 segonn : yon favori, oswa montan an sèlman' },
+      { fr: 'Parler au kaye : dites la vente ou la dépense en kreyòl',        ht: 'Pale ak kaye a : di vant lan oswa depans lan an kreyòl' },
+      { fr: 'Les dépenses, avec la photo du reçu',                            ht: 'Depans yo, ak foto resi a' },
+      { fr: "Salè mèt la : votre salaire, et l'argent pris pour la maison",    ht: 'Salè mèt la : salè w, ak lajan w pran pou lakay' },
+      { fr: 'Le cahier de crédit : qui vous doit combien, et depuis quand',  ht: 'Kaye kredi a : kiyès ki dwe w konbyen, e depi kilè' },
+      { fr: 'Le bilan du soir arrive tout seul, prêt à partir sur votre WhatsApp', ht: 'Rapò chak swa a vini poukont li, pare pou l pati sou WhatsApp ou' },
+      { fr: 'Goud, dola ayisyen, dollar et taux du jour',                     ht: 'Goud, dola ayisyen, dola ameriken ak to jounen an' },
+      { fr: 'La caisse : cash, MonCash, NatCash, et la caisse attendue le soir', ht: 'Kès la : kach, MonCash, NatCash, ak kès atandi a chak swa' },
+      { fr: 'Vente sans internet, envoyée au retour du réseau',               ht: 'Vann san entènèt, li pati lè rezo a tounen' },
+      { fr: 'Pran foto kaye ou : votre cahier de crédit recopié à l’installation', ht: 'Pran foto kaye ou : kaye kredi w antre nan telefòn lan depi premye jou a' },
+      { fr: 'Ekri nou : une aide WhatsApp en kreyòl, en un tap',              ht: 'Ekri nou : yon èd WhatsApp an kreyòl, yon sèl tap' },
     ],
-    promise: {
-      fr: "Tout ce qu'il faut pour ne plus rien perdre.",
-      ht: 'Tout sa w bezwen pou w pa pèdi anyen ankò.',
+    extras: {
+      commerce: [
+        { fr: 'Vos 30 produits favoris, en tête de chaque vente',                ht: '30 pwodwi favori w yo, an tèt chak vant' },
+        { fr: "La marge de chaque produit, à partir du prix d'achat",            ht: 'Maj chak pwodwi, apati pri w te achte l' },
+        { fr: 'Stock simple : déduit à chaque vente, alerte « prèske fini »',     ht: 'Stòk senp : li desann chak vant, alèt « prèske fini »' },
+      ],
+      service: [
+        { fr: 'Vos 30 services favoris, avec leurs prix',                        ht: '30 sèvis favori w yo, ak pri yo' },
+        { fr: 'Avance et solde simples sur une vente',                           ht: 'Avans ak balans senp sou yon vant' },
+      ],
     },
-    highlight: { fr: 'Petit commerce', ht: 'Ti komès' },
+    limits: {
+      fr: '1 seul utilisateur · 50 produits · pas de fiches de travail ni de rappels de crédit',
+      ht: '1 sèl moun · 50 pwodwi · pa gen fich travay ni rapèl kredi',
+    },
+    nextSignal: {
+      fr: 'Passez à Kwasans dès que vous avez plus de 15 clients à crédit, un aide qui encaisse, ou des marchandises qui disparaissent.',
+      ht: 'Pase nan Kwasans depi w gen plis pase 15 kliyan kredi, yon èd k ap touche lajan, oswa machandiz k ap disparèt.',
+    },
+    promise: {
+      fr: 'Sortir du cahier, sans rien perdre.',
+      ht: 'Soti nan kaye a, san pèdi anyen.',
+    },
+    highlight: { fr: 'Pour commencer', ht: 'Pou kòmanse' },
   },
   {
     key: 'Business Pilot',
@@ -84,29 +170,58 @@ export const PLANS: Plan[] = [
     priceG: 2500,
     priceUsd: 2500 * USD_RATE,
     stage: {
-      kreyol: 'Konprann pou grandi',
+      kreyol: 'Mwen vle KONTWOLE',
       fr: {
-        fr: 'Vos chiffres sont là, il faut maintenant les lire',
-        ht: 'Chif ou yo la, kounye a fòk ou li yo',
+        fr: 'Contrôler ce que je ne vois pas',
+        ht: 'Kontwole sa m pa wè',
       },
     },
     description: {
-      fr: 'Transformer ce que vous enregistrez en décisions.',
-      ht: 'Fè sa w anrejistre a tounen desizyon.',
+      fr: 'Contrôler ce que je ne vois pas : mon stock ou mes travaux en cours, l’argent que mes clients me doivent et ce que mes aides encaissent, sans être là en permanence.',
+      ht: 'Kontwole sa m pa wè : stòk mwen oswa travay k ap fèt, lajan kliyan yo dwe m ak sa èd mwen yo touche, san m pa bezwen la tout tan.',
     },
-    audience: 'Marchand avec une activité régulière, prêt à grandir',
+    audience: 'Le petit business avec 1 ou 2 aides, du stock ou des travaux en cours',
+    forWhom: {
+      commerce: {
+        fr: 'Dépôt de boissons avec 1 ou 2 vendeurs, mini-boutique avec un gros stock, quincaillerie de quartier.',
+        ht: 'Depo bwason ak 1 oswa 2 vandè, ti boutik ak anpil stòk, kenkayri katye.',
+      },
+      service: {
+        fr: 'Salon de 2 ou 3 chaises, atelier de couture avec apprentis, réparation de téléphones avec des travaux en attente.',
+        ht: 'Salon 2 oswa 3 chèz, atelye koutiryè ak apranti, ranje telefòn ak travay k ap tann.',
+      },
+    },
     features: [
-      { fr: 'Tout Esansyel, sans limite de produits',            ht: 'Tout Esansyel, san limit pwodwi' },
-      { fr: 'Ce que chaque produit vous rapporte vraiment',      ht: 'Sa chak pwodwi rapòte ou vre' },
-      { fr: 'Achetez en dollars, vendez en gourdes : le taux du jour fait le calcul', ht: 'Achte an dola, vann an goud : to jounen an fè kalkil la' },
-      { fr: 'Relance WhatsApp écrite pour vous, montant et date compris', ht: 'Rapèl WhatsApp ekri pou ou, ak montan an ak dat la' },
-      { fr: 'Prévenu avant la rupture de stock',                 ht: 'Yo avèti w anvan stòk la fini' },
-      { fr: '30 questions par mois à votre assistant',           ht: '30 kesyon pa mwa pou asistan ou' },
-      { fr: "Votre objectif du mois, et jusqu'à 3 personnes", ht: 'Objektif mwa ou, ak jiska 3 moun' },
+      { fr: 'Tout Esansyel',                                                    ht: 'Tout Esansyel' },
+      { fr: 'Pran foto kaye ou, autant de fois qu’il faut',                     ht: 'Pran foto kaye ou, otan fwa ou bezwen' },
+      { fr: 'Rappel de crédit WhatsApp en un tap, montant exact compris',      ht: 'Rapèl kredi WhatsApp an yon tap, ak montan egzak la' },
+      { fr: '2 aides : ils notent les ventes sans voir le profit ni la caisse', ht: '2 èd : yo note vant yo san yo pa wè pwofi a ni kès la' },
+      { fr: 'La paie des aides, à la journée ou au pourcentage, calculée',      ht: 'Peman èd yo, pa jounen oswa pa pousantaj, kalkile pou ou' },
+      { fr: 'Sòl et sabotaj : les cotisations prévues dans la caisse',          ht: 'Sòl ak sabotaj : kotizasyon yo prevwa nan kès la' },
+      { fr: 'Votre assistant en kreyòl : 30 questions par mois',                ht: 'Asistan w an kreyòl : 30 kesyon pa mwa' },
+      { fr: 'Le rapport du mois',                                               ht: 'Rapò mwa a' },
     ],
+    extras: {
+      commerce: [
+        { fr: 'Les produits qui dorment, et ceux qui rapportent le plus',        ht: 'Pwodwi k ap dòmi yo, ak sa ki rapòte plis yo' },
+      ],
+      service: [
+        { fr: 'Fiches de travail : avance, solde, statut, message « li pare »',   ht: 'Fich travay : avans, balans, eta, mesaj « li pare »' },
+        { fr: 'Le coût réel de chaque prestation',                               ht: 'Vrè pri chak sèvis koute w' },
+        { fr: 'Rendez-vous, avec rappel WhatsApp la veille',                      ht: 'Randevou, ak rapèl WhatsApp lavèy' },
+      ],
+    },
+    limits: {
+      fr: '3 utilisateurs (vous et 2 aides) · 1 seul point de vente · pas de dossier de financement complet',
+      ht: '3 moun (ou menm ak 2 èd) · 1 sèl pwen vant · pa gen dosye finansman konplè',
+    },
+    nextSignal: {
+      fr: 'Passez à Elit avec un deuxième point de vente, plus de 2 aides, des écarts de caisse inexpliqués, ou un projet de crédit.',
+      ht: 'Pase nan Elit lè w gen yon dezyèm pwen vant, plis pase 2 èd, kès ki pa bon san w pa konnen poukisa, oswa yon pwojè kredi.',
+    },
     promise: {
-      fr: 'L’offre de ceux qui veulent grandir cette année.',
-      ht: 'Ofr moun ki vle grandi ane sa a.',
+      fr: 'Savoir ce qui se passe, même quand vous n’êtes pas là.',
+      ht: 'Konnen sa k ap pase, menm lè w pa la.',
     },
     highlight: { fr: 'Recommandé', ht: 'Rekòmande' },
     popular: true,
@@ -117,33 +232,58 @@ export const PLANS: Plan[] = [
     priceG: 7500,
     priceUsd: 7500 * USD_RATE,
     stage: {
-      kreyol: 'Dirije tankou yon patron',
+      kreyol: 'Mwen vle GRANDI',
       fr: {
-        fr: "D'autres tiennent la caisse à votre place",
-        ht: 'Lòt moun ap kenbe kès la pou ou',
+        fr: 'Déléguer, piloter plusieurs points, obtenir un financement',
+        ht: 'Delege, dirije plizyè pwen, jwenn finansman',
       },
     },
     description: {
-      fr: 'Déléguer, se multiplier, et prévoir au lieu de subir.',
-      ht: 'Delege, miltipliye tèt ou, epi prevwa olye pou w sibi.',
+      fr: 'Déléguer sans me faire voler, piloter plusieurs points depuis mon téléphone, et obtenir un financement grâce à mes chiffres.',
+      ht: 'Delege san yo pa vòlè m, dirije plizyè pwen depi nan telefòn mwen, epi jwenn finansman gras a chif mwen yo.',
     },
-    audience: 'Marchand qui délègue et suit plusieurs points de vente',
-    // Retirés ou reformulés faute d'implémentation : aucun écran ne compare les
-    // boutiques (`multi_store_reports`), le cron quotidien NOTIFIE le marchand
-    // sans rien envoyer au client, la prévision porte sur les ventes du mois
-    // suivant et non sur la trésorerie à deux semaines, et aucun support
-    // prioritaire n'existe (`priority_support`).
+    audience: 'Le business qui grandit : plusieurs employés ou plusieurs points',
+    forWhom: {
+      commerce: {
+        fr: 'Mini-market, quincaillerie établie, commerçant avec 2 ou 3 boutiques, grossiste de quartier.',
+        ht: 'Mini-mache, kenkayri ki byen chita, machann ki gen 2 oswa 3 boutik, grosis katye.',
+      },
+      service: {
+        fr: 'Salon de 4 employés ou plus, garage moto, atelier de couture avec plusieurs tailleurs, cyber avec plusieurs postes.',
+        ht: 'Salon 4 anplwaye oswa plis, garaj moto, atelye koutiryè ak plizyè tayè, sibè ak plizyè pòs.',
+      },
+    },
     features: [
-      { fr: 'Tout Kwasans, sans compter les questions',          ht: 'Tout Kwasans, san konte kesyon yo' },
-      { fr: "Jusqu'à 3 boutiques, et vous passez de l'une à l'autre", ht: 'Jiska 3 boutik, epi ou pase youn nan lòt' },
-      { fr: "Autant d'employés qu'il faut : chacun ne voit que ce qui le concerne", ht: 'Otan anplwaye ou bezwen : chak moun wè sèlman sa k gade l' },
-      { fr: 'Qui a saisi, qui a annulé : le journal complet',    ht: 'Kiyès ki antre, kiyès ki anile : jounal konplè a' },
-      { fr: 'Chaque matin, les crédits à réclamer vous sont signalés', ht: 'Chak maten, yo siyale w kredi pou w reklame yo' },
-      { fr: 'Vos ventes du mois prochain, projetées sur vos mois réels', ht: 'Vant mwa pwochen ou, pwojte sou vrè mwa ou yo' },
+      { fr: 'Tout Kwasans',                                                     ht: 'Tout Kwasans' },
+      { fr: '10 aides, avec la paie à la journée ou au pourcentage',            ht: '10 èd, ak peman pa jounen oswa pa pousantaj' },
+      { fr: 'Un assistant sans limite, qui vous prévient lui-même : prix, réassort, dépenses anormales', ht: 'Yon asistan san limit, ki avèti w poukont li : pri, machandiz pou achte, depans ki pa nòmal' },
+      { fr: 'Le dossier de financement complet, sur 6, 12 ou 24 mois',         ht: 'Dosye finansman konplè a, sou 6, 12 oswa 24 mwa' },
+      { fr: "Jusqu'à 3 points de vente",                                        ht: 'Jiska 3 pwen vant' },
+      { fr: 'Les écarts de caisse aide par aide, et qui a noté quoi',          ht: 'Diferans kès èd pa èd, ak kiyès ki note kisa' },
+      { fr: 'Une revue de 30 minutes par mois avec un conseiller',              ht: 'Yon revizyon 30 minit chak mwa ak yon konseye' },
+      { fr: 'Support prioritaire',                                              ht: 'Sipò priyorite' },
+      { fr: 'La comparaison anonyme avec des commerces semblables, dès qu’ils sont assez nombreux', ht: 'Konparezon anonim ak biznis ki sanble ak pa w, depi yo ase' },
     ],
+    extras: {
+      commerce: [
+        { fr: 'Fournisseurs et achats en dollars : échéances, prix d’achat suivis, alerte quand la marge baisse', ht: 'Founisè ak acha an dola : dat pou peye, pri acha swiv, alèt lè maj la desann' },
+      ],
+      service: [
+        { fr: 'Les commissions par employé et par service',                      ht: 'Komisyon pa anplwaye ak pa sèvis' },
+        { fr: 'Le classement des services qui rapportent le plus',               ht: 'Klasman sèvis ki rapòte plis yo' },
+      ],
+    },
+    limits: {
+      fr: '3 points de vente et 11 utilisateurs (vous et 10 aides) · au-delà, offre sur devis',
+      ht: '3 pwen vant ak 11 moun (ou menm ak 10 èd) · pi plis pase sa, n ap fè yon ofr apa',
+    },
+    nextSignal: {
+      fr: 'Au-delà de 3 points, ou pour des outils comptables formels : une offre sur mesure.',
+      ht: 'Pi plis pase 3 pwen, oswa pou zouti kontab fòmèl : yon ofr sou mezi.',
+    },
     promise: {
-      fr: 'Pour diriger sans être derrière le comptoir.',
-      ht: 'Pou w dirije san w pa dèyè kontwa a.',
+      fr: 'Grandir sans tout porter seul.',
+      ht: 'Grandi san w pa pote tout poukont ou.',
     },
     highlight: { fr: 'Premium', ht: 'Premium' },
   },
@@ -152,13 +292,62 @@ export const PLANS: Plan[] = [
 /**
  * Ce que les trois offres partagent — affiché sous les cartes, parce que c'est
  * la peur qui empêche de payer : ce qu'il enregistre ne sera jamais retenu
- * contre lui.
+ * contre lui (§6, « leta ou vòlè ap konnen »).
  */
 export const PLAN_COMMON_GROUND: Bilingual[] = [
-  { fr: 'Ventes et dépenses illimitées',          ht: 'Vant ak depans san limit' },
-  { fr: 'Vente rapide hors ligne',                ht: 'Vann rapid san entènèt' },
-  { fr: 'Vos données exportables à tout moment',  ht: 'Done ou yo ekspòtab nenpòt kilè' },
-  { fr: "Changement d'offre immédiat",            ht: 'Chanjman ofr imedya' },
+  { fr: 'Kreyòl d’abord, français si vous voulez',           ht: 'Kreyòl dabò, franse si w vle' },
+  { fr: 'Vente rapide hors ligne',                          ht: 'Vann rapid san entènèt' },
+  { fr: 'Vos chiffres ne sont partagés avec personne sans votre accord', ht: 'Chif ou yo pa pataje ak pèsonn san w pa dakò' },
+  { fr: 'Vos données exportables à tout moment',            ht: 'Done ou yo ekspòtab nenpòt kilè' },
+  { fr: "Changement d'offre immédiat",                      ht: 'Chanjman ofr imedya' },
+];
+
+// ── Le tableau comparatif (§13.4) ───────────────────────────────────────────
+//
+// Une cellule vaut `true` (inclus), `false` (absent) ou un texte court quand
+// l'offre l'inclut avec une limite (« 2 aides », « Illimité »). `trade` marque
+// les lignes qui ne concernent qu'un métier : la page de prix les montre au
+// lecteur de ce métier et les tait à l'autre.
+
+export type ComparisonCell = boolean | Bilingual;
+
+export type ComparisonRow = {
+  label: Bilingual;
+  trade?: 'commerce' | 'service';
+  cells: [ComparisonCell, ComparisonCell, ComparisonCell];
+};
+
+const txt = (fr: string, ht: string): Bilingual => ({ fr, ht });
+
+export const PLAN_COMPARISON: ComparisonRow[] = [
+  { label: txt('Vente rapide et à la voix', 'Vann rapid ak vwa'),                             cells: [true, true, true] },
+  { label: txt('Dépenses, salaire du patron, caisse', 'Depans, salè mèt la, kès'),             cells: [true, true, true] },
+  { label: txt('Cahier de crédit', 'Kaye kredi'),                                              cells: [true, true, true] },
+  { label: txt('Bilan du soir sur WhatsApp', 'Rapò chak swa sou WhatsApp'),                    cells: [true, true, true] },
+  { label: txt('Goud, dola, dollar, taux du jour', 'Goud, dola, dola ameriken, to jounen an'), cells: [true, true, true] },
+  { label: txt('Vente sans internet', 'Vann san entènèt'),                                     cells: [true, true, true] },
+  { label: txt('Cahier recopié par photo', 'Kaye antre pa foto'),
+    cells: [txt("À l'installation", 'Premye jou a'), txt('Illimité', 'San limit'), txt('Illimité', 'San limit')] },
+  { label: txt('Rappels de crédit WhatsApp', 'Rapèl kredi WhatsApp'),                          cells: [false, true, true] },
+  { label: txt('Stock simple', 'Stòk senp'), trade: 'commerce',                                cells: [true, true, true] },
+  { label: txt('Fiches de travail, coût des prestations, rendez-vous', 'Fich travay, pri sèvis, randevou'), trade: 'service',
+    cells: [false, true, true] },
+  { label: txt('Comptes des aides', 'Kont èd yo'),
+    cells: [false, txt('2 aides', '2 èd'), txt('10 aides', '10 èd')] },
+  { label: txt('Sòl et sabotaj', 'Sòl ak sabotaj'),                                           cells: [false, true, true] },
+  { label: txt('Assistant en kreyòl', 'Asistan an kreyòl'),
+    cells: [false, txt('30 questions', '30 kesyon'), txt('Conseils proactifs', 'Konsèy poukont li')] },
+  { label: txt('Rapport du mois et dossier de crédit', 'Rapò mwa ak dosye kredi'),
+    cells: [false, txt('Rapport', 'Rapò'), txt('Dossier complet', 'Dosye konplè')] },
+  { label: txt('Plusieurs points de vente', 'Plizyè pwen vant'),
+    cells: [false, false, txt("Jusqu'à 3", 'Jiska 3')] },
+  { label: txt('Fournisseurs et achats en dollars', 'Founisè ak acha an dola'), trade: 'commerce', cells: [false, false, true] },
+  { label: txt('Contrôle des écarts', 'Kontwòl diferans yo'),                                  cells: [false, false, true] },
+  { label: txt('Comparaison anonyme', 'Konparezon anonim'),
+    cells: [false, false, txt('Bientôt', 'Talè')] },
+  { label: txt('Revue mensuelle avec un conseiller', 'Revizyon chak mwa ak yon konseye'),      cells: [false, false, true] },
+  { label: txt('Support WhatsApp en kreyòl', 'Sipò WhatsApp an kreyòl'),
+    cells: [txt('Standard', 'Nòmal'), txt('Standard', 'Nòmal'), txt('Prioritaire', 'Priyorite')] },
 ];
 
 /** Clé technique → nom commercial. */

@@ -18,6 +18,16 @@ const publicRoutes = [
   '/auth/accept-invitation',
   '/api/invitations',
   '/store',
+  // Les pages qu'un visiteur lit AVANT d'avoir un compte. Elles étaient
+  // publiques pour l'écran (lib/publicRoutes.ts) mais pas ici : le bouton
+  // « Eseye l gratis » et le lien vers les prix de la page d'accueil menaient à
+  // l'écran de connexion. Le prix par jour (étude de marché inversée, §7) ne
+  // convainc personne s'il faut un compte pour le lire.
+  '/pricing',
+  '/onboarding',
+  '/faq',
+  '/guide',
+  '/legal',
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════

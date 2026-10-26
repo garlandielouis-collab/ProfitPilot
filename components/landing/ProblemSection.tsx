@@ -5,22 +5,24 @@ import { motion, useInView } from 'framer-motion';
 import { X, Check } from 'lucide-react';
 import { useLanguage } from '../LanguageWrapper';
 
+// Les six premières douleurs de l'étude de marché inversée (§5), dites avec
+// les mots du marchand : c'est le vocabulaire à réutiliser, pas à traduire.
 const BEFORE = [
-  { fr: 'Cahier papier et calculs manuels', ht: 'Kaye papye ak kalkil manyèl' },
-  { fr: 'Excel compliqué, formules cassées', ht: 'Excel konplike, fòmil kase' },
-  { fr: 'Vous ne savez pas votre vrai profit', ht: 'Ou pa konnen vrè pwofi ou' },
-  { fr: 'Stock perdu, vols non détectés', ht: 'Stock pèdi, vòl pa detekte' },
-  { fr: 'Panique en fin de mois', ht: 'Panik nan fen mwa' },
-  { fr: 'Décisions prises à l\'instinct', ht: 'Desizyon pran sou ensten' },
+  { fr: '« Je ne sais pas si je gagne de l’argent. »',      ht: '« M pa konn si m ap fè kòb. »' },
+  { fr: '« L’argent ne suffit jamais. »',                   ht: '« Kòb la pa janm ase. »' },
+  { fr: '« On me doit, je ne me souviens plus combien. »',  ht: '« Moun yo dwe m, m pa sonje konbyen. »' },
+  { fr: '« Le dollar monte, je ne peux pas suivre. »',      ht: '« Dola a monte, m pa ka swiv. »' },
+  { fr: '« La marchandise disparaît. »',                    ht: '« Machandiz yo ap disparèt. »' },
+  { fr: '« Si le cahier se perd, tout est perdu. »',        ht: '« Si kaye a pèdi, tout pèdi. »' },
 ];
 
 const AFTER = [
-  { fr: 'Tableau de bord en temps réel', ht: 'Tablo debò an tan reyèl' },
-  { fr: 'Ventes et achats en 3 secondes', ht: 'Vant ak acha an 3 segond' },
-  { fr: 'Profit exact à chaque instant', ht: 'Pwofi egzak chak moman' },
-  { fr: 'Alertes stock automatiques', ht: 'Alèt stock otomatik' },
-  { fr: 'Sérénité et contrôle total', ht: 'Serenite ak kontwòl total' },
-  { fr: 'Décisions guidées par l\'IA', ht: 'Desizyon gide pa IA' },
+  { fr: 'Ce que vous gagnez vraiment, chaque soir',          ht: 'Sa w fè vre, chak swa' },
+  { fr: 'Votre salaire à part, l’argent de la maison noté',  ht: 'Salè w apa, lajan lakay la note' },
+  { fr: 'Qui vous doit combien, et depuis quand',            ht: 'Kiyès ki dwe w konbyen, e depi kilè' },
+  { fr: 'Le taux du jour : vos prix suivent le dollar',      ht: 'To jounen an : pri w yo swiv dola a' },
+  { fr: 'Le stock déduit à chaque vente',                    ht: 'Stòk la desann chak vant' },
+  { fr: 'Tout est sauvegardé : le kaye ne se mouille plus',  ht: 'Tout bagay sove : kaye a pa ka mouye ankò' },
 ];
 
 const fadeUp = {
@@ -63,7 +65,7 @@ export function ProblemSection() {
           variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { delay: 0.2, duration: 0.6 } } }}
           className="mx-auto mb-14 max-w-2xl text-center text-lg text-slate-500"
         >
-          {t({ fr: 'La plupart des entrepreneurs haïtiens gèrent leur business dans le flou total. ProfitPilot change ça — définitivement.', ht: 'Pifò antreprenè ayisyen jere biznis yo nan flou total. ProfitPilot chanje sa — definitivman.' })}
+          {t({ fr: 'En Haïti, 92 % des petites entreprises ne tiennent aucun registre (FinScope 2023). Le vrai concurrent, c’est le cahier et la mémoire.', ht: 'Ann Ayiti, 92 % ti biznis pa kenbe okenn kaye kont (FinScope 2023). Vrè konkiran an, se kaye a ak memwa a.' })}
         </motion.p>
 
         {/* Before / After split */}
@@ -104,7 +106,7 @@ export function ProblemSection() {
             <div className="mt-6 rounded-2xl bg-red-50 p-4">
               <p className="text-center text-2xl mb-1">😰</p>
               <p className="text-center text-xs font-semibold text-red-500">
-                {t({ fr: '"Je ne sais pas si je fais des profits ou des pertes..."', ht: '"M pa konnen si m ap fè pwofi oswa pèt..."' })}
+                {t({ fr: '« Je vends beaucoup, mais je ne vois pas l’argent. »', ht: '« M vann anpil, men m pa wè kòb la. »' })}
               </p>
             </div>
           </motion.div>
@@ -146,7 +148,7 @@ export function ProblemSection() {
             <div className="mt-6 rounded-2xl bg-accent/8 border border-accent/15 p-4">
               <p className="text-center text-2xl mb-1">😌</p>
               <p className="text-center text-xs font-semibold text-accent">
-                {t({ fr: '"Je vois enfin où va chaque gourde. Je contrôle mon business."', ht: '"M wè finalman kote chak goud ale. M ap kontwole biznis mwen."' })}
+                {t({ fr: '« Je sais enfin ce qui est à moi. »', ht: '« M konnen kounye a sa ki pou mwen. »' })}
               </p>
             </div>
           </motion.div>

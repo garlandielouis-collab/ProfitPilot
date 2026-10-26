@@ -35,6 +35,8 @@ import {
   type EnhancementType,
 } from '../../../../lib/ai/imageEnhancer';
 import { IMAGE_JOB_STALE_MS, deliverImageJob, failImageJob } from '../../../../lib/ai/credits';
+import { deliverEveningReportForBusiness } from '../../../../lib/eveningData';
+import { localDay, zonedDayBounds } from '../../../../lib/eveningReport';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -266,6 +268,44 @@ async function sweepStuckImageJobs(svc: SupabaseClient, deadline: number): Promi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Le bilan d'hier soir (F06 de l'étude de marché inversée)
+//
+// Le bilan du soir se pose de lui-même quand le marchand ouvre l'application
+// passé son heure (app/actions/evening.ts). Ce balayage est le filet : à 7 h,
+// celui qui n'a pas ouvert l'application hier soir trouve le bilan de sa
+// journée d'hier. Seulement pour les commerces qui ont vendu hier — un bilan à
+// zéro chaque matin apprendrait à ignorer la notification. Idempotent : une
+// notification par commerce et par jour, quel que soit le chemin.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EVENING_TZ = 'America/Port-au-Prince';
+
+async function sweepEveningReports(svc: SupabaseClient, deadline: number): Promise<number> {
+  const yesterday = localDay(new Date(Date.now() - 86_400_000), EVENING_TZ);
+  const { start, end } = zonedDayBounds(yesterday, EVENING_TZ);
+
+  const { data: rows, error } = await svc
+    .from('sales')
+    .select('business_id')
+    .gte('created_at', start)
+    .lt('created_at', end)
+    .limit(5000);
+  if (error) throw new Error(error.message);
+
+  const ids = [...new Set((rows ?? []).map((r: any) => r.business_id as string))];
+  let posted = 0;
+  for (const id of ids) {
+    if (Date.now() > deadline) break;
+    try {
+      if (await deliverEveningReportForBusiness(id, yesterday)) posted += 1;
+    } catch {
+      // Un commerce en échec n'empêche pas les autres de recevoir le leur.
+    }
+  }
+  return posted;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req)) {
@@ -311,6 +351,10 @@ export async function GET(req: NextRequest) {
     sent: 0, skipped: 0, failed: 0,
   });
 
+  // Le bilan d'hier pour qui ne l'a pas vu hier soir — sous budget, comme les
+  // retouches IA qui suivent : la route s'arrête à 60 s.
+  const eveningReports = await run('eveningReports', () => sweepEveningReports(svc, startedAt + 35_000), 0);
+
   // Les retouches IA bloquées : débitées, jamais livrées, jamais remboursées.
   // En dernier et sous budget — voir la section plus haut.
   const imageJobs = await run(
@@ -326,6 +370,7 @@ export async function GET(req: NextRequest) {
     documentAlerts: documents.alerts,
     documentsExpired: documents.transitioned,
     referralActivations,
+    eveningReports,
     reviewRequestsSent:    reviews.sent,
     reviewRequestsSkipped: reviews.skipped,
     reviewRequestsFailed:  reviews.failed,

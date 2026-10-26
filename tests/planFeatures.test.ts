@@ -17,7 +17,10 @@ import {
   plansWithFeature,
   requiredPlanFor,
 } from '../lib/planFeatures';
-import { PLANS, getPlanByKey, getPlanLabel, normalizePlanKey } from '../lib/plans';
+import {
+  PLANS, PLAN_COMPARISON, getPlanByKey, getPlanLabel, normalizeBillingMonths, normalizePlanKey,
+  periodTotalHtg, pricePerDay,
+} from '../lib/plans';
 import { previewFeatureOverrideEnabled } from '../lib/storePreview';
 
 // Les trois clés telles qu'elles sont stockées en base, et leur nom commercial.
@@ -61,10 +64,10 @@ describe('les plafonds d’offre', () => {
     assert.equal(planMaxProducts(ELIT), UNLIMITED);
   });
 
-  test('membres : 1 / 3 / illimité', () => {
+  test('membres : 1 / 3 / 11 — le patron, puis 2 aides, puis 10', () => {
     assert.equal(planMaxMembers(ESANSYEL), 1);
     assert.equal(planMaxMembers(KWASANS), 3);
-    assert.equal(planMaxMembers(ELIT), UNLIMITED);
+    assert.equal(planMaxMembers(ELIT), 11);
   });
 
   test('boutiques : 1 / 1 / 3', () => {
@@ -160,6 +163,45 @@ describe('le catalogue commercial', () => {
       for (const f of plan.features) {
         assert.ok(f.fr.trim().length > 0 && f.ht.trim().length > 0, `${plan.label} : ligne incomplète`);
       }
+    }
+  });
+
+  test('le prix par jour est celui de l’étude : 33 / 83 / 250 goud', () => {
+    assert.deepEqual(PLANS.map((p) => pricePerDay(p.priceG)), [33, 83, 250]);
+  });
+
+  test('six mois : le bon couvre le premier mois, les cinq autres sont au tarif', () => {
+    assert.equal(periodTotalHtg(2500, 2500, 6), 15000);
+    assert.equal(periodTotalHtg(1250, 2500, 6), 13750);
+    assert.equal(periodTotalHtg(1250, 2500, 1), 1250);
+  });
+
+  test('une période inconnue retombe sur un mois, jamais sur six', () => {
+    assert.equal(normalizeBillingMonths(6), 6);
+    assert.equal(normalizeBillingMonths('6'), 6);
+    for (const v of [1, 3, 12, null, undefined, 'x']) assert.equal(normalizeBillingMonths(v), 1);
+  });
+
+  test('chaque offre parle aux deux métiers', () => {
+    for (const plan of PLANS) {
+      for (const trade of ['commerce', 'service'] as const) {
+        assert.ok(plan.forWhom[trade].fr && plan.forWhom[trade].ht, `${plan.label} : « pour qui » ${trade} vide`);
+      }
+      assert.ok(plan.limits.ht && plan.nextSignal.ht, `${plan.label} : limite ou signal manquant`);
+    }
+  });
+
+  test('le tableau comparatif a une cellule par offre', () => {
+    for (const row of PLAN_COMPARISON) assert.equal(row.cells.length, PLANS.length, row.label.fr);
+  });
+
+  test('aucun mot de comptable dans ce que lit le marchand (§11.1)', () => {
+    const lus = PLANS.flatMap((p) => [
+      p.description, p.stage.fr, ...p.features, ...p.extras.commerce, ...p.extras.service,
+    ]);
+    for (const texte of lus) {
+      assert.doesNotMatch(texte.fr, /comptabilit|bilan comptable|marge brute|créance/i, texte.fr);
+      assert.doesNotMatch(texte.ht, /kontablite|kreyans/i, texte.ht);
     }
   });
 

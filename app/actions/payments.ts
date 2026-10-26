@@ -26,7 +26,13 @@
 
 import { getSupabaseServer } from '../../lib/supabaseServerClient';
 import { sendPaymentNotification } from '../../lib/sendEmail';
-import { getPlanByKey, normalizePlanKey } from '../../lib/plans';
+import {
+  getPlanByKey,
+  normalizeBillingMonths,
+  normalizePlanKey,
+  periodTotalHtg,
+  type BillingMonths,
+} from '../../lib/plans';
 import {
   discountedPrice,
   selectCredits,
@@ -49,6 +55,8 @@ export type CreatePaymentInput = {
    */
   amountHtg?: number;
   reference: string;
+  /** 1 mois, ou 6 mois payés d'avance (§13.4 de l'étude). */
+  months?: BillingMonths;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,6 +144,11 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
   const quote = await getCheckoutQuote(input.planKey);
   if (!quote) throw new Error('Offre inconnue.');
 
+  // Six mois d'avance : le bon de parrainage couvre le premier, les cinq autres
+  // sont au tarif. Le total se recalcule ici, comme le reste du montant.
+  const months   = normalizeBillingMonths(input.months);
+  const totalHtg = periodTotalHtg(quote.amountHtg, quote.baseHtg, months);
+
   // L'identité vient de la session quand il y en a une. Le `userId` transmis
   // par l'écran ne sert plus que de repli pour les parcours sans session.
   const { data: { user } } = await supabase.auth.getUser();
@@ -145,7 +158,7 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
     user_id:        userId,
     plan_key:       input.planKey,
     payment_method: input.method,
-    amount_htg:     quote.amountHtg,
+    amount_htg:     totalHtg,
     status:         'pending',
     reference:      input.reference,
   };
@@ -158,9 +171,17 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
       discount_percent: quote.percentOff,
       // Retenus, pas consommés : un paiement refusé ne doit pas brûler un bon.
       credit_ids:       quote.applied.map((c) => c.id),
+      billing_months:   months,
     })
     .select('id, reference, status')
     .single();
+
+  // Sans la colonne `billing_months` (migration 20261025 non jouée), un paiement
+  // de six mois s'approuverait pour trente jours : le marchand paierait 6 mois
+  // et en recevrait un. Mieux vaut refuser l'option que l'encaisser à tort.
+  if (error?.code === '42703' && months > 1) {
+    throw new Error('Le paiement de 6 mois n’est pas encore ouvert. Choisissez 1 mois pour l’instant.');
+  }
 
   // 42703 = colonne inconnue, c'est-à-dire migration des bons non jouée. On
   // encaisse quand même : une caisse fermée coûte infiniment plus cher qu'un
@@ -198,7 +219,8 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
       method:     input.method,
       // Le montant réellement attendu sur le compte MonCash : c'est celui-là
       // qu'un humain va comparer au virement reçu, pas le tarif catalogue.
-      amountHtg:  quote.amountHtg,
+      amountHtg:  totalHtg,
+      months,
       approveUrl,
     });
   } catch (emailErr) {
@@ -206,7 +228,7 @@ export async function createPendingPayment(input: CreatePaymentInput): Promise<{
   }
 
   const row = data as { id: string; reference: string; status: PaymentStatus };
-  return { ...row, amountHtg: quote.amountHtg, discountPercent: quote.percentOff };
+  return { ...row, amountHtg: totalHtg, discountPercent: quote.percentOff };
 }
 
 export async function getActiveSubscription(userId: string) {

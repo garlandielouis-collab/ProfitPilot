@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { useLanguage } from '../LanguageWrapper';
+import { TRIAL_DAYS } from '../../lib/plans';
 
 export function CTASection() {
   const { t } = useLanguage();
@@ -34,7 +35,7 @@ export function CTASection() {
         >
           <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-xs font-semibold text-accent">
             <Sparkles size={11} />
-            {t({ fr: 'Rejoignez 250+ entrepreneurs haïtiens', ht: 'Rejwenn 250+ antreprenè ayisyen' })}
+            {t({ fr: 'Votre cahier, dans votre téléphone.', ht: 'Kaye ou, nan telefòn ou.' })}
           </span>
         </motion.div>
 
@@ -44,8 +45,8 @@ export function CTASection() {
           className="mb-6 text-4xl font-extrabold leading-tight text-white sm:text-5xl"
         >
           {t({
-            fr: 'Votre business mérite\nmieux que le flou.',
-            ht: 'Biznis ou a merite pi\nbyen pase flou a.',
+            fr: 'Savoir ce que vous gagnez\nvraiment, chaque soir.',
+            ht: 'Konnen sa w FÈ vre,\nchak swa.',
           })}
         </motion.h2>
 
@@ -55,8 +56,8 @@ export function CTASection() {
           className="mx-auto mb-10 max-w-xl text-xl text-white/60"
         >
           {t({
-            fr: 'Rejoignez les entrepreneurs qui pilotent leur activité avec confiance, clarté et intelligence artificielle.',
-            ht: 'Rejwenn antreprenè ki pilote aktivite yo ak konfyans, klète ak entèlijans atifisyèl.',
+            fr: 'ProfitPilot remplace le cahier, pas le comptable. Trois secondes par vente, moins de cinq minutes par jour.',
+            ht: 'ProfitPilot ranplase kaye a, pa kontab la. Twa segonn pa vant, mwens pase senk minit pa jou.',
           })}
         </motion.p>
 
@@ -71,7 +72,7 @@ export function CTASection() {
             style={{ boxShadow: '0 0 0 1px rgba(80,200,120,0.3), 0 20px 60px rgba(80,200,120,0.3)' }}
           >
             <span className="pointer-events-none absolute inset-0 translate-x-[-120%] skew-x-[-20deg] bg-white/20 transition-transform duration-700 group-hover:translate-x-[120%]" />
-            {t({ fr: 'Commencer gratuitement', ht: 'Kòmanse gratis' })}
+            {t({ fr: `Essayer ${TRIAL_DAYS} jours gratuitement`, ht: `Eseye l gratis ${TRIAL_DAYS} jou` })}
             <ArrowRight size={16} className="relative transition-transform group-hover:translate-x-1" />
           </Link>
 

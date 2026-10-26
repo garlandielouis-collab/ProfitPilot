@@ -28,7 +28,14 @@ export type ProductPayload = ProductCostFields & {
   stock_quantity: number;
   image_url?: string | null;
   currency?: 'HTG' | 'USD';
+  /** Un service ne se stocke pas : `track_inventory` passe à faux (lib/kaye.ts). */
+  kind?: ProductKind;
+  /** Affiché en premier dans la vente rapide (« 30 favoris », §13.1). */
+  favorite?: boolean;
 };
+
+/** Ce que vend une fiche : une marchandise, ou un service (étude, §3). */
+export type ProductKind = 'product' | 'service';
 
 export type Product = {
   id: string;
@@ -45,10 +52,36 @@ export type Product = {
   commission_percent: number;
   target_margin_percent: number;
   reorder_point: number;
+  kind: ProductKind;
+  favorite: boolean;
+  /** Faux pour un service : ni stock affiché, ni stock déduit. */
+  track_inventory: boolean;
 };
 
+// `track_inventory` et `metadata` sont dans le schéma v2 depuis le premier jour :
+// les lire ne dépend d'aucune migration.
 const BASE_COLUMNS =
-  'id,name,category,purchase_price,sale_price,stock_quantity,image_url,currency';
+  'id,name,category,purchase_price,sale_price,stock_quantity,image_url,currency,track_inventory,metadata';
+
+/**
+ * La fiche système de la « vente au montant » (F01) : invisible au catalogue,
+ * elle porte les ventes saisies sans produit (« 500 goud, c'est tout »).
+ */
+const QUICK_AMOUNT_KIND = 'quick_amount';
+
+function mapProduct(p: any): Product {
+  const meta = p?.metadata && typeof p.metadata === 'object' ? p.metadata : {};
+  const { metadata: _drop, ...rest } = p;
+  return {
+    ...COST_DEFAULTS,
+    ...rest,
+    kind:            meta.kind === 'service' ? 'service' : 'product',
+    favorite:        meta.favorite === true,
+    track_inventory: p.track_inventory !== false,
+  } as Product;
+}
+
+const isCatalogRow = (p: any) => p?.metadata?.kind !== QUICK_AMOUNT_KIND;
 
 // Colonnes ajoutées par 20260821_profitpilot_features.sql. Lues à part : si la
 // migration n'a pas encore été jouée, on sert le catalogue de base plutôt que
@@ -80,6 +113,19 @@ function costFields(payload: ProductCostFields): Record<string, number> {
   return out;
 }
 
+/** Un service ne se stocke pas ; le drapeau favori vit dans `metadata`. */
+function kindFields(payload: Pick<ProductPayload, 'kind' | 'favorite'>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (payload.kind !== undefined) out.track_inventory = payload.kind !== 'service';
+  if (payload.kind !== undefined || payload.favorite !== undefined) {
+    out.metadata = {
+      kind:     payload.kind ?? 'product',
+      favorite: payload.favorite === true,
+    };
+  }
+  return out;
+}
+
 // ── Le cadrage du catalogue ─────────────────────────────────────────────────
 //
 // Par `business_id`, et non plus par `user_id`.
@@ -106,7 +152,7 @@ export async function getProductsAction(): Promise<ActionResult<Product[]>> {
     .eq('business_id', businessId)
     .order('name');
 
-  if (!error) return (data ?? []).map((p: any) => ({ ...COST_DEFAULTS, ...p })) as Product[];
+  if (!error) return (data ?? []).filter(isCatalogRow).map(mapProduct);
 
   const { data: fallback, error: fallbackError } = await supabase
     .from('products')
@@ -115,7 +161,7 @@ export async function getProductsAction(): Promise<ActionResult<Product[]>> {
     .order('name');
 
   if (fallbackError) throw new Error(fallbackError.message);
-  return (fallback ?? []).map((p: any) => ({ ...COST_DEFAULTS, ...p })) as Product[];
+  return (fallback ?? []).filter(isCatalogRow).map(mapProduct);
   });
 }
 
@@ -149,6 +195,7 @@ export async function createProductAction(payload: ProductPayload): Promise<Acti
     stock_quantity: payload.stock_quantity,
     currency:       payload.currency ?? 'HTG',
     image_url:      payload.image_url ?? null,
+    ...kindFields(payload),
     ...costFields(payload),
   }).select('id').single();
 
@@ -210,6 +257,21 @@ export async function updateProductAction(id: string, payload: ProductPayload): 
   if (payload.image_url !== undefined) fields.image_url = payload.image_url;
   Object.assign(fields, costFields(payload));
 
+  // Le genre et le drapeau favori se FUSIONNENT dans `metadata` : écraser la
+  // colonne effacerait ce qu'un autre écran y aurait rangé.
+  if (payload.kind !== undefined || payload.favorite !== undefined) {
+    const { data: current } = await supabase
+      .from('products')
+      .select('metadata, track_inventory')
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .maybeSingle();
+    const meta = current?.metadata && typeof current.metadata === 'object' ? current.metadata : {};
+    const kind = payload.kind ?? (meta.kind === 'service' ? 'service' : 'product');
+    fields.metadata = { ...meta, kind, favorite: payload.favorite ?? meta.favorite === true };
+    fields.track_inventory = kind !== 'service';
+  }
+
   const { error } = await supabase
     .from('products')
     .update(fields)
@@ -235,5 +297,110 @@ export async function deleteProductAction(id: string): Promise<ActionResult> {
   if (error) throw new Error(error.message);
   void logActivity({ action: 'delete', entity: 'product', entityId: id });
   revalidatePath('/products');
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// La vente au montant et les favoris (étude de marché inversée, F01 et §11.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * L'identifiant de la fiche système « Vant » de l'entreprise, créée au besoin.
+ *
+ * Une ligne de vente exige un produit (`sale_items.product_id NOT NULL`). Plutôt
+ * que d'ouvrir cette contrainte — et toutes les vues qui joignent les produits —,
+ * la vente « juste un montant » porte une fiche qui ne se stocke pas, ne
+ * s'affiche dans aucun catalogue et ne compte pas dans le plafond de fiches :
+ * ce n'est pas un produit du marchand, c'est la case « divers » du cahier.
+ */
+export async function ensureQuickAmountProductAction(): Promise<ActionResult<string>> {
+  return attempt(async () => {
+    const { supabase, userId, businessId } = await getBusinessContext();
+
+    const { data: found } = await supabase
+      .from('products')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('metadata->>kind', QUICK_AMOUNT_KIND)
+      .limit(1)
+      .maybeSingle();
+    if (found?.id) return found.id as string;
+
+    const { data, error } = await supabase.from('products').insert({
+      user_id:         userId,
+      business_id:     businessId,
+      name:            'Vant',
+      purchase_price:  0,
+      sale_price:      0,
+      stock_quantity:  0,
+      currency:        'HTG',
+      track_inventory: false,
+      metadata:        { kind: QUICK_AMOUNT_KIND },
+    }).select('id').single();
+    if (error) throw new Error(error.message);
+    return data.id as string;
+  });
+}
+
+export type FavoriteDraft = { name: string; sale_price: number; kind: ProductKind };
+
+/**
+ * Les favoris choisis à l'installation (§11.3, étape 2) : créés d'un coup, dans
+ * la limite des fiches de l'offre. Un nom déjà au catalogue n'est pas recréé —
+ * il devient favori.
+ */
+export async function createFavoritesAction(drafts: FavoriteDraft[]): Promise<ActionResult<number>> {
+  return attempt(async () => {
+    const { supabase, userId, businessId } = await getBusinessContext();
+
+    const clean = drafts
+      .map((d) => ({ name: String(d.name ?? '').trim(), price: Number(d.sale_price), kind: d.kind === 'service' ? 'service' as const : 'product' as const }))
+      .filter((d) => d.name.length > 0 && Number.isFinite(d.price) && d.price > 0)
+      .slice(0, 30);
+    if (clean.length === 0) return 0;
+
+    const { data: existing } = await supabase
+      .from('products')
+      .select('id, name, metadata')
+      .eq('business_id', businessId);
+    const byName = new Map<string, any>(
+      (existing ?? []).map((p: any) => [String(p.name).trim().toLowerCase(), p]),
+    );
+
+    const fresh = clean.filter((d) => !byName.has(d.name.toLowerCase()));
+    const known = clean.filter((d) => byName.has(d.name.toLowerCase()));
+
+    // Les fiches existantes deviennent favorites, sans toucher à leur prix.
+    for (const d of known) {
+      const row = byName.get(d.name.toLowerCase());
+      const meta = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+      if (meta.favorite === true) continue;
+      await supabase.from('products').update({ metadata: { ...meta, favorite: true } }).eq('id', row.id);
+    }
+
+    if (fresh.length > 0) {
+      const max = await productAllowance();
+      const room = Number.isFinite(max) ? Math.max(0, max - (existing ?? []).filter(isCatalogRow).length) : fresh.length;
+      if (room < fresh.length) {
+        const planLabel = getPlanLabel(await getActivePlanKey());
+        throw new PlanLimitError(max, (existing ?? []).length,
+          `Votre catalogue est presque plein : l'offre ${planLabel} laisse encore ${room} fiche${room > 1 ? 's' : ''}.`);
+      }
+      const { error } = await supabase.from('products').insert(fresh.map((d) => ({
+        user_id:         userId,
+        business_id:     businessId,
+        name:            d.name,
+        purchase_price:  0,
+        sale_price:      d.price,
+        stock_quantity:  0,
+        currency:        'HTG',
+        track_inventory: d.kind !== 'service',
+        metadata:        { kind: d.kind, favorite: true },
+      })));
+      if (error) throw new Error(error.message);
+    }
+
+    revalidatePath('/products');
+    return clean.length;
   });
 }

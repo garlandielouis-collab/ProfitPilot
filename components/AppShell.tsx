@@ -17,7 +17,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Languages, LogOut, Search } from 'lucide-react';
+import { Download, Languages, LogOut, MessageCircle, Search } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { isStorefrontHost } from '../lib/storeTheme';
 import { useLanguage } from './LanguageWrapper';
@@ -33,6 +33,12 @@ import { PlanPreviewSwitcher } from './PlanPreviewSwitcher';
 import { RouteFeatureGate } from './PlanLock';
 import { BottomSheet, Button } from './ds';
 import { cn } from '../lib/utils';
+import {
+  OPEN_EXPENSE_EVENT, OPEN_SALE_EVENT, type ExpensePreset, type SalePreset,
+} from '../lib/quickSheets';
+import { supportMessage, supportWhatsAppLink } from '../lib/support';
+import { useCompanyContext } from '../contexts/CompanyContext';
+import { saleWord } from '../lib/kaye';
 
 // Non critique : chargé après que le contenu principal soit interactif.
 // La bulle de Pilot AI, et le panneau qu'elle ouvre. Chargée après le contenu :
@@ -43,6 +49,8 @@ const WelcomeAnimation = dynamic(() => import('./WelcomeAnimation').then((m) => 
 // sur une connexion irrégulière, on ne fait pas payer au marchand le poids
 // d'un écran qu'il n'a pas encore ouvert.
 const QuickSaleForm    = dynamic(() => import('./sales/QuickSaleForm').then((m) => ({ default: m.QuickSaleForm })), { ssr: false });
+// DEPANS, même règle : téléchargée au premier appui.
+const QuickExpenseForm = dynamic(() => import('./expenses/QuickExpenseForm').then((m) => ({ default: m.QuickExpenseForm })), { ssr: false });
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -61,7 +69,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [saleOpen, setSaleOpen]         = useState(false);
+  // Les trois gestes du jour (VANN, DEPANS, KREDI) s'ouvrent de n'importe quel
+  // écran par un événement (lib/quickSheets.ts), avec ce qu'il faut préremplir.
+  const [salePreset, setSalePreset]     = useState<SalePreset | undefined>(undefined);
+  const [expensePreset, setExpensePreset] = useState<ExpensePreset | null>(null);
   const userMenuRef                     = useRef<HTMLDivElement>(null);
+  const { company, canUse }             = useCompanyContext();
+  const word                            = saleWord(company?.kaye?.trade ?? null);
+
+  useEffect(() => {
+    const onSale = (e: Event) => {
+      setSalePreset((e as CustomEvent<SalePreset>).detail ?? {});
+      setSaleOpen(true);
+    };
+    const onExpense = (e: Event) => setExpensePreset((e as CustomEvent<ExpensePreset>).detail ?? {});
+    window.addEventListener(OPEN_SALE_EVENT, onSale);
+    window.addEventListener(OPEN_EXPENSE_EVENT, onExpense);
+    return () => {
+      window.removeEventListener(OPEN_SALE_EVENT, onSale);
+      window.removeEventListener(OPEN_EXPENSE_EVENT, onExpense);
+    };
+  }, []);
+
+  const openPlainSale = () => { setSalePreset(undefined); setSaleOpen(true); };
 
   // ── Quel chemin, exactement ? ─────────────────────────────────────────────
   //
@@ -210,6 +240,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Les prix, la FAQ, le guide : un visiteur doit pouvoir les lire avant
+  // d'avoir un compte — « 33 goud pa jou » ne convainc personne derrière un
+  // écran de connexion (étude de marché inversée, §7). Connecté, il les voit
+  // dans l'application ; sans compte, la page seule, sans barre de navigation.
+  const isVisitorPage = ['/pricing', '/faq', '/guide', '/legal']
+    .some((route) => path === route || (path?.startsWith(`${route}/`) ?? false));
+  if (!user && isVisitorPage) return <>{children}</>;
+
   if (!user) {
     if (typeof window !== 'undefined') window.location.replace('/auth/login');
     return (
@@ -252,6 +290,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Search className="h-5 w-5" strokeWidth={1.8} aria-hidden />
             </Link>
+
+            {/* « Ekri nou » (F25) : bloqué, il abandonne. L'aide humaine est à un
+                tap, en kreyòl, par écrit ou par vocal. */}
+            <a
+              href={supportWhatsAppLink(supportMessage(pathname ?? undefined, canUse('priority_support')))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pressable flex h-touch items-center justify-center gap-1 rounded-surface px-2 text-note font-bold text-primary hover:bg-surface dark:text-dark-text dark:hover:bg-white/5"
+            >
+              <MessageCircle className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+              <span>{t({ fr: 'Aide', ht: 'Ekri nou' })}</span>
+            </a>
 
             <NotificationBell />
             <StoreSwitcher />
@@ -306,7 +356,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex min-h-[calc(100vh-3.5rem)]">
-        <Sidebar pathname={pathname} onNewSale={() => setSaleOpen(true)} />
+        <Sidebar pathname={pathname} onNewSale={openPlainSale} />
         <main className="min-w-0 flex-1">
           {/* Chaque écran entre et sort ; le balayage depuis le bord gauche
               ramène au précédent (§7, moment 6). */}
@@ -322,7 +372,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <PilotLauncher />
       <WelcomeAnimation />
 
-      <BottomBar onNewSale={() => setSaleOpen(true)} />
+      <BottomBar onNewSale={openPlainSale} />
 
       {/* Trois boutons pour voir le rendu d'Esansyèl, Kwasans ou Elit. Il ne
           donne aucun droit : le serveur juge toujours sur l'offre réelle. */}
@@ -333,9 +383,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <BottomSheet
         open={saleOpen}
         onClose={() => setSaleOpen(false)}
-        title={t({ fr: 'Nouvelle vente', ht: 'Nouvo vant' })}
+        title={salePreset?.credit ? t({ fr: 'Nouveau crédit', ht: 'Nouvo kredi' }) : t(word)}
       >
-        {saleOpen && <QuickSaleForm onSaved={() => setSaleOpen(false)} />}
+        {saleOpen && <QuickSaleForm preset={salePreset} onSaved={() => setSaleOpen(false)} />}
+      </BottomSheet>
+
+      <BottomSheet
+        open={expensePreset !== null}
+        onClose={() => setExpensePreset(null)}
+        title={expensePreset?.household ? t({ fr: 'Argent pour la maison', ht: 'Lajan pou lakay' }) : t({ fr: 'Dépense', ht: 'DEPANS' })}
+      >
+        {expensePreset !== null && (
+          <QuickExpenseForm preset={expensePreset} onSaved={() => setExpensePreset(null)} />
+        )}
       </BottomSheet>
     </div>
   );

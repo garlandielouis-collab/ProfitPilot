@@ -26,6 +26,8 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { BOTTOM_BAR, MORE_SECTIONS, type Entry } from './nav';
+import { useCompanyContext } from '../contexts/CompanyContext';
+import { saleWord } from '../lib/kaye';
 import { useLanguage } from './LanguageWrapper';
 import { cn } from '../lib/utils';
 import { clearAttention, hasAttention, subscribeAttention } from '../lib/pendingAttention';
@@ -107,6 +109,9 @@ export function BottomBar({ onNewSale }: { onNewSale: () => void }) {
   const { t } = useLanguage();
   const typing = useTyping();
   const receivablesDot = useReceivablesDot(pathname);
+  // VANN pour un commerce, SÈVIS pour un service (lib/kaye.ts).
+  const { company } = useCompanyContext();
+  const word = saleWord(company?.kaye?.trade ?? null);
 
   const [home, sales, receivables, more] = BOTTOM_BAR;
 
@@ -141,7 +146,7 @@ export function BottomBar({ onNewSale }: { onNewSale: () => void }) {
             <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
           </span>
           <span className="mt-1 text-note font-bold text-primary dark:text-dark-text">
-            {t({ fr: 'Vente', ht: 'Vant' })}
+            {t(word)}
           </span>
         </button>
 

@@ -37,6 +37,7 @@ import { useDashboard } from '../../components/dashboard/useDashboard';
 import { EsansyelDashboard } from '../../components/dashboard/esansyel/EsansyelDashboard';
 import { KwasansDashboard } from '../../components/dashboard/kwasans/KwasansDashboard';
 import { ElitDashboard } from '../../components/dashboard/elit/ElitDashboard';
+import { KayeHome } from '../../components/dashboard/KayeHome';
 
 function DashboardInner() {
   const { t } = useLanguage();
@@ -82,13 +83,21 @@ function DashboardInner() {
       {showWelcome && <CockpitWelcome companyName={company?.name ?? ''} />}
 
       <div className="mx-auto max-w-6xl px-4 pb-32 pt-6 sm:px-6">
-        {level === 'executive' ? (
-          <ElitDashboard state={state} userName={userName} />
-        ) : level === 'advanced' ? (
-          <KwasansDashboard state={state} userName={userName} />
-        ) : (
-          <EsansyelDashboard state={state} userName={userName} />
-        )}
+        {/* L'étude de marché inversée (§11.1) : le même accueil pour tous —
+            trois gros boutons, trois chiffres, un conseil. Les compositions
+            par offre restent, un tap plus bas : « les détails restent
+            accessibles derrière Plis » (§12.1). */}
+        <KayeHome
+          details={
+            level === 'executive' ? (
+              <ElitDashboard state={state} userName={userName} />
+            ) : level === 'advanced' ? (
+              <KwasansDashboard state={state} userName={userName} />
+            ) : (
+              <EsansyelDashboard state={state} userName={userName} />
+            )
+          }
+        />
       </div>
     </div>
   );

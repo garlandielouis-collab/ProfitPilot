@@ -24,6 +24,12 @@ export type ExpensePayload = {
   scope?: ExpenseScope;
   /** Part professionnelle d'une dépense `mixed`, en %. Ignoré sinon. */
   business_share_pct?: number;
+  /**
+   * Chemin de la photo du reçu dans le bucket `business-documents` (F03). La
+   * colonne `expenses.receipt_url` est dans le schéma v2 depuis le premier
+   * jour ; rien ne la remplissait.
+   */
+  receipt_path?: string | null;
 };
 
 // Map UI payment status → DB enum
@@ -128,6 +134,14 @@ export async function upsertExpense(payload: ExpensePayload): Promise<ActionResu
     supplier_id:    payload.supplier_id    || null,
     created_by:     userId,
   };
+
+  // Le reçu ne peut venir que du dossier de CETTE entreprise : un chemin vers
+  // celui d'une autre serait refusé au téléchargement, mais n'a rien à faire ici.
+  if (payload.receipt_path !== undefined) {
+    const path = payload.receipt_path?.trim() || null;
+    if (path && !path.startsWith(`${businessId}/`)) throw new UserFacingError('Photo du reçu invalide.');
+    fields.receipt_url = path;
+  }
 
   // Colonnes ajoutées par 20260821_profitpilot_features.sql. Renseignées
   // seulement si l'UI les fournit, pour que le trigger d'héritage de catégorie

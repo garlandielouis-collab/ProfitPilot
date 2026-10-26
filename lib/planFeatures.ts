@@ -9,9 +9,12 @@ import { normalizePlanKey, type PlanKey } from './plans';
 //
 // ── Les trois stades ────────────────────────────────────────────────────────
 //
-//   Esansyel · « Kite kaye a »            remplacer le cahier, ne plus rien perdre
-//   Kwasans  · « Konprann pou grandi »    transformer les chiffres en décisions
-//   Elit     · « Dirije tankou yon patron » déléguer, se multiplier, prévoir
+//   Esansyel · « Mwen vle KONNEN »     savoir chaque soir ce que je gagne
+//   Kwasans  · « Mwen vle KONTWOLE »   contrôler le stock, les travaux, les aides
+//   Elit     · « Mwen vle GRANDI »     déléguer, plusieurs points, financement
+//
+// (Étude de marché inversée, octobre 2026, §13 : les offres sont rangées par
+// stade de développement, et non plus par quantité de fonctionnalités.)
 //
 // ── Ce qui ne se verrouille JAMAIS ──────────────────────────────────────────
 //
@@ -40,18 +43,34 @@ export type Feature =
   // qu'on l'ait prévenu perd son commerce, pas une fonctionnalité. Ce qui se
   // paie plus haut, c'est ce que l'application FAIT de ces documents.
   | 'documents'
+  // L'étude de marché inversée (oct. 2026) a fait descendre ici tout ce qui
+  // répond à « savoir chaque soir » : le taux du jour (F07), l'alerte « prèske
+  // fini » et l'inventaire (F12), la photo du reçu (F03), le bilan (F06).
+  | 'fx_rate_of_day'
+  | 'low_stock_alerts'
+  | 'stock_count'
+  | 'receipt_photo'
+  | 'weekly_whatsapp_report'
+  | 'evening_report'      // F06 — le bilan du soir, qui vient tout seul
+  | 'voice_entry'         // F02 — « Pale ak kaye a »
+  | 'owner_salary'        // F04 — salè mèt la et retraits « Kay »
+  | 'cash_register'       // F08 — kès atandi / kès reyèl
+  | 'notebook_import'     // F10 — une fois, à l'installation
+  | 'whatsapp_support'    // F25 — « Ekri nou »
   // ── Croissance (Kwasans) — comprendre pour grandir ──
   | 'unlimited_products'
-  | 'fx_rate_of_day'
   | 'rate_alerts'
   | 'branded_receipt'
   | 'margin_calculator'
   | 'price_simulator'
-  | 'low_stock_alerts'
-  | 'stock_count'
   | 'custom_expense_categories'
   | 'recurring_expenses'
-  | 'receipt_photo'
+  | 'notebook_import_unlimited' // F10 — autant de fois qu'il faut
+  | 'helper_pay'          // F16 — paie des aides à la journée ou au pourcentage
+  | 'sol'                 // F17 — sòl ak sabotaj
+  | 'work_orders'         // F13 — fiches de travail (service)
+  | 'service_costing'     // F14 — coût réel d'une prestation (service)
+  | 'appointments'        // F15 — rendez-vous (service)
   | 'receivable_reminders'
   | 'credit_limit'
   | 'product_profitability'
@@ -59,7 +78,6 @@ export type Feature =
   | 'month_comparison'
   | 'health_score'
   | 'report_export'
-  | 'weekly_whatsapp_report'
   | 'monthly_goals'
   | 'ai_assistant'
   | 'advanced_reports'
@@ -93,6 +111,11 @@ export type Feature =
   | 'advanced_analytics'
   | 'automation'
   | 'api_access'
+  | 'cash_control'           // F22 — écarts de caisse et de stock, aide par aide
+  | 'supplier_price_history' // F21 — prix d'achat suivis, alerte de marge
+  | 'service_commissions'    // Elit service — commissions par employé et par service
+  | 'monthly_coach'          // F24 — revue mensuelle avec un conseiller
+  | 'peer_benchmark'         // F23 — comparaison anonyme (phase 2)
   // Le document devient matière première : l'IA les rédige, les analyse, et
   // finit par répondre à leur place (§72).
   | 'document_ai_studio'
@@ -133,6 +156,28 @@ const ESANSYEL: Feature[] = [
   // Le reste — modèles, contrats suivis, extraction, note de santé — commence à
   // Kwasans.
   'documents',
+  // ── Ce que l'étude de marché inversée a fait descendre ici (§12, §13.1) ──
+  //
+  // Le dollar monte et la marge fond le jour même : le taux du jour n'est pas
+  // un confort de Kwasans, c'est la douleur n°4 de TOUS les commerces (F07).
+  'fx_rate_of_day',
+  // « Prèske fini » : être prévenu avant la rupture fait partie du stock simple
+  // promis au commerce dès Esansyel (F12). L'inventaire rapide aussi.
+  'low_stock_alerts',
+  'stock_count',
+  // La photo garde la preuve de la dépense (F03). Elle se range dans le
+  // stockage, sans appel IA : son coût est celui d'un fichier, pas d'un modèle.
+  'receipt_photo',
+  // Le bilan vient au marchand — le soir et en fin de semaine (F06, §11.2).
+  // C'est l'angle même du produit : il ne peut pas commencer à Kwasans.
+  'weekly_whatsapp_report',
+  'evening_report',
+  'voice_entry',
+  'owner_salary',
+  'cash_register',
+  // Une fois, à l'installation : c'est la démonstration qui vend (§11.3).
+  'notebook_import',
+  'whatsapp_support',
   // Pilot AI n'est PAS dans le socle : il commence à Kwasans (`ai_assistant`).
   // Un « avant-goût » de trois questions avait été posé ici ; il ne servait à
   // rien — la route `/api/ai/chat` exige depuis toujours un abonnement actif
@@ -147,20 +192,23 @@ const ESANSYEL: Feature[] = [
 const KWASANS: Feature[] = [
   ...ESANSYEL,
   'unlimited_products',
-  'fx_rate_of_day',
   'rate_alerts',
   'branded_receipt',
   // Il achète en dollars et vend en gourdes sans savoir ce qui lui reste :
   // c'est la promesse même de Kwasans, donc pas avant.
   'margin_calculator',
   'price_simulator',
-  'low_stock_alerts',
-  'stock_count',
   'custom_expense_categories',
   'recurring_expenses',
-  // Second poste, après l'IA, à coûter de l'argent réel par marchand : il se
-  // dose comme elle. Le montant, lui, reste saisissable partout.
-  'receipt_photo',
+  // « Mwen vle KONTWOLE » : contrôler ce qu'on ne voit pas (§13.2).
+  'notebook_import_unlimited',
+  'helper_pay',
+  'sol',
+  // Les trois outils du service — ils ne s'affichent qu'au métier « Sèvis »
+  // ou « Toulède » (`lib/trade.ts`), mais le droit, lui, est celui de l'offre.
+  'work_orders',
+  'service_costing',
+  'appointments',
   // Réclamer sans se fâcher : la fonction la plus rentable de l'offre, elle
   // ramène de l'argent le jour même.
   'receivable_reminders',
@@ -170,7 +218,6 @@ const KWASANS: Feature[] = [
   'month_comparison',
   'health_score',
   'report_export',
-  'weekly_whatsapp_report',
   'monthly_goals',
   'ai_assistant',
   'advanced_reports',
@@ -213,6 +260,12 @@ const ELIT: Feature[] = [
   'advanced_analytics',
   'automation',
   'api_access',
+  // « Mwen vle GRANDI » : déléguer sans se faire voler (§13.3).
+  'cash_control',
+  'supplier_price_history',
+  'service_commissions',
+  'monthly_coach',
+  'peer_benchmark',
   'document_ai_studio',
   'document_intelligence',
   'business_knowledge_base',
@@ -244,7 +297,8 @@ export const PLAN_MAX_STORES: Record<PlanKey, number> = {
 export const PLAN_MAX_MEMBERS: Record<PlanKey, number> = {
   'Ti Machann':     1,
   'Business Pilot': 3,
-  'Expert':         UNLIMITED,
+  // Le patron et dix aides (§13.3) : au-delà, l'offre se fait sur devis.
+  'Expert':         11,
 };
 
 /**

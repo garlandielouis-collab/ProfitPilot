@@ -141,7 +141,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Add to business_members
-  const role = (inv.role ?? 'viewer') as string;
+  // Un aide invité arrive caissier : il vend, il ne lit pas les rapports (F16).
+  const role = (inv.role ?? 'cashier') as string;
   const { error: memberErr } = await svc
     .from('business_members')
     .upsert({

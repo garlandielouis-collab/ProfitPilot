@@ -22,7 +22,7 @@ export type CartItemPayload = {
 };
 
 export type CreateSaleResult =
-  | { success: true;  invoiceNumber: string; subtotal: number; discountAmount: number; totalAmount: number }
+  | { success: true;  invoiceNumber: string; subtotal: number; discountAmount: number; totalAmount: number; saleId?: string }
   | { success: false; errors: Array<{ field: string; message: string }> };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
   if (data.client_ref) {
     const { data: existing } = await sb
       .from('sales')
-      .select('invoice_number, subtotal_amount, discount_amount, total_amount')
+      .select('id, invoice_number, subtotal_amount, discount_amount, total_amount')
       .eq('business_id', businessId)
       .eq('metadata->>client_ref', data.client_ref)
       .maybeSingle();
@@ -210,6 +210,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
         subtotal:       Number(existing.subtotal_amount ?? 0),
         discountAmount: Number(existing.discount_amount ?? 0),
         totalAmount:    Number(existing.total_amount ?? 0),
+        saleId:         existing.id,
       };
     }
   }
@@ -252,7 +253,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
       .eq('business_id', businessId)
       .in('product_id', productIds),
     sb.from('products')
-      .select('id, stock_quantity, purchase_price, currency')
+      .select('id, stock_quantity, purchase_price, currency, track_inventory')
       .in('id', productIds),
   ]);
 
@@ -261,7 +262,16 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
   const prodStockMap: Record<string, number> = {};
   for (const p of prodResult.data ?? []) prodStockMap[p.id] = p.stock_quantity ?? 0;
 
+  // Un service (une coupe, une réparation) et la « vente au montant » (F01 de
+  // l'étude de marché inversée) ne se stockent pas : `track_inventory = false`.
+  // Sans cette exception, la colonne `stock_quantity` (NOT NULL DEFAULT 0)
+  // refusait la première coupe de cheveux pour « stock insuffisant ».
+  const untracked = new Set<string>(
+    (prodResult.data ?? []).filter((p: any) => p.track_inventory === false).map((p: any) => p.id),
+  );
+
   for (const item of data.items) {
+    if (untracked.has(item.product_id)) continue;
     const hasWarehouseEntry = (stockRows ?? []).some((r: StockRow) => r.product_id === item.product_id);
     const productStockSet = prodStockMap[item.product_id] !== undefined && prodStockMap[item.product_id] !== null;
 
@@ -384,7 +394,9 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
         total_amount:     totalAmount,
         paid_amount:      paidAmount,
         notes:            data.notes ?? null,
-        metadata:         data.client_ref ? { client_ref: data.client_ref } : null,
+        metadata:         data.client_ref || data.origin
+          ? { ...(data.client_ref ? { client_ref: data.client_ref } : {}), ...(data.origin ? { source: data.origin } : {}) }
+          : null,
         created_by:       userId,
       })
       .select('id')
@@ -432,6 +444,8 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
   // ── 8. Decrement warehouse_stock + inventory_movements ───────────────────
   try {
     for (const item of data.items) {
+      // Rien à déduire pour ce qui ne se stocke pas (voir `untracked`, §4).
+      if (untracked.has(item.product_id)) continue;
       const cost_price = saleItems.find((si) => si.product_id === item.product_id)?.cost_price ?? 0;
 
       // Decrement warehouse_stock (if entry exists)
@@ -562,6 +576,7 @@ export async function createSaleAction(input: CreateSaleInput): Promise<ActionRe
     subtotal: fmt2(subtotal),
     discountAmount,
     totalAmount,
+    saleId,
   };
   });
 }

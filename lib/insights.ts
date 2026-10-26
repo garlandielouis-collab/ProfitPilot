@@ -29,6 +29,11 @@ export type InsightsInput = {
   /** Même période, mois précédent (pour la comparaison mois/mois). */
   previousRevenue: number;
   previousGrossMargin: number;
+  /**
+   * Dépenses du commerce le mois précédent. Facultatif : sans lui, pas
+   * d'alerte « dépenses anormales » (F18 de l'étude de marché inversée).
+   */
+  previousBusinessExpenses?: number;
   /** Produits classés par marge générée (voir v_product_profitability). */
   products: Array<{
     id: string;
@@ -103,7 +108,7 @@ export function generateInsights(input: InsightsInput, limit = 5): Insight[] {
         severity: 'warning',
         message: `Votre chiffre d’affaires recule de ${pct(delta)} par rapport au mois dernier.`,
         action: 'Regardez quels produits se sont moins vendus.',
-        href: '/analytics',
+        href: '/rentabilite',
       });
     } else if (delta >= 15) {
       out.push({
@@ -111,9 +116,24 @@ export function generateInsights(input: InsightsInput, limit = 5): Insight[] {
         severity: 'success',
         message: `Votre chiffre d’affaires progresse de ${pct(delta)} vs le mois dernier.`,
         action: 'Réinvestissez sur les produits qui portent cette hausse.',
-        href: '/analytics',
+        href: '/rentabilite',
       });
     }
+  }
+
+  // ── Dépenses anormales (F18, « conseils proactifs » d'Elit) ───────────────
+  // Une hausse de plus d'un tiers d'un mois sur l'autre, et assez grosse pour
+  // compter (5 % du chiffre d'affaires) : en dessous, c'est du bruit.
+  const prevExp = input.previousBusinessExpenses ?? 0;
+  if (prevExp > 0 && input.businessExpenses > prevExp * 1.33
+      && input.businessExpenses - prevExp > Math.max(input.revenue, prevExp) * 0.05) {
+    out.push({
+      id: 'expense-spike',
+      severity: 'warning',
+      message: `Vos dépenses du commerce sont passées de ${fmt(prevExp, cur)} à ${fmt(input.businessExpenses, cur)} ce mois-ci (${pct(((input.businessExpenses - prevExp) / prevExp) * 100)}).`,
+      action: 'Regardez quelle dépense a grossi avant qu’elle ne mange votre profit.',
+      href: '/expenses',
+    });
   }
 
   // ── Créances en retard ────────────────────────────────────────────────────
@@ -160,7 +180,7 @@ export function generateInsights(input: InsightsInput, limit = 5): Insight[] {
       severity: 'info',
       message: `« ${p.name} » n’a rien vendu ce mois-ci mais occupe ${p.stockQuantity} unité${p.stockQuantity > 1 ? 's' : ''} de stock.`,
       action: 'Réduisez ce stock pour libérer du capital.',
-      href: '/analytics',
+      href: '/rentabilite',
     });
   }
 
@@ -175,7 +195,7 @@ export function generateInsights(input: InsightsInput, limit = 5): Insight[] {
       severity: 'success',
       message: `« ${best.name} » vous a rapporté ${fmt(best.grossMargin, cur)} de marge (${best.marginPct.toFixed(0)}%).`,
       action: 'C’est le produit à mettre en avant ce mois-ci.',
-      href: '/analytics',
+      href: '/rentabilite',
     });
   }
 

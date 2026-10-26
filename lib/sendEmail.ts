@@ -34,6 +34,8 @@ export interface PaymentNotificationData {
   reference:  string;
   method:     string;
   amountHtg:  number;
+  /** Mois couverts par ce paiement : 1, ou 6 payés d'avance. */
+  months?:    number;
   approveUrl?: string;
 }
 
@@ -48,7 +50,11 @@ export async function sendPaymentNotification(data: PaymentNotificationData): Pr
   // Le nom commercial seul, sans prix de table : la ligne « Montant » porte déjà
   // ce qui est réellement dû, remises comprises. Une clé inconnue reste affichée
   // brute — `getPlanLabel` la maquillerait en « Essai gratuit ».
-  const planLabel   = normalizePlanKey(data.planKey) ? getPlanLabel(data.planKey) : data.planKey;
+  // « Kwasans · 6 mois » : l'approbateur doit savoir qu'il accorde six mois,
+  // sinon il compare 15 000 HTG reçus à un tarif de 2 500 et refuse.
+  const months      = data.months && data.months > 1 ? data.months : 1;
+  const planLabel   = (normalizePlanKey(data.planKey) ? getPlanLabel(data.planKey) : data.planKey)
+    + (months > 1 ? ` · ${months} mois` : '');
   const methodLabel = METHOD_LABELS[data.method]  ?? data.method;
   const adminEmails = (process.env.ADMIN_EMAILS || '')
     .split(',').map((e) => e.trim()).filter(Boolean);

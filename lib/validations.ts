@@ -64,6 +64,12 @@ export const createSaleSchema = z.object({
    * d'affaires — c'est le point critique de toute la synchronisation.
    */
   client_ref:       z.string().uuid().optional(),
+  /**
+   * D'où vient la vente quand ce n'est pas du comptoir. `notebook_import` : un
+   * crédit recopié du cahier papier (F10 de l'étude) — une dette ANCIENNE, que
+   * le bilan du jour ne doit pas compter comme vendue aujourd'hui.
+   */
+  origin:           z.enum(['notebook_import', 'work_order']).optional(),
   items:            z.array(saleItemSchema).min(1, 'Au moins un article requis'),
 }).refine(
   (data) => {

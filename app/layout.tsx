@@ -64,7 +64,7 @@ const supabaseOrigin = (() => {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={inter.variable} suppressHydrationWarning data-scroll-behavior="smooth">
+    <html lang="ht" className={inter.variable} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         {/*
           La poignée de main avec Supabase, lancée AVANT d’en avoir besoin.
