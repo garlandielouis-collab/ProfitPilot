@@ -35,3 +35,6 @@ witch main
 # base régénéré à la demande, et les captures d'écran
 pp_schema.json
 scripts/verification/shots/
+
+# Application Android : écrit par scripts/mobile-sync.mjs
+mobile/www/app-url.js

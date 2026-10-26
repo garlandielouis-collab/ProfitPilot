@@ -1,0 +1,17 @@
+<!doctype html>
+<!--
+  Capacitor exige une page d'entrée dans `webDir`. La coque ne l'affiche pas :
+  elle ouvre directement l'application hébergée (`server.url`). Cette page ne
+  sert que si `server.url` venait à être retiré : elle renvoie alors au même
+  endroit.
+-->
+<html lang="ht">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ProfitPilot</title>
+    <script src="app-url.js"></script>
+    <script>window.location.replace(window.PP_APP_URL || 'https://profitpilot-ten.vercel.app/dashboard');</script>
+  </head>
+  <body></body>
+</html>

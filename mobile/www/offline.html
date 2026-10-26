@@ -1,0 +1,58 @@
+<!doctype html>
+<!--
+  Affichée par la coque Android quand l'application hébergée ne répond pas au
+  démarrage (pas de réseau, serveur en pause). Aucune dépendance, aucune image
+  externe : elle doit s'afficher sans rien télécharger. Elle n'a pas accès aux
+  modules natifs (limite de Capacitor pour `errorPath`).
+
+  Les ventes déjà gardées sur le téléphone ne sont pas perdues : elles partent
+  toutes seules au retour du réseau. La phase 2 rendra l'application
+  utilisable ici même, hors ligne.
+-->
+<html lang="ht">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+    <title>ProfitPilot</title>
+    <style>
+      :root { --navy: #001F3F; --emerald: #50C878; --muted: #5B6B7B; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #FFFFFF; color: var(--navy); }
+      body {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 16px; padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+        font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center;
+      }
+      .mark {
+        width: 64px; height: 64px; border-radius: 16px; background: var(--navy); color: var(--emerald);
+        display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 24px;
+      }
+      h1 { margin: 8px 0 0; font-size: 24px; line-height: 1.25; }
+      p { margin: 0; max-width: 22rem; color: var(--muted); }
+      button {
+        margin-top: 8px; min-height: 56px; min-width: 220px; padding: 0 24px; border: 0; border-radius: 12px;
+        background: var(--emerald); color: var(--navy); font: inherit; font-weight: 700; cursor: pointer;
+      }
+      button:active { transform: scale(0.98); }
+      .fr { font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="mark" aria-hidden="true">PP</div>
+    <h1>Pa gen rezo kounye a</h1>
+    <p>ProfitPilot bezwen entènèt pou l louvri. Vant ou te deja note yo pa pèdi : y ap pati poukont yo lè rezo a tounen.</p>
+    <p class="fr">Pas de réseau pour l’instant. Vos ventes déjà notées ne sont pas perdues.</p>
+    <button type="button" id="retry">Eseye ankò</button>
+    <!-- Écrit par `npm run mobile:sync` (scripts/mobile-sync.mjs) : l'adresse
+         que la coque charge, la même que `server.url`. -->
+    <script src="app-url.js"></script>
+    <script>
+      document.getElementById('retry').addEventListener('click', function () {
+        window.location.replace(window.PP_APP_URL || 'https://profitpilot-ten.vercel.app/dashboard');
+      });
+      // Le réseau revient : on réessaie tout seul.
+      window.addEventListener('online', function () { document.getElementById('retry').click(); });
+    </script>
+  </body>
+</html>
