@@ -38,4 +38,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- La saisie vocale (« Kenbe pou pale ») : la page demande le micro par
+         getUserMedia, et la coque Capacitor relaie la demande à Android.
+         Android ne la pose qu'au premier appui, après l'explication en kreyòl
+         que montre la page (components/voice/HoldToTalk.tsx). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>
