@@ -6,6 +6,16 @@ fichier se colle à la main dans le SQL Editor de Supabase.
 
 D'où ce fichier : savoir, sans deviner, ce qui reste à coller.
 
+## Ajoutée le 26/10/2026 — À COLLER avant de déployer la commande vocale (phase 1)
+
+| Migration | Effet si elle n'est pas collée |
+|---|---|
+| `20261026_voice_notes` | Le micro n'apparaît pas : `GET /api/voice` répond `available: false` tant que la table `voice_notes` manque (et `POST` répond 503 « Vwa a poko ouvri sou kont sa a »). Aucune autre fonction n'en dépend. Purement additive. |
+
+La voix demande aussi `OPENAI_API_KEY` (transcription) et `ANTHROPIC_API_KEY`
+avec du crédit (extraction) sur Vercel. Sonde après collage :
+`voice_notes?select=id` → 200.
+
 ## Ajoutée le 25/10/2026 — À COLLER avant de déployer l'étude de marché inversée
 
 | Migration | Effet si elle n'est pas collée |
