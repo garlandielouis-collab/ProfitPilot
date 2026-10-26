@@ -8,6 +8,7 @@ import { RegisterSW }     from '../components/RegisterSW';
 import { AppOnly }        from '../components/AppOnly';
 import { OfflineSalesSync } from '../components/offline/OfflineSalesSync';
 import { SpacingDebugger } from '../components/dev/SpacingDebugger';
+import { NativeBridge }   from '../components/native/NativeBridge';
 
 // Une seule famille de police, longtemps (masterclass §10). Plus Jakarta Sans
 // était chargée pour les titres et n'a jamais servi : zéro classe `font-display`
@@ -98,6 +99,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <LanguageWrapper>
             <AppShell>{children}</AppShell>
+            {/* L'application Android : bouton retour, liens externes. Inerte
+                dans un navigateur (components/native/NativeBridge.tsx). */}
+            <NativeBridge />
           </LanguageWrapper>
         </Providers>
         <RegisterSW />

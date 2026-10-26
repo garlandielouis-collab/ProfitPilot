@@ -26,6 +26,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
+import { pushBackHandler } from '../../lib/backStack';
 
 /** Plusieurs feuilles peuvent se superposer : l'arrière-plan ne revient au
  *  premier plan que lorsque la dernière s'est refermée. */
@@ -51,11 +52,14 @@ export function BottomSheet({
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Échap ferme — le geste a toujours son équivalent visible et clavier.
+  // Échap ferme — le geste a toujours son équivalent visible et clavier. Et
+  // dans l'application Android, le bouton retour aussi : il referme la feuille
+  // au lieu de quitter l'écran derrière elle (lib/backStack.ts).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
+    const releaseBack = pushBackHandler(onClose);
 
     // L'arrière-plan ne défile pas pendant qu'une feuille est ouverte, et il
     // recule d'un cran : c'est le moment 6 (§7).
@@ -66,6 +70,7 @@ export function BottomSheet({
 
     return () => {
       document.removeEventListener('keydown', onKey);
+      releaseBack();
       document.body.style.overflow = previous;
       openSheets = Math.max(0, openSheets - 1);
       if (openSheets === 0) delete document.body.dataset.sheet;
