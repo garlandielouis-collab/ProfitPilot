@@ -29,6 +29,7 @@ import { saleWord } from '../../lib/kaye';
 import { formatMoney } from '../../lib/eveningReport';
 import { cn } from '../../lib/utils';
 import { coachRequestMessage, supportWhatsAppLink } from '../../lib/support';
+import { HoldToTalk } from '../voice/HoldToTalk';
 
 function BigButton({
   label, hint, icon, onClick, primary = false,
@@ -139,6 +140,9 @@ export function KayeHome({ details }: { details?: ReactNode }) {
           onClick={() => openSaleSheet({ credit: true })}
         />
       </div>
+
+      {/* Ou les dire : la phrase devient un brouillon, confirmé d'un tap (§2). */}
+      {can('sales:create') && <HoldToTalk />}
 
       {/* ── La journée, ou le bilan du soir ── */}
       {seesFigures && r && view && (

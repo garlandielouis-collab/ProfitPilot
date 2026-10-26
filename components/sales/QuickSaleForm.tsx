@@ -76,7 +76,7 @@ export function QuickSaleForm({ preset, onSaved }: { preset?: SalePreset; onSave
   const [selected, setSelected] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [amount, setAmount]     = useState(preset?.amount ? String(preset.amount) : '');
-  const [unit, setUnit]         = useState<AmountUnit>('HTG');
+  const [unit, setUnit]         = useState<AmountUnit>(preset?.unit ?? 'HTG');
   const [note, setNote]         = useState(preset?.note ?? '');
   const [customerName, setCustomerName] = useState(preset?.customerName ?? '');
   const [advance, setAdvance]   = useState('');

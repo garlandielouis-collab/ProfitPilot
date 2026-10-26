@@ -25,12 +25,12 @@ import { notifyEntrySaved, type ExpensePreset } from '../../lib/quickSheets';
 import { AmountInput, toHtg, type AmountUnit } from '../sales/AmountInput';
 import { VoiceButton } from '../voice/VoiceButton';
 
-type Category = { value: string; label: { fr: string; ht: string }; household?: boolean };
+export type Category = { value: string; label: { fr: string; ht: string }; household?: boolean };
 
 // Les catégories que le marchand nomme lui-même (§11.2 : « machandiz, transpò,
 // kouran, kay… »). La valeur est celle de la liste complète de /expenses, pour
 // que le plan comptable classe la dépense au même endroit.
-const CATEGORIES: Category[] = [
+export const CATEGORIES: Category[] = [
   { value: 'Stock',       label: { fr: 'Marchandise', ht: 'Machandiz' } },
   { value: 'Transport',   label: { fr: 'Transport',   ht: 'Transpò' } },
   { value: 'Électricité', label: { fr: 'Courant',     ht: 'Kouran' } },
@@ -50,7 +50,7 @@ export function QuickExpenseForm({ preset, onSaved }: { preset?: ExpensePreset; 
   const { t } = useLanguage();
   const { company } = useCompany();
   const [amount, setAmount] = useState(preset?.amount ? String(preset.amount) : '');
-  const [unit, setUnit] = useState<AmountUnit>('HTG');
+  const [unit, setUnit] = useState<AmountUnit>(preset?.unit ?? 'HTG');
   const [category, setCategory] = useState<Category | null>(
     preset?.household ? CATEGORIES[CATEGORIES.length - 1]
       : preset?.category ? CATEGORIES.find((c) => c.value === preset.category) ?? null

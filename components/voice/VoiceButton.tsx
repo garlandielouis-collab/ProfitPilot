@@ -1,28 +1,29 @@
 'use client';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Le bouton micro — « Pale ak kaye a » (F02)
+// Le petit micro des feuilles de saisie — « Pale » (F02)
 //
 // Appuyer, parler en kreyòl (« M vann 2 kola 150 goud »), appuyer pour finir.
-// Ce qui a été compris remplit la feuille de saisie ; le marchand vérifie le
-// montant et confirme d'un tap. Rien ne s'enregistre tout seul.
+// Le premier brouillon compris remplit la feuille ; le marchand vérifie le
+// montant et enregistre comme d'habitude. Rien ne s'enregistre tout seul.
 //
-// Le bouton n'apparaît que si la saisie vocale est réellement activée sur le
-// serveur (clé de transcription posée) : un micro qui répond « indisponible »
-// est un contrôle qui ne commande rien.
+// Même chemin que le gros micro de l'accueil (components/voice/HoldToTalk) :
+// /api/voice, une minute au plus, absent si la voix n'est pas ouverte.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '../LanguageWrapper';
 import { cn } from '../../lib/utils';
-import type { VoiceIntent } from '../../lib/voiceParse';
+import { canRecord, sendVoice, voiceAvailable } from '../../lib/voice/client';
+import { draftLabel, spokenAmount } from '../../lib/voice/sheet';
+import { useVoiceRecorder } from './useVoiceRecorder';
 
 export type VoiceResult = {
-  kind: VoiceIntent['kind'];
+  kind: 'sale' | 'expense' | 'credit';
   amount?: number;
-  unit?: VoiceIntent['unit'];
+  unit?: 'HTG' | 'DOLA' | 'USD';
   quantity?: number;
   item?: string;
   customer?: string;
@@ -30,18 +31,6 @@ export type VoiceResult = {
   note?: string;
   transcript: string;
 };
-
-/** Le nombre de secondes au-delà duquel l'écoute s'arrête d'elle-même. */
-const MAX_SECONDS = 12;
-
-let availability: Promise<boolean> | null = null;
-function voiceAvailable(): Promise<boolean> {
-  availability ??= fetch('/api/voice', { method: 'GET' })
-    .then((r) => (r.ok ? r.json() : { available: false }))
-    .then((j) => Boolean(j?.available))
-    .catch(() => false);
-  return availability;
-}
 
 export function VoiceButton({
   kind,
@@ -55,111 +44,86 @@ export function VoiceButton({
 }) {
   const { t } = useLanguage();
   const [available, setAvailable] = useState(false);
-  const [state, setState] = useState<'idle' | 'listening' | 'thinking'>('idle');
-  const recorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [thinking, setThinking] = useState(false);
+
+  const recorder = useVoiceRecorder(async (audio, recordedAt) => {
+    setThinking(true);
+    const res = await sendVoice(audio, recordedAt);
+    setThinking(false);
+    if (!res.ok) {
+      toast.error(t(res.error));
+      if (res.error.code === 'voice_unavailable') setAvailable(false);
+      return;
+    }
+    const { transcription, drafts } = res.data;
+    // La feuille ouverte d'abord : une dépense dite dans la feuille des
+    // dépenses passe avant une vente comprise dans la même phrase.
+    const wanted = kind === 'expense' ? ['expense', 'owner_withdrawal'] : kind === 'sale' ? ['sale', 'credit'] : null;
+    const d = (wanted && drafts.find((x) => wanted.includes(x.type))) ?? drafts[0];
+    if (!d || d.amountMinor === null) {
+      toast.error(t({
+        fr: `J’ai entendu : « ${transcription} ». Dites le montant, par exemple « 500 goud ».`,
+        ht: `M tande : « ${transcription} ». Di montan an, pa egzanp « 500 goud ».`,
+      }));
+      return;
+    }
+    if (d.type === 'credit_payment') {
+      toast.error(t({
+        fr: 'C’est un paiement de crédit : notez-le depuis l’accueil ou la page « On vous doit ».',
+        ht: 'Se yon peman kredi : note l sou paj akèy la oswa « Sa yo dwe w ».',
+      }));
+      return;
+    }
+    const { amount, unit } = spokenAmount(d);
+    toast.success(t({ fr: `J’ai entendu : « ${transcription} »`, ht: `M tande : « ${transcription} »` }), {
+      description: d.amountNeedsCheck
+        ? t({ fr: 'Vérifiez bien le montant, puis confirmez.', ht: 'Verifye montan an byen, epi konfime.' })
+        : t({ fr: 'Vérifiez le montant, puis confirmez.', ht: 'Tcheke montan an, epi konfime.' }),
+    });
+    const first = d.lines[0];
+    onResult({
+      kind: d.type === 'owner_withdrawal' ? 'expense' : d.type,
+      amount,
+      unit,
+      quantity: first?.quantity,
+      item: first?.label,
+      customer: d.customerLabel ?? undefined,
+      category: d.type === 'owner_withdrawal' ? 'Retrait personnel' : d.expenseCategory ?? undefined,
+      note: draftLabel(d) || undefined,
+      transcript: transcription,
+    });
+  });
 
   useEffect(() => {
     let alive = true;
-    const supported = typeof window !== 'undefined'
-      && typeof MediaRecorder !== 'undefined'
-      && Boolean(navigator.mediaDevices?.getUserMedia);
-    if (supported) voiceAvailable().then((ok) => { if (alive) setAvailable(ok); });
+    if (canRecord()) voiceAvailable().then((ok) => { if (alive) setAvailable(ok); });
     return () => { alive = false; };
-  }, []);
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-    recorder.current?.stream.getTracks().forEach((track) => track.stop());
   }, []);
 
   if (!available) return null;
 
-  async function send(blob: Blob) {
-    setState('thinking');
-    try {
-      const form = new FormData();
-      form.append('audio', blob, 'vokal.webm');
-      form.append('kind', kind);
-      const res = await fetch('/api/voice', { method: 'POST', body: form });
-      const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.intent) {
-        toast.error(json?.error ?? t({ fr: 'Je n’ai pas compris. Réessayez.', ht: 'M pa t konprann. Eseye ankò.' }));
-        return;
-      }
-      const intent = json.intent as VoiceIntent;
-      const transcript = String(json.transcript ?? '');
-      if (!intent.understood || intent.amount <= 0) {
-        toast.error(t({
-          fr: `J’ai entendu : « ${transcript} ». Dites le montant, par exemple « 500 goud ».`,
-          ht: `M tande : « ${transcript} ». Di montan an, pa egzanp « 500 goud ».`,
-        }));
-        return;
-      }
-      toast.success(t({ fr: `J’ai entendu : « ${transcript} »`, ht: `M tande : « ${transcript} »` }), {
-        description: t({ fr: 'Vérifiez le montant, puis confirmez.', ht: 'Tcheke montan an, epi konfime.' }),
-      });
-      onResult({
-        kind: intent.kind,
-        amount: intent.amount,
-        unit: intent.unit,
-        quantity: intent.quantity,
-        item: intent.item || undefined,
-        customer: intent.customer || undefined,
-        category: intent.category || undefined,
-        note: intent.item || undefined,
-        transcript,
-      });
-    } catch {
-      toast.error(t({ fr: 'Pas de réseau : tapez le montant.', ht: 'Pa gen rezo : tape montan an.' }));
-    } finally {
-      setState('idle');
-    }
-  }
-
   async function start() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunks.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.current.push(e.data); };
-      rec.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        const blob = new Blob(chunks.current, { type: rec.mimeType || 'audio/webm' });
-        if (blob.size > 0) void send(blob);
-        else setState('idle');
-      };
-      recorder.current = rec;
-      rec.start();
-      setState('listening');
-      timer.current = setTimeout(stop, MAX_SECONDS * 1000);
-    } catch {
+    const ok = await recorder.start();
+    if (!ok) {
       toast.error(t({
         fr: 'Le micro est bloqué. Autorisez-le dans le navigateur, ou tapez le montant.',
         ht: 'Mikwo a bloke. Pèmèt li nan navigatè a, oswa tape montan an.',
       }));
-      setState('idle');
     }
   }
 
-  function stop() {
-    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    if (recorder.current?.state === 'recording') recorder.current.stop();
-  }
-
-  const listening = state === 'listening';
+  const listening = recorder.state === 'recording';
   const label = listening
     ? t({ fr: 'Terminer', ht: 'Fini' })
-    : state === 'thinking'
+    : thinking
       ? t({ fr: 'Je lis…', ht: 'M ap li…' })
       : t({ fr: 'Parler', ht: 'Pale' });
 
   return (
     <button
       type="button"
-      onClick={listening ? stop : start}
-      disabled={state === 'thinking'}
+      onClick={listening ? recorder.stop : start}
+      disabled={thinking || recorder.state === 'starting'}
       aria-pressed={listening}
       aria-label={listening
         ? t({ fr: 'Arrêter l’écoute', ht: 'Sispann koute' })
@@ -168,7 +132,7 @@ export function VoiceButton({
         'pressable flex min-h-hero min-w-hero flex-col items-center justify-center gap-1 rounded-surface px-3 text-note font-bold',
         'transition-colors duration-press',
         listening ? 'bg-danger text-white' : 'bg-surface2 text-primary hover:bg-border dark:bg-dark-surface2 dark:text-dark-text',
-        state === 'thinking' && 'opacity-60',
+        thinking && 'opacity-60',
         className,
       )}
     >

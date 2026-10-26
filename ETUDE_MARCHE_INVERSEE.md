@@ -57,7 +57,7 @@ sans prix inventé, fond de caisse, photo du cahier, heure du bilan + WhatsApp).
 | # | État | Où |
 |---|---|---|
 | F01 Saisie rapide | ✓ | `components/sales/QuickSaleForm.tsx` |
-| F02 Voix kreyòl | ✓ (clé OpenAI requise) | `app/api/voice`, `lib/voiceParse.ts`, `lib/ai/claude.ts` |
+| F02 Voix kreyòl | ✓ (clé OpenAI requise) | `app/api/voice`, `lib/voice/`, `components/voice/`, `lib/ai/claude.ts` |
 | F03 Dépense + photo de reçu | ✓ | `components/expenses/QuickExpenseForm.tsx` (bucket `business-documents`) |
 | F04 Salè mèt la | ✓ | catégorie « Kay » (scope `personal`), salaire hebdo dans `/caisse`, alerte dans le conseil du soir |
 | F05 Cahier de crédit | existant | `/creances` |
